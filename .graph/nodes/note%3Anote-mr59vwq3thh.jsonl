@@ -13,3 +13,9 @@
 {"evt":"edge_added","from":"note:note-mr59vwq3thh","to":"note:note-mr59vnw5frl","kind":"blocking","actor":"overlay-sync","ts":"2026-07-03T18:56:29.284Z","by":"judge","judged":true,"score":0.739,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr59vwq3thh","to":"note:note-mr59vnw5frl","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:56:29.284Z"}
 {"evt":"edge_promoted","from":"note:note-mr59vwq3thh","to":"knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:11:21.135Z","weight":0.816,"by":"judge","judged":true,"score":0.816,"origin":"autowire-semantic"}
+{"evt":"note_superseded","id":"note-mr59vwq3thh","supersededBy":"note-mr5c2remh4y","validTo":"2026-07-03T19:35:48.286Z","ts":"2026-07-03T19:35:48.286Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mr59vwq3thh","to":"codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:45:25.752Z"}
+{"evt":"edge_removed","from":"note:note-mr59vwq3thh","to":"knowledge:source_chunk:note-mr59p4ht2vq#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:45:25.752Z"}
+{"evt":"edge_removed","from":"note:note-mr59vwq3thh","to":"knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:45:25.752Z"}
+{"evt":"edge_removed","from":"note:note-mr59vwq3thh","to":"knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:45:25.752Z"}
+{"evt":"edge_removed","from":"note:note-mr59vwq3thh","to":"knowledge:source_section:note-mr59p4ht2vq#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:45:25.752Z"}

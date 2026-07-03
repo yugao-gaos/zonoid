@@ -5,3 +5,10 @@
 {"evt":"edge_added","from":"note:note-mr5c37uw1tw","to":"knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:38:01.573Z","weight":0,"by":"autowire","judged":false,"score":0.705,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr5c37uw1tw","to":"knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:38:01.573Z","weight":0,"by":"autowire","judged":false,"score":0.705,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr5c37uw1tw","to":"knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:38:01.573Z","weight":0,"by":"autowire","judged":false,"score":0.705,"origin":"autowire-semantic"}
+{"evt":"note_superseded","id":"note-mr5c37uw1tw","supersededBy":"note-mr5c2remh4y","validTo":"2026-07-03T19:35:48.286Z","ts":"2026-07-03T19:35:48.286Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mr5c37uw1tw","to":"codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:45:25.752Z"}
+{"evt":"edge_removed","from":"note:note-mr5c37uw1tw","to":"note:note-mr5c2remh4y","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:45:25.752Z"}
+{"evt":"edge_removed","from":"note:note-mr5c37uw1tw","to":"knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:45:25.752Z"}
+{"evt":"edge_removed","from":"note:note-mr5c37uw1tw","to":"knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:45:25.752Z"}
+{"evt":"edge_removed","from":"note:note-mr5c37uw1tw","to":"knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:45:25.752Z"}
+{"evt":"edge_removed","from":"note:note-mr5c37uw1tw","to":"knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:45:25.752Z"}
