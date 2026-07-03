@@ -242009,6 +242009,44 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen": {
+      "id": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "daemon chunker indentation native orient note get run thirteen",
+        "description": "Final link in the warm-start chain (user-directed proper fix): (1) DAEMON — lib/note-source-cluster.js chunkText trims every chunk (lines ~57,61), destroying leading indentation of chunk-boundary lines, so reassembled code does not compile (see note:note-mr5bebfkw0t SPEC IS INCOMPLETE and /note/get verification: 3659 bytes reassembled, IndentationError). Minimal safe fix: for code-like/source content, split on line boundaries preserving ALL intra-chunk whitespace (only strip a trailing newline duplicate at joins); non-code chunking behavior unchanged. Unit test: byte-exact round-trip of an indented python program through buildSourceClusterForNote + note-full-body reassembly, compile check. (2) DEPLOY with the proven protocol (surgical patch of installed copy at /Users/imyu/.claude/orchestrator with .bak backups — installed base was byte-identical last time; launchctl kickstart -k com.zonoid.daemon; verify /state, /task/detail, drains). (3) HARNESS — kb_protocol gains get_note_full(key) calling /note/get (full=1); agent._orient prefers the native path (index-note key -> get_note_full -> extract fenced source), falling back to the flagged chunk scheme then plain search; test with mock daemon serving /note/get. (4) RE-SEED the ceiling 12/13 program via write_program_revision against the live daemon; verify /note/get returns source that COMPILES byte-identical to the input. (5) LIVE RUN 13: standard command (qwen-coding, vision, --graph on, 80 actions/1500s); expect orient_adopted true within first turns and planner EXECUTE; write out/ewm-ls20-ewm-warmstart2.json + append arm; report levels/actions/scorecard truthfully. Full ewm suite + --smoke + daemon tests green; commit both repo changes (daemon fix on this attempt branch targeting the zonoid repo; harness changes need a worktree off the FEATURE branch — see envelope note for the dual-repo handling).",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-03T19:18:08.047Z"
+      },
+      "assignee": "worker-daemon-chunker",
+      "timestamps": {
+        "firstSeen": "2026-07-03T19:18:08.047Z",
+        "lastChanged": "2026-07-03T19:23:04.663Z",
+        "lastStatus": "canceled"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -274941,33 +274979,33 @@
       "from": "note:note-mr3w7imnpak",
       "to": "codex/ewm-repl-sandbox-budget-guards-segmentation",
       "kind": "context",
-      "origin": "subconscious-assignment",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mr42ami4z24",
       "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
       "kind": "context",
-      "origin": "subconscious-assignment",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mr42ami4z24",
       "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
       "kind": "context",
-      "origin": "subconscious-assignment",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mr42ami4z24",
       "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
       "kind": "context",
-      "origin": "subconscious-assignment",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mr43cv6pydy",
@@ -274991,17 +275029,18 @@
       "from": "note:note-mr43rk1dmy0",
       "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
       "kind": "context",
-      "origin": "subconscious-assignment",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mr43rk1dmy0",
       "to": "codex/ewm-agent-loop-land-completed-attempt-branch",
       "kind": "context",
+      "by": "judge",
+      "judged": true,
       "origin": "subconscious-assignment",
-      "by": "autowire",
-      "judged": false
+      "weight": 0.5
     },
     {
       "from": "note:note-mr43rk1dmy0",
@@ -275111,9 +275150,9 @@
       "from": "note:note-mr46y3pjbt8",
       "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
       "kind": "context",
-      "origin": "subconscious-assignment",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mr48a5ra7bz",
@@ -275360,9 +275399,9 @@
       "from": "note:note-mr42ami4z24",
       "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
       "kind": "context",
-      "origin": "subconscious-assignment",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mr45ykxy4rf",
@@ -275387,10 +275426,10 @@
       "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
       "kind": "context",
       "weight": 0.533,
-      "judged": true,
-      "origin": "autowire-semantic",
       "by": "judge",
-      "score": 0.533
+      "judged": true,
+      "score": 0.533,
+      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mr49q8juxow",
@@ -275439,24 +275478,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
-      "to": "note:note-mqqqrlczyc2",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-claude-md-7-2-effect-2-auto-merge-on-judge-approve-whe-85c554656b",
-      "to": "codex/onboard-code-cli-sync-judge",
-      "kind": "context",
-      "weight": 0.531,
-      "by": "judge",
-      "judged": true,
-      "score": 0.531,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "knowledge:source_chunk:chunk-readme-md-4-0-after-each-session-zonoid-mines-the-comp-7eb25e4957",
       "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
       "kind": "context",
@@ -275473,6 +275494,1445 @@
       "by": "judge",
       "judged": true,
       "score": 0.335,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-4",
+      "to": "codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt",
+      "kind": "context",
+      "weight": 0.449,
+      "by": "judge",
+      "judged": true,
+      "score": 0.449,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1",
+      "to": "note:note-mr57kpil9xk",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-2",
+      "to": "note:note-mr57kpil9xk",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3",
+      "to": "note:note-mr57kpil9xk",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4",
+      "to": "note:note-mr57kpil9xk",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
+      "to": "note:note-mr59w27c05s",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
+      "to": "note:note-mr59w27c05s",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr59p4ht2vq#note-evidence:chunk-1",
+      "to": "note:note-mr59w27c05s",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_doc:note-mr57kpil9xk",
+      "to": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_doc:note-mr59nv4u31i",
+      "to": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_doc:note-mr59oitveey",
+      "to": "knowledge:source_section:note-mr59oitveey#note-evidence",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_doc:note-mr59p4ht2vq",
+      "to": "knowledge:source_section:note-mr59p4ht2vq#note-evidence",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
+      "to": "note:note-mr57kpil9xk",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
+      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr59oitveey#note-evidence",
+      "to": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr59p4ht2vq#note-evidence",
+      "to": "knowledge:source_chunk:note-mr59p4ht2vq#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "note:note-mq7gpd48",
+      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.435,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq9gifkl7hh",
+      "to": "note:note-mq9kdid34r8",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqflngdgy51",
+      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.453,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqfnyddvxdj",
+      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.48,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgyg8r1wkb",
+      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.435,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqiu7gpqxp8",
+      "to": "knowledge:source_section:section-contributing-md-8-contributor-license-agreement-7f604c8a34",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqiuf091u3n",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.463,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqj6vo24dzn",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/9",
+      "kind": "context",
+      "weight": 0.434,
+      "by": "judge",
+      "judged": true,
+      "score": 0.434,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqpna41fj59",
+      "to": "knowledge:source_chunk:note-mqpwriu892d#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqpna41fj59",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.447,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqsiyvoyset",
+      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.427,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr42ami4z24",
+      "to": "codex/ewm-synth-prompt-unknown-partial-fidelity-block-selection",
+      "kind": "context",
+      "by": "autowire",
+      "judged": false,
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "note:note-mr42ami4z24",
+      "to": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
+      "kind": "context",
+      "by": "autowire",
+      "judged": false,
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "note:note-mr42ami4z24",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "context",
+      "by": "autowire",
+      "judged": false,
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "note:note-mr43cv6pydy",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/11",
+      "kind": "context",
+      "weight": 0.408,
+      "by": "judge",
+      "judged": true,
+      "score": 0.408,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr43cv6pydy",
+      "to": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
+      "kind": "context",
+      "weight": 0.583,
+      "by": "judge",
+      "judged": true,
+      "score": 0.583,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr43cv6pydy",
+      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "kind": "context",
+      "weight": 0.604,
+      "by": "judge",
+      "judged": true,
+      "score": 0.604,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr43rk1dmy0",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/8",
+      "kind": "context",
+      "weight": 0.305,
+      "by": "judge",
+      "judged": true,
+      "score": 0.305,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr43rk1dmy0",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.432,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr45ykxy4rf",
+      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.491,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr45ykxy4rf",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.444,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr46y3pjbt8",
+      "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.6,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr48a5ra7bz",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.437,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr49q8juxow",
+      "to": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr49q8juxow",
+      "to": "note:note-mr45u2lycou",
+      "kind": "context",
+      "weight": 0.648,
+      "by": "judge",
+      "judged": true,
+      "score": 0.648,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr4dujpkkos",
+      "to": "note:note-mqvr2wl8lre",
+      "kind": "context",
+      "weight": 0.617,
+      "by": "judge",
+      "judged": true,
+      "score": 0.617,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr4dujpkkos",
+      "to": "codex/ewm-auto-changing-cells-hint-from-suite-in-synthesis-prompt",
+      "kind": "context",
+      "weight": 0.472,
+      "by": "judge",
+      "judged": true,
+      "score": 0.472,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr4vdh2w510",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/9",
+      "kind": "context",
+      "weight": 0.616,
+      "by": "judge",
+      "judged": true,
+      "score": 0.616,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr4vdh2w510",
+      "to": "codex/ewm-segment-helper-injection-world-model-sandbox",
+      "kind": "context",
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true,
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "note:note-mr4vdh2w510",
+      "to": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
+      "kind": "context",
+      "weight": 0.623,
+      "by": "judge",
+      "judged": true,
+      "score": 0.623,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr4vdh2w510",
+      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "kind": "context",
+      "weight": 0.458,
+      "by": "judge",
+      "judged": true,
+      "score": 0.458,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr4vdh2w510",
+      "to": "codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints",
+      "kind": "context",
+      "by": "autowire",
+      "judged": false,
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "note:note-mr4vdh2w510",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.505,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr4vpnpn6g2",
+      "to": "codex/ewm-segment-helper-injection-world-model-sandbox",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr4vv1eomm8",
+      "to": "codex/ewm-object-delta-module-relative-coordinate-transitions",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr51e6x60dd",
+      "to": "codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr534gig0ek",
+      "to": "codex/ewm-changed-cells-floor-repair-on-partial-adoption",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr534gig0ek",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.413,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr57kpil9xk",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr57kpil9xk",
+      "to": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
+      "kind": "context",
+      "weight": 0.718,
+      "by": "judge",
+      "judged": true,
+      "score": 0.718,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr57kpil9xk",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.718,
+      "by": "judge",
+      "judged": true,
+      "score": 0.718,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr57kpil9xk",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3",
+      "kind": "context",
+      "weight": 0.501,
+      "by": "judge",
+      "judged": true,
+      "score": 0.501,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr57kpil9xk",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4",
+      "kind": "context",
+      "weight": 0.496,
+      "by": "judge",
+      "judged": true,
+      "score": 0.496,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr57kpil9xk",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.479,
+      "by": "judge",
+      "judged": true,
+      "score": 0.479,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr57q7mvytm",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr57q7mvytm",
+      "to": "note:note-mqpz36sv7ns",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.635,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr57q7mvytm",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.546,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59as8s26f",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr59nvbsjaf",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr59nvbsjaf",
+      "to": "note:note-mr59as8s26f",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.416,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59nvbsjaf",
+      "to": "note:note-mr4307zl9gd",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.337,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59v4n10xs",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr59v4n10xs",
+      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.902,
+      "by": "judge",
+      "judged": true,
+      "score": 0.902,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59v4n10xs",
+      "to": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.902,
+      "by": "judge",
+      "judged": true,
+      "score": 0.902,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59v4n10xs",
+      "to": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
+      "kind": "context",
+      "weight": 0.902,
+      "by": "judge",
+      "judged": true,
+      "score": 0.902,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59v4n10xs",
+      "to": "knowledge:source_section:note-mr59oitveey#note-evidence",
+      "kind": "context",
+      "weight": 0.902,
+      "by": "judge",
+      "judged": true,
+      "score": 0.902,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59v4n10xs",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.85,
+      "by": "judge",
+      "judged": true,
+      "score": 0.85,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59vi2zayu",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr59vi2zayu",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.811,
+      "by": "judge",
+      "judged": true,
+      "score": 0.811,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59vi2zayu",
+      "to": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.753,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59vi2zayu",
+      "to": "note:note-mr59vnw5frl",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.764,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59vnw5frl",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr59vnw5frl",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3",
+      "kind": "context",
+      "weight": 0.852,
+      "by": "judge",
+      "judged": true,
+      "score": 0.852,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59vwq3thh",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr59vwq3thh",
+      "to": "knowledge:source_chunk:note-mr59p4ht2vq#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.817,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59vwq3thh",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4",
+      "kind": "context",
+      "weight": 0.816,
+      "by": "judge",
+      "judged": true,
+      "score": 0.816,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59vwq3thh",
+      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.711,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59vwq3thh",
+      "to": "note:note-mr59vnw5frl",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.739,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "note:note-mr59v4n10xs",
+      "kind": "context",
+      "weight": 0.758,
+      "by": "judge",
+      "judged": true,
+      "score": 0.758,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "note:note-mr59vnw5frl",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.75,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "note:note-mr59vi2zayu",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.743,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "note:note-mr59vwq3thh",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.739,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4",
+      "kind": "context",
+      "weight": 0.689,
+      "by": "judge",
+      "judged": true,
+      "score": 0.689,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.72,
+      "by": "judge",
+      "judged": true,
+      "score": 0.72,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "knowledge:source_doc:note-mr59nv4u31i",
+      "kind": "context",
+      "weight": 0.692,
+      "by": "judge",
+      "judged": true,
+      "score": 0.692,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
+      "kind": "context",
+      "weight": 0.692,
+      "by": "judge",
+      "judged": true,
+      "score": 0.692,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3",
+      "kind": "context",
+      "weight": 0.683,
+      "by": "judge",
+      "judged": true,
+      "score": 0.683,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.72,
+      "by": "judge",
+      "judged": true,
+      "score": 0.72,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "knowledge:source_doc:note-mr59oitveey",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.692,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "knowledge:source_section:note-mr59oitveey#note-evidence",
+      "kind": "context",
+      "weight": 0.774,
+      "by": "judge",
+      "judged": true,
+      "score": 0.774,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "knowledge:source_chunk:note-mr59p4ht2vq#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.583,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5agie2r7x",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5agie2r7x",
+      "to": "note:note-mqvr2wl8lre",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.497,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5agie2r7x",
+      "to": "note:note-mr59as8s26f",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.476,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5agie2r7x",
+      "to": "note:note-mr3vdyn5zxa",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.463,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5agie2r7x",
+      "to": "note:note-mr59nvbsjaf",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.445,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5b375dvnh",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5b375dvnh",
+      "to": "note:note-mr57q7mvytm",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.768,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5b375dvnh",
+      "to": "note:note-mqq2xj787yq",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.656,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5b375dvnh",
+      "to": "note:note-mqppi1wigd1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.644,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5bebfkw0t",
+      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/10",
+      "to": "knowledge:source_section:section-claude-md-6-kb-note-authoring-6405cb40a9",
+      "kind": "context",
+      "weight": 0.366,
+      "by": "judge",
+      "judged": true,
+      "score": 0.366,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/10",
+      "to": "codex/ewm-mechanism-hypothesis-schema-stripped-new-game-entry",
+      "kind": "supersede"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/11",
+      "to": "knowledge:source_section:section-agents-md-2-default-to-background-subagent-dispatch-0a6fe8e9a4",
+      "kind": "context",
+      "weight": 0.517,
+      "by": "judge",
+      "judged": true,
+      "score": 0.517,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/11",
+      "to": "knowledge:source_section:section-claude-md-2-default-to-background-subagent-dispatch-a780aeb808",
+      "kind": "context",
+      "weight": 0.517,
+      "by": "judge",
+      "judged": true,
+      "score": 0.517,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/11",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/5",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.463,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/11",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/9",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.484,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/11",
+      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "kind": "supersede"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/7",
+      "to": "codex/ewm-object-delta-module-relative-coordinate-transitions",
+      "kind": "supersede"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/8",
+      "to": "knowledge:source_section:section-adapters-codex-readme-md-2-hook-map-8fefc49aae",
+      "kind": "context",
+      "weight": 0.361,
+      "by": "judge",
+      "judged": true,
+      "score": 0.361,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/8",
+      "to": "codex/ewm-repl-sandbox-budget-guards-segmentation",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.378,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/8",
+      "to": "codex/ewm-segment-helper-injection-world-model-sandbox",
+      "kind": "supersede"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/9",
+      "to": "codex/review-graph-overlay-dispatch-loops",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.441,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "to": "knowledge:source_doc:note-mqqpqf49a5m",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.398,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "to": "knowledge:source_doc:note-mqqvw755vf0",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.39,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "to": "knowledge:source_doc:note-mqqpp70ivco",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.386,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "to": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay",
+      "to": "codex/ewm-changed-cells-floor-repair-on-partial-adoption",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-changed-cells-floor-repair-on-partial-adoption",
+      "to": "codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.388,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-changed-cells-floor-repair-on-partial-adoption",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "to": "codex/long-note-cluster-ingest-hardening",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.432,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "to": "knowledge:source_section:section-claude-md-6-kb-note-authoring-6405cb40a9",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.432,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "to": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/9",
+      "kind": "context",
+      "weight": 0.664,
+      "by": "judge",
+      "judged": true,
+      "score": 0.664,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
+      "to": "knowledge:source_section:section-readme-md-1-install-455039f6ad",
+      "kind": "context",
+      "weight": 0.481,
+      "by": "judge",
+      "judged": true,
+      "score": 0.481,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
+      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-mechanism-hypothesis-schema-stripped-new-game-entry",
+      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "to": "codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt",
+      "kind": "context",
+      "weight": 0.627,
+      "by": "judge",
+      "judged": true,
+      "score": 0.627,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "to": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
+      "kind": "context",
+      "weight": 0.619,
+      "by": "judge",
+      "judged": true,
+      "score": 0.619,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.598,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "to": "codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-object-delta-module-relative-coordinate-transitions",
+      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-partial-adoption-best-candidate-unknown-masking",
+      "to": "codex/ewm-changed-cells-floor-repair-on-partial-adoption",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-segment-helper-injection-world-model-sandbox",
+      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints",
+      "to": "codex/headless-drain-context-compression",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.445,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints",
+      "to": "codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints",
+      "to": "codex/ewm-partial-adoption-best-candidate-unknown-masking",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-synth-prompt-unknown-partial-fidelity-block-selection",
+      "to": "codex/ewm-unknown-alias-stdlib-prompt-synthesis-pacing",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "to": "codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt",
+      "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
+      "kind": "context",
+      "weight": 0.469,
+      "by": "judge",
+      "judged": true,
+      "score": 0.469,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt",
+      "to": "codex/ewm-synth-prompt-unknown-partial-fidelity-block-selection",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-unknown-alias-stdlib-prompt-synthesis-pacing",
+      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.533,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-unknown-alias-stdlib-prompt-synthesis-pacing",
+      "to": "codex/ewm-auto-changing-cells-hint-from-suite-in-synthesis-prompt",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
+      "kind": "context",
+      "weight": 0.53,
+      "by": "judge",
+      "judged": true,
+      "score": 0.53,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.466,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-adapters-codex-readme-md-1-2-copy-hook-wiring-to-codex-c2fcc98744",
+      "to": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.421,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
+      "to": "note:note-mqqqrlczyc2",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-claude-md-6-0-override-signal-when-a-note-contradicts--7a2cdbb38f",
+      "to": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.42,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-claude-md-7-2-effect-2-auto-merge-on-judge-approve-whe-85c554656b",
+      "to": "codex/onboard-code-cli-sync-judge",
+      "kind": "context",
+      "weight": 0.531,
+      "by": "judge",
+      "judged": true,
+      "score": 0.531,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-readme-md-1-0-adds-a-task-graph-daemon-at-localhost-87-7b64574efd",
+      "to": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.422,
       "origin": "autowire-semantic"
     },
     {
@@ -275503,16 +276963,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.519,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-4",
-      "to": "codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt",
-      "kind": "context",
-      "weight": 0.449,
-      "by": "judge",
-      "judged": true,
-      "score": 0.449,
       "origin": "autowire-semantic"
     },
     {
@@ -275558,62 +277008,6 @@
       "origin": "note-source-cluster"
     },
     {
-      "from": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1",
-      "to": "note:note-mr57kpil9xk",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-2",
-      "to": "note:note-mr57kpil9xk",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3",
-      "to": "note:note-mr57kpil9xk",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4",
-      "to": "note:note-mr57kpil9xk",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
-      "to": "note:note-mr59w27c05s",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "note-source-cluster"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
-      "to": "note:note-mr59w27c05s",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "note-source-cluster"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mr59p4ht2vq#note-evidence:chunk-1",
-      "to": "note:note-mr59w27c05s",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "note-source-cluster"
-    },
-    {
       "from": "knowledge:source_doc:note-mqqnit1ph68",
       "to": "note:note-mqqnit1ph68",
       "kind": "context",
@@ -275628,38 +277022,6 @@
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
-    },
-    {
-      "from": "knowledge:source_doc:note-mr57kpil9xk",
-      "to": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_doc:note-mr59nv4u31i",
-      "to": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_doc:note-mr59oitveey",
-      "to": "knowledge:source_section:note-mr59oitveey#note-evidence",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_doc:note-mr59p4ht2vq",
-      "to": "knowledge:source_section:note-mr59p4ht2vq#note-evidence",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
     },
     {
       "from": "knowledge:source_section:note-mqsi4rz0p98#note-evidence",
@@ -275692,70 +277054,6 @@
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
-    },
-    {
-      "from": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
-      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
-      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
-      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
-      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
-      "to": "note:note-mr57kpil9xk",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
-      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr59oitveey#note-evidence",
-      "to": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr59p4ht2vq#note-evidence",
-      "to": "knowledge:source_chunk:note-mr59p4ht2vq#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
     },
     {
       "from": "knowledge:source_section:section-claude-md-1-orchestrator-dashboard-e5ce5288fe",
@@ -276031,16 +277329,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mq7gpd48",
-      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.435,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mq7h7ht01ut",
       "to": "091a4bf1-b671-4ff9-854d-993775faa5ee/23",
       "kind": "context",
@@ -276174,14 +277462,6 @@
       "judged": true,
       "score": 0.565,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mq9gifkl7hh",
-      "to": "note:note-mq9kdid34r8",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
     },
     {
       "from": "note:note-mq9jsfd7eyy",
@@ -276745,16 +278025,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqflngdgy51",
-      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.453,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqfnyddvxdj",
       "to": "note:note-mqe5sbyj4uq",
       "kind": "context",
@@ -276772,16 +278042,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.683,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqfnyddvxdj",
-      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.48,
       "origin": "autowire-semantic"
     },
     {
@@ -277021,16 +278281,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.652,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgyg8r1wkb",
-      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.435,
       "origin": "autowire-semantic"
     },
     {
@@ -278094,14 +279344,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqiu7gpqxp8",
-      "to": "knowledge:source_section:section-contributing-md-8-contributor-license-agreement-7f604c8a34",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
-    },
-    {
       "from": "note:note-mqiu7w6hus0",
       "to": "codex/product-pipeline-verification-review",
       "kind": "context",
@@ -278335,16 +279577,6 @@
       "origin": "subconscious-agentic-search"
     },
     {
-      "from": "note:note-mqiuf091u3n",
-      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.463,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqivir09qko",
       "to": "note:note-mqivjg3b5yl",
       "kind": "context",
@@ -278376,16 +279608,6 @@
       "judged": true,
       "weight": 0.659,
       "score": 0.659,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqj6vo24dzn",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/9",
-      "kind": "context",
-      "weight": 0.434,
-      "by": "judge",
-      "judged": true,
-      "score": 0.434,
       "origin": "autowire-semantic"
     },
     {
@@ -278859,6 +280081,16 @@
       "by": "judge",
       "judged": true,
       "score": 0.589,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp4x7snq38",
+      "to": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.412,
       "origin": "autowire-semantic"
     },
     {
@@ -280460,24 +281692,6 @@
       "judged": true
     },
     {
-      "from": "note:note-mqpna41fj59",
-      "to": "knowledge:source_chunk:note-mqpwriu892d#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
-    },
-    {
-      "from": "note:note-mqpna41fj59",
-      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.447,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqppi1wigd1",
       "to": "codex/search-economy-retrieval-phase1",
       "kind": "context",
@@ -281450,16 +282664,6 @@
       "judged": true
     },
     {
-      "from": "note:note-mqsiyvoyset",
-      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.427,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqsktjtz8ch",
       "to": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
       "kind": "context",
@@ -281511,543 +282715,6 @@
       "origin": "subconscious-agentic-search"
     },
     {
-      "from": "note:note-mr42ami4z24",
-      "to": "codex/ewm-synth-prompt-unknown-partial-fidelity-block-selection",
-      "kind": "context",
-      "origin": "subconscious-assignment",
-      "by": "autowire",
-      "judged": false
-    },
-    {
-      "from": "note:note-mr42ami4z24",
-      "to": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
-      "kind": "context",
-      "origin": "subconscious-assignment",
-      "by": "autowire",
-      "judged": false
-    },
-    {
-      "from": "note:note-mr42ami4z24",
-      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
-      "kind": "context",
-      "origin": "subconscious-assignment",
-      "by": "autowire",
-      "judged": false
-    },
-    {
-      "from": "note:note-mr43cv6pydy",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/11",
-      "kind": "context",
-      "weight": 0.408,
-      "by": "judge",
-      "judged": true,
-      "score": 0.408,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr43cv6pydy",
-      "to": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
-      "kind": "context",
-      "weight": 0.583,
-      "by": "judge",
-      "judged": true,
-      "score": 0.583,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr43cv6pydy",
-      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
-      "kind": "context",
-      "weight": 0.604,
-      "by": "judge",
-      "judged": true,
-      "score": 0.604,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr43rk1dmy0",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/8",
-      "kind": "context",
-      "weight": 0.305,
-      "by": "judge",
-      "judged": true,
-      "score": 0.305,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr43rk1dmy0",
-      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.432,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr45ykxy4rf",
-      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.491,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr45ykxy4rf",
-      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.444,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr46y3pjbt8",
-      "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.6,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr48a5ra7bz",
-      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.437,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr49q8juxow",
-      "to": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr49q8juxow",
-      "to": "note:note-mr45u2lycou",
-      "kind": "context",
-      "weight": 0.648,
-      "by": "judge",
-      "judged": true,
-      "score": 0.648,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr4dujpkkos",
-      "to": "note:note-mqvr2wl8lre",
-      "kind": "context",
-      "weight": 0.617,
-      "by": "judge",
-      "judged": true,
-      "score": 0.617,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr4dujpkkos",
-      "to": "codex/ewm-auto-changing-cells-hint-from-suite-in-synthesis-prompt",
-      "kind": "context",
-      "origin": "autowire-semantic",
-      "weight": 0.472,
-      "by": "judge",
-      "judged": true,
-      "score": 0.472
-    },
-    {
-      "from": "note:note-mr4vdh2w510",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/9",
-      "kind": "context",
-      "weight": 0.616,
-      "by": "judge",
-      "judged": true,
-      "score": 0.616,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr4vdh2w510",
-      "to": "codex/ewm-segment-helper-injection-world-model-sandbox",
-      "kind": "context",
-      "origin": "subconscious-assignment",
-      "by": "judge",
-      "judged": true,
-      "weight": 0.5
-    },
-    {
-      "from": "note:note-mr4vdh2w510",
-      "to": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
-      "kind": "context",
-      "origin": "autowire-semantic",
-      "weight": 0.623,
-      "by": "judge",
-      "judged": true,
-      "score": 0.623
-    },
-    {
-      "from": "note:note-mr4vdh2w510",
-      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
-      "kind": "context",
-      "origin": "autowire-semantic",
-      "weight": 0.458,
-      "by": "judge",
-      "judged": true,
-      "score": 0.458
-    },
-    {
-      "from": "note:note-mr4vdh2w510",
-      "to": "codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints",
-      "kind": "context",
-      "origin": "subconscious-assignment",
-      "by": "autowire",
-      "judged": false
-    },
-    {
-      "from": "note:note-mr4vdh2w510",
-      "to": "codex/ewm-partial-adoption-best-candidate-unknown-masking",
-      "kind": "context",
-      "origin": "subconscious-assignment",
-      "by": "autowire",
-      "judged": false
-    },
-    {
-      "from": "note:note-mr4vdh2w510",
-      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.505,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr4vpnpn6g2",
-      "to": "codex/ewm-segment-helper-injection-world-model-sandbox",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr4vv1eomm8",
-      "to": "codex/ewm-object-delta-module-relative-coordinate-transitions",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr51e6x60dd",
-      "to": "codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr534gig0ek",
-      "to": "codex/ewm-changed-cells-floor-repair-on-partial-adoption",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr534gig0ek",
-      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.413,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr57kpil9xk",
-      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr57kpil9xk",
-      "to": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
-      "kind": "context",
-      "weight": 0.718,
-      "by": "judge",
-      "judged": true,
-      "score": 0.718,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr57kpil9xk",
-      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.718,
-      "by": "judge",
-      "judged": true,
-      "score": 0.718,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr57kpil9xk",
-      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3",
-      "kind": "context",
-      "weight": 0.501,
-      "by": "judge",
-      "judged": true,
-      "score": 0.501,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr57kpil9xk",
-      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4",
-      "kind": "context",
-      "weight": 0.496,
-      "by": "judge",
-      "judged": true,
-      "score": 0.496,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr57kpil9xk",
-      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 0.479,
-      "by": "judge",
-      "judged": true,
-      "score": 0.479,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr57q7mvytm",
-      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr57q7mvytm",
-      "to": "note:note-mqpz36sv7ns",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.635,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr57q7mvytm",
-      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.546,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59as8s26f",
-      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr59nvbsjaf",
-      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr59nvbsjaf",
-      "to": "codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.451,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59nvbsjaf",
-      "to": "note:note-mr59as8s26f",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.416,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59nvbsjaf",
-      "to": "note:note-mr4307zl9gd",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.337,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59v4n10xs",
-      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr59v4n10xs",
-      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.902,
-      "by": "judge",
-      "judged": true,
-      "score": 0.902,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59v4n10xs",
-      "to": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.902,
-      "by": "judge",
-      "judged": true,
-      "score": 0.902,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59v4n10xs",
-      "to": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
-      "kind": "context",
-      "weight": 0.902,
-      "by": "judge",
-      "judged": true,
-      "score": 0.902,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59v4n10xs",
-      "to": "knowledge:source_section:note-mr59oitveey#note-evidence",
-      "kind": "context",
-      "weight": 0.902,
-      "by": "judge",
-      "judged": true,
-      "score": 0.902,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59v4n10xs",
-      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.85,
-      "by": "judge",
-      "judged": true,
-      "score": 0.85,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59vi2zayu",
-      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr59vi2zayu",
-      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 0.811,
-      "by": "judge",
-      "judged": true,
-      "score": 0.811,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59vi2zayu",
-      "to": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.753,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59vi2zayu",
-      "to": "note:note-mr59vnw5frl",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.764,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59vnw5frl",
-      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr59vnw5frl",
-      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3",
-      "kind": "context",
-      "weight": 0.852,
-      "by": "judge",
-      "judged": true,
-      "score": 0.852,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59vwq3thh",
-      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr59vwq3thh",
-      "to": "knowledge:source_chunk:note-mr59p4ht2vq#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.817,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59vwq3thh",
-      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4",
-      "kind": "context",
-      "weight": 0.816,
-      "by": "judge",
-      "judged": true,
-      "score": 0.816,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59vwq3thh",
-      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.711,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mr59vwq3thh",
       "to": "knowledge:source_section:note-mr59p4ht2vq#note-evidence",
       "kind": "context",
@@ -282058,350 +282725,23 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr59vwq3thh",
-      "to": "note:note-mr59vnw5frl",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.739,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59w27c05s",
-      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr59w27c05s",
-      "to": "note:note-mr59v4n10xs",
-      "kind": "context",
-      "weight": 0.758,
-      "by": "judge",
-      "judged": true,
-      "score": 0.758,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59w27c05s",
-      "to": "note:note-mr59vnw5frl",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.75,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59w27c05s",
-      "to": "note:note-mr59vi2zayu",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.743,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59w27c05s",
-      "to": "note:note-mr59vwq3thh",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.739,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59w27c05s",
-      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4",
-      "kind": "context",
-      "weight": 0.689,
-      "by": "judge",
-      "judged": true,
-      "score": 0.689,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59w27c05s",
-      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.72,
-      "by": "judge",
-      "judged": true,
-      "score": 0.72,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59w27c05s",
-      "to": "knowledge:source_doc:note-mr59nv4u31i",
-      "kind": "context",
-      "weight": 0.692,
-      "by": "judge",
-      "judged": true,
-      "score": 0.692,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59w27c05s",
-      "to": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
-      "kind": "context",
-      "weight": 0.692,
-      "by": "judge",
-      "judged": true,
-      "score": 0.692,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59w27c05s",
-      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3",
-      "kind": "context",
-      "weight": 0.683,
-      "by": "judge",
-      "judged": true,
-      "score": 0.683,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59w27c05s",
-      "to": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.72,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59w27c05s",
-      "to": "knowledge:source_doc:note-mr59oitveey",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.692,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59w27c05s",
-      "to": "knowledge:source_section:note-mr59oitveey#note-evidence",
-      "kind": "context",
-      "weight": 0.774,
-      "by": "judge",
-      "judged": true,
-      "score": 0.774,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr59w27c05s",
-      "to": "knowledge:source_chunk:note-mr59p4ht2vq#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.583,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5agie2r7x",
-      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5agie2r7x",
-      "to": "note:note-mqvr2wl8lre",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.497,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5agie2r7x",
-      "to": "note:note-mr59as8s26f",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.476,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5agie2r7x",
-      "to": "note:note-mr3vdyn5zxa",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.463,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5agie2r7x",
-      "to": "note:note-mr59nvbsjaf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.445,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mr5b375dvnh",
-      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5b375dvnh",
-      "to": "note:note-mr57q7mvytm",
+      "to": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.768,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5b375dvnh",
-      "to": "note:note-mqpywsqkwff",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.663,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5b375dvnh",
-      "to": "note:note-mqq2xj787yq",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.656,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5b375dvnh",
-      "to": "note:note-mqppi1wigd1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.644,
+      "score": 0.477,
       "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mr5bebfkw0t",
-      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "to": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
       "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/10",
-      "to": "knowledge:source_section:section-claude-md-6-kb-note-authoring-6405cb40a9",
-      "kind": "context",
-      "weight": 0.366,
-      "by": "judge",
-      "judged": true,
-      "score": 0.366,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/10",
-      "to": "codex/ewm-mechanism-hypothesis-schema-stripped-new-game-entry",
-      "kind": "supersede"
-    },
-    {
-      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/11",
-      "to": "knowledge:source_section:section-agents-md-2-default-to-background-subagent-dispatch-0a6fe8e9a4",
-      "kind": "context",
-      "weight": 0.517,
-      "by": "judge",
-      "judged": true,
-      "score": 0.517,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/11",
-      "to": "knowledge:source_section:section-claude-md-2-default-to-background-subagent-dispatch-a780aeb808",
-      "kind": "context",
-      "weight": 0.517,
-      "by": "judge",
-      "judged": true,
-      "score": 0.517,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/11",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/5",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.463,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/11",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/9",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.484,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/11",
-      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
-      "kind": "supersede"
-    },
-    {
-      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/7",
-      "to": "codex/ewm-object-delta-module-relative-coordinate-transitions",
-      "kind": "supersede"
-    },
-    {
-      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/8",
-      "to": "knowledge:source_section:section-adapters-codex-readme-md-2-hook-map-8fefc49aae",
-      "kind": "context",
-      "weight": 0.361,
-      "by": "judge",
-      "judged": true,
-      "score": 0.361,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/8",
-      "to": "codex/ewm-repl-sandbox-budget-guards-segmentation",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.378,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/8",
-      "to": "codex/ewm-segment-helper-injection-world-model-sandbox",
-      "kind": "supersede"
-    },
-    {
-      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/9",
-      "to": "codex/review-graph-overlay-dispatch-loops",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.441,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.655,
       "origin": "autowire-semantic"
     },
     {
@@ -282522,283 +282862,39 @@
       "judged": true
     },
     {
-      "from": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
-      "to": "codex/harden-long-note-cluster-ingest-daemon-startup",
+      "from": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.414,
+      "score": 0.35,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
-      "to": "knowledge:source_doc:note-mqqpqf49a5m",
+      "from": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
+      "to": "knowledge:source_section:section-agents-md-6-kb-note-authoring-5b2e2d6033",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.398,
+      "score": 0.337,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
-      "to": "knowledge:source_doc:note-mqqvw755vf0",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.39,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
-      "to": "knowledge:source_doc:note-mqqpp70ivco",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.386,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
-      "to": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay",
-      "to": "codex/ewm-changed-cells-floor-repair-on-partial-adoption",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay",
-      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-changed-cells-floor-repair-on-partial-adoption",
-      "to": "codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.388,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-changed-cells-floor-repair-on-partial-adoption",
-      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "to": "codex/long-note-cluster-ingest-hardening",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.432,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "from": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
       "to": "knowledge:source_section:section-claude-md-6-kb-note-authoring-6405cb40a9",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.432,
+      "score": 0.337,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "to": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/9",
-      "kind": "context",
-      "weight": 0.664,
-      "by": "judge",
-      "judged": true,
-      "score": 0.664,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
-      "to": "knowledge:source_section:section-readme-md-1-install-455039f6ad",
-      "kind": "context",
-      "weight": 0.481,
-      "by": "judge",
-      "judged": true,
-      "score": 0.481,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
-      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-mechanism-hypothesis-schema-stripped-new-game-entry",
-      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
-      "to": "codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt",
-      "kind": "context",
-      "weight": 0.627,
-      "by": "judge",
-      "judged": true,
-      "score": 0.627,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
-      "to": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
-      "kind": "context",
-      "weight": 0.619,
-      "by": "judge",
-      "judged": true,
-      "score": 0.619,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
-      "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.598,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
-      "to": "codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-object-delta-module-relative-coordinate-transitions",
-      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-partial-adoption-best-candidate-unknown-masking",
-      "to": "codex/ewm-changed-cells-floor-repair-on-partial-adoption",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-segment-helper-injection-world-model-sandbox",
-      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints",
-      "to": "codex/headless-drain-context-compression",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.445,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints",
-      "to": "codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints",
-      "to": "codex/ewm-partial-adoption-best-candidate-unknown-masking",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-synth-prompt-unknown-partial-fidelity-block-selection",
-      "to": "codex/ewm-unknown-alias-stdlib-prompt-synthesis-pacing",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-synthesis-artifact-persistence-run-debugging",
-      "to": "codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt",
-      "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
-      "kind": "context",
-      "weight": 0.469,
-      "by": "judge",
-      "judged": true,
-      "score": 0.469,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt",
-      "to": "codex/ewm-synth-prompt-unknown-partial-fidelity-block-selection",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-unknown-alias-stdlib-prompt-synthesis-pacing",
-      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.533,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-unknown-alias-stdlib-prompt-synthesis-pacing",
-      "to": "codex/ewm-auto-changing-cells-hint-from-suite-in-synthesis-prompt",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
-      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
-      "kind": "context",
-      "weight": 0.53,
-      "by": "judge",
-      "judged": true,
-      "score": 0.53,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
-      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.466,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "from": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
       "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
-      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
-      "kind": "context",
-      "origin": "subconscious-assignment"
+      "kind": "supersede"
     },
     {
       "from": "codex/fix-consolidate-universal-skills-kickback",
@@ -282965,5 +283061,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-07-03T19:18:30.449Z"
+  "compacted_at": "2026-07-03T19:32:11.156Z"
 }
