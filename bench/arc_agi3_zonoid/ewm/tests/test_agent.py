@@ -631,6 +631,36 @@ class FallbackFloorTests(unittest.TestCase):
         self.assertEqual(ag._select_mode(), "RECOVER")
 
 
+class SynthSessionCapTests(unittest.TestCase):
+    """Graph-native session pacing: once max_synth_sessions_per_game is hit, _synthesize_graph
+    refuses to launch another SynthSession and drops to reactive (modelability poor) — the run-8
+    fix for games that burned the whole wall budget on back-to-back sessions."""
+
+    def setUp(self):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def test_per_game_session_cap_flips_reactive(self):
+        ag = EwmAgent(
+            ToyEnv(_grid("2.3")),
+            FakeLlm([]),
+            config=AgentConfig(
+                game_id="toy", graph_synthesis=True, max_synth_sessions_per_game=2
+            ),
+        )
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))  # non-empty so synth isn't vacuous
+        frame = {"grid": _grid("2.3"), "valid_actions": ["RIGHT"]}
+        # At the cap, _synthesize_graph refuses without launching a session and drops the program.
+        ag._synth_sessions_this_game = 2
+        self.assertFalse(ag._synthesize_graph(frame))
+        self.assertTrue(ag._modelability_poor)
+        self.assertEqual(ag._select_mode(), "RECOVER")
+
+
 class ReactiveFallbackTests(unittest.TestCase):
     def tearDown(self):
         import importlib

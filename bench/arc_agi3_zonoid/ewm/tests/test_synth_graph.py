@@ -336,6 +336,114 @@ class RetryThenSkipTests(unittest.TestCase):
         self.assertEqual(edit_step["detail"]["attempts"], 3)  # 1 + 2 retries
 
 
+class SynthContextInEditTests(unittest.TestCase):
+    """The hardened synthesis contract (built by agent.build_synth_context) must reach every EDIT
+    prompt verbatim — the run-8 fix: without it, session candidates imported numpy and hardcoded
+    grids. The single-shot path already carried it; the graph path did not."""
+
+    def _script(self):
+        return [
+            _analyze_json(("movement", "shift")),
+            _plan_json(("write toy", "author", [0, 1])),
+            _fenced(TOY_GAME_SOURCE),
+        ]
+
+    def test_edit_prompt_carries_contract_and_stdlib_line(self):
+        from bench.arc_agi3_zonoid.ewm.agent import build_synth_context
+
+        ctx = build_synth_context(
+            [[2, 0], [0, 3]], "obj summary", "trans text", "auto hint", object_cap=20
+        )
+        graph = MockGraph()
+        llm = FakeLlm(self._script())
+        session = SynthSession(
+            "toy", _SUITE, llm, graph=graph, config=_fast_config(), sleep=lambda s: None,
+            synth_context=ctx,
+        )
+        session.run(deltas=["avatar moved"])
+        # The EDIT completion is the 3rd LLM call (ANALYZE, PLAN, EDIT).
+        edit_user = llm.received[2]["messages"][1]["content"]
+        self.assertIn("Only these stdlib modules may be imported:", edit_user)
+        self.assertIn("numpy/pandas are NOT available", edit_user)
+        self.assertIn("segment(grid)", edit_user)          # object teaching present
+        self.assertIn("--- SYNTHESIS DATA", edit_user)      # data block present
+        self.assertIn("render(state) MUST return a grid", edit_user)  # dimension contract
+
+    def test_no_synth_context_omits_contract(self):
+        """Backcompat: with no synth_context the EDIT prompt carries only the generic reminder."""
+
+        graph = MockGraph()
+        llm = FakeLlm(self._script())
+        session = SynthSession(
+            "toy", _SUITE, llm, graph=graph, config=_fast_config(), sleep=lambda s: None,
+        )
+        session.run(deltas=[])
+        edit_user = llm.received[2]["messages"][1]["content"]
+        self.assertNotIn("Only these stdlib modules", edit_user)
+
+
+class WallCapTests(unittest.TestCase):
+    """The per-session wall cap stops the state machine cleanly between LLM calls."""
+
+    def _clock_from(self, ticks):
+        """A fake monotonic clock that returns each value in ``ticks`` in turn, then the last."""
+
+        seq = list(ticks)
+
+        def clock():
+            return seq.pop(0) if len(seq) > 1 else seq[0]
+
+        return clock
+
+    def test_wall_cap_stops_edit_chain_early(self):
+        # PLAN proposes two changes; the clock jumps past the 240s cap after the first EDIT so the
+        # second change is skipped. t0=0 (run start), 0 (before PLAN check), 0 (first EDIT check),
+        # then 500 (second EDIT check -> exceeded).
+        graph = MockGraph()
+        llm = FakeLlm(
+            [
+                _analyze_json(("movement", "shift")),
+                _plan_json(
+                    ("first", "author toy", [0, 1]),
+                    ("second", "would-run-if-time", [0, 1]),
+                ),
+                _fenced(TOY_GAME_SOURCE),   # first EDIT accepted
+                _fenced(TOY_GAME_SOURCE),   # second EDIT — should never be requested (capped)
+            ]
+        )
+        session = SynthSession(
+            "toy", _SUITE, llm, graph=graph,
+            config=_fast_config(max_session_seconds=240.0),
+            sleep=lambda s: None,
+            clock=self._clock_from([0.0, 0.0, 0.0, 500.0]),
+        )
+        result = session.run(deltas=[])
+        self.assertTrue(result["wall_capped"])
+        # Only ANALYZE, PLAN, and ONE EDIT completion were issued (the 2nd change was capped out).
+        self.assertEqual(len(llm.received), 3)
+        edit_steps = [s for s in result["steps"] if s["name"] == "EDIT"]
+        self.assertEqual(len(edit_steps), 1)
+
+    def test_no_wall_cap_when_disabled(self):
+        graph = MockGraph()
+        llm = FakeLlm(
+            [
+                _analyze_json(("movement", "shift")),
+                _plan_json(("write toy", "author", [0, 1])),
+                _fenced(TOY_GAME_SOURCE),
+            ]
+        )
+        session = SynthSession(
+            "toy", _SUITE, llm, graph=graph,
+            config=_fast_config(max_session_seconds=0.0),  # 0 -> no cap
+            sleep=lambda s: None,
+            clock=self._clock_from([0.0, 1e9]),  # huge jump but cap is off
+        )
+        result = session.run(deltas=[])
+        self.assertFalse(result["wall_capped"])
+        self.assertTrue(result["report"]["ok"])
+
+
 class NoGraphParityTests(unittest.TestCase):
     """graph=None runs the identical state machine and yields the same result as MockGraph."""
 
@@ -488,6 +596,81 @@ class DaemonGraphTests(unittest.TestCase):
     def test_create_task_no_data_dir_degrades(self):
         graph = DaemonGraph("http://x", "/ws", agent_id="a", session_id="s", data_dir=None)
         self.assertEqual(graph.create_task("t", "d"), "")
+
+    def test_endpoint_paths_match_probed_daemon(self):
+        """Paths + query params match the LIVE daemon routes probed against localhost:8787:
+        GET /task/context?workspace=..&key=..; POST /overlay/status (claim/complete); POST
+        /overlay/note; POST /sync (file-drop adoption). The daemon reads `key` (NOT `task_key`) on
+        /task/context — a task_key-only request returns 'unknown task'."""
+
+        import bench.arc_agi3_zonoid.ewm.synth_graph as sg
+
+        orig = sg.request.urlopen
+        seen = []
+        try:
+            def cap(req, timeout=None):
+                seen.append({
+                    "url": req.full_url,
+                    "method": req.get_method(),
+                    "body": json.loads(req.data.decode("utf-8")) if req.data else None,
+                })
+                return _FakeResp({"dependencySummaries": []})
+
+            sg.request.urlopen = cap
+            graph = DaemonGraph(
+                "http://localhost:8787", "/Users/imyu/Desktop/zonoid",
+                agent_id="a1", session_id="s1", data_dir=None,
+            )
+            graph.task_context("k/1")
+            graph.claim("k/1")
+            graph.complete("k/1", "tested", "done")
+            graph.note("T", "S", ["k/1"])
+        finally:
+            sg.request.urlopen = orig
+
+        ctx = seen[0]
+        self.assertEqual(ctx["method"], "GET")
+        self.assertIn("/task/context?", ctx["url"])
+        self.assertIn("key=k%2F1", ctx["url"])                 # daemon param is `key`, url-encoded
+        self.assertIn("workspace=", ctx["url"])
+        self.assertNotIn("task_key=", ctx["url"])              # NOT task_key (README is stale)
+
+        claim = seen[1]
+        self.assertTrue(claim["url"].endswith("/overlay/status"))
+        self.assertEqual(claim["body"]["status"], "in_progress")
+        self.assertEqual(claim["body"]["key"], "k/1")
+
+        done = seen[2]
+        self.assertTrue(done["url"].endswith("/overlay/status"))
+        self.assertEqual(done["body"]["status"], "tested")
+
+        note = seen[3]
+        self.assertTrue(note["url"].endswith("/overlay/note"))
+        self.assertEqual(note["body"]["title"], "T")
+        self.assertIn("workspace", note["body"])              # daemon requires workspace on /overlay/note
+
+    def test_graph_ops_counters_track_live_vs_degraded(self):
+        """graph_ops_ok / graph_ops_failed let a run report whether graph mode was actually live."""
+
+        import bench.arc_agi3_zonoid.ewm.synth_graph as sg
+        from urllib import error as urlerr
+
+        orig = sg.request.urlopen
+        try:
+            sg.request.urlopen = lambda req, timeout=None: _FakeResp({"dependencySummaries": []})
+            graph = DaemonGraph("http://x", "/ws", agent_id="a", session_id="s")
+            graph.task_context("k/1")
+            graph.claim("k/1")
+            self.assertEqual((graph.graph_ops_ok, graph.graph_ops_failed), (2, 0))
+
+            def boom(req, timeout=None):
+                raise urlerr.URLError("refused")
+
+            sg.request.urlopen = boom
+            graph.task_context("k/1")   # degraded call -> failed++
+            self.assertEqual((graph.graph_ops_ok, graph.graph_ops_failed), (2, 1))
+        finally:
+            sg.request.urlopen = orig
 
 
 class DaemonOutageTests(unittest.TestCase):

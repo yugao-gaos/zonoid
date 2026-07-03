@@ -142,6 +142,40 @@ SYNTH_GRID_CONTRACT = (
     "elsewhere. Purely cellular games (no discrete movable objects) may still use direct grid logic."
 )
 
+def build_synth_context(
+    grid: list[list[int]],
+    object_summary: str,
+    transitions_text: str,
+    auto_changing_text: str,
+    *,
+    object_cap: int = 20,
+) -> str:
+    """Assemble the full synthesis-contract appendix — the single source of truth shared by the
+    single-shot SYNTHESIZE/REPAIR prompts and the graph-native :class:`~.synth_graph.SynthSession`
+    EDIT prompts.
+
+    Emits, in order: the raw grid rows (with dimensions), the object summary, the sampled observed
+    transitions, the auto-changing-cells hint, and :data:`SYNTH_GRID_CONTRACT` (which carries the
+    UNKNOWN teaching, the stdlib import whitelist, the step-tuple rule, and the segment() paragraph).
+    Best-effort inputs: any empty section is omitted, but the contract is ALWAYS appended so no EDIT
+    prompt can drop it (that omission is exactly why run 8's SynthSession candidates imported numpy).
+    """
+
+    height = len(grid)
+    width = len(grid[0]) if height else 0
+    parts = ["\n--- SYNTHESIS DATA (parse this; do not hardcode) ---"]
+    parts.append(f"Current frame grid is {height} rows x {width} cols:")
+    parts.append(EwmAgent._grid_rows_text(grid))
+    if object_summary:
+        parts.append(f"\nObject summary (segment_grid, up to {object_cap}):\n{object_summary}")
+    if transitions_text:
+        parts.append(f"\nObserved transitions (before/action/after):\n{transitions_text}")
+    if auto_changing_text:
+        parts.append("\n" + auto_changing_text)
+    parts.append("\n" + SYNTH_GRID_CONTRACT)
+    return "\n".join(parts) + "\n"
+
+
 REFLECT_PROMPT = (
     "Reflect on the action you just took. Structured result: {result}.\n"
     "The CURRENT|RESULT composite (if provided) shows the board before and after. State briefly "
@@ -170,6 +204,15 @@ class AgentConfig:
     # mode where synthesis loops back-to-back and eats the whole wall-clock budget with almost no
     # game actions (the ls20 run: 9 attempts, 4 game actions, modes_visited=[SYNTHESIZE]).
     max_synth_attempts_per_game: int = 9
+    # Graph-native session pacing (config.graph_synthesis path). A SynthSession is a whole
+    # ANALYZE->PLAN->EDIT-chain->FINAL cycle and can burn minutes; run 8 had ~11 games spend the
+    # whole 1500s wall budget on sessions with only 5 game actions. Two independent brakes:
+    #   - max_synth_sessions_per_game: hard ceiling on graph SynthSessions per game. Once hit,
+    #     modelability is judged poor and the loop stays reactive for the rest of the game.
+    #   - synth_session_wall_seconds: per-session wall cap handed to SynthConfig.max_session_seconds;
+    #     a session checks elapsed time between LLM calls and stops cleanly when it is exceeded.
+    max_synth_sessions_per_game: int = 3
+    synth_session_wall_seconds: float = 240.0
     # Probe-first seeding: on a fresh game, execute a discriminating probe batch (one of each
     # distinct valid action) BEFORE SYNTHESIZE so a program is never adopted against an empty
     # suite. A program is only trusted once it predicts real observed transitions.
@@ -434,6 +477,10 @@ class EwmAgent:
         # burst with no adoption). Once it reaches config.max_synth_attempts_per_game the loop stays
         # reactive (modelability poor) for the rest of the game.
         self._synth_cycles_this_game = 0
+        # Count of graph-native SynthSessions run this game (config.graph_synthesis path). Once it
+        # reaches config.max_synth_sessions_per_game the loop judges modelability poor and stays
+        # reactive for the rest of the game.
+        self._synth_sessions_this_game = 0
         # Repair engagement + live pass-rate floor bookkeeping.
         self._repairs_this_game = 0
         self._repairs_this_divergence = 0
@@ -697,25 +744,21 @@ class EwmAgent:
     def _synthesis_grid_block(self, frame: dict[str, Any]) -> str:
         """Build the SYNTHESIZE/REPAIR-only appendix: grid rows, object summary, sample transitions,
         and the hard dimension contract. Best-effort — a build failure degrades to just the contract
-        rather than crashing prompt construction."""
+        rather than crashing prompt construction.
+
+        This is the single source of truth for the synthesis contract: single-shot SYNTHESIZE/REPAIR
+        prompts append it here, and graph-native synthesis passes the SAME string into each
+        :class:`~.synth_graph.SynthSession` EDIT prompt (see :meth:`_synthesize_graph`), so both paths
+        teach the model the identical grid/UNKNOWN/stdlib/segment contract."""
 
         grid = self._frame_grid(frame)
-        height = len(grid)
-        width = len(grid[0]) if height else 0
-        parts = ["\n--- SYNTHESIS DATA (parse this; do not hardcode) ---"]
-        parts.append(f"Current frame grid is {height} rows x {width} cols:")
-        parts.append(self._grid_rows_text(grid))
-        obj = self._object_summary_text(grid)
-        if obj:
-            parts.append(f"\nObject summary (segment_grid, up to {self._SYNTH_OBJECT_CAP}):\n{obj}")
-        transitions = self._sample_transitions_text()
-        if transitions:
-            parts.append(f"\nObserved transitions (before/action/after):\n{transitions}")
-        auto_changing = self._auto_changing_cells_text()
-        if auto_changing:
-            parts.append("\n" + auto_changing)
-        parts.append("\n" + SYNTH_GRID_CONTRACT)
-        return "\n".join(parts) + "\n"
+        return build_synth_context(
+            grid,
+            self._object_summary_text(grid),
+            self._sample_transitions_text(),
+            self._auto_changing_cells_text(),
+            object_cap=self._SYNTH_OBJECT_CAP,
+        )
 
     def _reflect_messages(
         self, result: dict[str, Any], image_url: str | None
@@ -1121,6 +1164,13 @@ class EwmAgent:
         from . import deltas as _deltas
         from . import synth_graph as _synth_graph
 
+        # Per-game session cap: once this game has run its budget of SynthSessions, judge modelability
+        # poor and stay reactive for the rest of the game rather than launch another minutes-long
+        # session (the run-8 pathology: whole wall budget on sessions, ~5 game actions).
+        if self._synth_sessions_this_game >= self.config.max_synth_sessions_per_game:
+            self._drop_program("synth_session_cap_game")
+            return False
+
         summary = _deltas.summarize_suite(self.suite)
         delta_texts = list(summary.get("per_action", [])) + list(summary.get("per_transition", []))
         menu_lines = self._hypothesis_menu_lines(frame)
@@ -1143,7 +1193,17 @@ class EwmAgent:
             graph=self.graph,
             on_edit=_sink,
             analyze_context=menu_lines,
+            # Feed the SAME contract text the single-shot path uses into every EDIT prompt, so
+            # session-authored programs get the hardened grid/UNKNOWN/stdlib/segment contract (run 8:
+            # 24/27 session candidates imported numpy because EDIT prompts lacked it). EDIT budget is
+            # the large synth_max_tokens (4096), not the small default — the truncation fix.
+            synth_context=self._synthesis_grid_block(frame),
+            config=_synth_graph.SynthConfig(
+                edit_max_tokens=self.config.synth_max_tokens,
+                max_session_seconds=self.config.synth_session_wall_seconds,
+            ),
         )
+        self._synth_sessions_this_game += 1
         self.summary.synthesis_attempts += 1
         try:
             result = session.run(deltas=delta_texts)
@@ -1628,6 +1688,15 @@ class EwmAgent:
         out = self.summary.to_dict()
         if self.config.graph_synthesis:
             out["graph_synth_stats"] = dict(self._graph_synth_stats)
+            # Report whether graph mode was actually LIVE this run: a DaemonGraph counts every
+            # daemon HTTP call as ok/failed. All-zero or all-failed means the run silently degraded
+            # to no-graph — the run-8 blind spot (404s on /task/context + /overlay/note went
+            # unreported). A _NullGraph / None client has no counters (offline by construction).
+            ok = getattr(self.graph, "graph_ops_ok", None)
+            failed = getattr(self.graph, "graph_ops_failed", None)
+            if ok is not None or failed is not None:
+                out["graph_ops_ok"] = int(ok or 0)
+                out["graph_ops_failed"] = int(failed or 0)
         return out
 
     def _handle_divergence(self, frame: dict[str, Any], image_url: str | None) -> None:

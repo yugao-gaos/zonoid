@@ -183,6 +183,12 @@ class DaemonGraph:
         self.timeout_s = timeout_s
         self._counter = 0
         self._id_factory = id_factory
+        # Best-effort HTTP telemetry: every daemon call increments exactly one of these. A run reports
+        # them (agent surfaces them under graph_ops_ok/graph_ops_failed) so a run's log tells whether
+        # graph mode was actually LIVE — run 8 could not distinguish "graph wired" from "every call
+        # 404'd and silently degraded to no-graph".
+        self.graph_ops_ok = 0
+        self.graph_ops_failed = 0
 
     # -- HTTP primitives ---------------------------------------------------------------------------
 
@@ -194,8 +200,11 @@ class DaemonGraph:
                 url, data=data, method="POST", headers={"Content-Type": "application/json"}
             )
             with request.urlopen(req, timeout=self.timeout_s) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+                out = json.loads(resp.read().decode("utf-8"))
+            self.graph_ops_ok += 1
+            return out
         except (error.URLError, TimeoutError, ValueError, OSError) as exc:  # noqa: BLE001
+            self.graph_ops_failed += 1
             logger.warning("daemon POST %s failed: %r", path, exc)
             return None
 
@@ -204,8 +213,11 @@ class DaemonGraph:
         try:
             req = request.Request(url, method="GET")
             with request.urlopen(req, timeout=self.timeout_s) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+                out = json.loads(resp.read().decode("utf-8"))
+            self.graph_ops_ok += 1
+            return out
         except (error.URLError, TimeoutError, ValueError, OSError) as exc:  # noqa: BLE001
+            self.graph_ops_failed += 1
             logger.warning("daemon GET %s failed: %r", path, exc)
             return None
 
@@ -353,6 +365,12 @@ class SynthConfig:
     context_wait_s: float = 5.0   # ANALYZE: bounded wait for graph wiring to attach notes.
     context_poll_s: float = 1.0   # poll interval within the bounded wait.
     temperature: float = 0.0
+    # Per-session wall-clock cap (seconds). Checked between LLM calls: once the elapsed time since
+    # session start exceeds this, the state machine stops issuing new completions and returns cleanly
+    # with whatever program (if any) was already adopted. Bounds the run-8 pathology where a single
+    # session burned the whole 1500s wall budget across ANALYZE/PLAN/6xEDIT-with-retries. 0 -> no cap
+    # (tests keep it off so scripted FakeLlm runs are unaffected).
+    max_session_seconds: float = 240.0
 
 
 @dataclass
@@ -436,12 +454,20 @@ class SynthSession:
         sleep: Callable[[float], None] | None = None,
         on_edit: Callable[[dict[str, Any]], None] | None = None,
         analyze_context: list[str] | None = None,
+        synth_context: str | None = None,
+        clock: Callable[[], float] | None = None,
     ) -> None:
         self.game_id = game_id
         self.suite = suite
         self.llm = llm
         self.graph: GraphClient = graph if graph is not None else _NullGraph()
         self.config = config or SynthConfig()
+        # The hardened synthesis contract (grid dims + UNKNOWN teaching + stdlib import whitelist +
+        # step-tuple rule + segment() paragraph + observed-data blocks), built once by the caller via
+        # agent.build_synth_context and appended VERBATIM to every EDIT prompt. Without it, EDIT
+        # candidates hallucinate `import numpy` (rejected by the sandbox) and hardcode grids — the run
+        # 8 pathology. None -> EDIT prompts carry only the generic five-function reminder.
+        self._synth_context = synth_context or ""
         # Context notes fed to ANALYZE DIRECTLY (in addition to any graph-wired notes) — e.g. the KB
         # hypothesis menu. Presented under the same HYPOTHESES framing as wired notes. Used when the
         # caller has the context in hand and cannot rely on graph task-wiring (no daemon-minted key).
@@ -457,8 +483,28 @@ class SynthSession:
             import time as _time
 
             self._sleep = _time.sleep
+        # Injectable monotonic clock for the per-session wall-cap (tests script elapsed time). Reads
+        # once at run() start to fix the session's t0.
+        if clock is not None:
+            self._clock = clock
+        else:
+            import time as _time2
+
+            self._clock = _time2.monotonic
+        self._deadline: float | None = None  # set in run(): t0 + max_session_seconds (None -> no cap)
+        self.wall_capped = False             # True once the wall-cap stopped the session early
         self.steps: list[Step] = []
         self.source: str | None = None
+
+    def _wall_exceeded(self) -> bool:
+        """True once the session's wall-clock deadline has passed (no cap -> never)."""
+
+        if self._deadline is None:
+            return False
+        if self._clock() >= self._deadline:
+            self.wall_capped = True
+            return True
+        return False
 
     # -- LLM helper --------------------------------------------------------------------------------
 
@@ -599,6 +645,10 @@ class SynthSession:
 
     def _edit_chain(self, changes: list[dict[str, Any]]) -> None:
         for idx, change in enumerate(changes):
+            # Wall-cap: stop before issuing another EDIT completion once the session deadline passed.
+            # Whatever was already adopted into self.source is kept; FINAL still validates it.
+            if self._wall_exceeded():
+                break
             self._apply_change(idx, change)
 
     def _apply_change(self, idx: int, change: dict[str, Any]) -> None:
@@ -706,6 +756,9 @@ class SynthSession:
             f"Target transition indices: {change.get('target_transitions', [])}\n\n"
             "Current program:\n"
             + (self.source or "(empty)")
+            # The hardened contract + observed data, verbatim from agent.build_synth_context. Every
+            # EDIT prompt carries it so session candidates honor the stdlib whitelist / grid dims.
+            + (("\n" + self._synth_context) if self._synth_context else "")
         )
         text = self._chat(_EDIT_SYSTEM, user, self.config.edit_max_tokens)
         return _extract_python(text), user, text
@@ -762,9 +815,14 @@ class SynthSession:
         """
 
         deltas = deltas or []
+        # Fix the per-session deadline at t0 (None -> no cap). Checked between LLM calls (before PLAN
+        # and before each EDIT change) so a slow session stops cleanly with whatever it has adopted.
+        cap = self.config.max_session_seconds
+        self._deadline = (self._clock() + cap) if cap and cap > 0 else None
         mechanics = self._analyze(deltas)
-        changes = self._plan(mechanics)
-        self._edit_chain(changes)
+        if not self._wall_exceeded():
+            changes = self._plan(mechanics)
+            self._edit_chain(changes)
         report = self._final()
         return {
             # program_source is the adopted source (may be a partial program that explains only a
@@ -772,4 +830,6 @@ class SynthSession:
             "program_source": self.source,
             "report": report.to_dict(),
             "steps": [s.to_dict() for s in self.steps],
+            # True when the per-session wall-cap stopped the session early (fewer EDIT changes ran).
+            "wall_capped": self.wall_capped,
         }
