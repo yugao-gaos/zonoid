@@ -106,6 +106,63 @@ UNKNOWN_ALIAS_GAME_SOURCE = TOY_GAME_SOURCE.replace(
 )
 
 
+# --- Object-relative toy program: locate the avatar via segment() each step -----------------
+#
+# The mechanics are expressed relative to OBJECTS, not absolute indices: init_state just stores
+# the raw grid; step() re-segments the grid, finds the single-pixel avatar (color 2) by color,
+# moves it by the action's (dr, dc) unless it would leave the grid, and rewrites the grid;
+# render() returns the stored grid. This exercises the injected segment() helper end-to-end.
+
+OBJECT_RELATIVE_SOURCE = '''
+AVATAR = 2
+
+DELTAS = {"UP": (-1, 0), "DOWN": (1, 0), "LEFT": (0, -1), "RIGHT": (0, 1)}
+
+
+def _find_avatar(grid):
+    seg = segment(grid)
+    for node in seg["nodes"]:
+        if node["color"] == AVATAR:
+            # single-pixel avatar: its boundary is the one cell it occupies
+            r, c = node["boundary"][0]
+            return r, c
+    return None
+
+
+def init_state(frame):
+    return {"grid": [list(row) for row in frame]}
+
+
+def legal_actions(state):
+    return ["UP", "DOWN", "LEFT", "RIGHT"]
+
+
+def step(state, action):
+    grid = [list(row) for row in state["grid"]]
+    rows = len(grid)
+    cols = len(grid[0]) if rows else 0
+    pos = _find_avatar(grid)
+    moved = False
+    if pos is not None:
+        r, c = pos
+        dr, dc = DELTAS[action]
+        nr, nc = r + dr, c + dc
+        if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == 0:
+            grid[r][c] = 0
+            grid[nr][nc] = AVATAR
+            moved = True
+    return {"grid": grid}, {"moved": moved}
+
+
+def render(state):
+    return [list(row) for row in state["grid"]]
+
+
+def is_win(state):
+    return False
+'''
+
+
 def _grid(*rows: str) -> list[list[int]]:
     """Build an int grid from compact string rows ('.'=0, digits as-is)."""
 
@@ -242,6 +299,63 @@ class SandboxTests(unittest.TestCase):
         source = TOY_GAME_SOURCE.replace("import copy", "import copy\nimport collections")
         program = WorldModelProgram.load(source)
         self.assertTrue(callable(program.render))
+
+
+class SegmentInjectionTests(unittest.TestCase):
+    def test_segment_callable_from_loaded_program(self) -> None:
+        # A program that returns segment(grid) directly from init_state proves the helper is in
+        # the compiled namespace (same ns dict as UNKNOWN) and callable at runtime.
+        source = (
+            "def init_state(frame):\n"
+            "    return segment(frame)\n"
+            "def step(state, action):\n    return state, {}\n"
+            "def render(state):\n    return state\n"
+            "def is_win(state):\n    return False\n"
+            "def legal_actions(state):\n    return []\n"
+        )
+        program = WorldModelProgram.load(source)
+        result = program.init_state(_grid("2.3"))
+        self.assertIn("nodes", result)
+        self.assertIn("adjacency_list", result)
+        colors = sorted(node["color"] for node in result["nodes"])
+        # Colors present: 0 (background), 2 (avatar), 3 (goal).
+        self.assertEqual(colors, [0, 2, 3])
+
+    def test_segment_tolerates_unknown_cells(self) -> None:
+        # A grid holding the UNKNOWN singleton and its -1 alias must not crash segment(); those
+        # cells segment as the distinct color -1 rather than raising or merging into a neighbour.
+        source = (
+            "def init_state(frame):\n"
+            "    return segment(frame)\n"
+            "def step(state, action):\n    return state, {}\n"
+            "def render(state):\n    return state\n"
+            "def is_win(state):\n    return False\n"
+            "def legal_actions(state):\n    return []\n"
+        )
+        program = WorldModelProgram.load(source)
+        grid = [[UNKNOWN, 2], [-1, 0]]
+        result = program.init_state(grid)
+        colors = sorted(node["color"] for node in result["nodes"])
+        # UNKNOWN and -1 both normalize to -1: one component of color -1 (they are 4-adjacent).
+        self.assertIn(-1, colors)
+        self.assertEqual(colors.count(-1), 1)
+
+
+class ObjectRelativeProgramTests(unittest.TestCase):
+    def test_object_relative_program_passes_movement_suite(self) -> None:
+        # An OBJECT-RELATIVE program (finds the avatar via segment() by color, moves it by delta)
+        # must validate against a suite of real movement transitions. avatar=2 on 0-background.
+        program = WorldModelProgram.load(OBJECT_RELATIVE_SOURCE)
+        suite = TransitionSuite()
+        # RIGHT then DOWN on a 2x3 board; avatar starts top-left.
+        suite.append(_grid("2..", "..."), "RIGHT", _grid(".2.", "..."))
+        suite.append(_grid(".2.", "..."), "DOWN", _grid("...", ".2."))
+        suite.append(_grid("...", ".2."), "LEFT", _grid("...", "2.."))
+        # A move into the grid edge is a no-op (avatar stays put).
+        suite.append(_grid("2..", "..."), "UP", _grid("2..", "..."))
+        report = validate(program, suite)
+        self.assertTrue(report.ok, msg=f"unexpected mismatches: {report.mismatches}, err={report.error}")
+        self.assertEqual(report.pass_count, 4)
 
 
 if __name__ == "__main__":

@@ -1165,6 +1165,19 @@ class SynthesisPromptTests(unittest.TestCase):
         self.assertNotIn("numpy,", expected_list)
         self.assertNotIn("pandas,", expected_list)
 
+    def test_synthesize_prompt_teaches_object_relative_authoring(self):
+        # The SYNTHESIZE prompt must advertise the injected segment(grid) helper and steer the model
+        # to author mechanics RELATIVE TO OBJECTS (find the avatar by color each step, move by delta)
+        # instead of absolute cell indices, which break on new levels.
+        ag = self._agent()
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        frame = {"grid": _grid("2.3"), "valid_actions": ["UP"], "level": 1, "step": 0}
+        text = ag._decide_messages("SYNTHESIZE", frame, [], None, None)[-1]["content"]
+        self.assertIn("segment(grid) is already injected", text)
+        self.assertIn("{nodes, adjacency_list}", text)
+        self.assertIn("PREFER expressing mechanics relative to objects", text)
+        self.assertIn("absolute indices break on new levels", text)
+
     def test_gameplay_prompt_has_no_grid_dump(self):
         # RECOVER (reactive play) decide prompt is unchanged: no grid dump, no contract.
         ag = self._agent()

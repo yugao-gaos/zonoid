@@ -133,7 +133,13 @@ SYNTH_GRID_CONTRACT = (
     "the program cannot model; the validator SKIPS every UNKNOWN cell, so an unmodelable region "
     "never fails validation. If a board region changes after every action regardless of which "
     "action (e.g. an energy/timer/progress bar), either model it EXACTLY or mark those cells "
-    "UNKNOWN — do NOT assume it stays constant."
+    "UNKNOWN — do NOT assume it stays constant.\n"
+    "OBJECTS: segment(grid) is already injected into your namespace (bare name — do not import or "
+    "define it). It returns {nodes, adjacency_list}; each node has color, pixels, boundary, and "
+    "children. PREFER expressing mechanics relative to objects rather than absolute cell indices: "
+    "e.g. locate the avatar by its color with segment(grid) each step and move it (dr, dc), instead "
+    "of hardcoding a row/col — absolute indices break on new levels where the same object sits "
+    "elsewhere. Purely cellular games (no discrete movable objects) may still use direct grid logic."
 )
 
 REFLECT_PROMPT = (
