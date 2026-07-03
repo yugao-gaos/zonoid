@@ -14,3 +14,8 @@
 {"evt":"edge_promoted","from":"note:note-mr47rrqji0d","to":"note:note-mr45u2lycou","kind":"context","actor":"overlay-sync","ts":"2026-07-03T01:40:29.782Z","weight":0.648,"by":"judge","judged":true,"score":0.648,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr47rrqji0d","to":"codex/ewm-synthesis-artifact-persistence-run-debugging","kind":"context","actor":"overlay-sync","ts":"2026-07-03T01:45:07.629Z","weight":0,"by":"autowire","judged":false,"score":0.577,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr47rrqji0d","to":"codex/ewm-synthesis-artifact-persistence-run-debugging","kind":"context","actor":"overlay-sync","ts":"2026-07-03T01:57:39.360Z"}
+{"evt":"note_superseded","id":"note-mr47rrqji0d","supersededBy":"note-mr49q8juxow","validTo":"2026-07-03T01:42:18.570Z","ts":"2026-07-03T01:42:18.570Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mr47rrqji0d","to":"codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal","kind":"context","actor":"overlay-sync","ts":"2026-07-03T01:59:04.614Z"}
+{"evt":"edge_removed","from":"note:note-mr47rrqji0d","to":"note:note-mr45ykxy4rf","kind":"context","actor":"overlay-sync","ts":"2026-07-03T01:59:04.614Z"}
+{"evt":"edge_removed","from":"note:note-mr47rrqji0d","to":"note:note-mr45u2lycou","kind":"context","actor":"overlay-sync","ts":"2026-07-03T01:59:04.614Z"}
+{"evt":"edge_removed","from":"note:note-mr47rrqji0d","to":"codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run","kind":"context","actor":"overlay-sync","ts":"2026-07-03T01:59:04.614Z"}
