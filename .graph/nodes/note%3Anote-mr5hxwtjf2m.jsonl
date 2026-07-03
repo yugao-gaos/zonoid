@@ -1,0 +1,2 @@
+{"evt":"note_supersedes","id":"note-mr5hxwtjf2m","supersedes":"note-mr5hw1qsj5m","ts":"2026-07-03T22:19:59.719Z","actor":"supersede"}
+{"evt":"edge_added","from":"note:note-mr5hxwtjf2m","to":"codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen","kind":"context","weight":1,"origin":"asserted","judged":true,"actor":"record-decision","ts":1783117199720}
