@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import unittest
 from unittest import mock
 from urllib import error, parse
@@ -138,10 +139,13 @@ class ModeScopedSearchTest(unittest.TestCase):
             self.assertEqual(out, [])
             self.assertEqual(rec.calls, [], f"{mode} must not hit the network")
 
-    def test_orient_keyed_lookup_k1(self) -> None:
+    def test_orient_keyed_lookup(self) -> None:
+        # ORIENT fetches a small candidate pool (k=4, full_content) so a CHUNKED program's index note
+        # can be picked out from among its chunk notes (which share the program query tokens).
         rec, _ = self._run("ORIENT")
         q = _query(rec.calls[0]["url"])
-        self.assertEqual(q["k"], ["1"])
+        self.assertEqual(q["k"], ["20"])
+        self.assertEqual(q["full_content"], ["1"])
         self.assertIn("world", q["q"][0])
         self.assertIn("program", q["q"][0])
         self.assertIn("ls20", q["q"][0])
@@ -440,6 +444,155 @@ class HypothesisMenuTest(unittest.TestCase):
     def test_menu_requires_client(self) -> None:
         with self.assertRaises(ValueError):
             kb_protocol.hypothesis_menu("zz01", ["door"])
+
+
+class _TruncatingDaemon:
+    """Stateful mock daemon that honors BOTH real truncation limits, so a chunk round-trip test would
+    have CAUGHT run 12's break (a single 3272-char note clipped past recall):
+
+    * WRITE (POST /overlay/note): stores the note but clips its ``summary`` to WRITE_CLIP (2000).
+    * READ  (GET /search): matches notes whose title contains every query token; returns a 200-char
+      ``summary`` always, and — only when ``full_content=1`` — a ``content`` field clipped to
+      READ_CAP (1200). This is exactly the daemon behavior verified live against localhost:8787.
+    """
+
+    WRITE_CLIP = 2000
+    READ_CAP = 1200
+
+    def __init__(self) -> None:
+        self.notes: list[dict[str, str]] = []
+        self._counter = 0
+
+    def __call__(self, req, timeout=None):  # noqa: ANN001
+        url = req.full_url
+        if req.get_method() == "POST":
+            body = json.loads(req.data.decode("utf-8"))
+            self._counter += 1
+            self.notes.append(
+                {
+                    "id": f"note-{self._counter}",
+                    "title": str(body.get("title", "")),
+                    # WRITE clip: the daemon stores at most WRITE_CLIP chars of the body.
+                    "stored": str(body.get("summary", ""))[: self.WRITE_CLIP],
+                }
+            )
+            return _FakeResponse(json.dumps({"ok": True, "id": f"note-{self._counter}"}).encode("utf-8"))
+        # GET /search
+        parsed = parse.urlsplit(url)
+        params = parse.parse_qs(parsed.query)
+        q = (params.get("q") or [""])[0]
+        k = int((params.get("k") or ["5"])[0])
+        full_content = (params.get("full_content") or ["0"])[0] in ("1", "true")
+        q_tokens = set(t for t in re.split(r"[^0-9A-Za-z]+", q.lower()) if t)
+        results = []
+        for note in self.notes:
+            title_tokens = set(t for t in re.split(r"[^0-9A-Za-z]+", note["title"].lower()) if t)
+            if q_tokens and q_tokens.issubset(title_tokens):
+                hit = {"title": note["title"], "summary": note["stored"][:200]}
+                if full_content:
+                    # READ cap: the content field returns at most READ_CAP chars of the stored body.
+                    hit["content"] = note["stored"][: self.READ_CAP]
+                # Relevance proxy: an EXACT title match outranks a token-superset match, mirroring the
+                # real daemon (a "chunk 3 of 3" query's tokens are a subset of "chunk 1 of 3" too, so
+                # without exact-match ranking the wrong chunk would win — the ambiguity the agent's
+                # exact-title reassembler defends against).
+                exact = note["title"].strip().lower() == q.strip().lower()
+                results.append((0 if exact else 1, hit))
+        results.sort(key=lambda pair: pair[0])
+        return _FakeResponse(json.dumps([h for _, h in results[:k]]).encode("utf-8"))
+
+
+class ChunkedProgramRoundTripTest(unittest.TestCase):
+    """The chunked writer + reassembler must round-trip a program too big for a single note through a
+    daemon that clips writes to 2000 and reads to 1200 — the run-12 defect."""
+
+    def _big_program(self) -> str:
+        # 3272-char pure-ASCII program, the exact size of the ls20 ceiling program that broke run 12.
+        header = "# world model program for the round trip test\n"
+        return header + "x = 0\n" * ((3272 - len(header)) // 6)
+
+    def test_chunk_bodies_fit_stricter_limit(self) -> None:
+        source = self._big_program()
+        slices = kb_protocol.chunk_program_source(source)
+        self.assertGreater(len(slices), 1)  # a >1200-char program must span multiple chunks
+        for i, slice_text in enumerate(slices, start=1):
+            body = f"chunk {i} of {len(slices)}\n{slice_text}"
+            # Every chunk body must survive the STRICTER (1200) read cap intact.
+            self.assertLessEqual(len(body), kb_protocol.CHUNK_BODY_LIMIT)
+
+    def test_round_trip_through_truncating_daemon(self) -> None:
+        source = self._big_program()
+        daemon = _TruncatingDaemon()
+        gate = WriteGate(_client(), max_writes_per_turn=2)
+        gate.begin_turn()
+        with mock.patch.object(kb_protocol.request, "urlopen", daemon):
+            written = gate.write_program_revision_chunked(
+                "ls20", "linked unit moves plus or minus 5", source, "12/13"
+            )
+        self.assertTrue(written["ok"])
+        self.assertEqual(written["length"], len(source.encode("utf-8")))
+        # index note + N chunk notes were stored.
+        self.assertEqual(len(daemon.notes), written["chunks"] + 1)
+
+        # Now recall the way ORIENT does: read the index note, then fetch chunks by exact title.
+        client = _client()
+        with mock.patch.object(kb_protocol.request, "urlopen", daemon):
+            index_hits = kb_protocol.search_for_mode("ORIENT", "ls20", client=client)
+            self.assertEqual(len(index_hits), 1)
+            index_body = index_hits[0]["content"]
+            chunk_count = int(kb_protocol._INDEX_CHUNKS_RE.search(index_body).group(1))
+            source_length = int(kb_protocol._INDEX_LENGTH_RE.search(index_body).group(1))
+            chunk_bodies = []
+            for n in range(1, chunk_count + 1):
+                title = kb_protocol.program_chunk_title("ls20", n, chunk_count)
+                hits = client.search(title, k=1, full_content=True)
+                chunk_bodies.append(hits[0]["content"])
+        reassembled = kb_protocol.reassemble_chunks(
+            chunk_bodies, expected_count=chunk_count, expected_length=source_length
+        )
+        # Byte-identical round trip — the property run 12 silently lacked.
+        self.assertEqual(reassembled, source)
+
+    def test_missing_chunk_refuses(self) -> None:
+        source = self._big_program()
+        daemon = _TruncatingDaemon()
+        gate = WriteGate(_client(), max_writes_per_turn=2)
+        gate.begin_turn()
+        with mock.patch.object(kb_protocol.request, "urlopen", daemon):
+            written = gate.write_program_revision_chunked("ls20", "prose", source, "12/13")
+        # Drop one chunk note to simulate corruption/eviction.
+        daemon.notes = [n for n in daemon.notes if "chunk 2 of" not in n["title"]]
+        client = _client()
+        with mock.patch.object(kb_protocol.request, "urlopen", daemon):
+            chunk_bodies = []
+            for n in range(1, written["chunks"] + 1):
+                title = kb_protocol.program_chunk_title("ls20", n, written["chunks"])
+                hits = client.search(title, k=1, full_content=True)
+                chunk_bodies.append(hits[0]["content"] if hits else "")
+        reassembled = kb_protocol.reassemble_chunks(
+            chunk_bodies, expected_count=written["chunks"], expected_length=written["length"]
+        )
+        self.assertIsNone(reassembled)  # clean refusal, never a partial program
+
+    def test_length_mismatch_refuses(self) -> None:
+        source = self._big_program()
+        slices = kb_protocol.chunk_program_source(source)
+        bodies = [f"chunk {i} of {len(slices)}\n{s}" for i, s in enumerate(slices, start=1)]
+        # A wrong expected length (one byte off) is a corruption signal -> refuse.
+        out = kb_protocol.reassemble_chunks(
+            bodies, expected_count=len(slices), expected_length=len(source.encode("utf-8")) + 1
+        )
+        self.assertIsNone(out)
+
+    def test_reassemble_orders_shuffled_chunks(self) -> None:
+        source = self._big_program()
+        slices = kb_protocol.chunk_program_source(source)
+        bodies = [f"chunk {i} of {len(slices)}\n{s}" for i, s in enumerate(slices, start=1)]
+        shuffled = list(reversed(bodies))
+        out = kb_protocol.reassemble_chunks(
+            shuffled, expected_count=len(slices), expected_length=len(source.encode("utf-8"))
+        )
+        self.assertEqual(out, source)  # ordering is driven by the chunk header, not list order
 
 
 class StrippedNewGameEntryTest(unittest.TestCase):

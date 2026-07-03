@@ -336,7 +336,9 @@ class OrientTests(unittest.TestCase):
         self.assertEqual(summary["decide_calls"], 0)
         # ORIENT actually queried the KB.
         self.assertTrue(kb.client.queries)
-        self.assertEqual(kb.client.queries[0][1], 1)  # k=1 keyed lookup
+        # ORIENT fetches a generous candidate pool (k=20) so a chunked program's index note surfaces
+        # past the system-note + chunk band; a single inline program note is still returned + adopted.
+        self.assertEqual(kb.client.queries[0][1], 20)
 
     def test_orient_rejects_stored_program_that_fails_validation(self):
         EwmAgent._vision_available = staticmethod(lambda: False)
@@ -429,6 +431,146 @@ class OrientTests(unittest.TestCase):
         # Masked region is tiny (the single unmodeled transition's cells), well under the mask cap.
         self.assertGreater(ag.summary.mask_cells, 0)
         self.assertGreaterEqual(ag.summary.changed_cells_accuracy, 0.6)
+
+
+class _TruncatingKbClient:
+    """A KbClient that persists notes and honors BOTH daemon truncation limits, so an ORIENT
+    reassembly test would have CAUGHT run 12's break: a program stored in ONE note is clipped past
+    recall, but a chunked program round-trips because each chunk fits the 1200-char read cap.
+
+    * ``note`` clips the stored body to WRITE_CLIP (2000).
+    * ``search`` matches on title-token superset; returns a 200-char ``summary`` always and, when
+      ``full_content`` is set, a ``content`` field clipped to READ_CAP (1200).
+    """
+
+    WRITE_CLIP = 2000
+    READ_CAP = 1200
+
+    def __init__(self) -> None:
+        import re as _re
+
+        self._re = _re
+        self.notes: list[dict] = []
+
+    def note(self, title, summary, category="arc-agi-3", supersedes=None):
+        self.notes.append(
+            {"title": str(title), "stored": str(summary)[: self.WRITE_CLIP]}
+        )
+        return {"ok": True, "id": f"note-{len(self.notes)}"}
+
+    def _tokens(self, text):
+        return set(t for t in self._re.split(r"[^0-9A-Za-z]+", text.lower()) if t)
+
+    def search(self, q, k, gated=False, full_content=False):
+        q_tokens = self._tokens(q)
+        out = []
+        for note in self.notes:
+            if q_tokens and q_tokens.issubset(self._tokens(note["title"])):
+                hit = {"title": note["title"], "summary": note["stored"][:200]}
+                if full_content:
+                    hit["content"] = note["stored"][: self.READ_CAP]
+                # Exact-title match outranks a token-superset match (real-daemon relevance proxy): a
+                # "chunk 3 of 3" query's tokens are also a subset of "chunk 1 of 3".
+                out.append((0 if note["title"].strip().lower() == q.strip().lower() else 1, hit))
+        out.sort(key=lambda pair: pair[0])
+        return [h for _, h in out[:k]]
+
+
+class _WriteGateOver:
+    """Minimal WriteGate-shaped wrapper exposing ``client`` (for _kb_search) and delegating the
+    chunked writer to the real gate logic."""
+
+    def __init__(self, client):
+        from bench.arc_agi3_zonoid.ewm.kb_protocol import WriteGate
+
+        self.client = client
+        self._gate = WriteGate(client, max_writes_per_turn=2)
+        self._gate.begin_turn()
+
+    def write_program_revision_chunked(self, *a, **kw):
+        return self._gate.write_program_revision_chunked(*a, **kw)
+
+
+class ChunkedOrientTests(unittest.TestCase):
+    """End-to-end: a program persisted via the chunked writer and recalled through a daemon that
+    clips writes to 2000 and reads to 1200 is reassembled byte-identical by ORIENT and adopted."""
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def test_orient_reassembles_chunked_program_and_adopts(self):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        # TOY_GAME_SOURCE is 1432 chars — bigger than the 1200 read cap, so a single-note store would
+        # be clipped and never compile (the run-12 failure). Chunked, it round-trips.
+        self.assertGreater(len(TOY_GAME_SOURCE), _TruncatingKbClient.READ_CAP)
+        client = _TruncatingKbClient()
+        gate = _WriteGateOver(client)
+        written = gate.write_program_revision_chunked(
+            "toy", "avatar moves on empty cells", TOY_GAME_SOURCE, "2/2"
+        )
+        self.assertTrue(written["ok"])
+        self.assertGreater(written["chunks"], 1)
+
+        env = ToyEnv(_grid("2.3"))
+        llm = FakeLlm(['{"prediction_ok": true}'] * 6)
+        ag = EwmAgent(
+            env, llm, kb=gate,
+            config=AgentConfig(game_id="toy", max_turns=10, chunked_program_notes=True),
+        )
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        summary = ag.run()
+        self.assertTrue(summary["program_accepted"])
+        self.assertTrue(summary["won"])
+        self.assertTrue(summary["orient_adopted"])
+        self.assertIn(summary["orient_diagnosis"], ("adopted whole", "adopted partial"))
+        # Straight from the chunked KB store: zero synthesis decide calls.
+        self.assertEqual(summary["decide_calls"], 0)
+
+    def test_orient_refuses_on_missing_chunk_with_diagnosis(self):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        client = _TruncatingKbClient()
+        gate = _WriteGateOver(client)
+        written = gate.write_program_revision_chunked("toy", "prose", TOY_GAME_SOURCE, "2/2")
+        # Evict one chunk note to simulate corruption: ORIENT must refuse cleanly, not adopt garbage.
+        client.notes = [n for n in client.notes if "chunk 2 of" not in n["title"]]
+
+        env = ToyEnv(_grid("2.3"))
+        # SYNTHESIZE fallthrough is scripted so the run still terminates; the point is ORIENT refused.
+        llm = FakeLlm([_fenced(TOY_GAME_SOURCE), '{"prediction_ok": true}'] + ['{"prediction_ok": true}'] * 6)
+        ag = EwmAgent(
+            env, llm, kb=gate,
+            config=AgentConfig(
+                game_id="toy", max_turns=10, min_probe_transitions=1, chunked_program_notes=True
+            ),
+        )
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        # Drive ORIENT directly to assert the refusal + diagnosis (independent of downstream synth).
+        adopted = ag._orient({"grid": _grid("2.3")})
+        self.assertFalse(adopted)
+        self.assertFalse(ag.summary.orient_adopted)
+        self.assertIsNotNone(ag.summary.orient_diagnosis)
+        self.assertIn("chunk", ag.summary.orient_diagnosis.lower())
+
+    def test_chunked_recall_off_by_default_does_not_reassemble(self):
+        # The chunked path is a FALLBACK gated behind config.chunked_program_notes; with the flag OFF
+        # (the default), ORIENT must NOT fire the chunk-fetch path on a chunked index note — it treats
+        # it like any inline hit, finds no usable source, and reports no warm-start.
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        client = _TruncatingKbClient()
+        gate = _WriteGateOver(client)
+        gate.write_program_revision_chunked("toy", "prose", TOY_GAME_SOURCE, "2/2")
+        env = ToyEnv(_grid("2.3"))
+        ag = EwmAgent(
+            env, FakeLlm([]), kb=gate,
+            config=AgentConfig(game_id="toy", max_turns=1),  # chunked_program_notes defaults False
+        )
+        self.assertFalse(ag.config.chunked_program_notes)
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        adopted = ag._orient({"grid": _grid("2.3")})
+        self.assertFalse(adopted)
+        self.assertFalse(ag.summary.orient_adopted)
 
 
 class SynthesizeExecuteTests(unittest.TestCase):

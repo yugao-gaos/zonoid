@@ -260,6 +260,20 @@ class AgentConfig:
     # session == one synthesis cycle; adoption still requires the session's FINAL full-suite validate
     # to pass on a NON-EMPTY suite. Default False so tests/smoke keep the single-shot path.
     graph_synthesis: bool = False
+    # Chunked program-note recall (FALLBACK path, default OFF). When True, ORIENT treats a stored
+    # program-index note carrying `chunk count:` + `source length:` as a CHUNKED program: it fetches
+    # each `game <id> program chunk n of N` note by exact title, reassembles the source in order, and
+    # verifies the byte length before load/validate/adopt. This existed to work around the daemon's
+    # note-body truncation (a >~1000-char program note is clipped on write, capped on full_content
+    # read, and — worst — REWRITTEN to a stub by the long-note source-clusterer). It is left OFF by
+    # default because retrieval of freshly-written chunk notes is unreliable under daemon indexing lag,
+    # and the intended production fix is a native daemon endpoint that returns a note's FULL body
+    # (reassembling any source-cluster chunks) in one call.
+    # TODO(daemon): replace this whole chunked-note fallback with the native reassembling note-read
+    #   endpoint (`GET /note/get?key=...` returning the full untruncated body). Once that lands, ORIENT
+    #   reads the single program note directly and this flag + the chunk writer/reassembler can be
+    #   retired. See kb_protocol.write_program_revision_chunked / reassemble_chunks.
+    chunked_program_notes: bool = False
 
 
 # --------------------------------------------------------------------------------------------------
@@ -300,6 +314,21 @@ def _extract_fenced_blocks(text: str) -> list[str]:
         if body.strip():
             blocks.append(body)
     return blocks
+
+
+def _search_int(pattern: "re.Pattern[str]", text: str) -> int | None:
+    """First integer captured by ``pattern`` in ``text`` (group 1), or ``None``. Used to read the
+    ``chunk count:`` / ``source length:`` fields off a chunked ORIENT index-note body."""
+
+    if not text:
+        return None
+    m = pattern.search(text)
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except (ValueError, IndexError):
+        return None
 
 
 def _compiles(source: str) -> bool:
@@ -439,6 +468,13 @@ class RunSummary:
     # adoption floor is measured over — it makes the ~97%-static-background whole-board rate
     # non-vacuous. None until a program is adopted.
     changed_cells_accuracy: float | None = None
+    # Warm-start ORIENT telemetry. `orient_adopted` is True once a stored program was adopted (whole
+    # or partial) straight from the KB. `orient_diagnosis` records the OUTCOME of the last ORIENT
+    # attempt in a stable vocabulary the driver surfaces — so a run that failed to warm-start says WHY
+    # (e.g. a missing/corrupt chunk, a length mismatch, a stored program that would not validate)
+    # instead of silently falling through to SYNTHESIZE. None until ORIENT runs.
+    orient_adopted: bool = False
+    orient_diagnosis: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -459,6 +495,8 @@ class RunSummary:
             "program_adopted_partial": self.program_adopted_partial,
             "mask_cells": self.mask_cells,
             "changed_cells_accuracy": self.changed_cells_accuracy,
+            "orient_adopted": self.orient_adopted,
+            "orient_diagnosis": self.orient_diagnosis,
         }
 
 
@@ -1204,19 +1242,31 @@ class EwmAgent:
         """
 
         if len(self.suite) == 0:
+            self.summary.orient_diagnosis = "empty suite"
             return False
         hits = self._kb_search("ORIENT")
+        if not hits:
+            self.summary.orient_diagnosis = "no stored program"
+            return False
+        diagnosis = "no stored program"
         for hit in hits:
-            source = self._program_source_from_hit(hit)
+            source, resolve_diag = self._resolve_orient_source(hit)
             if not source:
+                # A chunk-resolution failure (missing/corrupt chunk, length mismatch) is a MORE
+                # informative diagnosis than a plain "no source", so let it win over the default.
+                if resolve_diag:
+                    diagnosis = resolve_diag
                 continue
             try:
                 candidate = WorldModelProgram.load(source)
             except SandboxError:
+                diagnosis = "stored program did not compile"
                 continue
             report = validate(candidate, self.suite)
             if report.ok and report.total > 0:
                 self._adopt_program(candidate)
+                self.summary.orient_adopted = True
+                self.summary.orient_diagnosis = "adopted whole"
                 return True
             # A stored program that passes only PART of the live suite is still worth adopting: the
             # dev-time ceiling program for ls20 is 12/13 (one auto-changing region it deliberately
@@ -1225,8 +1275,90 @@ class EwmAgent:
             # floor SYNTHESIZE uses: mask the persistently-wrong cells UNKNOWN and adopt iff the
             # masked program then passes and clears the floor + mask cap.
             if self._try_partial_adopt(frame, source):
+                self.summary.orient_adopted = True
+                self.summary.orient_diagnosis = "adopted partial"
                 return True
+            diagnosis = "stored program failed validation"
+        self.summary.orient_diagnosis = diagnosis
         return False
+
+    def _resolve_orient_source(self, hit: dict[str, Any]) -> tuple[str | None, str | None]:
+        """Resolve program source for an ORIENT hit, reassembling from chunks when the hit is an index.
+
+        Returns ``(source, diagnosis)``:
+        * A CHUNKED index note (its body carries ``chunk count:`` + ``source length:``) drives a
+          fetch of every ``game <id> world model program chunk n of N`` note by its EXACT title (with
+          full_content so the ≤1200-char chunk body round-trips whole), an ordered reassembly, and a
+          byte-length check. A missing/corrupt/short chunk yields ``(None, "<reason>")`` — a clean
+          refusal, never a partial program.
+        * An INLINE (legacy, small-program) hit falls back to :meth:`_program_source_from_hit`.
+
+        The diagnosis is only meaningful when source is None; on success it is None.
+        """
+
+        from . import kb_protocol
+
+        # Chunked reassembly is a FALLBACK path gated behind config.chunked_program_notes (default
+        # OFF). When it is off, a chunked index note is treated like any other hit — the inline
+        # extractor runs (and finds nothing usable in a pure index note), so ORIENT degrades to no
+        # warm-start rather than firing the unreliable chunk-fetch path. See the config flag's TODO:
+        # the native daemon full-body note-read endpoint supersedes this.
+        if self.config.chunked_program_notes:
+            index_body = self._hit_body_text(hit)
+            chunk_count = _search_int(kb_protocol._INDEX_CHUNKS_RE, index_body)
+            source_length = _search_int(kb_protocol._INDEX_LENGTH_RE, index_body)
+            if chunk_count is not None and source_length is not None:
+                return self._reassemble_orient_chunks(chunk_count, source_length)
+        # Not a chunked index (or chunked recall disabled): legacy inline body.
+        return self._program_source_from_hit(hit), "no source in hit"
+
+    def _reassemble_orient_chunks(
+        self, chunk_count: int, source_length: int
+    ) -> tuple[str | None, str | None]:
+        """Fetch the N chunk notes by exact title, reassemble, and verify the byte length."""
+
+        from . import kb_protocol
+
+        client = getattr(self.kb, "client", None)
+        if client is None:
+            return None, "no kb client for chunks"
+        chunk_bodies: list[str] = []
+        for n in range(1, chunk_count + 1):
+            title = kb_protocol.program_chunk_title(self.config.game_id, n, chunk_count)
+            try:
+                # k is generous: the daemon prepends ~5 system notes (score 1.0) ahead of memory hits,
+                # so an exact-title chunk can sit past rank 5. We pull a pool and match the EXACT
+                # title; we NEVER fall back to a non-exact hit — a wrong chunk body would silently
+                # corrupt the reassembly, and a clean refusal is strictly better.
+                hits = client.search(title, k=12, full_content=True)
+            except Exception:  # noqa: BLE001 - a chunk fetch failure is a clean refusal, never a crash
+                return None, "chunk fetch failed"
+            body = None
+            for h in hits:
+                if str(h.get("title", "")).strip() == title:
+                    body = self._hit_body_text(h)
+                    break
+            if not body:
+                return None, f"missing chunk {n} of {chunk_count}"
+            chunk_bodies.append(body)
+        source = kb_protocol.reassemble_chunks(
+            chunk_bodies, expected_count=chunk_count, expected_length=source_length
+        )
+        if source is None:
+            return None, "chunk reassembly corrupt"
+        return source, None
+
+    @staticmethod
+    def _hit_body_text(hit: dict[str, Any]) -> str:
+        """The fullest body text a hit carries: prefer the full_content ``content`` field, then the
+        clipped ``summary``/``body``. Chunk retrieval sets full_content so ``content`` holds the whole
+        ≤1200-char chunk; a plain hit only has the 200-char ``summary``."""
+
+        for key in ("content", "summary", "body", "text"):
+            value = hit.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+        return ""
 
     @staticmethod
     def _program_source_from_hit(hit: dict[str, Any]) -> str | None:

@@ -40,6 +40,126 @@ HYPOTHESIS_MENU_PREAMBLE: str = (
 )
 
 
+# --------------------------------------------------------------------------------------------------
+# Program-note chunking
+# --------------------------------------------------------------------------------------------------
+#
+# The daemon mangles a note body at THREE points, and retrieval only round-trips a body that survives
+# ALL of them:
+#   * WRITE clip:  /overlay/note clips the stored `summary` to 2000 chars.
+#   * READ cap:    /search with full_content=1 attaches a `content` field clipped to 1200 chars; the
+#                  plain display `summary` is only 200 chars.
+#   * SOURCE-CLUSTER REWRITE (the killer): lib/note-source-cluster.js `shouldClusterNote` REPLACES a
+#                  note's stored summary with a compacted stub ("[Long raw evidence preserved as
+#                  structured source chunks.]") whenever the body is >= 2400 chars OR (>= 1000 chars
+#                  AND looks like source — backticks/`def `/`if (`/`;` etc.). A program chunk ALWAYS
+#                  looks like source, so any chunk body >= SOURCE_LIKE_CHARS (1000) is silently gutted
+#                  and its `content` returns the stub, NOT the code. This is the deeper reason run 12
+#                  broke: the 3272-char program note was code-like and >= 1000, so it was clustered
+#                  and its recallable body became a stub. Chunking only helps if EACH chunk stays
+#                  UNDER 1000 chars so the source-cluster rewrite never fires.
+# So the binding limit is min(write 2000, read 1200, source-cluster 1000) MINUS one, applied to the
+# WHOLE chunk body (header + source slice). We use 999.
+CHUNK_BODY_LIMIT: int = 999
+# Header lines each chunk body carries before its source slice: a "chunk n of N" line the reassembler
+# reads to order chunks, and a "len:" line the reassembler uses to verify the total byte length. We
+# budget a fixed reserve for these so `source_per_chunk` leaves headroom no matter how big N gets.
+_CHUNK_HEADER_RESERVE: int = 80
+# Source bytes per chunk = the body limit minus the header reserve. Kept as a module constant so the
+# writer, the reassembler, and the tests all agree on the split arithmetic.
+SOURCE_PER_CHUNK: int = CHUNK_BODY_LIMIT - _CHUNK_HEADER_RESERVE
+
+# Markers the chunk reassembler parses out of a chunk body. Kept standalone-token so they never fuse.
+_CHUNK_HEADER_RE = re.compile(r"^chunk\s+(\d+)\s+of\s+(\d+)\b", re.IGNORECASE | re.MULTILINE)
+# Index-note fields (written into the index-note body, parsed by ORIENT to drive reassembly).
+_INDEX_CHUNKS_RE = re.compile(r"^chunk count:\s*(\d+)\s*$", re.IGNORECASE | re.MULTILINE)
+_INDEX_LENGTH_RE = re.compile(r"^source length:\s*(\d+)\s*$", re.IGNORECASE | re.MULTILINE)
+
+
+def program_chunk_title(game_id: str, n: int, total: int) -> str:
+    """Exact title for chunk ``n`` of ``total`` of ``game_id``'s world-model program.
+
+    DELIBERATELY omits the "world model" phrase the INDEX note carries: ``game ls20 program chunk 1
+    of 4``, not ``game ls20 world model program chunk 1 of 4``. The ORIENT keyed lookup queries
+    ``game <id> world model program`` — if chunk titles were supersets of that phrase they would each
+    match (and outscore) the index note on that query and crowd it out of any reasonable top-k (they
+    share all its tokens plus more). Dropping "world model" means the ORIENT query token set is NOT a
+    subset of a chunk title, so chunks neither match the index token-superset filter nor bury the
+    index in the ranking; ORIENT resolves the index cleanly, then fetches each chunk by its own exact
+    title. Standalone-token so each chunk title round-trips verbatim.
+    """
+
+    return _title("game", game_id, "program chunk", n, "of", total)
+
+
+def chunk_program_source(source: str, *, source_per_chunk: int = SOURCE_PER_CHUNK) -> list[str]:
+    """Split ``source`` into ordered slices, each at most ``source_per_chunk`` BYTES.
+
+    Byte-based (UTF-8) so the reassembled length check is exact. The ceiling program is pure ASCII, so
+    a char split would suffice, but slicing on the encoded bytes keeps the invariant honest for any
+    non-ASCII source. A slice never splits a multi-byte UTF-8 sequence: we advance byte offsets that
+    land on a codepoint boundary (the decode below would raise otherwise).
+    """
+
+    if source_per_chunk <= 0:
+        raise ValueError("source_per_chunk must be positive")
+    raw = source.encode("utf-8")
+    slices: list[str] = []
+    pos = 0
+    while pos < len(raw):
+        end = min(pos + source_per_chunk, len(raw))
+        # Back off `end` so it never lands in the middle of a multi-byte codepoint.
+        while end < len(raw) and (raw[end] & 0xC0) == 0x80:
+            end -= 1
+        slices.append(raw[pos:end].decode("utf-8"))
+        pos = end
+    return slices or [""]
+
+
+def reassemble_chunks(
+    chunk_bodies: list[str],
+    *,
+    expected_count: int,
+    expected_length: int,
+) -> str | None:
+    """Reassemble ordered program source from chunk NOTE BODIES, or ``None`` on any corruption.
+
+    Each body is ``chunk n of N\\n<source slice>``. We parse the ``chunk n of N`` header off every
+    body, order by ``n``, require exactly ``expected_count`` distinct chunks numbered 1..N with the
+    header's N matching, concatenate their source payloads, and verify the reassembled UTF-8 byte
+    length equals ``expected_length``. Any missing/duplicate/out-of-range chunk, header mismatch, or
+    length mismatch returns ``None`` — the caller treats that as a clean refusal, never a partial
+    reassembly.
+    """
+
+    if expected_count <= 0:
+        return None
+    by_index: dict[int, str] = {}
+    for body in chunk_bodies:
+        if not isinstance(body, str):
+            continue
+        m = _CHUNK_HEADER_RE.search(body)
+        if not m:
+            continue
+        n = int(m.group(1))
+        total = int(m.group(2))
+        if total != expected_count or not (1 <= n <= expected_count) or n in by_index:
+            # Wrong N, out-of-range index, or a duplicate chunk: refuse rather than guess.
+            if total != expected_count or n in by_index:
+                return None
+            continue
+        # Source payload = everything AFTER the header line.
+        payload = body[m.end():]
+        payload = payload[1:] if payload.startswith("\n") else payload
+        by_index[n] = payload
+    if len(by_index) != expected_count:
+        return None
+    source = "".join(by_index[i] for i in range(1, expected_count + 1))
+    if len(source.encode("utf-8")) != expected_length:
+        return None
+    return source
+
+
 class KbClient:
     """Minimal stdlib HTTP client for the Zonoid daemon KB.
 
@@ -55,18 +175,28 @@ class KbClient:
         self.task_key = task_key
         self.timeout_s = timeout_s
 
-    def search(self, q: str, k: int, gated: bool = False) -> list[dict[str, Any]]:
-        """GET {daemon_url}/search — return the parsed result list (empty on any failure)."""
+    def search(
+        self, q: str, k: int, gated: bool = False, full_content: bool = False
+    ) -> list[dict[str, Any]]:
+        """GET {daemon_url}/search — return the parsed result list (empty on any failure).
 
-        query = parse.urlencode(
-            {
-                "workspace": self.workspace,
-                "task_key": self.task_key,
-                "q": q,
-                "k": k,
-                "gated": "true" if gated else "false",
-            }
-        )
+        ``full_content=True`` asks the daemon to attach a fuller ``content`` field (up to the
+        agentic-delivery budget, currently 1200 chars) to each hit instead of only the lean 200-char
+        display ``summary``. Chunked-program retrieval MUST set this: a chunk body is stored whole but
+        the plain ``summary`` is clipped to 200 chars, so only the ``content`` field round-trips a
+        chunk large enough to matter (this is exactly what run 12 missed — it read the clipped summary).
+        """
+
+        params = {
+            "workspace": self.workspace,
+            "task_key": self.task_key,
+            "q": q,
+            "k": k,
+            "gated": "true" if gated else "false",
+        }
+        if full_content:
+            params["full_content"] = "1"
+        query = parse.urlencode(params)
         url = f"{self.daemon_url}/search?{query}"
         try:
             req = request.Request(url, method="GET")
@@ -181,6 +311,35 @@ def _is_game_scoped(note: dict[str, Any], game_id: str) -> bool:
     return gid in " ".join(_tokens(note.get("title", "")))
 
 
+def _search_full_content(client: Any, q: str, k: int) -> list[dict[str, Any]]:
+    """``client.search(q, k, full_content=True)``, degrading gracefully for a client whose ``search``
+    predates the ``full_content`` kwarg (older fakes/adapters) by retrying without it."""
+
+    try:
+        return client.search(q, k=k, gated=False, full_content=True)
+    except TypeError:
+        return client.search(q, k=k, gated=False)
+
+
+def _is_chunk_note(note: dict[str, Any]) -> bool:
+    """A program CHUNK note carries the ``chunk`` token in its title (``... program chunk n of N``);
+    the INDEX note does not. ORIENT keys on the index, so chunk notes are filtered out of the keyed
+    lookup even though they share the program query tokens."""
+
+    return "chunk" in _tokens(note.get("title", ""))
+
+
+def _is_cluster_artifact(note: dict[str, Any]) -> bool:
+    """A source-cluster artifact node emitted by the daemon's long-note splitter — a
+    ``knowledge:source_doc/section/chunk`` key or an "evidence" title. These inherit the program's
+    title tokens but carry only a stub body, so ORIENT must never mistake one for the index note."""
+
+    key = str(note.get("key", "")).lower()
+    if key.startswith("knowledge:source_"):
+        return True
+    return "evidence" in _tokens(note.get("title", ""))
+
+
 def hypothesis_menu(
     game_id: str,
     vocabulary: list[str],
@@ -259,10 +418,30 @@ def search_for_mode(
 
     if mode == "ORIENT":
         q = " ".join(_dedupe(["game", *_tokens(game_id), "world", "model", "program"]))
-        hits = client.search(q, k=1, gated=False)
+        # k>1 and full_content: a CHUNKED program shares the query tokens with every chunk note
+        # ("game <id> world model program chunk n of N"), so a k=1 lookup can return a chunk instead
+        # of the INDEX note. Fetch a small candidate pool, then prefer the index note — the
+        # game-scoped hit whose title carries NO "chunk" token — so ORIENT keys on the index, which
+        # carries the chunk count + source length it needs to reassemble. full_content lifts the index
+        # body past the 200-char summary clip so those fields survive retrieval.
+        # k is generous: the daemon always PREPENDS ~5 system notes (score 1.0) AND, for a chunked
+        # program, every chunk note outscores the index note on this exact query — so the index note
+        # can sit well past rank 8. A small k would return only system notes + chunks and miss the
+        # index entirely. 20 comfortably clears the system-note + chunk band.
+        hits = _search_full_content(client, q, k=20)
         scoped = [h for h in hits if _is_game_scoped(h, game_id)]
         if scoped:
-            return scoped
+            # The INDEX note is a game-scoped note that is NOT a chunk note and NOT a source-cluster
+            # artifact. The daemon's long-note splitter (lib/note-source-cluster.js) emits
+            # `knowledge:source_*` "evidence" nodes whose titles inherit the program tokens; those are
+            # never the index and must be filtered out or ORIENT keys on an empty stub.
+            index_hits = [
+                h for h in scoped if not _is_chunk_note(h) and not _is_cluster_artifact(h)
+            ]
+            # Prefer a note whose body actually carries the chunk-count field (a real chunked index)
+            # over any bare same-title note left over from an older single-note write.
+            chunked = [h for h in index_hits if _INDEX_CHUNKS_RE.search(_note_text(h) + " " + str(h.get("content", "")))]
+            return chunked or index_hits or scoped
         # New game: no game-scoped program note. Hand back a hypothesis menu, NOT raw semantic hits.
         return [hypothesis_menu(game_id, list(_tokens(vocabulary)), client=client)]
 
@@ -409,6 +588,72 @@ class WriteGate:
             f"program source:\n{program_source}"
         )
         return self._guarded_note(title, body, supersedes=supersedes)
+
+    def write_program_revision_chunked(
+        self,
+        game_id: str,
+        prose_summary: str,
+        program_source: str,
+        pass_rate: Any,
+        *,
+        supersedes: str | None = None,
+    ) -> dict[str, Any]:
+        """Acceptance: persist a world-model program TOO LARGE to survive the daemon's note clip.
+
+        The daemon clips a note body to 2000 chars on write and returns at most 1200 chars on a
+        full_content read, so a program bigger than ~1200 chars cannot round-trip as one note (the run
+        12 break). This writer splits ``program_source`` across N chunk notes — each titled
+        ``game <id> world model program chunk <n> of <N>`` with a body of ``chunk n of N\\n<slice>``
+        that stays under :data:`CHUNK_BODY_LIMIT` — then writes the INDEX note
+        ``game <id> world model program`` carrying the prose retrieval key, the pass rate, the chunk
+        count, and the exact source byte length. ORIENT fetches the index note, then the chunks by
+        their exact titles, reassembles in order, and verifies the byte length.
+
+        This is NOT gated by the per-turn write cap: a chunked revision is ONE acceptance event whose
+        note count is a function of program size, not a burst of independent writes. It writes the
+        chunks FIRST, then the index note last, so the index (the entry point ORIENT keys on) never
+        points at chunks that were not written. The prose summary is grid-dump guarded like every
+        other write. Returns ``{"ok": True, "chunks": N, "length": L, "index": <resp>, "chunk_ids":
+        [...]}`` or a refusal/error dict.
+        """
+
+        if looks_like_grid_dump(prose_summary):
+            logger.warning("chunked program revision refused (grid dump in prose): %r", game_id)
+            return {"ok": False, "reason": "grid dump"}
+
+        slices = chunk_program_source(program_source)
+        total = len(slices)
+        source_length = len(program_source.encode("utf-8"))
+
+        chunk_ids: list[Any] = []
+        for i, slice_text in enumerate(slices, start=1):
+            title = program_chunk_title(game_id, i, total)
+            body = f"chunk {i} of {total}\n{slice_text}"
+            resp = self.client.note(title, body, category="arc-agi-3")
+            if not (isinstance(resp, dict) and resp.get("ok", True) and "error" not in resp):
+                return {"ok": False, "reason": "chunk write failed", "chunk": i, "response": resp}
+            chunk_ids.append(resp.get("id") or resp.get("key"))
+
+        index_title = _title("game", game_id, "world model program")
+        index_body = (
+            f"{prose_summary}\n\n"
+            f"pass rate: {pass_rate}\n\n"
+            f"chunk count: {total}\n"
+            f"source length: {source_length}\n\n"
+            "program stored in chunk notes titled "
+            f"'{program_chunk_title(game_id, 1, total)}' .. "
+            f"'{program_chunk_title(game_id, total, total)}'."
+        )
+        index_resp = self.client.note(index_title, index_body, category="arc-agi-3", supersedes=supersedes)
+        if not (isinstance(index_resp, dict) and index_resp.get("ok", True) and "error" not in index_resp):
+            return {"ok": False, "reason": "index write failed", "response": index_resp}
+        return {
+            "ok": True,
+            "chunks": total,
+            "length": source_length,
+            "index": index_resp,
+            "chunk_ids": chunk_ids,
+        }
 
     def write_level_solution(
         self,
