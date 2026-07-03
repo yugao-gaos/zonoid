@@ -17,3 +17,4 @@
 {"evt":"edge_removed","from":"note:note-mr49q8juxow","to":"note:note-mr43rk1dmy0","kind":"context","actor":"overlay-sync","ts":"2026-07-03T02:37:27.821Z"}
 {"evt":"edge_added","from":"note:note-mr49q8juxow","to":"codex/ewm-synth-prompt-unknown-partial-fidelity-block-selection","kind":"context","actor":"overlay-sync","ts":"2026-07-03T02:44:19.267Z","weight":0,"by":"autowire","judged":false,"score":0.343,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr49q8juxow","to":"codex/ewm-synth-prompt-unknown-partial-fidelity-block-selection","kind":"context","actor":"overlay-sync","ts":"2026-07-03T02:58:52.500Z"}
+{"evt":"edge_added","from":"note:note-mr49q8juxow","to":"codex/ewm-unknown-alias-stdlib-prompt-synthesis-pacing","kind":"context","actor":"overlay-sync","ts":"2026-07-03T03:08:21.284Z","weight":0,"by":"autowire","judged":false,"score":0.388,"origin":"autowire-semantic"}
