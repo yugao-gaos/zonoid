@@ -12,3 +12,4 @@
 {"evt":"edge_removed","from":"note:note-mr4dujpkkos","to":"note:note-mr49q8juxow","kind":"context","actor":"overlay-sync","ts":"2026-07-03T04:01:05.337Z"}
 {"evt":"edge_removed","from":"note:note-mr4dujpkkos","to":"note:note-mr43rk1dmy0","kind":"context","actor":"overlay-sync","ts":"2026-07-03T04:08:24.434Z"}
 {"evt":"edge_promoted","from":"note:note-mr4dujpkkos","to":"codex/ewm-auto-changing-cells-hint-from-suite-in-synthesis-prompt","kind":"context","actor":"overlay-sync","ts":"2026-07-03T04:16:33.804Z","weight":0.472,"by":"judge","judged":true,"score":0.472,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mr4dujpkkos","to":"29556785-fa39-442e-8eba-b5dd9dc00862/7","kind":"context","actor":"overlay-sync","ts":"2026-07-03T11:48:30.464Z","weight":0,"by":"autowire","judged":false,"score":0.334,"origin":"autowire-semantic"}
