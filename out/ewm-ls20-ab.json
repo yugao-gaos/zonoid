@@ -1,292 +1,321 @@
 {
-  "comparison": "Five-arm A/B on ARC-AGI-3 ls20: reactive baseline vs EWM text-only vs EWM vision (qwen35b-arc, PRE-fix harness) vs EWM vision (qwen-coding, FIXED probe-first harness) vs EWM graph-native multi-step synthesis (qwen-coding, config.graph_synthesis: ANALYZE->PLAN->EDIT->FINAL state machine, first run on a real game).",
-  "game": "ls20",
-  "total_levels": 7,
-  "harness_note": "Arms 1-3 ran on the PRE-fix harness where a program could be adopted vacuously (validated against zero transitions at cold start). Arm 4 runs on the FIXED harness (probe-first seeding: min_probe_transitions=4, adoption requires validate() pass on a NON-EMPTY suite; plus repair caps and a live pass-rate floor 0.5/last-20 -> reactive fallback). Adoption semantics therefore DIFFER between arm 3 and arm 4: arm 3's program_adopted:true was vacuous; arm 4's program_adopted:false means 4 real synthesis attempts each failed validation against observed transitions and the harness correctly refused adoption. Arm 6 (ewm_warmstart_kb_seeded_orient): seeded the 12/13 dev-time ls20 program into the live KB and added ORIENT partial-adoption + live KB wiring; warm start did NOT engage \u2014 Run 12's driver predated the kb wiring fix (kb=None, ORIENT never queried), and independently the daemon's 2000-char note cap + 200-char /search summary truncate the program below a compiling round-trip. The seeded program itself is live-valid: 12/13 on Run 12's own transitions, 1.000 changed-cells accuracy, partial-adopts with a 22-cell mask (masked 13/13).",
-  "arms": {
-    "reactive_baseline": {
-      "agent": "official BenchmarkingAgent, config zonoid-local-cli (reactive/Duck-style)",
-      "source": "scratchpad/arc-run-ornith35b-cold (cold ls20 run)",
-      "model": "ornith35b-arc:latest (35B, text-only, ollama)",
-      "harness": "n/a (official reactive agent)",
-      "vision": false,
-      "levels_completed": 0,
-      "actions_taken": 51,
-      "actions_per_level_completed": null,
-      "won": false,
-      "program_adopted": false,
-      "stop_reason": "ACTION_BUDGET (MAX_ACTIONS=50, scorecard reported 51)",
-      "scorecard_url": "https://arcprize.org/scorecards/9fdd913f-ae80-4a8e-ad63-850d6779656a",
-      "wall_clock_seconds": 1368
-    },
-    "ewm_text_only": {
-      "agent": "EwmAgent (five-pillar world-model agent)",
-      "source": "out/ewm-ls20-ewm.json (prior live run)",
-      "model": "ornith35b-arc:latest (35B, text-only, ollama)",
-      "harness": "pre-fix",
-      "vision": false,
-      "levels_completed": 0,
-      "actions_taken": 70,
-      "actions_per_level_completed": null,
-      "won": false,
-      "program_adopted": false,
-      "best_pass_rate": "n/a (no program adopted)",
-      "modes_visited": [
-        "SYNTHESIZE",
-        "RECOVER"
-      ],
-      "stop_reason": "budget (25-min wall-clock cap)",
-      "scorecard_url": "https://arcprize.org/scorecards/b1b7ec41-d8c7-4f6d-a16f-1215a3a8051f"
-    },
-    "ewm_vision_qwen35b_arc_prefix": {
-      "agent": "EwmAgent (five-pillar world-model agent)",
-      "source": "out/ewm-ls20-ewm-vision.json (prior live run)",
-      "model": "qwen35b-arc:latest (35B MoE, vision-capable, ollama)",
-      "harness": "pre-fix (vacuous adoption possible)",
-      "vision": true,
-      "reasoning_effort": "none",
-      "levels_completed": 0,
-      "actions_taken": 80,
-      "actions_per_level_completed": null,
-      "won": false,
-      "program_adopted": true,
-      "note_adoption": "VACUOUS: adopted against zero transitions at cold start (pre-fix rule), then mispredicted all 80 observed transitions (divergences=80, empirical pass rate 0.0).",
-      "best_pass_rate": "0/80 transitions (0.0)",
-      "modes_visited": [
-        "SYNTHESIZE",
-        "EXECUTE"
-      ],
-      "divergences": 80,
-      "stop_reason": "budget (80-action cap; ~14.5 min)",
-      "scorecard_url": "https://arcprize.org/scorecards/3cab1596-cd3c-4914-8aab-7090e831a8c4"
-    },
-    "ewm_vision_qwen_coding_fixed": {
-      "agent": "EwmAgent (five-pillar world-model agent)",
-      "source": "out/ewm-ls20-ewm-coding.json (live run this task)",
-      "model": "qwen-coding:latest (qwen35moe 36B, vision-capable, num_ctx 65536, ollama) as BOTH gameplay and synthesis",
-      "harness": "FIXED (probe-first seeding + repair caps + live pass-rate floor). program_adopted here is NOT comparable to arm 3: false means candidates were tested against a real non-empty suite and all failed validation.",
-      "vision": true,
-      "reasoning_effort": "none",
-      "levels_completed": 0,
-      "actions_taken": 80,
-      "actions_per_level_completed": null,
-      "won": false,
-      "program_adopted": false,
-      "synthesis_attempts": 4,
-      "repair_attempts": 0,
-      "suite_size": 80,
-      "live_pass_rate": "1.0 (VACUOUS -- window only scores against an adopted program; none was adopted, so the empty-window default 1.0 is reported)",
-      "best_pass_rate": "no candidate program passed validate() on the seeded suite (0/4 synthesis attempts adopted)",
-      "modes_visited": [
-        "RECOVER",
-        "SYNTHESIZE"
-      ],
-      "divergences": 76,
-      "note_divergences": "field counts reactive_turns, not model divergences: 80 actions = 4 probe-seeding actions + 76 reactive fallback turns; zero expect-mismatches because no program was ever executed",
-      "stop_reason": "budget (80-action cap at ~23.2 min)",
-      "wall_clock_seconds": 1392,
-      "scorecard_url": "https://arcprize.org/scorecards/9077e04a-008b-4c49-89d4-5a8b8260cdc0"
-    },
-    "ewm_graph_synthesis_qwen_coding": {
-      "agent": "EwmAgent + graph-native multi-step synthesis (synth_graph.SynthSession: ANALYZE->PLAN->EDIT chain->FINAL); the first graph-native multi-step synthesis on a real game (ls20 run 8)",
-      "source": "out/ewm-ls20-ewm-synthgraph.json (live run this task)",
-      "model": "qwen-coding:latest (qwen35moe 36B, vision-capable, ollama) as BOTH gameplay and synthesis",
-      "harness": "FIXED (probe-first seeding + repair caps + live pass-rate floor), with config.graph_synthesis=True: SYNTHESIZE runs the graph-native ANALYZE->PLAN->EDIT->FINAL state machine over deltas.summarize_suite object-level deltas. Adoption unchanged: FINAL full-suite validate must pass on a non-empty suite.",
-      "vision": true,
-      "reasoning_effort": "none",
-      "graph_synthesis": true,
-      "levels_completed": 0,
-      "actions_taken": 5,
-      "won": false,
-      "program_adopted": false,
-      "synthesis_attempts": 0,
-      "repair_attempts": 0,
-      "suite_size": 6,
-      "live_pass_rate": 1.0,
-      "modes_visited": [
-        "RECOVER",
-        "SYNTHESIZE"
-      ],
-      "divergences": 2,
-      "stop_reason": "budget",
-      "wall_clock_seconds": 1688,
-      "scorecard_url": "https://arcprize.org/scorecards/135aeae6-4e64-4af1-99c5-b388778c8306",
-      "graph_synth_stats": {},
-      "per_change_stats": {
-        "changes_proposed": 27,
-        "changes_passed": 0,
-        "changes_skipped": 27,
-        "suite_pass_rate_trajectory": [
-          {
-            "pass_count": 0,
-            "total": 4,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 4,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 4,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 4,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 4,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 4,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 4,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 4,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 4,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 4,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 4,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 4,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 5,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 5,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 5,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 5,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 5,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 5,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 5,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 5,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 5,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 5,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 5,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 5,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 5,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 5,
-            "ok": false
-          },
-          {
-            "pass_count": 0,
-            "total": 5,
-            "ok": false
-          }
-        ],
-        "rejection_reasons": {
-          "numpy_import_blocked": 24,
-          "truncated_unclosed_brace": 3
-        }
-      },
-      "note": "Graph degradation: the live daemon did not serve /task/context or /overlay/note (404) and /sync intermittently timed out; graph ops degraded to best-effort no-graph, so the multi-step state machine ran without wired task nodes. A failed session with clean per-change telemetry is a valid result.",
-      "synthesis_sessions_estimate": 11,
-      "note_synthesis_attempts": "summary synthesis_attempts field was 0 (live binary predated the per-cycle counter). Ground truth: ~11 graph-native synthesis SESSIONS producing 27 EDIT candidates; all 27 rejected at load (24 numpy imports, 3 truncated). 0 adopted."
-    },
-    "ewm_warmstart_kb_seeded_orient": {
-      "agent": "EwmAgent warm-start (KB-seeded ORIENT), graph-native synthesis",
-      "source": "Run 12 (codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve)",
-      "model": "qwen-coding:latest (35B coding, ollama)",
-      "harness": "driver live_run --vision --graph on --max-actions 80 --max-seconds 1500",
-      "vision": true,
-      "levels_completed": 0,
-      "actions_taken": 13,
-      "actions_per_level_completed": null,
-      "won": false,
-      "program_adopted": false,
-      "orient_adopted": false,
-      "orient_adopted_reason": "Two independent breaks, both UPSTREAM of validation. (1) Run 12's driver built the agent with kb=None (pre-fix live_run), so _kb_search('ORIENT') returned [] without any HTTP call \u2014 ORIENT never queried the KB at all; modes_visited confirms no ORIENT adoption (RECOVER+SYNTHESIZE only). Fixed on this branch: live_run now wires WriteGate(KbClient(ZONOID_DAEMON_URL, workspace, task_key)). (2) Even with the KB wired, the daemon caps a stored note body at 2000 chars (overlay.js addNoteNode slice(0,2000)) and GET /search returns only a 200-char summary snippet (memory-search.js; full_content=true caps content at 1200 chars), so the 3272-char ls20 program (2010 chars minified) cannot round-trip: the seeded note IS retrieved by the exact ORIENT query 'game ls20 world model program' and passes _is_game_scoped, but its returned body is truncated below a compiling program, so _program_source_from_hit finds no loadable source. NOT the break: retrieval ranking, parsing, live-board mismatch, validation, or the changed-cells floor \u2014 the seeded program validates 12/13 on Run 12's OWN live transition suite, scores 1.000 changed-cells accuracy (floor 0.6), masks 22 cells (0.54% of board, cap 15%), and _try_partial_adopt succeeds (masked 13/13). Had retrieval delivered the program bytes, the agent would have adopted it on the live board.",
-      "stop_reason": "budget",
-      "scorecard_url": "https://arcprize.org/scorecards/c0daf950-64da-445a-9783-0dab36851907",
-      "wall_clock_seconds": null
+ "comparison": "Five-arm A/B on ARC-AGI-3 ls20: reactive baseline vs EWM text-only vs EWM vision (qwen35b-arc, PRE-fix harness) vs EWM vision (qwen-coding, FIXED probe-first harness) vs EWM graph-native multi-step synthesis (qwen-coding, config.graph_synthesis: ANALYZE->PLAN->EDIT->FINAL state machine, first run on a real game).",
+ "game": "ls20",
+ "total_levels": 7,
+ "harness_note": "Arms 1-3 ran on the PRE-fix harness where a program could be adopted vacuously (validated against zero transitions at cold start). Arm 4 runs on the FIXED harness (probe-first seeding: min_probe_transitions=4, adoption requires validate() pass on a NON-EMPTY suite; plus repair caps and a live pass-rate floor 0.5/last-20 -> reactive fallback). Adoption semantics therefore DIFFER between arm 3 and arm 4: arm 3's program_adopted:true was vacuous; arm 4's program_adopted:false means 4 real synthesis attempts each failed validation against observed transitions and the harness correctly refused adoption. Arm 6 (ewm_warmstart_kb_seeded_orient): seeded the 12/13 dev-time ls20 program into the live KB and added ORIENT partial-adoption + live KB wiring; warm start did NOT engage \u2014 Run 12's driver predated the kb wiring fix (kb=None, ORIENT never queried), and independently the daemon's 2000-char note cap + 200-char /search summary truncate the program below a compiling round-trip. The seeded program itself is live-valid: 12/13 on Run 12's own transitions, 1.000 changed-cells accuracy, partial-adopts with a 22-cell mask (masked 13/13).",
+ "arms": {
+  "reactive_baseline": {
+   "agent": "official BenchmarkingAgent, config zonoid-local-cli (reactive/Duck-style)",
+   "source": "scratchpad/arc-run-ornith35b-cold (cold ls20 run)",
+   "model": "ornith35b-arc:latest (35B, text-only, ollama)",
+   "harness": "n/a (official reactive agent)",
+   "vision": false,
+   "levels_completed": 0,
+   "actions_taken": 51,
+   "actions_per_level_completed": null,
+   "won": false,
+   "program_adopted": false,
+   "stop_reason": "ACTION_BUDGET (MAX_ACTIONS=50, scorecard reported 51)",
+   "scorecard_url": "https://arcprize.org/scorecards/9fdd913f-ae80-4a8e-ad63-850d6779656a",
+   "wall_clock_seconds": 1368
+  },
+  "ewm_text_only": {
+   "agent": "EwmAgent (five-pillar world-model agent)",
+   "source": "out/ewm-ls20-ewm.json (prior live run)",
+   "model": "ornith35b-arc:latest (35B, text-only, ollama)",
+   "harness": "pre-fix",
+   "vision": false,
+   "levels_completed": 0,
+   "actions_taken": 70,
+   "actions_per_level_completed": null,
+   "won": false,
+   "program_adopted": false,
+   "best_pass_rate": "n/a (no program adopted)",
+   "modes_visited": [
+    "SYNTHESIZE",
+    "RECOVER"
+   ],
+   "stop_reason": "budget (25-min wall-clock cap)",
+   "scorecard_url": "https://arcprize.org/scorecards/b1b7ec41-d8c7-4f6d-a16f-1215a3a8051f"
+  },
+  "ewm_vision_qwen35b_arc_prefix": {
+   "agent": "EwmAgent (five-pillar world-model agent)",
+   "source": "out/ewm-ls20-ewm-vision.json (prior live run)",
+   "model": "qwen35b-arc:latest (35B MoE, vision-capable, ollama)",
+   "harness": "pre-fix (vacuous adoption possible)",
+   "vision": true,
+   "reasoning_effort": "none",
+   "levels_completed": 0,
+   "actions_taken": 80,
+   "actions_per_level_completed": null,
+   "won": false,
+   "program_adopted": true,
+   "note_adoption": "VACUOUS: adopted against zero transitions at cold start (pre-fix rule), then mispredicted all 80 observed transitions (divergences=80, empirical pass rate 0.0).",
+   "best_pass_rate": "0/80 transitions (0.0)",
+   "modes_visited": [
+    "SYNTHESIZE",
+    "EXECUTE"
+   ],
+   "divergences": 80,
+   "stop_reason": "budget (80-action cap; ~14.5 min)",
+   "scorecard_url": "https://arcprize.org/scorecards/3cab1596-cd3c-4914-8aab-7090e831a8c4"
+  },
+  "ewm_vision_qwen_coding_fixed": {
+   "agent": "EwmAgent (five-pillar world-model agent)",
+   "source": "out/ewm-ls20-ewm-coding.json (live run this task)",
+   "model": "qwen-coding:latest (qwen35moe 36B, vision-capable, num_ctx 65536, ollama) as BOTH gameplay and synthesis",
+   "harness": "FIXED (probe-first seeding + repair caps + live pass-rate floor). program_adopted here is NOT comparable to arm 3: false means candidates were tested against a real non-empty suite and all failed validation.",
+   "vision": true,
+   "reasoning_effort": "none",
+   "levels_completed": 0,
+   "actions_taken": 80,
+   "actions_per_level_completed": null,
+   "won": false,
+   "program_adopted": false,
+   "synthesis_attempts": 4,
+   "repair_attempts": 0,
+   "suite_size": 80,
+   "live_pass_rate": "1.0 (VACUOUS -- window only scores against an adopted program; none was adopted, so the empty-window default 1.0 is reported)",
+   "best_pass_rate": "no candidate program passed validate() on the seeded suite (0/4 synthesis attempts adopted)",
+   "modes_visited": [
+    "RECOVER",
+    "SYNTHESIZE"
+   ],
+   "divergences": 76,
+   "note_divergences": "field counts reactive_turns, not model divergences: 80 actions = 4 probe-seeding actions + 76 reactive fallback turns; zero expect-mismatches because no program was ever executed",
+   "stop_reason": "budget (80-action cap at ~23.2 min)",
+   "wall_clock_seconds": 1392,
+   "scorecard_url": "https://arcprize.org/scorecards/9077e04a-008b-4c49-89d4-5a8b8260cdc0"
+  },
+  "ewm_graph_synthesis_qwen_coding": {
+   "agent": "EwmAgent + graph-native multi-step synthesis (synth_graph.SynthSession: ANALYZE->PLAN->EDIT chain->FINAL); the first graph-native multi-step synthesis on a real game (ls20 run 8)",
+   "source": "out/ewm-ls20-ewm-synthgraph.json (live run this task)",
+   "model": "qwen-coding:latest (qwen35moe 36B, vision-capable, ollama) as BOTH gameplay and synthesis",
+   "harness": "FIXED (probe-first seeding + repair caps + live pass-rate floor), with config.graph_synthesis=True: SYNTHESIZE runs the graph-native ANALYZE->PLAN->EDIT->FINAL state machine over deltas.summarize_suite object-level deltas. Adoption unchanged: FINAL full-suite validate must pass on a non-empty suite.",
+   "vision": true,
+   "reasoning_effort": "none",
+   "graph_synthesis": true,
+   "levels_completed": 0,
+   "actions_taken": 5,
+   "won": false,
+   "program_adopted": false,
+   "synthesis_attempts": 0,
+   "repair_attempts": 0,
+   "suite_size": 6,
+   "live_pass_rate": 1.0,
+   "modes_visited": [
+    "RECOVER",
+    "SYNTHESIZE"
+   ],
+   "divergences": 2,
+   "stop_reason": "budget",
+   "wall_clock_seconds": 1688,
+   "scorecard_url": "https://arcprize.org/scorecards/135aeae6-4e64-4af1-99c5-b388778c8306",
+   "graph_synth_stats": {},
+   "per_change_stats": {
+    "changes_proposed": 27,
+    "changes_passed": 0,
+    "changes_skipped": 27,
+    "suite_pass_rate_trajectory": [
+     {
+      "pass_count": 0,
+      "total": 4,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 4,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 4,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 4,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 4,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 4,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 4,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 4,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 4,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 4,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 4,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 4,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 5,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 5,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 5,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 5,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 5,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 5,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 5,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 5,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 5,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 5,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 5,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 5,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 5,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 5,
+      "ok": false
+     },
+     {
+      "pass_count": 0,
+      "total": 5,
+      "ok": false
+     }
+    ],
+    "rejection_reasons": {
+     "numpy_import_blocked": 24,
+     "truncated_unclosed_brace": 3
     }
+   },
+   "note": "Graph degradation: the live daemon did not serve /task/context or /overlay/note (404) and /sync intermittently timed out; graph ops degraded to best-effort no-graph, so the multi-step state machine ran without wired task nodes. A failed session with clean per-change telemetry is a valid result.",
+   "synthesis_sessions_estimate": 11,
+   "note_synthesis_attempts": "summary synthesis_attempts field was 0 (live binary predated the per-cycle counter). Ground truth: ~11 graph-native synthesis SESSIONS producing 27 EDIT candidates; all 27 rejected at load (24 numpy imports, 3 truncated). 0 adopted."
   },
-  "delta": {
-    "levels_completed": "0 vs 0 vs 0 vs 0 (four-way tie: no arm cleared any of the 7 levels)",
-    "actions_taken": "baseline 51, text-only 70, vision pre-fix 80, vision fixed 80 (each hit its own action/wall cap)",
-    "program_adopted": "only arm 3 adopted -- and vacuously; arm 4's non-adoption is the fixed harness correctly refusing 4 non-validating candidates, which is the intended behavior, not a regression",
-    "synthesis_engagement": "arm 2: synthesis never produced an adoptable program (text-only model could not author from raw grids); arm 3: synthesis engaged and adopted vacuously; arm 4: synthesis engaged 4 times against a real 80-transition suite, all candidates failed validation"
+  "ewm_warmstart_kb_seeded_orient": {
+   "agent": "EwmAgent warm-start (KB-seeded ORIENT), graph-native synthesis",
+   "source": "Run 12 (codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve)",
+   "model": "qwen-coding:latest (35B coding, ollama)",
+   "harness": "driver live_run --vision --graph on --max-actions 80 --max-seconds 1500",
+   "vision": true,
+   "levels_completed": 0,
+   "actions_taken": 13,
+   "actions_per_level_completed": null,
+   "won": false,
+   "program_adopted": false,
+   "orient_adopted": false,
+   "orient_adopted_reason": "Two independent breaks, both UPSTREAM of validation. (1) Run 12's driver built the agent with kb=None (pre-fix live_run), so _kb_search('ORIENT') returned [] without any HTTP call \u2014 ORIENT never queried the KB at all; modes_visited confirms no ORIENT adoption (RECOVER+SYNTHESIZE only). Fixed on this branch: live_run now wires WriteGate(KbClient(ZONOID_DAEMON_URL, workspace, task_key)). (2) Even with the KB wired, the daemon caps a stored note body at 2000 chars (overlay.js addNoteNode slice(0,2000)) and GET /search returns only a 200-char summary snippet (memory-search.js; full_content=true caps content at 1200 chars), so the 3272-char ls20 program (2010 chars minified) cannot round-trip: the seeded note IS retrieved by the exact ORIENT query 'game ls20 world model program' and passes _is_game_scoped, but its returned body is truncated below a compiling program, so _program_source_from_hit finds no loadable source. NOT the break: retrieval ranking, parsing, live-board mismatch, validation, or the changed-cells floor \u2014 the seeded program validates 12/13 on Run 12's OWN live transition suite, scores 1.000 changed-cells accuracy (floor 0.6), masks 22 cells (0.54% of board, cap 15%), and _try_partial_adopt succeeds (masked 13/13). Had retrieval delivered the program bytes, the agent would have adopted it on the live board.",
+   "stop_reason": "budget",
+   "scorecard_url": "https://arcprize.org/scorecards/c0daf950-64da-445a-9783-0dab36851907",
+   "wall_clock_seconds": null
   },
-  "verdict": "TRUTHFUL FOUR-ARM FAILED A/B. All four arms completed 0 of 7 ls20 levels. Arm 4 (qwen-coding, both roles, vision on, FIXED probe-first harness) is the first arm where the world-model machinery behaved fully honestly end-to-end: probe seeding banked 4 real transitions before any synthesis, SYNTHESIZE engaged 4 times against a non-empty suite that grew to 80 transitions, and every candidate program failed validate() -- so the harness refused adoption and fell back to reactive play (76 reactive turns), exactly as designed. Contrast with arm 3, where the pre-fix harness adopted a program against zero evidence and then watched it miss all 80 transitions. Net: the fix converted 'confidently wrong world model' into 'no world model, honest fallback' -- same level score, better epistemics. The remaining bottleneck is unchanged and now cleanly isolated: neither local 35B-class model can yet author a Python program that reproduces real ls20 dynamics, whether validated before (arm 4) or after (arm 3) adoption. Telemetry caveats recorded on arm 4: live_pass_rate=1.0 is the vacuous empty-window default (no adopted program to score), and divergences=76 counts reactive turns, not expect-mismatches.",
-  "pair_recommendation": "For the Kaggle two-local-model pair: use qwen-coding:latest as the SYNTHESIS model and qwen35b-arc:latest as the GAMEPLAY (+vision) model. Rationale, stated with its evidential limits: qwen-coding is the only model observed emitting candidate programs under the fixed harness's real validation gate (4 attempts, parseable fenced programs, no thinking-drain with reasoning_effort:none), making it the better-evidenced synthesis half even though none of its candidates validated yet; qwen35b-arc showed the sharper multimodal grounding in sanity checks (named the exact changed cell+color on the composite, where qwen-coding was off-by-one on a 3x3), making it the better-evidenced gameplay/vision half. CAVEAT: no arm has run qwen35b-arc on the fixed harness, and no arm has cleared a level, so this recommendation ranks failure modes rather than successes; a qwen35b-arc-synthesis arm on the fixed harness would be the decisive missing data point.",
-  "total_arms": 6
+  "ewm_warmstart_native_note_get_run13": {
+   "agent": "EwmAgent warm-start (native /note/get ORIENT), graph-native synthesis",
+   "source": "Run 13 (codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen)",
+   "model": "qwen-coding:latest (35B coding, ollama)",
+   "harness": "driver live_run --vision --graph on --max-actions 80 --max-seconds 1500",
+   "vision": true,
+   "levels_completed": 0,
+   "actions_taken": 34,
+   "actions_per_level_completed": null,
+   "won": false,
+   "program_adopted": true,
+   "orient_adopted": true,
+   "orient_diagnosis": "adopted whole (native)",
+   "orient_adopted_reason": "ORIENT ADOPTED via the NATIVE full-body note read (orient_diagnosis='adopted whole (native)'). This is the Run-13 result of three converging fixes over Run 12's double break: (1) DAEMON: lib/note-source-cluster.js chunkText no longer trims chunk-leading indentation at write time -- it splits the cleaned evidence on the exact '\\n\\n' separator reassembleNoteBody rejoins with and never trims a segment, so an indented program round-trips byte-exact and compiles (verified live: get_note_full on the reseeded note returns the ceiling program byte-identical to input, python3-compiles). (2) HARNESS native read: kb_protocol.KbClient.get_note_full(key) hits GET /note/get?key&workspace&full=1, the daemon's server-side source-cluster reassembly, and agent._orient now prefers that native path FIRST (index-note key from the ORIENT keyed search -> get_note_full -> extract fenced/marked source -> load/validate/partial-adopt), falling back to the flagged chunk scheme then the legacy inline body. (3) HARNESS artifact-key derivation: the ORIENT keyed /search surfaces the 'knowledge:source_doc:note-<id> ... evidence' CLUSTER ARTIFACT (the index note's own summary is compacted to a stub at write time, so the evidence node outranks it on the program query); /note/get only resolves note: keys, so _hit_key derives the parent note:<id> from the artifact before the read -- otherwise get_note_full 404s (observed live in an intermediate run before this fix landed). Plus a live-KbClient timeout bump (20s->60s) so an ORIENT /search or /note/get under concurrent daemon-drain load does not time out and silently drop the warm-start. RESULT: ORIENT recalled and adopted the 12/13 ceiling program whole, straight from the KB, with synthesis_attempts=0.",
+   "why_no_level_cleared": "NO level cleared (levels_completed=0, won=false, stop_reason=budget). The warm-start program was adopted WHOLE, but on THIS live ls20 instance it diverged heavily: live_pass_rate=0.05 over suite_size=35, divergences=31. The dev-time ceiling program (12/13 on its own captured transition suite) does not generalize to this game seed's live dynamics, so EXECUTE kept mispredicting and the loop routed to SYNTHESIZE without producing a level solve before the 1500s budget expired (34 actions, no level boundary crossed). The pillar-5 warm-start MECHANISM is now proven end-to-end (native adopt fired); the adopted program's live accuracy is the remaining bottleneck, not retrieval.",
+   "modes_visited": [
+    "EXECUTE",
+    "SYNTHESIZE"
+   ],
+   "synthesis_attempts": 0,
+   "repair_attempts": 0,
+   "divergences": 31,
+   "suite_size": 35,
+   "live_pass_rate": 0.05,
+   "stop_reason": "budget",
+   "scorecard_url": "https://arcprize.org/scorecards/6f740bb1-5516-42a8-8a96-c8f32a5f5026",
+   "artifacts_dir": "out/ewm-runs/ls20-1783109432",
+   "delta_vs_run12": "Run 12 orient_adopted=false (KB unwired + program truncated below a compiling round-trip). Run 13 orient_adopted=true 'adopted whole (native)': the daemon chunkText indentation fix + native /note/get read + cluster-artifact parent-key derivation make the 3272-byte program round-trip byte-exact and adopt. Warm-start retrieval is SOLVED; the adopted program's live-instance accuracy (0.05 pass rate, 31 divergences) is the remaining bottleneck, and no level cleared before the time budget."
+  }
+ },
+ "delta": {
+  "levels_completed": "0 vs 0 vs 0 vs 0 (four-way tie: no arm cleared any of the 7 levels)",
+  "actions_taken": "baseline 51, text-only 70, vision pre-fix 80, vision fixed 80 (each hit its own action/wall cap)",
+  "program_adopted": "only arm 3 adopted -- and vacuously; arm 4's non-adoption is the fixed harness correctly refusing 4 non-validating candidates, which is the intended behavior, not a regression",
+  "synthesis_engagement": "arm 2: synthesis never produced an adoptable program (text-only model could not author from raw grids); arm 3: synthesis engaged and adopted vacuously; arm 4: synthesis engaged 4 times against a real 80-transition suite, all candidates failed validation"
+ },
+ "verdict": "TRUTHFUL FOUR-ARM FAILED A/B. All four arms completed 0 of 7 ls20 levels. Arm 4 (qwen-coding, both roles, vision on, FIXED probe-first harness) is the first arm where the world-model machinery behaved fully honestly end-to-end: probe seeding banked 4 real transitions before any synthesis, SYNTHESIZE engaged 4 times against a non-empty suite that grew to 80 transitions, and every candidate program failed validate() -- so the harness refused adoption and fell back to reactive play (76 reactive turns), exactly as designed. Contrast with arm 3, where the pre-fix harness adopted a program against zero evidence and then watched it miss all 80 transitions. Net: the fix converted 'confidently wrong world model' into 'no world model, honest fallback' -- same level score, better epistemics. The remaining bottleneck is unchanged and now cleanly isolated: neither local 35B-class model can yet author a Python program that reproduces real ls20 dynamics, whether validated before (arm 4) or after (arm 3) adoption. Telemetry caveats recorded on arm 4: live_pass_rate=1.0 is the vacuous empty-window default (no adopted program to score), and divergences=76 counts reactive turns, not expect-mismatches.",
+ "pair_recommendation": "For the Kaggle two-local-model pair: use qwen-coding:latest as the SYNTHESIS model and qwen35b-arc:latest as the GAMEPLAY (+vision) model. Rationale, stated with its evidential limits: qwen-coding is the only model observed emitting candidate programs under the fixed harness's real validation gate (4 attempts, parseable fenced programs, no thinking-drain with reasoning_effort:none), making it the better-evidenced synthesis half even though none of its candidates validated yet; qwen35b-arc showed the sharper multimodal grounding in sanity checks (named the exact changed cell+color on the composite, where qwen-coding was off-by-one on a 3x3), making it the better-evidenced gameplay/vision half. CAVEAT: no arm has run qwen35b-arc on the fixed harness, and no arm has cleared a level, so this recommendation ranks failure modes rather than successes; a qwen35b-arc-synthesis arm on the fixed harness would be the decisive missing data point.",
+ "total_arms": 7
 }
