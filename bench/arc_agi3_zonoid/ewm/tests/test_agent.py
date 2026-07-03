@@ -1207,6 +1207,246 @@ class _MoverEnv:
         }
 
 
+class _WallMoverEnv:
+    """A 1x``cols`` board whose avatar (2) slides +``truth_mag`` on RIGHT UNTIL it hits a wall at
+    ``wall_col``, then stays put (a real (0,0) no-op at the wall — the Run-13 wall-contact reality).
+
+    This is the live shape the recalled ls20 ceiling failed on: the program translates the object
+    UNCONDITIONALLY, so once the truth stops at the wall the program keeps predicting a move and
+    every subsequent transition diverges. No ``expect`` seam is honoured here on purpose: this env
+    drives the loop through its OWN divergence detection (reactive path), reproducing the Run-13
+    case where ``is_win`` is False so the planner never emits a plan to check ``expect`` against."""
+
+    def __init__(self, cols: int = 20, truth_mag: int = 5, wall_col: int = 5, budget: int = 60) -> None:
+        self._cols = cols
+        self._truth_mag = truth_mag
+        self._wall = wall_col
+        self._avatar = 0
+        self.remaining_actions = budget
+
+    def _grid(self):
+        return _mover_grid(self._cols, self._avatar)
+
+    def observe(self):
+        return {
+            "grid": self._grid(),
+            "level": 1,
+            "step": 0,
+            "valid_actions": ["RIGHT"],
+            "score": 0,
+            "remaining_actions": self.remaining_actions,
+        }
+
+    def act(self, actions, expect=None):
+        executed = []
+        for action in actions:
+            self.remaining_actions = max(0, self.remaining_actions - 1)
+            nxt = self._avatar + self._truth_mag
+            # The wall blocks any move that would cross or reach it: the avatar stays put (no-op).
+            if nxt < self._wall:
+                self._avatar = nxt
+            executed.append(action)
+        return {
+            "current_frame": {"grid": self._grid(), "level": 1, "step": 0},
+            "action_result": {"score": 0, "done": False},
+            "valid_actions": ["RIGHT"],
+            "remaining_actions": self.remaining_actions,
+            "executed": executed,
+            "stop_reason": "completed",
+            "done": False,
+        }
+
+
+class WarmStartTrustAndRepairTests(unittest.TestCase):
+    """Run-14: hypothesis-trust revalidation of a recalled program + repair engagement for a
+    KB-adopted unconditional mover (the Run-13 pathology: adopted whole, 31 live divergences, 0
+    repair attempts)."""
+
+    def setUp(self):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _mover_hit(self, mag: int, *, is_win_false: bool = False) -> dict:
+        # A KB note carrying an unconditional-mover program (the Run-13 recalled-ceiling shape: it
+        # translates the object every step with no wall/collision modelling). ``is_win_false`` hard-
+        # codes is_win False (the actual ls20 ceiling shape), so the planner NEVER finds a goal and
+        # the loop reaches the reactive path every turn — the exact Run-13 condition under which the
+        # live divergence must still route into REPAIR.
+        src = _mover_source(mag)
+        if is_win_false:
+            src = src.replace(
+                "def is_win(state):\n    return state[\"avatar\"][1] >= state[\"cols\"] - 1",
+                "def is_win(state):\n    return False",
+            )
+        return {
+            "key": "note:note-mover1",
+            "title": "game ls20 world model program",
+            "summary": "each RIGHT translates the object by a fixed step\n\npass rate: n/n\n\n"
+            "program source:\n" + src,
+        }
+
+    def test_recalled_program_revalidated_on_fresh_probes_records_telemetry(self):
+        # ORIENT resolves a recalled mover and revalidates it against the fresh probe suite through
+        # the changed-cells floor; orient_revalidation records probes/pass_rate/adopted_as. A
+        # correctly-magnituded mover (matches the seeded truth) is adopted WHOLE with pass_rate 1.0.
+        cols = 20
+        env = _MoverEnv(cols=cols, truth_mag=5)
+        kb = SearchKb([self._mover_hit(5)])
+        ag = EwmAgent(
+            env, FakeLlm([]), kb=kb,
+            config=AgentConfig(game_id="ls20", max_turns=1, min_probe_transitions=1),
+        )
+        # Fresh probes: real +5 RIGHT transitions (what the probe batch would seed live).
+        for start in range(0, cols - 5, 2):
+            ag.suite.append(_mover_grid(cols, start), "RIGHT", _mover_grid(cols, start + 5))
+        adopted = ag._orient({"grid": _mover_grid(cols, 0)})
+        self.assertTrue(adopted)
+        rev = ag.summary.orient_revalidation
+        self.assertIsNotNone(rev, "orient_revalidation telemetry must be recorded")
+        self.assertEqual(rev["adopted_as"], "whole")
+        self.assertGreaterEqual(rev["probes"], 1)
+        self.assertEqual(rev["pass_rate"], 1.0)
+
+    def test_vacuous_unknown_program_not_trusted_whole(self):
+        # A program that renders EVERYTHING UNKNOWN after a step passes validate() vacuously (every
+        # cell skipped) but has ZERO changed-cells accuracy: it must NOT be adopted whole on the
+        # strength of a skip. It fails the changed-cells floor AND the mask path (nothing concrete to
+        # mask), so ORIENT refuses it and records adopted_as="rejected".
+        unknown_src = (
+            "def init_state(frame):\n"
+            "    return {'rows': len(frame), 'cols': len(frame[0]) if frame else 0, 'steps': 0}\n"
+            "def step(state, action):\n"
+            "    ns = dict(state); ns['steps'] = state['steps'] + 1; return ns, {}\n"
+            "def render(state):\n"
+            "    return [[UNKNOWN for _ in range(state['cols'])] for _ in range(state['rows'])]\n"
+            "def is_win(state):\n    return False\n"
+            "def legal_actions(state):\n    return ['RIGHT']\n"
+        )
+        cols = 20
+        env = _MoverEnv(cols=cols, truth_mag=5)
+        kb = SearchKb([{
+            "key": "note:note-unk",
+            "title": "game ls20 world model program",
+            "summary": "program source:\n" + unknown_src,
+        }])
+        ag = EwmAgent(
+            env, FakeLlm([]), kb=kb,
+            config=AgentConfig(game_id="ls20", max_turns=1, min_probe_transitions=1),
+        )
+        for start in range(0, cols - 5, 2):
+            ag.suite.append(_mover_grid(cols, start), "RIGHT", _mover_grid(cols, start + 5))
+        adopted = ag._orient({"grid": _mover_grid(cols, 0)})
+        self.assertFalse(adopted, "a vacuously-valid UNKNOWN-everything program must not be trusted")
+        self.assertIsNone(ag.program)
+        self.assertEqual((ag.summary.orient_revalidation or {}).get("adopted_as"), "rejected")
+
+    def test_run13_shape_unconditional_mover_engages_repair_live(self):
+        # THE Run-13 regression test: a KB-recalled UNCONDITIONAL mover (no wall modelling) is
+        # adopted, then live it hits a wall (real no-op) and every subsequent transition diverges.
+        # In Run-13 this produced 31 divergences and 0 repair attempts because is_win is False (no
+        # plan -> reactive path -> the divergence never reached REPAIR). With the fix, the live
+        # divergence routes into REPAIR: repair_attempts > 0.
+        cols, wall = 24, 16
+        env = _WallMoverEnv(cols=cols, truth_mag=5, wall_col=wall, budget=60)
+        # REPAIR decide returns a still-imperfect candidate each time (correctness not asserted here;
+        # the point is that REPAIR is ENGAGED). Reflects otherwise.
+        class _Fake(FakeLlm):
+            def __init__(self):
+                super().__init__([])
+
+            def chat(self, messages, max_tokens=1024, temperature=0.0):
+                self.received.append({"messages": messages, "max_tokens": max_tokens,
+                                      "temperature": temperature})
+                self.calls += 1
+                last = messages[-1]["content"]
+                text = last if isinstance(last, str) else ""
+                if "Current mode: REPAIR" in text:
+                    return {"content": _fenced(_mover_source(3)), "finish_reason": None, "raw": ""}
+                return {"content": '{"prediction_ok": false}', "finish_reason": None, "raw": ""}
+
+        kb = SearchKb([self._mover_hit(5, is_win_false=True)])
+        ag = EwmAgent(
+            env, _Fake(), kb=kb,
+            config=AgentConfig(
+                game_id="ls20", max_turns=40, min_probe_transitions=2,
+                # Keep the program alive long enough to observe repair engagement before caps drop it.
+                max_repairs_per_game=99, max_repairs_per_divergence=99,
+                min_live_pass_rate=0.0, max_repair_attempts=1,
+            ),
+        )
+        summary = ag.run()
+        self.assertTrue(summary["orient_adopted"], "the recalled mover should be adopted")
+        self.assertGreater(
+            summary["repair_attempts"], 0,
+            "a KB-adopted unconditional mover that diverges at a wall must ENGAGE REPAIR "
+            "(Run-13 regression: 31 divergences, 0 repair attempts)",
+        )
+
+    def test_accepted_repair_of_recalled_program_supersedes_kb_note(self):
+        # Compounding (Req 3): when a recalled program is repaired to a fully-passing candidate, the
+        # KB write supersedes the note it was recalled from (write_program_revision supersedes=key).
+        cols, wall = 12, 6
+        env = _MoverEnv(cols=cols, truth_mag=5)
+
+        class _RecordingKb(SearchKb):
+            def write_program_revision(self, *args, **kw):
+                # Record the supersedes kwarg for the assertion, then behave like the base gate.
+                self.last_supersedes = kw.get("supersedes")
+                return super().write_program_revision(*args, **kw)
+
+        # The recalled program is an UNCONDITIONAL +5 mover (Run-13 shape: no wall modelling). The
+        # REPAIR candidate is the SAME mover taught to STOP at a wall, so it passes the augmented
+        # suite that includes the live wall no-op transition.
+        wall_src = (
+            "AVATAR = 2\nWALL = %d\n"
+            "def init_state(frame):\n"
+            "    rows = len(frame); cols = len(frame[0]) if rows else 0\n"
+            "    a = None\n"
+            "    for r in range(rows):\n"
+            "        for c in range(cols):\n"
+            "            if frame[r][c] == AVATAR: a = (r, c)\n"
+            "    return {'avatar': a, 'rows': rows, 'cols': cols}\n"
+            "def legal_actions(state):\n    return ['RIGHT']\n"
+            "def step(state, action):\n"
+            "    r, c = state['avatar']; nc = c + 5\n"
+            "    if nc >= WALL: nc = c\n"
+            "    ns = dict(state); ns['avatar'] = (r, nc); return ns, {}\n"
+            "def render(state):\n"
+            "    rows, cols = state['rows'], state['cols']\n"
+            "    g = [[0] * cols for _ in range(rows)]; ar, ac = state['avatar']; g[ar][ac] = AVATAR\n"
+            "    return g\n"
+            "def is_win(state):\n    return False\n"
+        ) % wall
+
+        kb = _RecordingKb([self._mover_hit(5)])  # recalled: unconditional +5 mover
+        llm = FakeLlm([_fenced(wall_src)] + ['{"prediction_ok": false}'] * 20)
+        ag = EwmAgent(
+            env, llm, kb=kb,
+            config=AgentConfig(game_id="ls20", max_turns=1, min_probe_transitions=1,
+                               max_repair_attempts=2),
+        )
+        # Fresh probes: two +5 moves the unconditional mover predicts perfectly -> adopted WHOLE.
+        ag.suite.append(_mover_grid(cols, 0), "RIGHT", _mover_grid(cols, 5))
+        adopted = ag._orient({"grid": _mover_grid(cols, 0)})
+        self.assertTrue(adopted)
+        self.assertIsNone(ag.summary.program_adopted_partial or None)
+        self.assertEqual(ag._orient_note_key, "note:note-mover1")
+        # A live wall contact: truth is a no-op at the wall, which the unconditional mover fails.
+        ag.suite.append(_mover_grid(cols, 5), "RIGHT", _mover_grid(cols, 5))
+        # REPAIR authors the wall-aware mover, which fully passes the augmented suite -> accepted +
+        # persisted with supersedes=<recalled note key>.
+        repaired = ag._repair({"grid": _mover_grid(cols, 5), "level": 1}, None)
+        self.assertTrue(repaired, "the wall-aware repair candidate fully passes and must be accepted")
+        self.assertEqual(
+            kb.last_supersedes, "note:note-mover1",
+            "an accepted repair of a recalled program must supersede its KB note (compounding)",
+        )
+
+
 class ProbeSeedingTests(unittest.TestCase):
     """Probe-first seeding: on a fresh game the probe batch records one transition per distinct
     valid action, up to min_probe_transitions, before any SYNTHESIZE."""

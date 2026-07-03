@@ -484,6 +484,14 @@ class RunSummary:
     # instead of silently falling through to SYNTHESIZE. None until ORIENT runs.
     orient_adopted: bool = False
     orient_diagnosis: str | None = None
+    # Warm-start hypothesis-trust revalidation (Run-14). Records the OUTCOME of validating a recalled
+    # KB program against the FRESH probe batch (live transitions seeded this game), through the same
+    # changed-cells floor SYNTHESIZE uses — so a vacuously-"valid" UNKNOWN-heavy program (Run-13: the
+    # recalled ls20 ceiling passed validate() only because every predicted cell was UNKNOWN and thus
+    # skipped) is not trusted on the strength of a skip. `probes` = transitions revalidated against;
+    # `pass_rate` = changed-cells accuracy over them (the non-vacuous metric); `adopted_as` is one of
+    # "whole" / "partial" / "rejected". None until ORIENT resolves a program to revalidate.
+    orient_revalidation: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -506,6 +514,7 @@ class RunSummary:
             "changed_cells_accuracy": self.changed_cells_accuracy,
             "orient_adopted": self.orient_adopted,
             "orient_diagnosis": self.orient_diagnosis,
+            "orient_revalidation": self.orient_revalidation,
         }
 
 
@@ -565,6 +574,11 @@ class EwmAgent:
         self._partial_repaired = False
         self._probed = False           # probe batch runs at most once (fresh-game seeding)
         self._modelability_poor = False  # once set, the loop stays reactive (never re-plans a program)
+        # The `note:` key of the KB program ORIENT adopted this game (None when the active program was
+        # synthesized, not recalled). Threaded into `write_program_revision(supersedes=...)` so an
+        # accepted live REPAIR of a recalled program COMPOUNDS: the improved program supersedes the
+        # note it came from (Run-14 Req 3) instead of piling up a parallel note. Cleared on drop.
+        self._orient_note_key: str | None = None
         # Rolling window of the last `live_window` observed transitions vs the ACTIVE program's
         # predictions (True == the program predicted the real transition). Empty when no program.
         self._live_results: deque[bool] = deque(maxlen=max(1, self.config.live_window))
@@ -1180,6 +1194,7 @@ class EwmAgent:
         self._modelability_poor = True
         self._live_results.clear()
         self._repairs_this_divergence = 0
+        self._orient_note_key = None
 
     def _predicts_transition(
         self, before_grid: list[list[int]], action: Any, after_grid: list[list[int]]
@@ -1202,6 +1217,21 @@ class EwmAgent:
         if not self._live_results:
             return 1.0
         return sum(1 for ok in self._live_results if ok) / len(self._live_results)
+
+    def _live_diverged(self) -> bool:
+        """True iff the MOST RECENT observed single-step transition mispredicted the active program.
+
+        The live window (:attr:`_live_results`) is appended one entry per scored single-step
+        transition in :meth:`_record_transition` (True == the program predicted it). Its tail is the
+        latest such transition, so a False tail means the last real board move diverged from the
+        recalled model — the signal that routes an unplannable-but-adopted program (Run-13: ls20
+        ``is_win`` hard-False, so no plan ever reaches the EXECUTE expect-mismatch) into REPAIR off
+        the live evidence rather than a blind reactive probe. False when the window is empty (nothing
+        scored yet) or no program is active."""
+
+        if self.program is None or not self._live_results:
+            return False
+        return not self._live_results[-1]
 
     # -- probe-first seeding -----------------------------------------------------------------------
 
@@ -1275,22 +1305,60 @@ class EwmAgent:
                 diagnosis = "stored program did not compile"
                 continue
             report = validate(candidate, self.suite)
-            if report.ok and report.total > 0:
+            # Hypothesis-trust gate (Run-14): validate() skips UNKNOWN cells, so a recalled program
+            # that renders unmodelable regions UNKNOWN can pass report.ok VACUOUSLY — it asserted
+            # nothing where it declined to predict. Run-13's recalled ls20 ceiling did exactly this:
+            # it translated the object unconditionally (no wall/collision) but rendered everything it
+            # could not model UNKNOWN, so on the fresh probe suite validate() returned ok and it was
+            # adopted WHOLE and trusted — then diverged on 31 live transitions. Before trusting a whole
+            # pass, re-measure the CHANGED-cells accuracy over the fresh probes (the same non-vacuous
+            # metric partial adoption uses): the fraction of the cells transitions actually MOVE that
+            # the program predicts right, with declined-to-predict UNKNOWN cells excluded. A program
+            # that clears the partial-adopt floor there has earned whole adoption; one that does not is
+            # routed through the partial path so its wrong cells are masked (or it is refused), never
+            # trusted whole on the strength of a skip.
+            changed_acc = self._cell_pass_rate(candidate)
+            probes = len(self.suite)
+            if report.ok and report.total > 0 and (
+                changed_acc >= self.config.min_partial_adopt_rate
+            ):
                 self._adopt_program(candidate)
+                # Remember the note this program was recalled from so an accepted live REPAIR
+                # supersedes it (compounding) rather than forking a parallel note.
+                self._orient_note_key = self._hit_key(hit)
                 self.summary.orient_adopted = True
                 self.summary.orient_diagnosis = f"adopted whole{path_tag}"
+                self.summary.orient_revalidation = {
+                    "probes": probes,
+                    "pass_rate": round(changed_acc, 4),
+                    "adopted_as": "whole",
+                }
                 return True
-            # A stored program that passes only PART of the live suite is still worth adopting: the
-            # dev-time ceiling program for ls20 is 12/13 (one auto-changing region it deliberately
-            # leaves unmodeled), so a full-pass-only gate would discard the very warm-start program
-            # this pillar-5 path exists to recall. Fall back to the same changed-cells partial-adopt
-            # floor SYNTHESIZE uses: mask the persistently-wrong cells UNKNOWN and adopt iff the
-            # masked program then passes and clears the floor + mask cap.
+            # A stored program that passes only PART of the live suite (or passes it only vacuously)
+            # is still worth adopting IFF it clears the changed-cells floor: the dev-time ls20 ceiling
+            # is 12/13 (one auto-changing region it deliberately leaves unmodeled), so a full-pass-only
+            # gate would discard the very warm-start program this pillar-5 path exists to recall. Use
+            # the same changed-cells partial-adopt floor SYNTHESIZE uses: mask the persistently-wrong
+            # cells UNKNOWN and adopt iff the masked program then passes and clears the floor + mask cap.
             if self._try_partial_adopt(frame, source):
+                self._orient_note_key = self._hit_key(hit)
                 self.summary.orient_adopted = True
                 self.summary.orient_diagnosis = f"adopted partial{path_tag}"
+                self.summary.orient_revalidation = {
+                    "probes": probes,
+                    "pass_rate": round(self.summary.changed_cells_accuracy or changed_acc, 4),
+                    "adopted_as": "partial",
+                }
                 return True
             diagnosis = "stored program failed validation"
+            # Record WHY a resolved-but-untrusted program was refused (vacuous whole pass below the
+            # changed-cells floor, or a partial adoption that could not clear floor+mask cap), so the
+            # run surfaces that ORIENT recalled a program but declined to trust it.
+            self.summary.orient_revalidation = {
+                "probes": probes,
+                "pass_rate": round(changed_acc, 4),
+                "adopted_as": "rejected",
+            }
         self.summary.orient_diagnosis = diagnosis
         return False
 
@@ -1966,14 +2034,25 @@ class EwmAgent:
             return
         try:
             self.kb.begin_turn()
+            # Compounding (Run-14 Req 3): when this program was recalled from a KB note and then
+            # improved by a live REPAIR, supersede that note so the improved program REPLACES the
+            # recalled one in the KB (temporal supersede — the old note is retired, not forked). A
+            # freshly-synthesized program has no recalled note (_orient_note_key is None) and writes a
+            # new revision as before.
             out = self.kb.write_program_revision(
                 self.config.game_id,
                 f"world model revision at level {frame.get('level')}",
                 self.program.source if self.program else "",
                 f"{report.pass_count}/{report.total}",
+                supersedes=self._orient_note_key,
             )
             if isinstance(out, dict) and out.get("ok"):
                 self.summary.kb_writes += 1
+                # The revision now IS the canonical note; a subsequent repair supersedes THIS write's
+                # note, not the original again. Adopt the new key when the write reports one.
+                new_key = out.get("key") or out.get("note_key")
+                if isinstance(new_key, str) and new_key.strip():
+                    self._orient_note_key = new_key.strip()
         except Exception:  # noqa: BLE001
             pass
 
@@ -2179,11 +2258,25 @@ class EwmAgent:
             plan_result = self._plan(frame)
             if plan_result is None or not plan_result.actions:
                 # No plan (e.g. already-at-goal empty plan or unreachable): reactive probe.
-                result = self._reactive_turn(frame, decide_image)
-                if self._result_done(result):
+                #
+                # Live-divergence REPAIR engagement (Run-14): a recalled program can be plannable-blind
+                # — Run-13's ls20 ceiling hard-codes ``is_win`` False, so ``_plan`` NEVER finds a goal
+                # and the loop reaches HERE every turn, gathering live transitions the program
+                # mispredicts (live_pass_rate 0.05) yet never entering REPAIR (that only fired from the
+                # planned-EXECUTE expect-mismatch, which an unplannable program never reaches). Result:
+                # 31 live divergences, 0 repair attempts. Before falling back to a blind reactive
+                # probe, check whether the ACTIVE program actually predicted the last observed
+                # transition; if it diverged, route to REPAIR so the failing live transition (already
+                # in the suite) + the recalled source reach the model — the evidence that lets it add
+                # the missing wall/collision blocking. Reactive fallback only if there is nothing to
+                # repair (no program, or the model held).
+                reactive = self._reactive_turn(frame, decide_image)
+                if self._result_done(reactive):
                     self.summary.won = True
                     self.summary.stop_reason = "won"
                     break
+                if self.program is not None and self._live_diverged():
+                    self._handle_divergence(frame, decide_image)
                 prev_frame = frame
                 continue
 

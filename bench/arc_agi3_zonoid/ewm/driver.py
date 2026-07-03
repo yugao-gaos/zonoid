@@ -675,6 +675,7 @@ def live_run(
             "program_synthesized": bool(summary.get("program_accepted")),
             "orient_adopted": bool(summary.get("orient_adopted")),
             "orient_diagnosis": summary.get("orient_diagnosis"),
+            "orient_revalidation": summary.get("orient_revalidation"),
             "divergences": summary.get("reactive_turns", 0),
             "transitions": summary.get("transitions", 0),
             "synthesis_attempts": summary.get("synthesis_attempts", 0),
