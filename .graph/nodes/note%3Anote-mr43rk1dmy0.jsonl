@@ -62,3 +62,5 @@
 {"evt":"edge_removed","from":"note:note-mr43rk1dmy0","to":"codex/ewm-object-delta-module-relative-coordinate-transitions","kind":"context","actor":"overlay-sync","ts":"2026-07-03T13:51:34.226Z"}
 {"evt":"edge_removed","from":"note:note-mr43rk1dmy0","to":"codex/ewm-partial-adoption-best-candidate-unknown-masking","kind":"context","actor":"overlay-sync","ts":"2026-07-03T14:05:27.956Z"}
 {"evt":"edge_added","from":"note:note-mr43rk1dmy0","to":"codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve","kind":"context","actor":"overlay-sync","ts":"2026-07-03T17:23:38.179Z","weight":0,"by":"autowire","judged":false,"score":0.432,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mr43rk1dmy0","to":"codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve","kind":"blocking","actor":"overlay-sync","ts":"2026-07-03T17:25:54.093Z","by":"judge","judged":true,"score":0.432,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mr43rk1dmy0","to":"codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve","kind":"context","actor":"overlay-sync","ts":"2026-07-03T17:25:54.093Z"}
