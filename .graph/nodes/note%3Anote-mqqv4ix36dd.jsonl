@@ -62,3 +62,4 @@
 {"evt":"edge_removed","from":"note:note-mqqv4ix36dd","to":"7324f0fd-3872-4c3a-a82b-e7b554aea59d/5","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
 {"evt":"edge_added","from":"note:note-mqqv4ix36dd","to":"7324f0fd-3872-4c3a-a82b-e7b554aea59d/5","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","weight":0.6,"by":"judge","judged":true}
 {"evt":"edge_added","from":"note:note-mqqv4ix36dd","to":"codex/ewm-probe-first-suite-seeding-repair-engagement-fix","kind":"context","actor":"overlay-sync","ts":"2026-07-03T00:50:17.007Z","weight":0,"by":"autowire","judged":false,"score":0.395,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqqv4ix36dd","to":"codex/ewm-probe-first-suite-seeding-repair-engagement-fix","kind":"context","actor":"overlay-sync","ts":"2026-07-03T02:32:36.174Z"}
