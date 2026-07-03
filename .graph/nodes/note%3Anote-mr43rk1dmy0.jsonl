@@ -32,3 +32,4 @@
 {"evt":"edge_removed","from":"note:note-mr43rk1dmy0","to":"codex/ewm-context-policy-kb-summaries-prev-step-per-role-models","kind":"context","actor":"overlay-sync","ts":"2026-07-03T00:42:30.080Z"}
 {"evt":"edge_removed","from":"note:note-mr43rk1dmy0","to":"codex/ewm-vision-compositor-composite-frame-png","kind":"context","actor":"overlay-sync","ts":"2026-07-03T00:49:30.595Z"}
 {"evt":"edge_added","from":"note:note-mr43rk1dmy0","to":"codex/ewm-probe-first-suite-seeding-repair-engagement-fix","kind":"context","actor":"overlay-sync","ts":"2026-07-03T00:50:17.007Z","weight":0,"by":"autowire","judged":false,"score":0.454,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mr43rk1dmy0","to":"codex/ewm-probe-first-suite-seeding-repair-engagement-fix","kind":"context","actor":"overlay-sync","ts":"2026-07-03T00:58:23.277Z"}
