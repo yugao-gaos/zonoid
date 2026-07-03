@@ -29,6 +29,8 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator
 
+from . import segmentation
+
 
 # Sentinel a program may place in rendered cells (or name in event "unknown" lists) to mark a
 # region/attribute it does not model. Distinct object so it never collides with a real int cell.
@@ -47,6 +49,24 @@ UNKNOWN = _Unknown()
 
 def _get_unknown() -> _Unknown:
     return UNKNOWN
+
+
+def segment(grid: "Grid") -> dict[str, Any]:
+    """Segment ``grid`` into 4-connected same-color objects (wraps
+    :func:`segmentation.segment_grid`); injected into every compiled program's namespace
+    alongside ``UNKNOWN``.
+
+    Returns ``{"nodes": [...], "adjacency_list": [...]}``; each node carries
+    ``color``/``pixels``/``boundary``/``children`` (see ``segmentation.segment_grid``).
+
+    UNKNOWN handling: cells holding the injected ``UNKNOWN`` singleton (or its integer alias
+    ``-1``) are treated as a single DISTINCT color ``-1`` — i.e. UNKNOWN regions segment into
+    their own components rather than being skipped or merged into a real-color neighbour. This
+    keeps object ids stable when a program renders a partial-fidelity grid and re-segments it.
+    """
+
+    normalized = [[(-1 if _is_unknown(cell) else cell) for cell in row] for row in grid]
+    return segmentation.segment_grid(normalized)
 
 
 # stdlib modules a synthesized program is allowed to import. Kept in lockstep with the REPL
@@ -159,7 +179,11 @@ class WorldModelProgram:
         except SyntaxError as exc:
             raise SandboxError(f"program does not compile: {exc}") from exc
 
-        ns: dict[str, Any] = {"UNKNOWN": UNKNOWN, "__builtins__": _build_safe_builtins()}
+        ns: dict[str, Any] = {
+            "UNKNOWN": UNKNOWN,
+            "segment": segment,
+            "__builtins__": _build_safe_builtins(),
+        }
         try:
             exec(code, ns)  # noqa: S102 - intentional restricted exec
         except SandboxError:
