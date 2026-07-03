@@ -307,6 +307,66 @@
    "scorecard_url": "https://arcprize.org/scorecards/6f740bb1-5516-42a8-8a96-c8f32a5f5026",
    "artifacts_dir": "out/ewm-runs/ls20-1783109432",
    "delta_vs_run12": "Run 12 orient_adopted=false (KB unwired + program truncated below a compiling round-trip). Run 13 orient_adopted=true 'adopted whole (native)': the daemon chunkText indentation fix + native /note/get read + cluster-artifact parent-key derivation make the 3272-byte program round-trip byte-exact and adopt. Warm-start retrieval is SOLVED; the adopted program's live-instance accuracy (0.05 pass rate, 31 divergences) is the remaining bottleneck, and no level cleared before the time budget."
+  },
+  "ewm_warmstart_trust_probes_repair_run14": {
+   "agent": "EwmAgent warm-start (native /note/get ORIENT) + Run-14 hypothesis-trust revalidation + live-divergence REPAIR engagement",
+   "source": "Run 14 (codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen)",
+   "model": "qwen-coding:latest (35B coding, ollama)",
+   "harness": "driver live_run --vision --graph on --max-actions 80 --max-seconds 1500",
+   "vision": true,
+   "levels_completed": 0,
+   "actions_taken": 19,
+   "actions_per_level_completed": null,
+   "won": false,
+   "program_adopted": true,
+   "orient_adopted": true,
+   "orient_diagnosis": "adopted whole (native)",
+   "orient_revalidation": {
+    "probes": 5,
+    "pass_rate": 1.0,
+    "adopted_as": "whole"
+   },
+   "orient_adopted_reason": "ORIENT recalled the ls20 ceiling program via native /note/get and adopted it WHOLE, but this run gates whole adoption behind the Run-14 hypothesis-trust revalidation: the recalled program was re-measured on the 5 fresh probe transitions through the CHANGED-cells floor (orient_revalidation={probes:5, pass_rate:1.0, adopted_as:'whole'}) \u2014 it predicted the probe object-moves perfectly, so it earned whole adoption rather than being trusted on a vacuous UNKNOWN skip. The Run-13 pathology (adopted-whole then 31 divergences with 0 repairs) does NOT recur: repair_attempts=3 (up from 0), live_pass_rate=0.93 (up from 0.05).",
+   "modes_visited": [
+    "EXECUTE",
+    "RECOVER",
+    "SYNTHESIZE"
+   ],
+   "synthesis_attempts": 1,
+   "repair_attempts": 3,
+   "repair_outcomes": [
+    {
+     "file": "04-REPAIR.json",
+     "adopted": false,
+     "ok": false,
+     "pass": "0/19"
+    },
+    {
+     "file": "05-REPAIR.json",
+     "adopted": false,
+     "ok": false,
+     "pass": "0/19"
+    },
+    {
+     "file": "06-REPAIR.json",
+     "adopted": false,
+     "ok": false,
+     "pass": "0/19"
+    }
+   ],
+   "divergences": 15,
+   "suite_size": 19,
+   "live_pass_rate": 0.9285714285714286,
+   "stop_reason": "budget",
+   "scorecard_url": "https://arcprize.org/scorecards/74345fea-9095-48d4-b315-a3be89506720",
+   "why_no_level_cleared": "NO level cleared (levels_completed=0, won=false, stop_reason=budget). Unlike Run-13, the recalled program's live divergences DID route into REPAIR (repair_attempts=3): the loop detected the mispredicted live transitions and re-entered the REPAIR path with the failing transition + recalled source. All 3 REPAIR candidates authored by qwen-coding failed the 19-transition suite (0/19 each) \u2014 the model could not synthesize the missing wall/collision blocking within the wall-clock budget \u2014 so the recalled program held at live_pass_rate 0.93. The trust + repair-engagement mechanisms work; the remaining gap is REPAIR candidate quality, not repair engagement.",
+   "delta_vs_run13": {
+    "repair_attempts": "0 -> 3 (REPAIR now engages on a KB-adopted program's live divergence)",
+    "live_pass_rate": "0.05 -> 0.93",
+    "divergences_reactive_turns": "31 -> 15",
+    "modes_visited": "[EXECUTE,SYNTHESIZE] -> [EXECUTE,RECOVER,SYNTHESIZE]",
+    "new_telemetry": "orient_revalidation={probes:5, pass_rate:1.0, adopted_as:whole}"
+   }
   }
  },
  "delta": {
@@ -317,5 +377,5 @@
  },
  "verdict": "TRUTHFUL FOUR-ARM FAILED A/B. All four arms completed 0 of 7 ls20 levels. Arm 4 (qwen-coding, both roles, vision on, FIXED probe-first harness) is the first arm where the world-model machinery behaved fully honestly end-to-end: probe seeding banked 4 real transitions before any synthesis, SYNTHESIZE engaged 4 times against a non-empty suite that grew to 80 transitions, and every candidate program failed validate() -- so the harness refused adoption and fell back to reactive play (76 reactive turns), exactly as designed. Contrast with arm 3, where the pre-fix harness adopted a program against zero evidence and then watched it miss all 80 transitions. Net: the fix converted 'confidently wrong world model' into 'no world model, honest fallback' -- same level score, better epistemics. The remaining bottleneck is unchanged and now cleanly isolated: neither local 35B-class model can yet author a Python program that reproduces real ls20 dynamics, whether validated before (arm 4) or after (arm 3) adoption. Telemetry caveats recorded on arm 4: live_pass_rate=1.0 is the vacuous empty-window default (no adopted program to score), and divergences=76 counts reactive turns, not expect-mismatches.",
  "pair_recommendation": "For the Kaggle two-local-model pair: use qwen-coding:latest as the SYNTHESIS model and qwen35b-arc:latest as the GAMEPLAY (+vision) model. Rationale, stated with its evidential limits: qwen-coding is the only model observed emitting candidate programs under the fixed harness's real validation gate (4 attempts, parseable fenced programs, no thinking-drain with reasoning_effort:none), making it the better-evidenced synthesis half even though none of its candidates validated yet; qwen35b-arc showed the sharper multimodal grounding in sanity checks (named the exact changed cell+color on the composite, where qwen-coding was off-by-one on a 3x3), making it the better-evidenced gameplay/vision half. CAVEAT: no arm has run qwen35b-arc on the fixed harness, and no arm has cleared a level, so this recommendation ranks failure modes rather than successes; a qwen35b-arc-synthesis arm on the fixed harness would be the decisive missing data point.",
- "total_arms": 7
+ "total_arms": 8
 }
