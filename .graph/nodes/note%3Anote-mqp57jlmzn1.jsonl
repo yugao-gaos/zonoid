@@ -2,3 +2,4 @@
 {"evt":"summary_set","id":"note:note-mqp57jlmzn1","workspace":"/Users/imyu/Desktop/zonoid","summary":"The onboarding harness assumes the orchestrator daemon is at `http://localhost:8787` unless overridden. That is the default integration point for local onboarding flows and is easy to miss if you expect an env-only setup.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
 {"evt":"edge_added","from":"note:note-mqp57jlmzn1","to":"note:note-mqp585nxj80","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:33:59.147Z","by":"judge","judged":true}
 {"evt":"edge_removed","from":"note:note-mqp57jlmzn1","to":"note:note-mqp585nxj80","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"edge_added","from":"note:note-mqp57jlmzn1","to":"note:note-mqp585nxj80","kind":"context","actor":"overlay-sync","ts":"2026-07-03T03:56:05.033Z","weight":0.6,"by":"judge","judged":true}
