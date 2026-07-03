@@ -10,3 +10,5 @@
 {"evt":"edge_removed","from":"note:note-mr46y3pjbt8","to":"note:note-mqf624kvlk9","kind":"context","actor":"overlay-sync","ts":"2026-07-03T01:38:02.536Z"}
 {"evt":"edge_removed","from":"note:note-mr46y3pjbt8","to":"note:note-mr3w7imnpak","kind":"context","actor":"overlay-sync","ts":"2026-07-03T01:38:27.074Z"}
 {"evt":"edge_added","from":"note:note-mr46y3pjbt8","to":"codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt","kind":"context","actor":"overlay-sync","ts":"2026-07-03T02:03:45.278Z","origin":"subconscious-assignment"}
+{"evt":"edge_added","from":"note:note-mr46y3pjbt8","to":"codex/ewm-context-policy-kb-summaries-prev-step-per-role-models","kind":"blocking","actor":"overlay-sync","ts":"2026-07-03T02:34:17.970Z","by":"judge","judged":true,"score":0.6,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mr46y3pjbt8","to":"codex/ewm-context-policy-kb-summaries-prev-step-per-role-models","kind":"context","actor":"overlay-sync","ts":"2026-07-03T02:34:17.970Z"}
