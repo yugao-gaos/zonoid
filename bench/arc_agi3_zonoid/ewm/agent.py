@@ -124,7 +124,8 @@ SYNTH_GRID_CONTRACT = (
     "CONTRACT: init_state(grid) receives the grid DIRECTLY as a list of rows of ints (NOT a dict — "
     "do not index it with strings) and MUST parse it — never hardcode a grid. Each row of the grid "
     "is a list of ints. render(state) MUST return a grid with exactly the same dimensions as the "
-    "input grid.\n"
+    "input grid. "
+    "step(state, action) MUST return a (state, events) tuple — never a bare state.\n"
     + _STDLIB_WHITELIST_LINE
     + "\n"
     "PARTIAL FIDELITY: the name UNKNOWN is already injected into your program's namespace (use the "
@@ -537,6 +538,11 @@ class EwmAgent:
     _SYNTH_GRID_CELL_CAP = 4096   # dump raw rows up to this many cells (qwen-coding has 64k ctx)
     _SYNTH_OBJECT_CAP = 20        # cap the segmentation object summary at this many objects
     _SYNTH_TRANSITION_CAP = 3     # sample this many suite transitions as before/action/after
+    # Auto-changing-cells hint: only compute once the suite has this many observed transitions (a
+    # smaller sample would flag cells that merely coincided). Explicit cells are listed up to the cap;
+    # a wider changing region is summarized by bounding boxes only.
+    _AUTO_CHANGING_MIN_TRANSITIONS = 3
+    _AUTO_CHANGING_CELL_CAP = 200
 
     @staticmethod
     def _grid_rows_text(grid: list[list[int]]) -> str:
@@ -591,6 +597,78 @@ class EwmAgent:
             )
         return "\n\n".join(blocks)
 
+    def _auto_changing_cells(self) -> set[tuple[int, int]]:
+        """The set of (row, col) cells whose value differs between before and after in EVERY observed
+        transition — an every-action-changing region (e.g. an energy/timer/progress bar) the model
+        cannot spot in a raw transition dump. Empty until the suite holds
+        ``_AUTO_CHANGING_MIN_TRANSITIONS`` transitions; a cell that changes in only SOME transitions
+        is excluded (set intersection)."""
+
+        transitions = list(self.suite)
+        if len(transitions) < self._AUTO_CHANGING_MIN_TRANSITIONS:
+            return set()
+        common: set[tuple[int, int]] | None = None
+        for t in transitions:
+            changed: set[tuple[int, int]] = set()
+            for r, (before_row, after_row) in enumerate(zip(t.before_grid, t.after_grid)):
+                for c, (b, a) in enumerate(zip(before_row, after_row)):
+                    if int(b) != int(a):
+                        changed.add((r, c))
+            common = changed if common is None else (common & changed)
+            if not common:
+                return set()
+        return common or set()
+
+    @staticmethod
+    def _range_str(lo: int, hi: int, singular: str, plural: str) -> str:
+        """"row 40" when lo==hi else "rows 40-43"."""
+
+        return f"{singular} {lo}" if lo == hi else f"{plural} {lo}-{hi}"
+
+    def _changing_boxes(self, cells: set[tuple[int, int]]) -> list[tuple[int, int, int, int]]:
+        """Group contiguous (4-connected) changing cells into connected components and return each
+        component's bounding box (r0, c0, r1, c1)."""
+
+        remaining = set(cells)
+        boxes: list[tuple[int, int, int, int]] = []
+        while remaining:
+            seed = next(iter(remaining))
+            stack = [seed]
+            remaining.discard(seed)
+            comp = [seed]
+            while stack:
+                r, c = stack.pop()
+                for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                    nb = (r + dr, c + dc)
+                    if nb in remaining:
+                        remaining.discard(nb)
+                        stack.append(nb)
+                        comp.append(nb)
+            rows = [p[0] for p in comp]
+            cols = [p[1] for p in comp]
+            boxes.append((min(rows), min(cols), max(rows), max(cols)))
+        return sorted(boxes)
+
+    def _auto_changing_cells_text(self) -> str:
+        """The SYNTHESIZE/REPAIR hint naming the every-action-changing region as bounding-box row/col
+        ranges. Empty string when there is nothing to report (suite too small or no common cell)."""
+
+        cells = self._auto_changing_cells()
+        if not cells:
+            return ""
+        boxes = self._changing_boxes(cells)
+        ranges = "; ".join(
+            f"{self._range_str(r0, r1, 'row', 'rows')} {self._range_str(c0, c1, 'col', 'cols')}"
+            for (r0, c0, r1, c1) in boxes
+        )
+        if len(cells) > self._AUTO_CHANGING_CELL_CAP:
+            ranges = f"{ranges} ({len(cells)} cells across {len(boxes)} boxes)"
+        return (
+            "OBSERVED AUTO-CHANGING CELLS (changed in every observed transition regardless of "
+            f"action): {ranges}. Model these exactly or render them UNKNOWN; do NOT model them as "
+            "static."
+        )
+
     def _synthesis_grid_block(self, frame: dict[str, Any]) -> str:
         """Build the SYNTHESIZE/REPAIR-only appendix: grid rows, object summary, sample transitions,
         and the hard dimension contract. Best-effort — a build failure degrades to just the contract
@@ -608,6 +686,9 @@ class EwmAgent:
         transitions = self._sample_transitions_text()
         if transitions:
             parts.append(f"\nObserved transitions (before/action/after):\n{transitions}")
+        auto_changing = self._auto_changing_cells_text()
+        if auto_changing:
+            parts.append("\n" + auto_changing)
         parts.append("\n" + SYNTH_GRID_CONTRACT)
         return "\n".join(parts) + "\n"
 
