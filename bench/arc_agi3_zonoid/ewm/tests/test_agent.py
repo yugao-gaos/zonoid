@@ -358,6 +358,78 @@ class OrientTests(unittest.TestCase):
         # Fell through to synthesis: exactly one decide call.
         self.assertEqual(summary["decide_calls"], 1)
 
+    def test_orient_adopts_program_from_fenced_note_body(self):
+        # Warm-start round-trip variant: the note body carries the program ONLY as a fenced ```python
+        # block (no "program source:" marker). ORIENT must still extract, load, validate and adopt it
+        # straight from the KB — this is the dev-time-persisted-program -> ORIENT-recall path.
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        env = ToyEnv(_grid("2.3"))
+        hit = {
+            "title": "game toy world model program",
+            "summary": (
+                "handles avatar movement\n\npass rate: 2/2\n\n" + _fenced(TOY_GAME_SOURCE)
+            ),
+        }
+        kb = SearchKb([hit])
+        llm = FakeLlm(['{"prediction_ok": true}'] * 6)
+        ag = EwmAgent(env, llm, kb=kb, config=AgentConfig(game_id="toy", max_turns=10))
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        summary = ag.run()
+        self.assertTrue(summary["program_accepted"])
+        self.assertTrue(summary["won"])
+        # Adopted straight from the fenced note body: zero synthesis decide calls.
+        self.assertEqual(summary["decide_calls"], 0)
+        self.assertTrue(kb.client.queries)
+
+    def test_orient_partial_adopts_stored_ceiling_program(self):
+        # Pillar-5 offline verification: the dev-time ls20 ceiling program passes 12/13 of the
+        # recorded live suite (it deliberately leaves one auto-changing region unmodeled). A stored
+        # program that is not a full pass must still be adopted via the changed-cells partial-adopt
+        # floor (mask the persistently-wrong cells UNKNOWN), not discarded — otherwise the warm-start
+        # program this path exists to recall would never be usable. Loads the REAL run artifacts.
+        import json
+        import os
+
+        here = os.path.dirname(os.path.abspath(__file__))
+        run_root = os.path.normpath(os.path.join(here, "..", "..", "..", "..", "out", "ewm-runs"))
+        edit_path = os.path.join(run_root, "ceiling-ls20-1783084398", "edit-01.json")
+        suite_path = os.path.join(run_root, "ls20-1783084398", "transition-suite.json")
+        if not (os.path.exists(edit_path) and os.path.exists(suite_path)):
+            self.skipTest("ceiling ls20 run artifacts not present")
+
+        source = json.load(open(edit_path))["source"]
+        transitions = json.load(open(suite_path))
+        first_before = transitions[0]["before_grid"]
+
+        # A mock env whose observe() hands back the recorded first frame (for board-cell sizing).
+        class _MockEnv:
+            def observe(self_inner):
+                return {"grid": first_before}
+
+        hit = {
+            "title": "game ls20 world model program",
+            "summary": "linked color 12 plus 9 unit; each action translates by plus or minus 5\n\n"
+            "pass rate: 12/13\n\nprogram source:\n" + source,
+        }
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        kb = SearchKb([hit])
+        ag = EwmAgent(
+            _MockEnv(),
+            FakeLlm([]),
+            kb=kb,
+            config=AgentConfig(game_id="ls20", max_turns=1),
+        )
+        for t in transitions:
+            ag.suite.append(t["before_grid"], t["action"], t["after_grid"])
+
+        adopted = ag._orient({"grid": first_before})
+        self.assertTrue(adopted, "ORIENT should partial-adopt the stored 12/13 ceiling program")
+        self.assertIsNotNone(ag.program)
+        self.assertTrue(ag.summary.program_adopted_partial)
+        # Masked region is tiny (the single unmodeled transition's cells), well under the mask cap.
+        self.assertGreater(ag.summary.mask_cells, 0)
+        self.assertGreaterEqual(ag.summary.changed_cells_accuracy, 0.6)
+
 
 class SynthesizeExecuteTests(unittest.TestCase):
     def _agent(self, env, llm, **kw):
