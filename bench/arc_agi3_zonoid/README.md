@@ -167,7 +167,7 @@ the first Zonoid node for the run; the runner waits until the isolated daemon ad
 `not_ready` with the benchmark requirements summary so ingest/autowire can run, and exports that real
 task key as `ZONOID_TASK_KEY`. The config passed to the ARC SDK includes task-scoped instructions for:
 
-- `/task/context` with `workspace` and `task_key`
+- `/task/context` with `workspace` and `key` (the daemon route reads `key`, not `task_key`)
 - `/search` with `workspace`, `task_key`, `k`, and `gated=false`
 - optional note creation if the SDK exposes a write hook
 
