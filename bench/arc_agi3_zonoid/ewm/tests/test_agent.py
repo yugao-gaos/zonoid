@@ -1442,6 +1442,17 @@ class GraphSynthesisTests(unittest.TestCase):
         self.assertIn("HYPOTHES", analyze_user.upper())
         self.assertIn("gate on a key", analyze_user)
 
+    def test_graph_synthesis_accumulates_per_change_stats(self):
+        ag, _ = self._seeded_agent(None)
+        ag._synthesize_graph({"grid": _grid("2.3"), "level": 1, "step": 0})
+        stats = ag._graph_synth_stats
+        self.assertEqual(stats["sessions"], 1)
+        self.assertEqual(stats["changes_proposed"], 1)
+        self.assertEqual(stats["changes_passed"], 1)
+        self.assertEqual(stats["changes_skipped"], 0)
+        # One FINAL pass rate recorded: the toy program passes the single seeded transition.
+        self.assertEqual(stats["final_pass_rates"], [[1, 1]])
+
     def test_graph_synthesis_refuses_adoption_on_failed_final(self):
         import json
 

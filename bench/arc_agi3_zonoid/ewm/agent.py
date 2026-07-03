@@ -452,6 +452,16 @@ class EwmAgent:
         # increments it so rejected programs are inspectable rather than discarded.
         self._artifact_counter = 0
         self._artifacts_ready = False  # lazily mkdir the artifacts dir on first write
+        # Graph-native synthesis telemetry (config.graph_synthesis): accumulated across all
+        # SynthSession cycles this run so the driver can report truthful per-change stats — changes
+        # proposed/passed/skipped and the FINAL full-suite pass rate observed each cycle.
+        self._graph_synth_stats: dict[str, Any] = {
+            "sessions": 0,
+            "changes_proposed": 0,
+            "changes_passed": 0,
+            "changes_skipped": 0,
+            "final_pass_rates": [],  # one (pass_count, total) per FINAL, in cycle order
+        }
 
     # -- vision ------------------------------------------------------------------------------------
 
@@ -1134,11 +1144,13 @@ class EwmAgent:
             on_edit=_sink,
             analyze_context=menu_lines,
         )
+        self.summary.synthesis_attempts += 1
         try:
             result = session.run(deltas=delta_texts)
         except Exception:  # noqa: BLE001 - a synthesis session must never crash the loop
             return False
 
+        self._accumulate_graph_stats(result)
         source = result.get("program_source")
         report_dict = result.get("report") or {}
         adopted = bool(source) and bool(report_dict.get("ok")) and int(report_dict.get("total", 0)) > 0
@@ -1155,6 +1167,25 @@ class EwmAgent:
         self._adopt_program(candidate)
         self._maybe_write_program(frame, report)
         return True
+
+    def _accumulate_graph_stats(self, result: dict[str, Any]) -> None:
+        """Fold one SynthSession result's step records into the run's graph-synthesis telemetry:
+        changes proposed (EDIT steps), passed (EDIT tested), skipped (EDIT failed), and the FINAL
+        full-suite (pass_count, total)."""
+
+        stats = self._graph_synth_stats
+        stats["sessions"] += 1
+        for step in result.get("steps", []):
+            if step.get("name") == "EDIT":
+                stats["changes_proposed"] += 1
+                if step.get("status") == "tested":
+                    stats["changes_passed"] += 1
+                else:
+                    stats["changes_skipped"] += 1
+        report = result.get("report") or {}
+        stats["final_pass_rates"].append(
+            [int(report.get("pass_count", 0)), int(report.get("total", 0))]
+        )
 
     def _hypothesis_menu_lines(self, frame: dict[str, Any]) -> list[str]:
         """The KB cross-game hypothesis menu as ANALYZE context lines (empty when no KB)."""
@@ -1594,7 +1625,10 @@ class EwmAgent:
         self.summary.live_pass_rate = self._live_pass_rate()
         # End-of-run persistence (any stop reason): the observed suite + the final adopted program.
         self._write_run_artifacts()
-        return self.summary.to_dict()
+        out = self.summary.to_dict()
+        if self.config.graph_synthesis:
+            out["graph_synth_stats"] = dict(self._graph_synth_stats)
+        return out
 
     def _handle_divergence(self, frame: dict[str, Any], image_url: str | None) -> None:
         """On an expect-mismatch: engage REPAIR, but enforce the repair caps and live pass-rate

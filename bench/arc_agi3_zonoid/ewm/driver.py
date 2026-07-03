@@ -659,6 +659,7 @@ def live_run(
             "max_seconds": max_seconds,
             "vision": vision,
             "graph_synthesis": graph,
+            "graph_synth_stats": summary.get("graph_synth_stats"),
         }
     finally:
         session.close()

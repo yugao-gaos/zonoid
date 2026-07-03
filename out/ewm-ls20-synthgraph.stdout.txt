@@ -1,0 +1,5 @@
+INFO:arc_agi.scorecard:Initialized ScorecardManager with idle_for=0:15:00 and max_open_for=3 days, 0:00:00
+2026-07-03 08:21:07 | INFO | Successfully fetched 25 environment(s) from API
+2026-07-03 08:21:07 | INFO | Created new scorecard: 135aeae6-4e64-4af1-99c5-b388778c8306
+2026-07-03 08:21:07 | INFO | Successfully fetched metadata for game ls20
+2026-07-03 08:21:08 | INFO | Successfully reset game ls20-9607627b, guid=0ac98748-4253-4f08-ae28-3949ed89924f, scorecard_id=135aeae6-4e64-4af1-99c5-b388778c8306
