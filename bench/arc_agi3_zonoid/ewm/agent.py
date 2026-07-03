@@ -110,9 +110,9 @@ SYNTH_RETRY_PROMPT = (
 # real grid (never hardcode one) and render at the input's dimensions. This is the exact defect the
 # ls20 candidates showed — they hand-read the IMAGE into a 5x7 grid while real frames are 64x64.
 SYNTH_GRID_CONTRACT = (
-    "CONTRACT: init_state(frame) receives frame['grid'] (list of rows of ints) and MUST parse it — "
-    "never hardcode a grid. render(state) MUST return a grid with exactly the same dimensions as "
-    "the input grid."
+    "CONTRACT: init_state(grid) receives the grid DIRECTLY as a list of rows of ints (NOT a dict — "
+    "do not index it with strings) and MUST parse it — never hardcode a grid. render(state) MUST "
+    "return a grid with exactly the same dimensions as the input grid."
 )
 
 REFLECT_PROMPT = (
