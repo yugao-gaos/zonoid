@@ -39,6 +39,8 @@ import sys
 import time
 from typing import Any, Callable, Optional
 
+from .world_model import grids_match
+
 ENV_BENCHMARKING_REPO = "ARC_BENCHMARKING_REPO"
 
 # Seam action vocabulary. ACTION6 is the ARC "complex" action taking (x, y) coords 0..63.
@@ -366,7 +368,9 @@ class LiveArcSession:
 
             after = self._frame_grid(frame)
             if expect is not None and index < len(expect) and expect[index] is not None:
-                if [list(r) for r in expect[index]] != after:
+                # UNKNOWN-aware: a partially-adopted (masked) program renders UNKNOWN on cells it
+                # does not model; those cells are wildcards, not divergences.
+                if not grids_match([list(r) for r in expect[index]], after):
                     stop_reason = "expect_mismatch"
                     break
 

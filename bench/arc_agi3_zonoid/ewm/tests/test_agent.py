@@ -18,6 +18,7 @@ from bench.arc_agi3_zonoid.ewm.agent import (
 )
 from bench.arc_agi3_zonoid.ewm.llm_client import FakeLlm
 from bench.arc_agi3_zonoid.ewm.tests.test_world_model import TOY_GAME_SOURCE, WRONG_GAME_SOURCE
+from bench.arc_agi3_zonoid.ewm.world_model import grids_match
 
 
 DELTAS = {"UP": (-1, 0), "DOWN": (1, 0), "LEFT": (0, -1), "RIGHT": (0, 1)}
@@ -107,7 +108,9 @@ class ToyEnv:
             executed.append(name)
             after = self._grid()
             if expect is not None and index < len(expect) and expect[index] is not None:
-                if not _grids_equal(expect[index], after):
+                # UNKNOWN-aware (matches live.py / driver.py): masked cells are wildcards, so a
+                # partially-adopted program's UNKNOWN cells never spuriously trip a divergence.
+                if not grids_match([list(r) for r in expect[index]], after):
                     stop_reason = "expect_mismatch"
                     break
             if self._at_goal():
@@ -497,6 +500,118 @@ class VacuousAcceptanceTests(unittest.TestCase):
         self.assertEqual(len(ag.suite), 0)
         self.assertFalse(ag._orient(ag._observe()))
         self.assertIsNone(ag.program)
+
+
+# A candidate that models the toy mechanics correctly but renders a WRONG constant (5) on one
+# fixed cell (the bottom-right corner) — the "wrong bar region" of Run-9 #13. Everything else is
+# TOY_GAME_SOURCE, so movement/goal are right; only that corner cell persistently mismatches.
+BAR_WRONG_SOURCE = TOY_GAME_SOURCE.replace(
+    "    ar, ac = state[\"avatar\"]\n    grid[ar][ac] = AVATAR\n    return grid",
+    "    ar, ac = state[\"avatar\"]\n    grid[ar][ac] = AVATAR\n"
+    "    grid[rows - 1][cols - 1] = 5\n    return grid",
+)
+
+# A candidate that mispredicts BROADLY: it never moves the avatar (step is a no-op), so every
+# non-trivial transition is wrong across most of the changed cells -> below the cell-accuracy floor.
+STUCK_SOURCE = TOY_GAME_SOURCE.replace(
+    "    if 0 <= nr < state[\"rows\"] and 0 <= nc < state[\"cols\"] and (nr, nc) not in state[\"walls\"]:\n"
+    "        state[\"avatar\"] = (nr, nc)\n"
+    "        moved = True",
+    "    moved = False",
+)
+
+
+class PartialAdoptionTests(unittest.TestCase):
+    """Partial adoption (Run-9): a best-but-imperfect candidate is adopted with its persistently
+    wrong cells masked UNKNOWN, so the planner still gets a usable model."""
+
+    def _agent(self, env, llm, **cfg):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        base = dict(game_id="toy", max_turns=20, min_probe_transitions=1)
+        base.update(cfg)
+        return EwmAgent(env, llm, config=AgentConfig(**base))
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _seed_bar_suite(self, ag):
+        # Seed one real transition on a 2-row board so the corner-cell mismatch is observed and the
+        # suite is non-empty at acceptance time. Real RIGHT: avatar (0,0)->(0,1); row1 stays zeros.
+        ag.suite.append(_grid("2..3", "...."), "RIGHT", _grid(".2.3", "...."))
+
+    def test_partial_adopt_masks_bar_and_execute_wins(self):
+        # The only synthesized candidate is wrong solely on the corner cell. It clears the floor and
+        # mask cap, so it is partially adopted (corner masked UNKNOWN) and PLAN/EXECUTE wins.
+        env = ToyEnv(_grid("2..3", "...."))
+        llm = FakeLlm([_fenced(BAR_WRONG_SOURCE), '{"prediction_ok": true}'] * 8)
+        ag = self._agent(env, llm)
+        self._seed_bar_suite(ag)
+        summary = ag.run()
+        self.assertTrue(summary["program_accepted"])
+        self.assertTrue(summary["program_adopted_partial"])
+        self.assertEqual(summary["mask_cells"], 1)  # only the bottom-right corner
+        self.assertTrue(summary["won"])
+        # The active program is the masked wrapper over the real (unwrapped) source.
+        from bench.arc_agi3_zonoid.ewm.world_model import MaskedProgram
+
+        self.assertIsInstance(ag.program, MaskedProgram)
+
+    def test_mask_cap_refusal(self):
+        # With a punishing mask_cap the single wrong cell (1/8 = 0.125) exceeds the cap, so partial
+        # adoption is refused and no program is adopted.
+        env = ToyEnv(_grid("2..3", "...."))
+        llm = FakeLlm([_fenced(BAR_WRONG_SOURCE)] + ['{"prediction_ok": true}'] * 20)
+        ag = self._agent(env, llm, mask_cap=0.05, max_synth_attempts=1, reactive_after_failures=99)
+        self._seed_bar_suite(ag)
+        adopted = ag._synthesize(ag._observe(), None)
+        self.assertFalse(adopted)
+        self.assertIsNone(ag.program)
+        self.assertFalse(ag.summary.program_adopted_partial)
+
+    def test_below_floor_refusal(self):
+        # A broadly-wrong candidate (avatar never moves) falls below the cell-accuracy floor, so it
+        # is refused even though masking COULD technically make it pass — a mostly-holes "model" is
+        # not worth adopting.
+        env = ToyEnv(_grid("2..3", "...."))
+        llm = FakeLlm([_fenced(STUCK_SOURCE)] + ['{"prediction_ok": true}'] * 20)
+        ag = self._agent(env, llm, min_partial_adopt_rate=0.9, max_synth_attempts=1)
+        # Seed two transitions the stuck program mispredicts heavily.
+        ag.suite.append(_grid("2..3", "...."), "RIGHT", _grid(".2.3", "...."))
+        ag.suite.append(_grid(".2.3", "...."), "RIGHT", _grid("..23", "...."))
+        adopted = ag._synthesize(ag._observe(), None)
+        self.assertFalse(adopted)
+        self.assertIsNone(ag.program)
+
+    def test_repair_shrinks_mask(self):
+        # Start partially adopted with a 2-cell mask, then REPAIR proposes a candidate wrong on only
+        # ONE of those cells: the mask must shrink from 2 to 1.
+        from bench.arc_agi3_zonoid.ewm.world_model import WorldModelProgram, masked_program
+
+        env = ToyEnv(_grid("2..3", "...."))
+        # Suite: two transitions. A "two-bar-wrong" source is wrong on TWO corner cells; the repair
+        # candidate BAR_WRONG_SOURCE is wrong on only one.
+        two_bar = TOY_GAME_SOURCE.replace(
+            "    ar, ac = state[\"avatar\"]\n    grid[ar][ac] = AVATAR\n    return grid",
+            "    ar, ac = state[\"avatar\"]\n    grid[ar][ac] = AVATAR\n"
+            "    grid[rows - 1][cols - 1] = 5\n    grid[rows - 1][0] = 5\n    return grid",
+        )
+        # REPAIR is scripted to return the single-bar candidate first.
+        llm = FakeLlm([_fenced(BAR_WRONG_SOURCE)] + ['{"prediction_ok": true}'] * 20)
+        ag = self._agent(env, llm, max_repair_attempts=1)
+        ag.suite.append(_grid("2..3", "...."), "RIGHT", _grid(".2.3", "...."))
+        # Adopt the two-bar program partially (mask of 2 corner cells).
+        inner = WorldModelProgram.load(two_bar)
+        mask = {(1, 3), (1, 0)}
+        ag.program = masked_program(inner, mask)
+        ag.summary.program_accepted = True
+        ag.summary.program_adopted_partial = True
+        ag.summary.mask_cells = 2
+        repaired = ag._repair(ag._observe(), None)
+        self.assertTrue(repaired)
+        self.assertTrue(ag.summary.program_adopted_partial)
+        self.assertEqual(ag.summary.mask_cells, 1)  # shrank from 2 to 1
 
 
 class ProbeSeedingTests(unittest.TestCase):

@@ -46,10 +46,15 @@ from typing import Any, Callable
 from .planner import PlanResult, plan
 from .world_model import (
     ALLOWED_IMPORTS,
+    MaskedProgram,
     SandboxError,
     TransitionSuite,
     ValidationReport,
     WorldModelProgram,
+    _grid_shape,
+    _is_unknown,
+    masked_program,
+    mismatch_mask,
     validate,
 )
 
@@ -223,6 +228,14 @@ class AgentConfig:
     max_repairs_per_divergence: int = 2
     max_repairs_per_game: int = 6
     min_live_pass_rate: float = 0.5
+    # Partial adoption (Run-9 fix): stop demanding a perfectly-passing program before the planner
+    # gets ANY model. When synthesis produces no fully-passing program, the BEST candidate whose
+    # full-suite pass_rate >= min_partial_adopt_rate is adopted with its persistently-wrong cells
+    # masked UNKNOWN — provided that mask covers at most mask_cap of the board (else the "model" is
+    # mostly holes and is refused). REPAIR keeps shrinking the mask as the underlying program
+    # improves. Set min_partial_adopt_rate to 1.0 to disable partial adoption.
+    min_partial_adopt_rate: float = 0.6
+    mask_cap: float = 0.15
     live_window: int = 20   # N: observed transitions the live pass-rate is measured over
     plan_max_depth: int = 40
     plan_max_nodes: int = 20000
@@ -417,6 +430,10 @@ class RunSummary:
     suite_size: int = 0
     live_pass_rate: float = 1.0
     stop_reason: str = "max_turns"
+    # Partial adoption telemetry: True once the active program was adopted via the masked-candidate
+    # path, and the count of cells currently masked UNKNOWN (shrinks as REPAIR improves the model).
+    program_adopted_partial: bool = False
+    mask_cells: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -434,6 +451,8 @@ class RunSummary:
             "suite_size": self.suite_size,
             "live_pass_rate": self.live_pass_rate,
             "stop_reason": self.stop_reason,
+            "program_adopted_partial": self.program_adopted_partial,
+            "mask_cells": self.mask_cells,
         }
 
 
@@ -966,6 +985,101 @@ class EwmAgent:
         self.program = candidate
         self.summary.program_accepted = True
         self._live_results.clear()
+        # A fully-passing adoption is NOT partial: clear any prior partial-adoption telemetry.
+        self.summary.program_adopted_partial = False
+        self.summary.mask_cells = 0
+
+    def _board_cells(self, frame: dict[str, Any]) -> int:
+        """Cell count of the current board (rows*cols), used for the mask-cap fraction. Falls back
+        to the first observed transition's grid when the frame has no grid."""
+
+        grid = self._frame_grid(frame)
+        if not grid and len(self.suite) > 0:
+            grid = [list(row) for row in self.suite[0].before_grid]
+        return sum(len(row) for row in grid)
+
+    def _cell_pass_rate(self, program: Any) -> float:
+        """Cell-level prediction accuracy of ``program`` over the whole suite.
+
+        The partial-adoption floor is a CELL rate, not a transition rate: a candidate that "models
+        real object mechanics but fails on 1-2 regions" (Run-9 #13) is wrong on the SAME few cells
+        in every transition, so a per-transition rate would score it 0 and refuse it. Cell accuracy
+        — the fraction of predicted cells that match the observed after-grid across all transitions —
+        stays high for such a candidate (only the small wrong region drags it down) and collapses for
+        a candidate that mispredicts broadly. UNKNOWN cells (either side) are skipped, matching
+        :func:`~.world_model._diff_grids`. A crashing or shape-mismatched transition contributes its
+        whole board as wrong cells (it predicted nothing usable)."""
+
+        correct = 0
+        total = 0
+        for transition in self.suite:
+            after = transition.after_grid
+            board = sum(len(row) for row in after)
+            try:
+                state = program.init_state(transition.before_grid)
+                next_state, _events = program.step(state, transition.action)
+                got = program.render(next_state)
+            except Exception:  # noqa: BLE001 - a crash predicts nothing: the whole board is wrong
+                total += board
+                continue
+            # Count matching non-UNKNOWN cells directly (shape mismatch -> whole board wrong).
+            if _grid_shape(after) != _grid_shape(got):
+                total += board
+                continue
+            for exp_row, got_row in zip(after, got):
+                for exp, act in zip(exp_row, got_row):
+                    if _is_unknown(exp) or _is_unknown(act):
+                        continue
+                    total += 1
+                    if exp == act:
+                        correct += 1
+        return correct / total if total else 0.0
+
+    def _try_partial_adopt(self, frame: dict[str, Any], source: str) -> bool:
+        """Partial adoption of a best-but-imperfect candidate (Run-9 fix).
+
+        Adopt ``source`` — which passes only part of the suite — by masking its persistently-wrong
+        cells UNKNOWN, iff ALL of:
+
+        1. its CELL-level accuracy >= ``config.min_partial_adopt_rate`` (below the floor the
+           candidate does not model enough real mechanics to trust). Cell accuracy — not a
+           per-transition rate — is used because a candidate wrong on the same small region in
+           EVERY transition still models the mechanics well (Run-9 #13) yet would score 0 on a
+           transition-level rate;
+        2. the mismatch mask covers at most ``config.mask_cap`` of the board (else it is mostly
+           holes, not a model);
+        3. the MASKED program then passes the full suite (masking the mismatch cells must actually
+           resolve every failure — a crash or shape mismatch cannot be masked away).
+
+        On success the active program is a :class:`~.world_model.MaskedProgram` wrapping the compiled
+        source; REPAIR later works against the UNWRAPPED source and recomputes (shrinks) the mask.
+        Returns True on partial adoption.
+        """
+
+        if len(self.suite) == 0:
+            return False
+        try:
+            inner = WorldModelProgram.load(source)
+        except SandboxError:
+            return False
+        if self._cell_pass_rate(inner) < self.config.min_partial_adopt_rate:
+            return False
+        mask = mismatch_mask(inner, self.suite)
+        if not mask:
+            # Nothing to mask: the program already passes — adopt it whole, not partially.
+            self._adopt_program(inner)
+            return True
+        board = self._board_cells(frame)
+        if board <= 0 or (len(mask) / board) > self.config.mask_cap:
+            return False
+        wrapped = masked_program(inner, mask)
+        masked_report = validate(wrapped, self.suite)
+        if not (masked_report.ok and masked_report.total > 0):
+            return False
+        self._adopt_program(wrapped)
+        self.summary.program_adopted_partial = True
+        self.summary.mask_cells = len(mask)
+        return True
 
     def _drop_program(self, reason: str) -> None:
         """Drop the active program and flip to reactive: modelability is poor, so never keep
@@ -1103,6 +1217,10 @@ class EwmAgent:
             "SYNTHESIZE", vocabulary=self._vocabulary(frame)
         )
         report: ValidationReport | None = None
+        # Best compiling candidate across attempts (highest full-suite pass_count) for the
+        # partial-adoption fallback when no attempt fully passes.
+        best_source: str | None = None
+        best_report: ValidationReport | None = None
         for _ in range(self.config.max_synth_attempts):
             self.summary.synthesis_attempts += 1
             messages = self._decide_messages(
@@ -1145,6 +1263,14 @@ class EwmAgent:
             if adopted:
                 self._adopt_program(candidate)
                 self._maybe_write_program(frame, report)
+                return True
+            if best_report is None or report.pass_count > best_report.pass_count:
+                best_source, best_report = source, report
+        # No fully-passing program: fall back to partial adoption of the best candidate (mask its
+        # persistently-wrong cells UNKNOWN) when it clears the pass-rate floor and mask cap.
+        if best_source is not None and best_report is not None:
+            if self._try_partial_adopt(frame, best_source):
+                self._maybe_write_program(frame, best_report)
                 return True
         return False
 
@@ -1214,19 +1340,32 @@ class EwmAgent:
         source = result.get("program_source")
         report_dict = result.get("report") or {}
         adopted = bool(source) and bool(report_dict.get("ok")) and int(report_dict.get("total", 0)) > 0
-        if not adopted or not isinstance(source, str):
-            return False
-        try:
-            candidate = WorldModelProgram.load(source)
-        except SandboxError:
-            return False
-        # Re-validate on the live suite before trusting the session's FINAL verdict.
-        report = validate(candidate, self.suite)
-        if not (report.ok and report.total > 0):
-            return False
-        self._adopt_program(candidate)
-        self._maybe_write_program(frame, report)
-        return True
+        if adopted and isinstance(source, str):
+            try:
+                candidate = WorldModelProgram.load(source)
+            except SandboxError:
+                candidate = None
+            if candidate is not None:
+                # Re-validate on the live suite before trusting the session's FINAL verdict.
+                report = validate(candidate, self.suite)
+                if report.ok and report.total > 0:
+                    self._adopt_program(candidate)
+                    self._maybe_write_program(frame, report)
+                    return True
+        # FINAL produced no fully-passing program: partially adopt the session's best candidate
+        # (highest-pass-count across the EDIT chain) by masking its wrong cells UNKNOWN.
+        best_source = result.get("best_source")
+        if isinstance(best_source, str) and best_source.strip():
+            if self._try_partial_adopt(frame, best_source):
+                best_dict = result.get("best_report") or {}
+                best_report = ValidationReport(
+                    ok=bool(best_dict.get("ok")),
+                    pass_count=int(best_dict.get("pass_count", 0)),
+                    total=int(best_dict.get("total", len(self.suite))),
+                )
+                self._maybe_write_program(frame, best_report)
+                return True
+        return False
 
     def _accumulate_graph_stats(self, result: dict[str, Any]) -> None:
         """Fold one SynthSession result's step records into the run's graph-synthesis telemetry:
@@ -1271,12 +1410,21 @@ class EwmAgent:
         """Patch the current program from the first-failure report and re-validate.
 
         Assumes the failing transition is already in the suite. Returns True if the patched program
-        passes the full suite.
+        passes the full suite (or is re-adopted partially with a strictly SMALLER mask).
+
+        Partial adoption interaction: when the active program is a masked partial adoption, REPAIR
+        works against the UNWRAPPED source — it validates the inner program (whose real mismatches
+        the mask hides) so the LLM patches the actual defect, and re-adopts through the mask-aware
+        path so the mask SHRINKS as the model improves.
         """
 
         if self.program is None:
             return False
-        report = validate(self.program, self.suite)
+        # Validate against the UNWRAPPED inner program under partial adoption, so the report exposes
+        # the real mismatches to repair (the masked wrapper would report ok=True and skip repair).
+        inner = self.program.inner if isinstance(self.program, MaskedProgram) else self.program
+        was_partial = isinstance(self.program, MaskedProgram)
+        report = validate(inner, self.suite)
         if report.ok:
             return True
         kb_hits = self._kb_search(
@@ -1323,6 +1471,23 @@ class EwmAgent:
                 self._adopt_program(candidate)
                 self._maybe_write_program(frame, report)
                 return True
+            # Under partial adoption, a candidate need not fully pass to be an improvement: accept it
+            # if partial re-adoption yields a strictly SMALLER mask than the one currently active
+            # (the mask shrinks as the model improves). A repair that does not shrink the mask is
+            # rejected (state restored), so REPAIR never stalls re-adopting an equally-holed model.
+            if was_partial:
+                prev_program = self.program
+                prev_partial = self.summary.program_adopted_partial
+                prev_mask = self.summary.mask_cells
+                if self._try_partial_adopt(frame, source) and (
+                    self.summary.mask_cells < prev_mask
+                ):
+                    self._maybe_write_program(frame, report)
+                    return True
+                # Restore the prior (better-or-equal) partial adoption.
+                self.program = prev_program
+                self.summary.program_adopted_partial = prev_partial
+                self.summary.mask_cells = prev_mask
         return False
 
     def _plan(self, frame: dict[str, Any]) -> PlanResult | None:

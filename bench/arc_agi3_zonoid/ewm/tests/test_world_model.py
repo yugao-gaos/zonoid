@@ -5,10 +5,13 @@ from __future__ import annotations
 import unittest
 
 from bench.arc_agi3_zonoid.ewm.world_model import (
+    MaskedProgram,
     SandboxError,
     TransitionSuite,
     UNKNOWN,
     WorldModelProgram,
+    masked_program,
+    mismatch_mask,
     validate,
 )
 
@@ -356,6 +359,72 @@ class ObjectRelativeProgramTests(unittest.TestCase):
         report = validate(program, suite)
         self.assertTrue(report.ok, msg=f"unexpected mismatches: {report.mismatches}, err={report.error}")
         self.assertEqual(report.pass_count, 4)
+
+
+class MaskAndPartialAdoptionTests(unittest.TestCase):
+    """masked_program / mismatch_mask — the partial-adoption primitives (Run-9 fix)."""
+
+    def _wrong_right_suite(self) -> TransitionSuite:
+        # WRONG_GAME_SOURCE swaps LEFT/RIGHT: a RIGHT transition mispredicts. On "2.3" a real RIGHT
+        # yields ".23", but the wrong model tries to move the avatar LEFT (no-op at the edge), so it
+        # renders "2.3": cells (0,0) and (0,1) mismatch.
+        suite = TransitionSuite()
+        suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        return suite
+
+    def test_mismatch_mask_aggregates_all_wrong_cells(self) -> None:
+        program = WorldModelProgram.load(WRONG_GAME_SOURCE)
+        mask = mismatch_mask(program, self._wrong_right_suite())
+        self.assertEqual(mask, {(0, 0), (0, 1)})
+
+    def test_mismatch_mask_empty_for_correct_program(self) -> None:
+        program = WorldModelProgram.load(TOY_GAME_SOURCE)
+        self.assertEqual(mismatch_mask(program, self._wrong_right_suite()), set())
+
+    def test_mismatch_mask_unions_across_transitions(self) -> None:
+        # Two transitions whose mismatches fall on DIFFERENT cells must union into one mask.
+        program = WorldModelProgram.load(WRONG_GAME_SOURCE)
+        suite = TransitionSuite()
+        suite.append(_grid("2.3"), "RIGHT", _grid(".23"))    # real RIGHT: mismatches (0,0),(0,1)
+        # Real LEFT on "32." (goal col0, avatar col1) moves the avatar onto col0 -> "2.." (avatar on
+        # top of goal). The wrong model moves RIGHT to col2 -> "3.2", mismatching cell (0,2) (new).
+        suite.append(_grid("32."), "LEFT", _grid("2.."))
+        mask = mismatch_mask(program, suite)
+        self.assertIn((0, 0), mask)
+        self.assertIn((0, 1), mask)
+        self.assertIn((0, 2), mask)
+
+    def test_masked_program_passes_suite_the_inner_fails(self) -> None:
+        inner = WorldModelProgram.load(WRONG_GAME_SOURCE)
+        suite = self._wrong_right_suite()
+        self.assertFalse(validate(inner, suite).ok)
+        wrapped = masked_program(inner, mismatch_mask(inner, suite))
+        report = validate(wrapped, suite)
+        self.assertTrue(report.ok, msg=f"mismatches: {report.mismatches}")
+
+    def test_masked_render_places_unknown_at_masked_cells_only(self) -> None:
+        inner = WorldModelProgram.load(TOY_GAME_SOURCE)
+        wrapped = masked_program(inner, {(0, 0)})
+        state = wrapped.init_state(_grid("2.3"))
+        grid = wrapped.render(state)
+        self.assertIs(grid[0][0], UNKNOWN)
+        # Every other cell is delegated unchanged from the inner render.
+        self.assertEqual(grid[0][1], 0)
+        self.assertEqual(grid[0][2], 3)
+
+    def test_masked_program_source_delegates_to_inner(self) -> None:
+        inner = WorldModelProgram.load(TOY_GAME_SOURCE)
+        wrapped = masked_program(inner, {(0, 0)})
+        self.assertIsInstance(wrapped, MaskedProgram)
+        self.assertEqual(wrapped.source, inner.source)
+
+    def test_masked_program_does_not_mutate_inner_state(self) -> None:
+        # Rendering through the mask must not corrupt the inner program's own render.
+        inner = WorldModelProgram.load(TOY_GAME_SOURCE)
+        wrapped = masked_program(inner, {(0, 0)})
+        state = inner.init_state(_grid("2.3"))
+        _ = wrapped.render(state)
+        self.assertEqual(inner.render(state)[0][0], 2)  # inner still sees the avatar, not UNKNOWN
 
 
 if __name__ == "__main__":
