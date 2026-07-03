@@ -84,6 +84,7 @@ DECIDE_PROMPT = (
     "Decision turn. Current mode: {mode}.\n"
     "Frame: level={level} step={step} score={score} valid_actions={valid_actions} "
     "remaining_actions={remaining_actions}.\n"
+    "{prev_step_block}"
     "{kb_block}"
     "{program_block}"
     "{report_block}"
@@ -122,6 +123,9 @@ class AgentConfig:
     decide_max_tokens: int = 1024
     reflect_max_tokens: int = 256
     game_id: str = "unknown"
+    # Optional per-role model: SYNTHESIZE and REPAIR decide calls route here when set; every other
+    # call (ORIENT/RECOVER decide, reflect) stays on the main llm. None -> falls back to the main llm.
+    synth_llm: Any = None
 
 
 # --------------------------------------------------------------------------------------------------
@@ -264,6 +268,11 @@ class EwmAgent:
         self.program: WorldModelProgram | None = None
         self.summary = RunSummary()
         self._failure_cycles = 0
+        # Compact recap of the IMMEDIATE previous step only (never accumulated history). Empty until
+        # the first action lands; refreshed after every action result. Fed into the decide prompt so
+        # each call stays stateless [system, user] with at most one step of context.
+        self._prev_step: dict[str, Any] | None = None
+        self._prev_score: Any = None
 
     # -- vision ------------------------------------------------------------------------------------
 
@@ -307,8 +316,25 @@ class EwmAgent:
     ) -> list[dict[str, Any]]:
         kb_block = ""
         if kb_hits:
-            titles = [str(h.get("title", "")) for h in kb_hits if h.get("title")]
-            kb_block = "KB context: " + "; ".join(titles) + "\n"
+            lines = []
+            for hit in kb_hits[:5]:
+                title = str(hit.get("title", "")).strip()
+                if not title:
+                    continue
+                summary = str(hit.get("summary", "")).strip()
+                summary = summary[:300]
+                lines.append(f"- {title}: {summary}" if summary else f"- {title}")
+            if lines:
+                kb_block = "KB context:\n" + "\n".join(lines) + "\n"
+        prev_step_block = ""
+        prev = getattr(self, "_prev_step", None)
+        if prev:
+            prev_step_block = (
+                "Previous step: "
+                f"action={prev.get('action')} executed_count={prev.get('executed_count')} "
+                f"stop_reason={prev.get('stop_reason')} board_changed={prev.get('board_changed')} "
+                f"score_delta={prev.get('score_delta')}.\n"
+            )
         program_block = ""
         if self.program is not None:
             program_block = "Current world-model program is loaded (revise it if it mispredicts).\n"
@@ -327,6 +353,7 @@ class EwmAgent:
             score=frame.get("score"),
             valid_actions=frame.get("valid_actions"),
             remaining_actions=frame.get("remaining_actions"),
+            prev_step_block=prev_step_block,
             kb_block=kb_block,
             program_block=program_block,
             report_block=report_block,
@@ -347,12 +374,18 @@ class EwmAgent:
 
     # -- LLM wrappers -------------------------------------------------------------------------------
 
-    def _decide(self, messages: list[dict[str, Any]]) -> str:
+    def _decide(self, messages: list[dict[str, Any]], client: Any = None) -> str:
         self.summary.decide_calls += 1
-        resp = self.llm.chat(
+        client = client or self.llm
+        resp = client.chat(
             messages, max_tokens=self.config.decide_max_tokens, temperature=0.0
         )
         return str(resp.get("content", "")) if isinstance(resp, dict) else str(resp)
+
+    def _synth_client(self) -> Any:
+        """The model for SYNTHESIZE/REPAIR decide calls: ``config.synth_llm`` or the main llm."""
+
+        return self.config.synth_llm or self.llm
 
     def _reflect(self, messages: list[dict[str, Any]]) -> str:
         self.summary.reflect_calls += 1
@@ -472,11 +505,14 @@ class EwmAgent:
             messages = self._decide_messages(
                 "SYNTHESIZE", frame, kb_hits, report, image_url
             )
-            text = self._decide(messages)
+            text = self._decide(messages, self._synth_client())
             source = extract_python(text)
             if source is None:
                 # Parse failure: retry once with the same context, then bail out of synthesis.
-                text = self._decide(self._decide_messages("SYNTHESIZE", frame, kb_hits, report, image_url))
+                text = self._decide(
+                    self._decide_messages("SYNTHESIZE", frame, kb_hits, report, image_url),
+                    self._synth_client(),
+                )
                 source = extract_python(text)
                 if source is None:
                     break
@@ -514,10 +550,13 @@ class EwmAgent:
         )
         for _ in range(self.config.max_repair_attempts):
             messages = self._decide_messages("REPAIR", frame, kb_hits, report, image_url)
-            text = self._decide(messages)
+            text = self._decide(messages, self._synth_client())
             source = extract_python(text)
             if source is None:
-                text = self._decide(self._decide_messages("REPAIR", frame, kb_hits, report, image_url))
+                text = self._decide(
+                    self._decide_messages("REPAIR", frame, kb_hits, report, image_url),
+                    self._synth_client(),
+                )
                 source = extract_python(text)
                 if source is None:
                     break
@@ -618,6 +657,20 @@ class EwmAgent:
             self._frame_grid(before), after_grid, "CURRENT", "RESULT"
         )
         struct = self._result_struct(result)
+        # Refresh the single-step recap for the NEXT decide call (exactly one step back).
+        score = struct.get("score")
+        score_delta = None
+        if isinstance(score, (int, float)) and isinstance(self._prev_score, (int, float)):
+            score_delta = score - self._prev_score
+        self._prev_step = {
+            "action": action_key,
+            "executed_count": struct.get("executed_count"),
+            "stop_reason": struct.get("stop_reason"),
+            "board_changed": struct.get("board_changed"),
+            "score_delta": score_delta,
+        }
+        if isinstance(score, (int, float)):
+            self._prev_score = score
         try:
             reflect_text = self._reflect(self._reflect_messages(struct, image_url))
         except Exception:  # noqa: BLE001 - reflection is advisory; never crash the loop on it
