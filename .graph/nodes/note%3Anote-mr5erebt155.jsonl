@@ -13,3 +13,4 @@
 {"evt":"edge_removed","from":"note:note-mr5erebt155","to":"note:note-mr45ykxy4rf","kind":"context","actor":"overlay-sync","ts":"2026-07-03T20:58:24.559Z"}
 {"evt":"edge_added","from":"note:note-mr5erebt155","to":"codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T21:05:45.060Z","origin":"subconscious-assignment"}
 {"evt":"edge_removed","from":"note:note-mr5erebt155","to":"note:note-mr45u2lycou","kind":"context","actor":"overlay-sync","ts":"2026-07-03T21:09:06.473Z"}
+{"evt":"edge_added","from":"note:note-mr5erebt155","to":"codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T21:59:14.639Z","origin":"subconscious-assignment"}
