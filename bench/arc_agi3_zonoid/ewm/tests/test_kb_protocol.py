@@ -126,6 +126,47 @@ class KbClientNoteTest(unittest.TestCase):
         self.assertIn("error", out)
 
 
+class KbClientGetNoteFullTest(unittest.TestCase):
+    def test_get_note_full_route_and_params(self) -> None:
+        payload = {
+            "ok": True,
+            "key": "note:abc",
+            "title": "game ls20 world model program",
+            "full_body": "```python\ndef init_state(f):\n    return f\n```",
+            "chunk_count": 2,
+            "byte_length": 44,
+        }
+        rec = _Recorder(payload)
+        with mock.patch.object(kb_protocol.request, "urlopen", rec):
+            out = _client().get_note_full("note:abc")
+        self.assertEqual(out, payload)
+        call = rec.calls[0]
+        self.assertEqual(call["method"], "GET")
+        self.assertTrue(call["url"].startswith("http://localhost:8787/note/get?"))
+        q = _query(call["url"])
+        self.assertEqual(q["workspace"], [WORKSPACE])
+        self.assertEqual(q["key"], ["note:abc"])
+        self.assertEqual(q["full"], ["1"])
+
+    def test_get_note_full_swallows_network_error(self) -> None:
+        def boom(req, timeout=None):  # noqa: ANN001
+            raise error.URLError("down")
+
+        with mock.patch.object(kb_protocol.request, "urlopen", boom):
+            out = _client().get_note_full("note:abc")
+        self.assertFalse(out["ok"])
+        self.assertIn("error", out)
+
+    def test_get_note_full_swallows_http_404(self) -> None:
+        def boom(req, timeout=None):  # noqa: ANN001
+            raise error.HTTPError(req.full_url, 404, "not found", {}, None)
+
+        with mock.patch.object(kb_protocol.request, "urlopen", boom):
+            out = _client().get_note_full("note:missing")
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["error"], "http 404")
+
+
 class ModeScopedSearchTest(unittest.TestCase):
     def _run(self, mode: str, **kw) -> tuple[_Recorder, list]:
         rec = _Recorder([])

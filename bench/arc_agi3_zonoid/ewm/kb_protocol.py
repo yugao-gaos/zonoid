@@ -207,6 +207,37 @@ class KbClient:
             return []
         return _extract_results(payload)
 
+    def get_note_full(self, key: str) -> dict[str, Any]:
+        """GET {daemon_url}/note/get?key&workspace&full=1 — the daemon's NATIVE full-body note read.
+
+        The daemon reassembles a long/code-like note's FULL untruncated body from its stored
+        source-chunk cluster (lib/note-full-body.js) in one call, so a stored program round-trips
+        without the harness fetching + reassembling chunk notes by title itself. Returns the parsed
+        response dict — ``{"ok": True, "key", "title", "summary", "full_body", "chunk_count",
+        "byte_length"}`` on success, or a logged ``{"ok": False, "error"/"reason": ...}`` on any
+        network/parse failure or a daemon-reported miss (so a KB outage degrades to "no memory").
+
+        ``full=1`` is passed for forward-compatibility; the current endpoint always returns the full
+        body and ignores the flag.
+        """
+
+        params = {"workspace": self.workspace, "key": key, "full": "1"}
+        query = parse.urlencode(params)
+        url = f"{self.daemon_url}/note/get?{query}"
+        try:
+            req = request.Request(url, method="GET")
+            with request.urlopen(req, timeout=self.timeout_s) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+        except error.HTTPError as exc:  # 404 unknown-note etc. — a clean miss, not a crash
+            logger.warning("KB note/get failed for %r: HTTP %s", key, exc.code)
+            return {"ok": False, "error": f"http {exc.code}"}
+        except (error.URLError, TimeoutError, ValueError, OSError) as exc:  # noqa: BLE001
+            logger.warning("KB note/get failed for %r: %r", key, exc)
+            return {"ok": False, "error": repr(exc)}
+        if not isinstance(payload, dict):
+            return {"ok": False, "error": "unexpected note/get payload"}
+        return payload
+
     def note(
         self,
         title: str,

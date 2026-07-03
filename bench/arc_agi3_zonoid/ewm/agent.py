@@ -274,6 +274,15 @@ class AgentConfig:
     #   reads the single program note directly and this flag + the chunk writer/reassembler can be
     #   retired. See kb_protocol.write_program_revision_chunked / reassemble_chunks.
     chunked_program_notes: bool = False
+    # Native full-body note read (PREFERRED path, default ON). When True, ORIENT resolves a stored
+    # program by fetching the index-note's FULL body from the daemon's native `GET /note/get?key=...`
+    # endpoint (kb_protocol.KbClient.get_note_full), which reassembles any source-cluster chunks
+    # server-side in one call, then extracts the fenced program source from that body. This is the
+    # production fix the chunked_program_notes TODO pointed at: it supersedes the harness-side
+    # chunk-fetch-by-title reassembly. On any miss (no key, endpoint absent/errored, empty body, no
+    # fenced source) ORIENT falls back to the flagged chunk scheme, then to the legacy inline body —
+    # so a daemon without /note/get degrades cleanly instead of losing warm-start entirely.
+    native_note_get: bool = True
 
 
 # --------------------------------------------------------------------------------------------------
@@ -1250,13 +1259,16 @@ class EwmAgent:
             return False
         diagnosis = "no stored program"
         for hit in hits:
-            source, resolve_diag = self._resolve_orient_source(hit)
+            source, resolve_diag, path = self._resolve_orient_source(hit)
             if not source:
                 # A chunk-resolution failure (missing/corrupt chunk, length mismatch) is a MORE
                 # informative diagnosis than a plain "no source", so let it win over the default.
                 if resolve_diag:
                     diagnosis = resolve_diag
                 continue
+            # `path` names which resolver served the source (native / chunks / inline) so
+            # orient_diagnosis records HOW the warm-start program was recovered, not just that it was.
+            path_tag = f" ({path})" if path else ""
             try:
                 candidate = WorldModelProgram.load(source)
             except SandboxError:
@@ -1266,7 +1278,7 @@ class EwmAgent:
             if report.ok and report.total > 0:
                 self._adopt_program(candidate)
                 self.summary.orient_adopted = True
-                self.summary.orient_diagnosis = "adopted whole"
+                self.summary.orient_diagnosis = f"adopted whole{path_tag}"
                 return True
             # A stored program that passes only PART of the live suite is still worth adopting: the
             # dev-time ceiling program for ls20 is 12/13 (one auto-changing region it deliberately
@@ -1276,41 +1288,135 @@ class EwmAgent:
             # masked program then passes and clears the floor + mask cap.
             if self._try_partial_adopt(frame, source):
                 self.summary.orient_adopted = True
-                self.summary.orient_diagnosis = "adopted partial"
+                self.summary.orient_diagnosis = f"adopted partial{path_tag}"
                 return True
             diagnosis = "stored program failed validation"
         self.summary.orient_diagnosis = diagnosis
         return False
 
-    def _resolve_orient_source(self, hit: dict[str, Any]) -> tuple[str | None, str | None]:
-        """Resolve program source for an ORIENT hit, reassembling from chunks when the hit is an index.
+    def _resolve_orient_source(
+        self, hit: dict[str, Any]
+    ) -> tuple[str | None, str | None, str | None]:
+        """Resolve program source for an ORIENT hit.
 
-        Returns ``(source, diagnosis)``:
-        * A CHUNKED index note (its body carries ``chunk count:`` + ``source length:``) drives a
-          fetch of every ``game <id> world model program chunk n of N`` note by its EXACT title (with
-          full_content so the ≤1200-char chunk body round-trips whole), an ordered reassembly, and a
-          byte-length check. A missing/corrupt/short chunk yields ``(None, "<reason>")`` — a clean
-          refusal, never a partial program.
-        * An INLINE (legacy, small-program) hit falls back to :meth:`_program_source_from_hit`.
+        Returns ``(source, diagnosis, path)`` where ``path`` names the resolver that produced the
+        source (``"native"`` / ``"chunks"`` / ``"inline"``) so ORIENT can record HOW the warm-start
+        program was recovered. ``diagnosis`` is only meaningful when ``source`` is None; ``path`` is
+        None on failure.
 
-        The diagnosis is only meaningful when source is None; on success it is None.
+        Resolution order (best → fallback):
+
+        1. NATIVE (preferred, config.native_note_get): fetch the index note's FULL body from the
+           daemon's ``GET /note/get?key=...`` endpoint (server-side chunk reassembly) and extract the
+           fenced program source. This supersedes the harness-side chunk fetch.
+        2. CHUNKS (fallback, config.chunked_program_notes): a CHUNKED index note (body carries
+           ``chunk count:`` + ``source length:``) drives a fetch of every ``game <id> world model
+           program chunk n of N`` note by EXACT title, an ordered reassembly, and a byte-length check.
+           A missing/corrupt/short chunk is a clean refusal, never a partial program.
+        3. INLINE (legacy, small program): pull source straight out of the hit body
+           (:meth:`_program_source_from_hit`).
         """
 
         from . import kb_protocol
 
-        # Chunked reassembly is a FALLBACK path gated behind config.chunked_program_notes (default
-        # OFF). When it is off, a chunked index note is treated like any other hit — the inline
-        # extractor runs (and finds nothing usable in a pure index note), so ORIENT degrades to no
-        # warm-start rather than firing the unreliable chunk-fetch path. See the config flag's TODO:
-        # the native daemon full-body note-read endpoint supersedes this.
+        # 1. Native full-body note read (preferred). Only fires with a key + a client that offers the
+        #    endpoint; any miss falls through to the chunk/inline paths below so a daemon without
+        #    /note/get still warm-starts via the older schemes.
+        if self.config.native_note_get:
+            native_source, native_diag = self._native_orient_source(hit)
+            if native_source:
+                return native_source, None, "native"
+            # native_diag is advisory; keep resolving so a native miss never blocks fallback.
+
+        # 2. Chunked reassembly (fallback), gated behind config.chunked_program_notes.
         if self.config.chunked_program_notes:
             index_body = self._hit_body_text(hit)
             chunk_count = _search_int(kb_protocol._INDEX_CHUNKS_RE, index_body)
             source_length = _search_int(kb_protocol._INDEX_LENGTH_RE, index_body)
             if chunk_count is not None and source_length is not None:
-                return self._reassemble_orient_chunks(chunk_count, source_length)
-        # Not a chunked index (or chunked recall disabled): legacy inline body.
-        return self._program_source_from_hit(hit), "no source in hit"
+                src, diag = self._reassemble_orient_chunks(chunk_count, source_length)
+                if src:
+                    return src, None, "chunks"
+                return None, diag, None
+
+        # 3. Legacy inline body.
+        inline = self._program_source_from_hit(hit)
+        if inline:
+            return inline, None, "inline"
+        return None, "no source in hit", None
+
+    def _native_orient_source(
+        self, hit: dict[str, Any]
+    ) -> tuple[str | None, str | None]:
+        """Fetch the hit note's FULL body via the daemon's native ``GET /note/get`` and extract the
+        fenced program source. Returns ``(source, diagnosis)``; source is None on any miss.
+
+        The index note's ``full_body`` carries the program in a fenced ```python block (the
+        WriteGate write_program_revision format). We reassemble server-side, then run the same
+        ``extract_python`` (with a ``program source:`` marker fallback) the inline path uses.
+        """
+
+        client = getattr(self.kb, "client", None)
+        get_full = getattr(client, "get_note_full", None)
+        if not callable(get_full):
+            return None, "no note/get client"
+        key = self._hit_key(hit)
+        if not key:
+            return None, "no note key"
+        try:
+            resp = get_full(key)
+        except Exception:  # noqa: BLE001 - a note/get failure is a clean fallback, never a crash
+            return None, "note/get failed"
+        if not isinstance(resp, dict) or not resp.get("ok"):
+            return None, "note/get miss"
+        body = resp.get("full_body")
+        if not isinstance(body, str) or not body.strip():
+            return None, "note/get empty body"
+        # Prefer a fenced block; fall back to the `program source:` marker the inline path honors.
+        source = extract_python(body)
+        if not source:
+            marker = "program source:"
+            idx = body.lower().find(marker)
+            if idx != -1:
+                tail = body[idx + len(marker):].strip()
+                if tail:
+                    source = tail
+        if not source:
+            return None, "no fenced source in note body"
+        return source, None
+
+    # A cluster-artifact key embeds its parent note id as the trailing `note-<id>` segment (the
+    # daemon's long-note splitter builds the doc/section/chunk ids from the note's bare id — see
+    # lib/note-source-cluster.js). ORIENT's keyed search often surfaces those `knowledge:source_doc:
+    # note-<id> ... evidence` artifacts INSTEAD of the index note itself (the index note's own summary
+    # is compacted to a stub at write time, so the evidence node outranks it on the program query).
+    # /note/get only resolves `note:` keys, so we recover the parent note key from the artifact.
+    _NOTE_ID_RE = re.compile(r"(note-[0-9a-z]+)")
+
+    @classmethod
+    def _hit_key(cls, hit: dict[str, Any]) -> str | None:
+        """The `note:` key to read via native /note/get for a /search hit.
+
+        Returns the hit's own key when it is already a `note:` key; otherwise, when the hit is a
+        `knowledge:source_*` cluster artifact (or any key embedding a `note-<id>` token), derives the
+        parent `note:<id>` key so the native full-body read resolves the real note rather than 404ing
+        on the unreadable artifact key.
+        """
+
+        for field in ("key", "id", "note_key"):
+            value = hit.get(field)
+            if not isinstance(value, str) or not value.strip():
+                continue
+            raw = value.strip()
+            if raw.startswith("note:"):
+                return raw
+            if raw.startswith("knowledge:"):
+                m = cls._NOTE_ID_RE.search(raw)
+                if m:
+                    return f"note:{m.group(1)}"
+                continue
+            return raw
+        return None
 
     def _reassemble_orient_chunks(
         self, chunk_count: int, source_length: int
