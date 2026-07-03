@@ -45,3 +45,4 @@
 {"evt":"edge_promoted","from":"note:note-mr42ami4z24","to":"codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:13:28.328Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"note:note-mr42ami4z24","to":"codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:13:28.328Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
 {"evt":"edge_removed","from":"note:note-mr42ami4z24","to":"codex/ewm-context-policy-kb-summaries-prev-step-per-role-models","kind":"context","actor":"overlay-sync","ts":"2026-07-03T20:37:27.121Z"}
+{"evt":"edge_removed","from":"note:note-mr42ami4z24","to":"codex/ewm-live-ls20-run-wiring-and-ab-slice","kind":"context","actor":"overlay-sync","ts":"2026-07-03T20:40:26.499Z"}
