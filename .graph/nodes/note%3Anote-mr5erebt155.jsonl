@@ -14,3 +14,8 @@
 {"evt":"edge_added","from":"note:note-mr5erebt155","to":"codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T21:05:45.060Z","origin":"subconscious-assignment"}
 {"evt":"edge_removed","from":"note:note-mr5erebt155","to":"note:note-mr45u2lycou","kind":"context","actor":"overlay-sync","ts":"2026-07-03T21:09:06.473Z"}
 {"evt":"edge_added","from":"note:note-mr5erebt155","to":"codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T21:59:14.639Z","origin":"subconscious-assignment"}
+{"evt":"note_superseded","id":"note-mr5erebt155","supersededBy":"note-mr5efmyx6hw","validTo":"2026-07-03T20:41:48.297Z","ts":"2026-07-03T20:41:48.297Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mr5erebt155","to":"note:note-mr5efmyx6hw","kind":"context","actor":"overlay-sync","ts":"2026-07-03T23:12:46.370Z"}
+{"evt":"edge_removed","from":"note:note-mr5erebt155","to":"note:note-mr3vdyn5zxa","kind":"context","actor":"overlay-sync","ts":"2026-07-03T23:12:46.370Z"}
+{"evt":"edge_removed","from":"note:note-mr5erebt155","to":"codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T23:12:46.370Z"}
+{"evt":"edge_removed","from":"note:note-mr5erebt155","to":"codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T23:12:46.370Z"}
