@@ -46,3 +46,4 @@
 {"evt":"edge_removed","from":"note:note-mr43cv6pydy","to":"codex/ewm-object-delta-module-relative-coordinate-transitions","kind":"context","actor":"overlay-sync","ts":"2026-07-03T13:43:48.965Z"}
 {"evt":"edge_removed","from":"note:note-mr43cv6pydy","to":"codex/ewm-segment-helper-injection-world-model-sandbox","kind":"context","actor":"overlay-sync","ts":"2026-07-03T13:43:55.994Z"}
 {"evt":"edge_added","from":"note:note-mr43cv6pydy","to":"codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay","kind":"context","actor":"overlay-sync","ts":"2026-07-03T13:48:05.727Z","weight":0,"by":"autowire","judged":false,"score":0.463,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mr43cv6pydy","to":"codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay","kind":"context","actor":"overlay-sync","ts":"2026-07-03T13:51:30.663Z"}
