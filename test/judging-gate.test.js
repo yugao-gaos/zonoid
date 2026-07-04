@@ -135,6 +135,31 @@ const held = (o, key) => judge.judgingState(o, key).judging;
   ok('STALL: a verdict (what the drain CLI applies) is what releases it', held(o, 's/stall') === false);
 }
 
+{
+  // PERF INDEX: unverifiedIncidentSet + the judgingState({unverifiedIncident}) fast path must return
+  // the SAME verdict as the per-node edge scan for every node — the projection loop relies on this
+  // equivalence to replace an O(tasks × edges) scan with an O(1) membership test. See daemon.js
+  // projectGraphFromNative + the daemon-cpu-hot-loop fix.
+  const o = ov.EMPTY();
+  o.edges.push(
+    { from: 'a', to: 'note:x', kind: 'context', weight: 0, by: 'autowire', judged: false },
+    { from: 'b', to: 'note:y', kind: 'context', weight: 0.5, judged: true },   // judged — not incident
+    { from: 'c', to: 'd', kind: 'blocking', judged: false },                    // not context — not incident
+    { from: 'note:z', to: 'e', kind: 'context', weight: 0, by: 'autowire', judged: false },
+  );
+  const idx = judge.unverifiedIncidentSet(o);
+  ok('INDEX: set holds exactly the nodes on unverified context edges',
+    ['a', 'e', 'note:x', 'note:z'].every((k) => idx.has(k)) && idx.size === 4);
+  for (const k of ['a', 'b', 'c', 'd', 'e', 'note:x', 'note:y', 'note:z', 'absent']) {
+    const scan = judge.judgingState(o, k).judging;
+    const indexed = judge.judgingState(o, k, { unverifiedIncident: idx }).judging;
+    ok(`INDEX: indexed judgingState matches scan for ${k}`, scan === indexed);
+  }
+  // A stray positional number (legacy call shape) must NOT be treated as an index — falls back to scan.
+  ok('INDEX: legacy positional 3rd arg (number) still scans correctly',
+    judge.judgingState(o, 'a', 123, 456).judging === true);
+}
+
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

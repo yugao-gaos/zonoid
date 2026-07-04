@@ -2002,25 +2002,46 @@ function makeResolver() {
   const agg = {}; // ws -> { key: task }
   const ov = {};  // ws -> overlay
   const memo = {}; // "ws|key" -> status
+  const inEdges = {}; // ws -> Map(targetKey -> edge[]) — inbound-edge index, built once per build
+  const unjIncident = {}; // ws -> Set(nodeKey) incident to any unverified context edge, built once
+  const blockingSets = {}; // ws -> Set("from\0to") of blocking edges, built once per build
 
   function loadWs(ws) {
     if (!agg[ws]) {
       agg[ws] = Object.fromEntries(aggregateCached(ws).map((t) => [t.key, t]));
       ov[ws] = overlayFor(ws);
+      // PERF: depRefs() ran per task and did overlay.edges.filter(e=>e.to===key) each call —
+      // O(tasks × edges), a measured hot loop. Bucket inbound edges by target ONCE per build so
+      // depRefs does an O(1) Map lookup + a walk of only that node's inbound edges.
+      const byTarget = new Map();
+      for (const e of (ov[ws].edges || [])) {
+        if (e.toWorkspace) continue;   // depRefs only consumes same-workspace inbound edges
+        let bucket = byTarget.get(e.to);
+        if (!bucket) { bucket = []; byTarget.set(e.to, bucket); }
+        bucket.push(e);
+      }
+      inEdges[ws] = byTarget;
+      // PERF: effective() below calls judgingState() per task (and recursively per dep) — the same
+      // O(tasks × edges) scan judgingState does without an index. Build the incidence Set once here so
+      // both effective() and the outer projection loop share the O(1) membership test.
+      unjIncident[ws] = judge.unverifiedIncidentSet(ov[ws]);
+      // PERF: depRefs()'s isReversePairedJudgeBlockingEdge probe called hasBlockingEdge per task =
+      // another O(tasks × edges) scan (measured ~16% of build). Prebuild the blocking-edge set once.
+      blockingSets[ws] = overlayStore.blockingEdgeSet(ov[ws]);
     }
-    return { tasks: agg[ws], overlay: ov[ws] };
+    return { tasks: agg[ws], overlay: ov[ws], inbound: inEdges[ws], unverifiedIncident: unjIncident[ws], blockingSet: blockingSets[ws] };
   }
 
   // Dependency refs for a task: native (same ws) + inbound overlay edges (from may be ghost).
   function depRefs(ws, key) {
-    const { tasks, overlay } = loadWs(ws);
+    const { tasks, overlay, inbound, blockingSet } = loadWs(ws);
+    const revOpts = { tasks, blockingSet };   // O(1) reverse-judge blocking check via the prebuilt set
     const t = tasks[key];
     const local = t ? t.deps
-      .filter((k) => !overlayStore.isReversePairedJudgeBlockingEdge(overlay, k, key, { tasks }))
+      .filter((k) => !overlayStore.isReversePairedJudgeBlockingEdge(overlay, k, key, revOpts))
       .map((k) => ({ ws, key: k, kind: 'blocking' })) : [];
-    const edges = overlay.edges
-      .filter((e) => e.to === key && !e.toWorkspace)
-      .filter((e) => e.kind === 'context' || !overlayStore.isReversePairedJudgeBlockingEdge(overlay, e.from, e.to, { tasks }))
+    const edges = (inbound.get(key) || [])
+      .filter((e) => e.kind === 'context' || !overlayStore.isReversePairedJudgeBlockingEdge(overlay, e.from, e.to, revOpts))
       // Weight is a relevance MULTIPLIER for context edges: a weight-0 edge contributes ZERO and is
       // EXCLUDED from the context_deps payload (DAG-tier injection + structural rerank), not merely
       // deprioritized. This is how unjudged autowire edges (seeded at weight 0) stay retrieval-
@@ -2045,6 +2066,7 @@ function makeResolver() {
     const base = baseStatus(t.native_status);
     if (base !== 'pending') return (memo[id] = base);
     seen.add(id);
+    const { unverifiedIncident } = loadWs(ws);
     const ready = depRefs(ws, key).filter((d) => d.kind !== 'context').every((d) => depSatisfied(effective(d.ws, d.key, seen))); // context edges never block; a dep is satisfied by terminal-success (done OR tested)
     seen.delete(id);
     if (!ready) return (memo[id] = 'not_ready');
@@ -2053,7 +2075,7 @@ function makeResolver() {
     // 'not_ready' (the 'judging' phase) so it is NOT spawned/claimable yet. P6: STRICT, no time-based
     // release — the task holds until the candidate set drains (eager judge on node-add is the happy
     // path; `node scripts/judge-drain-once.js --node <key> --workspace <ws>` is the on-demand un-gate).
-    const js = judge.judgingState(overlay, key);
+    const js = judge.judgingState(overlay, key, { unverifiedIncident });
     if (js.judging) return (memo[id] = 'not_ready');
     return (memo[id] = 'ready');
   }
@@ -2108,6 +2130,26 @@ function readinessRepairable(readiness) {
 // the one whose [startedAt, endedAt] interval overlaps the task's in_progress claim window. The claim
 // window is bounded by the overlay timestamps (firstSeen..lastChanged) of the in_progress claim.
 // Returns the best-overlapping agent's transcript_path, or null. Pure on `st` so it's unit-testable.
+// PERF INDEX: group agents-with-transcripts by session, pre-parsing their [startedAt, endedAt] bounds
+// ONCE. harnessTranscriptForTask ran per task inside projectGraphFromNative and re-scanned ALL agents +
+// re-Date.parse'd their bounds each time — O(tasks × agents), a measured hot loop (~24% of build CPU).
+// Callers that classify every task build this index once and pass it via st.agentsBySession so the
+// per-task correlation only walks the SAME-session bucket with numbers already parsed. Pure.
+function agentsBySessionIndex(agents) {
+  const bySession = new Map();
+  const nowMs = Date.now();
+  for (const a of Object.values(agents || {})) {
+    if (!a || !a.session || !a.transcript_path) continue;
+    const aStart = Date.parse(a.startedAt);
+    if (Number.isNaN(aStart)) continue;
+    const aEnd = a.endedAt && !Number.isNaN(Date.parse(a.endedAt)) ? Date.parse(a.endedAt) : nowMs; // still running -> now
+    let bucket = bySession.get(a.session);
+    if (!bucket) { bucket = []; bySession.set(a.session, bucket); }
+    bucket.push({ transcript_path: a.transcript_path, aStart, aEnd });
+  }
+  return bySession;
+}
+
 function harnessTranscriptForTask(st, key, session) {
   if (!session) return null;
   const ts = st.overlay.timestamps && st.overlay.timestamps[key];
@@ -2118,6 +2160,20 @@ function harnessTranscriptForTask(st, key, session) {
   const winEnd = Number.isNaN(Date.parse(ts.lastChanged)) ? Date.now() : Date.parse(ts.lastChanged);
   if (Number.isNaN(winStart)) return null;
   let best = null, bestOverlap = -1;
+  // Fast path: caller supplied the per-session index (numbers already parsed). When the index is
+  // PRESENT it is authoritative — a session with no agents-with-transcripts has no bucket, so return
+  // null WITHOUT falling through to the O(agents) scan (that fall-through was the real hot loop: every
+  // task whose session had no transcript agent still scanned ALL agents, ~35% of build CPU). Only when
+  // the index is entirely absent (single-task callers, tests) do we do the full scan below.
+  if (st.agentsBySession) {
+    const bucket = st.agentsBySession.get(session);
+    if (!bucket) return null;
+    for (const a of bucket) {
+      const overlap = Math.min(winEnd, a.aEnd) - Math.max(winStart, a.aStart);
+      if (overlap >= 0 && overlap > bestOverlap) { best = a.transcript_path; bestOverlap = overlap; }
+    }
+    return best;
+  }
   for (const a of Object.values(st.agents || {})) {
     if (!a || a.session !== session || !a.transcript_path) continue;     // same session + has a transcript
     const aStart = Date.parse(a.startedAt);
@@ -2303,7 +2359,11 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
   const R = makeResolver();
   const ghostMap = {}; // "ws|key" -> ghost stub
   const sessionCount = {}; for (const t of native) sessionCount[t.session] = (sessionCount[t.session] || 0) + 1;
-  const stWs = { ...state, overlay: ovWs };   // taskTokens reads assignee from the target overlay
+  const stWs = { ...state, overlay: ovWs, agentsBySession: agentsBySessionIndex(state.agents) };   // taskTokens reads assignee from the target overlay; agentsBySession is the per-build harness-transcript index
+  // PERF: judge.judgingState() below runs once per task and previously scanned ALL overlay.edges each
+  // call — O(tasks × edges), the measured event-loop-pegging hot loop. Build the unverified-edge
+  // incidence Set ONCE here (O(edges)) and pass it so the per-task check is O(1).
+  const unverifiedIncident = judge.unverifiedIncidentSet(ovWs);
 
   // Preserve the old buildGraph order: first-sight/adoption/unwired stamps happen before each node's
   // visible projection is computed; the commit phase only persists and schedules follow-on ingest.
@@ -2353,7 +2413,7 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
     // time-based release). `provisional` is retained for projection-shape stability but is now always
     // false: P6 removed the timeout fallback, so there is no "fell back to ready while still unjudged"
     // state — a task is either fully judging (held) or fully ready.
-    const _js = judge.judgingState(ovWs, t.key);
+    const _js = judge.judgingState(ovWs, t.key, { unverifiedIncident });
     // ADOPT-HOLD projection fix: R.effective() can memoize status before adoption-side ingest has
     // finished. Hold only when the node already has real unjudged candidate edges; isolated roots
     // must remain ready in the same projection instead of being delayed by a synthetic birth tick.
@@ -2484,8 +2544,11 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
 }
 
 // Build the graph for one workspace: explicit reconciliation side effects, then projection.
-function buildGraph(ws) {
-  if (!ws) return { tasks: [], ghosts: [], summary: summaryFor([], [], overlayStore.EMPTY()) };
+// Graph snapshot cache (shared by buildGraph + readGraphSnapshot). Keyed by the overlay file mtime —
+// the SAME stamp the overlay + response caches use — so any mutation rebuilds immediately, but repeated
+// reads over a stable overlay reuse ONE projection.
+const snapCache = new Map();   // ws -> { graph, stamp }
+function buildGraphUncached(ws) {
   // P3: every workspace's overlay is the per-workspace cache entry (overlayFor) — there is no
   // special "current" workspace. The cache entry is the authoritative, write-coalesced in-memory
   // store for ANY workspace, so lifecycle reconciliation runs for every valid ws.
@@ -2495,24 +2558,26 @@ function buildGraph(ws) {
   commitGraphProjectionEffects(ws, ovWs, projection.effects);
   return { tasks: projection.tasks, ghosts: projection.ghosts, summary: summaryFor(projection.tasks, projection.ghosts, ovWs) };
 }
-
-// Search-path graph snapshot cache. The agentic context-search compiler (lib/search/context-compiler.js)
-// reads the graph ONCE PER ROUND (up to MAX_SEARCH_CONTEXT_ROUNDS rounds per /subconscious/search-context
-// request). With no readGraphSnapshot on the ctx it fell back to calling the synchronous buildGraph()
-// every round — a full projection (O(graph)) repeated 4-6x per request, the measured search-latency
-// climb. Cache the built graph per workspace, keyed by the overlay file mtime (the SAME stamp the
-// overlay + response caches use) so any mutation rebuilds immediately; within one read-only multi-round
-// search the stamp is stable, so the whole request reuses ONE buildGraph. buildGraph may itself save the
-// overlay (first-seen stamping / adopt), so re-stamp AFTER building — mirrors respCachePut.
-const snapCache = new Map();   // ws -> { graph, stamp }
-function readGraphSnapshot(ws) {
-  if (!ws) return { graph: buildGraph(ws), overlay: overlayStore.EMPTY() };
+// CPU hot-loop fix: buildGraph was UNCACHED, and ~50 route callers (/task/detail, /label, /judge,
+// /git, /graph …) each ran a full O(tasks) projection per call. The label drain alone fires ~220
+// /task/detail probes per tick — that many fresh projections kept the daemon pegged even while idle.
+// Cache on the overlay mtime: a stable overlay (no write) serves the cached projection; any write bumps
+// the mtime and the next call rebuilds. buildGraphUncached commits first-seen/adoption effects on the
+// building call, so a cache hit (stamp unchanged ⇒ nothing changed) has no pending effects to run.
+function buildGraph(ws) {
+  if (!ws) return { tasks: [], ghosts: [], summary: summaryFor([], [], overlayStore.EMPTY()) };
   const stamp = overlayStamp(ws);
   const hit = snapCache.get(ws);
-  if (hit && hit.stamp === stamp) return { graph: hit.graph, overlay: overlayFor(ws) };
-  const graph = buildGraph(ws);
+  if (hit && hit.stamp === stamp) return hit.graph;
+  const graph = buildGraphUncached(ws);
+  // Re-stamp AFTER building: buildGraphUncached may itself save the overlay (first-seen stamping /
+  // adopt), so the post-build mtime is the one a subsequent read must match to hit — mirrors respCachePut.
   snapCache.set(ws, { graph, stamp: overlayStamp(ws) });
-  return { graph, overlay: overlayFor(ws) };
+  return graph;
+}
+function readGraphSnapshot(ws) {
+  if (!ws) return { graph: buildGraph(ws), overlay: overlayStore.EMPTY() };
+  return { graph: buildGraph(ws), overlay: overlayFor(ws) };
 }
 
 function summaryFor(tasks, ghosts, ov = overlayStore.EMPTY()) {
