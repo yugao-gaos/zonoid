@@ -11,3 +11,4 @@
 {"evt":"edge_promoted","from":"note:note-mr5xad0sam6","to":"note:note-mr5w5bfj6do","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:40:13.019Z","weight":0.73,"by":"judge","judged":true,"score":0.73,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mr5xad0sam6","to":"codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one","kind":"context","actor":"overlay-sync","ts":"2026-07-04T06:04:39.972Z","weight":0.512,"by":"judge","judged":true,"score":0.512,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr5xad0sam6","to":"note:note-mr5pulqbnxg","kind":"context","actor":"overlay-sync","ts":"2026-07-04T06:27:27.672Z"}
+{"evt":"edge_added","from":"note:note-mr5xad0sam6","to":"codex/ewm-bump-quota-interleave-action-budget-raise","kind":"context","actor":"overlay-sync","ts":"2026-07-04T11:14:40.045Z","weight":0,"by":"autowire","judged":false,"score":0.368,"origin":"autowire-semantic"}

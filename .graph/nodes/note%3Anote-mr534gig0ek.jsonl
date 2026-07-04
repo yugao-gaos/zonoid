@@ -24,3 +24,4 @@
 {"evt":"edge_removed","from":"note:note-mr534gig0ek","to":"codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen","kind":"context","actor":"overlay-sync","ts":"2026-07-04T03:18:20.038Z"}
 {"evt":"edge_added","from":"note:note-mr534gig0ek","to":"codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen","kind":"blocking","actor":"overlay-sync","ts":"2026-07-04T03:55:44.002Z","by":"judge","judged":true,"score":0.435,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr534gig0ek","to":"codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen","kind":"context","actor":"overlay-sync","ts":"2026-07-04T03:55:44.002Z"}
+{"evt":"edge_added","from":"note:note-mr534gig0ek","to":"codex/ewm-bump-quota-interleave-action-budget-raise","kind":"context","actor":"overlay-sync","ts":"2026-07-04T11:14:40.045Z","weight":0,"by":"autowire","judged":false,"score":0.394,"origin":"autowire-semantic"}
