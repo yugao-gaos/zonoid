@@ -19,3 +19,4 @@
 {"evt":"edge_added","from":"note:note-mr5efmyx6hw","to":"codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T23:12:46.370Z","origin":"subconscious-assignment"}
 {"evt":"edge_added","from":"note:note-mr5efmyx6hw","to":"codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T23:12:46.370Z","origin":"subconscious-assignment"}
 {"evt":"edge_removed","from":"note:note-mr5efmyx6hw","to":"note:note-mr5erebt155","kind":"context","actor":"overlay-sync","ts":"2026-07-03T23:12:46.370Z"}
+{"evt":"edge_removed","from":"note:note-mr5efmyx6hw","to":"note:note-mr3vdyn5zxa","kind":"context","actor":"overlay-sync","ts":"2026-07-04T00:14:01.857Z"}
