@@ -86,3 +86,4 @@
 {"evt":"edge_removed","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_removed","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_added","from":"note:note-mqqqrlczyc2","to":"note:note-mqqosxptv7i","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:52:41.030Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_added","from":"note:note-mqqqrlczyc2","to":"codex/ewm-per-run-bump-dedup-unblock-persisted-suppression-fix","kind":"context","actor":"overlay-sync","ts":"2026-07-04T18:05:19.358Z","weight":0,"by":"autowire","judged":false,"score":0.506,"origin":"autowire-semantic"}
