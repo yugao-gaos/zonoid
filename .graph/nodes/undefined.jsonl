@@ -1,2 +1,0 @@
-{"evt":"summary_set","id":"undefined","workspace":"/Users/imyu/Desktop/zonoid","summary":"Divergence-tolerance policy + live run 18 (see commit f14a7f736). 3 divergences tolerated, 0 repairs, 80 uninterrupted actions, 2.35 actions/min, llm_calls_per_action 0.61. 327 tests + smoke green. No level cleared.","actor":"overlay-sync","ts":"2026-07-04T02:37:10.692Z"}
-{"evt":"assignee_set","id":"undefined","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-ewm-tolerance","actor":"overlay-sync","ts":"2026-07-04T02:37:10.692Z"}

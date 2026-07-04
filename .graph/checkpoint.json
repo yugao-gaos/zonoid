@@ -1547,7 +1547,7 @@
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "tested",
-      "summary": "Added cross-game mechanism-hypothesis schema to kb_protocol.py: write_mechanism_hypothesis (hypothesis-form body, rejects absolute coords + foreign game ids, standalone-token title), write_mechanic_pattern kept as deprecated legacy-flagged alias, hypothesis_menu with HYPOTHESIS_MENU_PREAMBLE ranked by cue overlap, and ORIENT/SYNTHESIZE stripped new-game fallback to the tagged menu. Diffs confined to kb_protocol.py + its test file. Full ewm suite green (195 passed).",
+      "summary": "Divergence-tolerance policy + live run 18 (see commit f14a7f736). 3 divergences tolerated, 0 repairs, 80 uninterrupted actions, 2.35 actions/min, llm_calls_per_action 0.61. 327 tests + smoke green. No level cleared.",
       "category": null,
       "tags": [],
       "knowledge": [],
@@ -1556,7 +1556,7 @@
       "code_node": null,
       "entity_node": null,
       "snapshot": null,
-      "assignee": "worker-ewm-hypo",
+      "assignee": "worker-ewm-tolerance",
       "timestamps": {
         "firstSeen": "2026-06-11T17:23:25.748Z",
         "lastChanged": "2026-07-03T00:40:13.853Z",
@@ -243371,6 +243371,158 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty": {
+      "id": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM cross run coverage persistence bump probes run twenty",
+        "description": "Run 19 findings: ls20 exposes ONLY ACTION1-4 (all movement) so the win interaction must be positional/contact; and coverage resets per run (each 80-action budget re-sweeps the same 5%). Two levers in bench/arc_agi3_zonoid/ewm/ (agent.py + kb_protocol seams, +tests): (1) CROSS-RUN COVERAGE PERSISTENCE — persist the visited-cell set + fired-probe set + frontier state to the KB at run end (game-scoped note, compact encoding e.g. run-length or base-shifted rows within note limits — or chunked via the proven writer); on ORIENT, load it and resume the frontier from prior runs' boundary instead of re-sweeping; telemetry coverage_resumed_pct. (2) BUMP PROBES — interaction discovery gains contact probing when the non-movement vocabulary is empty: deliberately plan movement INTO each adjacent distinct object class (per segmentation hash), including repeated bumps (2-3x same target), and diff for ANY effect beyond blocked/no-op and the auto-changing region (object moved/recolored/vanished, score change, new cells) -> interaction note + exploration-graph extension. Tests: coverage round-trips through the KB and a second toy run resumes (frontier does not re-visit); bump probe discovers a toy push-block mechanic end-to-end (bump moves the block, opens path, level transition); dedup respects persisted probes. Full suite + --smoke green. LIVE RUN 20: standard command (--graph on, 80 actions/1500s), foreground bounded wait. Report coverage_resumed_pct, new coverage, bumps probed/found, boundary?, LEVELS_COMPLETED, scorecard; write out/ewm-ls20-ewm-warmstart9.json + append arm. Truthful either way. Commit code + artifacts.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-04T05:00:35.652Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-04T05:00:35.652Z",
+        "lastChanged": "2026-07-04T05:34:45.166Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen": {
+      "id": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM divergence tolerance policy uninterrupted sweep run eighteen",
+        "description": "Run 17: ORIENT retry perfect (0 synthesis) but 3 TRANSIENT divergences (final live_pass_rate 1.0) triggered 6 futile REPAIR decides (qwen repair 0-for-18 across runs 15-17), each dropping fast-path trust — explorer got only 2 batches, 20 actions, 3.98% coverage again. Fix in bench/arc_agi3_zonoid/ewm/agent.py (+tests): (1) DIVERGENCE CLASSIFICATION — on expect-mismatch, if mismatched cells are confined to the program's known-unmodelable set or adjacent to already-masked cells: auto-extend the mask (bounded by mask_cap), log, CONTINUE exploration without trust drop or repair. (2) REPAIR GATING — REPAIR engages only when the rolling live pass-rate window actually degrades below threshold (config repair_trigger_pass_rate default 0.85), never on isolated transients while the window holds ~1.0. (3) RUNTIME REPAIR SANITY CAP — after N consecutive repair candidates failing extract/compile for the same divergence signature (config default 2), stop repairing that signature for the rest of the game (log for the dev-time pass); trust restores when predictions resume passing. Telemetry: transients_tolerated, mask_auto_extensions, repair_skips. Tests: transient on masked-adjacent cells tolerated with zero LLM calls and exploration continuing; window degradation still triggers repair; sanity cap stops identical-failure loops. Full suite + --smoke green. LIVE RUN 18: standard command (--graph on, 80 actions/1500s), foreground bounded wait. Report actions_per_minute, coverage_pct, llm_calls_per_action, transients_tolerated, boundary captured?, LEVELS_COMPLETED, scorecard; write out/ewm-ls20-ewm-warmstart7.json + append arm. Truthful either way. Commit code + artifacts.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-04T02:03:05.092Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-04T02:03:05.092Z",
+        "lastChanged": "2026-07-04T02:40:47.684Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen": {
+      "id": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM interaction discovery probing untried actions run nineteen",
+        "description": "Run 18 exhausted the movement frontier (80 uninterrupted actions, 5% coverage) with no level boundary — the win is not on the movement frontier; it needs an INTERACTION. Runtime-local only (no dev-Claude; qwen + CPU). In bench/arc_agi3_zonoid/ewm/ (agent.py + planner.py minimal, +tests) — note the EWM harness now lives on MAIN (feature merged, head 4c445936e): (1) INTERACTION DISCOVERY mode, entered when the frontier exhausts without a boundary: enumerate untried (action, context) pairs — non-movement actions from valid_actions (e.g. ACTION5/SPACE, ACTION6 with coordinates) fired at INTERESTING contexts: player adjacent to each distinct object class per segmentation (distinct color/shape hashes), and ACTION6 targeted AT distinct objects; CPU-plan movement to each context, fire the probe, diff the result; any non-movement state change (beyond the known auto-changing region) = an interaction discovery -> record a game-scoped interaction note (action + context + observed effect, standalone tokens) and add the effect to the exploration graph (new reachable states). (2) Boundary watch unchanged — any level/score jump captures goal evidence as already wired. (3) Budget-aware ordering: probe cheapest-to-reach contexts first; skip contexts whose probe already fired. Telemetry: interactions_probed, interactions_found. Tests: toy game with a switch object (SPACE adjacent to it opens a door -> new reachable region + level transition) discovered by the mode end-to-end; probe dedup; ordering. Full suite + --smoke green. LIVE RUN 19: standard command (--graph on, 80 actions/1500s), foreground bounded wait. Report interactions_probed/found, coverage, boundary captured?, LEVELS_COMPLETED, scorecard; write out/ewm-ls20-ewm-warmstart8.json + append arm. Truthful either way. Commit code + artifacts.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-04T03:54:13.912Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-04T03:54:13.912Z",
+        "lastChanged": "2026-07-04T05:00:02.287Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen": {
+      "id": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM orient retry llm free exploration executor run seventeen",
+        "description": "Run 16 proved goal-discovery + fast-path live but delivered only 20 actions/3.98% coverage: (a) early ORIENT lost KB reads to the CPU-pegged daemon and conceded to a wasted 15-min synthesis cycle; (b) 1.91 llm_calls_per_action — the LLM still gates exploration batches. Fixes in bench/arc_agi3_zonoid/ewm/ (agent.py +tests): (1) ORIENT RETRY — before ever falling through to SYNTHESIZE on a fresh game, retry the KB program lookup with backoff (config orient_retries default 3, backoff 5/15/30s) and treat daemon timeouts as retryable, not as absence; telemetry orient_kb_attempts. (2) LLM-FREE EXPLORATION EXECUTOR — once a program is trusted (revalidation passed + live window passing), exploration turns run WITHOUT any decide call: CPU frontier plan -> execute batch (budget-guarded, expect grids from the model) -> on all-pass, immediately CPU-plan the next batch from the new frontier; LLM re-enters ONLY on expect-mismatch (trust drop -> normal decide/repair cadence) or when frontier is exhausted (then one decide for strategy). Reflect stays log-only on the fast path. Target: llm_calls_per_action < 0.2 in trusted exploration; the 80-action budget should complete well inside the wall cap. Tests: ORIENT retries then succeeds on flaky mock KB; trusted exploration executes multiple consecutive batches with zero decide calls on the toy game and still detects its level boundary; trust drop restores cadence. Full suite + --smoke green. LIVE RUN 17: standard command (qwen-coding, vision, --graph on, 80 actions/1500s), foreground bounded wait (no background waiters). Report actions_per_minute, coverage_pct, llm_calls_per_action, boundary captured?, LEVELS_COMPLETED, scorecard; write out/ewm-ls20-ewm-warmstart6.json + append arm. Truthful either way. Commit code + artifacts.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-04T01:01:47.524Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-04T01:01:47.524Z",
+        "lastChanged": "2026-07-04T02:02:47.967Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -276300,22 +276452,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr3w7imnpak",
-      "to": "codex/ewm-repl-sandbox-budget-guards-segmentation",
-      "kind": "context",
-      "by": "autowire",
-      "judged": false,
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "note:note-mr42ami4z24",
-      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
-      "kind": "context",
-      "by": "autowire",
-      "judged": false,
-      "origin": "subconscious-assignment"
-    },
-    {
       "from": "note:note-mr43cv6pydy",
       "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
       "kind": "context",
@@ -276337,10 +276473,10 @@
       "from": "note:note-mr43rk1dmy0",
       "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
       "kind": "context",
+      "weight": 0.5,
       "by": "judge",
       "judged": true,
-      "origin": "subconscious-assignment",
-      "weight": 0.5
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mr43rk1dmy0",
@@ -276454,14 +276590,6 @@
       "judged": true,
       "score": 0.569,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr46y3pjbt8",
-      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
-      "kind": "context",
-      "by": "autowire",
-      "judged": false,
-      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mr48a5ra7bz",
@@ -276749,16 +276877,6 @@
       "origin": "subconscious-assignment"
     },
     {
-      "from": "knowledge:source_chunk:chunk-adapters-cursor-readme-md-5-0-after-start-task-registe-296c608bfb",
-      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.411,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "knowledge:source_chunk:note-mqpavx66iic#note-evidence:chunk-1",
       "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
       "kind": "blocking",
@@ -276930,16 +277048,6 @@
       "origin": "note-source-cluster"
     },
     {
-      "from": "note:note-mq7gpd48",
-      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.435,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mq9gifkl7hh",
       "to": "note:note-mq9kdid34r8",
       "kind": "context",
@@ -276966,16 +277074,6 @@
       "judged": true
     },
     {
-      "from": "note:note-mqiuf091u3n",
-      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.463,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqj6vo24dzn",
       "to": "29556785-fa39-442e-8eba-b5dd9dc00862/9",
       "kind": "context",
@@ -276997,10 +277095,10 @@
       "from": "note:note-mr42ami4z24",
       "to": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
       "kind": "context",
+      "weight": 0.5,
       "by": "judge",
       "judged": true,
-      "origin": "subconscious-assignment",
-      "weight": 0.5
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mr43cv6pydy",
@@ -277736,34 +277834,6 @@
       "origin": "subconscious-assignment"
     },
     {
-      "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
-      "to": "note:note-mqqqrlczyc2",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-claude-md-7-2-effect-2-auto-merge-on-judge-approve-whe-85c554656b",
-      "to": "codex/onboard-code-cli-sync-judge",
-      "kind": "context",
-      "weight": 0.531,
-      "by": "judge",
-      "judged": true,
-      "score": 0.531,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-readme-md-4-0-after-each-session-zonoid-mines-the-comp-7eb25e4957",
-      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.356,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "knowledge:source_chunk:note-mqpwriu892d#note-evidence:chunk-3",
       "to": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
       "kind": "context",
@@ -277771,64 +277841,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.337,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-1",
-      "to": "codex/code-node-layer",
-      "kind": "context",
-      "weight": 0.482,
-      "by": "judge",
-      "judged": true,
-      "score": 0.482,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-2",
-      "to": "codex/onboard-code-cli-sync-judge",
-      "kind": "context",
-      "weight": 0.516,
-      "by": "judge",
-      "judged": true,
-      "score": 0.516,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-3",
-      "to": "codex/onboard-code-cli-sync-judge",
-      "kind": "context",
-      "weight": 0.519,
-      "by": "judge",
-      "judged": true,
-      "score": 0.519,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqqpp70ivco#note-evidence:chunk-2",
-      "to": "codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.33,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqqpqf49a5m#note-evidence:chunk-3",
-      "to": "note:note-mqqt68limis",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqqvw755vf0#note-evidence:chunk-1",
-      "to": "codex/code-node-layer",
-      "kind": "context",
-      "weight": 0.483,
-      "by": "judge",
-      "judged": true,
-      "score": 0.483,
       "origin": "autowire-semantic"
     },
     {
@@ -277845,27 +277857,11 @@
       "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
       "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.36,
+      "by": "judge",
+      "judged": true,
       "score": 0.36,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-1",
-      "to": "note:note-mqsi4rz0p98",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "note-source-cluster"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-2",
-      "to": "note:note-mqsi4rz0p98",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "note-source-cluster"
     },
     {
       "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-2",
@@ -277878,54 +277874,36 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-2",
-      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.321,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-3",
-      "to": "note:note-mqsi4rz0p98",
+      "from": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-1",
+      "to": "note:note-mr5c2remh4y",
       "kind": "context",
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
     },
     {
-      "from": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-1",
-      "to": "note:note-mr5c2remh4y",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
       "from": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-2",
       "to": "note:note-mr5c2remh4y",
       "kind": "context",
       "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
+      "judged": true,
+      "origin": "note-source-cluster"
     },
     {
       "from": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-3",
       "to": "note:note-mr5c2remh4y",
       "kind": "context",
       "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
+      "judged": true,
+      "origin": "note-source-cluster"
     },
     {
       "from": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-4",
       "to": "note:note-mr5c2remh4y",
       "kind": "context",
       "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
+      "judged": true,
+      "origin": "note-source-cluster"
     },
     {
       "from": "knowledge:source_chunk:note-mr5c37uw1tw#note-evidence:chunk-1",
@@ -277996,104 +277974,1265 @@
       "to": "note:note-mr5d6cvqife",
       "kind": "context",
       "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
+      "judged": true,
+      "origin": "note-source-cluster"
     },
     {
       "from": "knowledge:source_chunk:note-mr5d6cvqife#note-evidence:chunk-2",
       "to": "note:note-mr5d6cvqife",
       "kind": "context",
       "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
+      "judged": true,
+      "origin": "note-source-cluster"
     },
     {
       "from": "knowledge:source_chunk:note-mr5d6cvqife#note-evidence:chunk-3",
       "to": "note:note-mr5d6cvqife",
       "kind": "context",
       "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
+      "judged": true,
+      "origin": "note-source-cluster"
     },
     {
       "from": "knowledge:source_chunk:note-mr5d6cvqife#note-evidence:chunk-4",
       "to": "note:note-mr5d6cvqife",
       "kind": "context",
       "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
+      "judged": true,
+      "origin": "note-source-cluster"
     },
     {
       "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-1",
       "to": "note:note-mr5i0uv2sdg",
       "kind": "context",
       "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
+      "judged": true,
+      "origin": "note-source-cluster"
     },
     {
       "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-2",
       "to": "note:note-mr5i0uv2sdg",
       "kind": "context",
       "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
+      "judged": true,
+      "origin": "note-source-cluster"
     },
     {
       "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-3",
       "to": "note:note-mr5i0uv2sdg",
       "kind": "context",
       "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
+      "judged": true,
+      "origin": "note-source-cluster"
     },
     {
       "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-4",
       "to": "note:note-mr5i0uv2sdg",
       "kind": "context",
       "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
+      "judged": true,
+      "origin": "note-source-cluster"
     },
     {
       "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-5",
       "to": "note:note-mr5i0uv2sdg",
       "kind": "context",
       "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
+      "judged": true,
+      "origin": "note-source-cluster"
     },
     {
       "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-6",
       "to": "note:note-mr5i0uv2sdg",
       "kind": "context",
       "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
+      "judged": true,
+      "origin": "note-source-cluster"
     },
     {
       "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-7",
       "to": "note:note-mr5i0uv2sdg",
       "kind": "context",
       "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
+      "judged": true,
+      "origin": "note-source-cluster"
     },
     {
       "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-8",
       "to": "note:note-mr5i0uv2sdg",
       "kind": "context",
       "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
+      "judged": true,
+      "origin": "note-source-cluster"
     },
     {
       "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-9",
       "to": "note:note-mr5i0uv2sdg",
       "kind": "context",
       "weight": 1,
-      "origin": "note-source-cluster",
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_doc:note-mr5c2remh4y",
+      "to": "knowledge:source_section:note-mr5c2remh4y#note-evidence",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_doc:note-mr5c37uw1tw",
+      "to": "knowledge:source_section:note-mr5c37uw1tw#note-evidence",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_doc:note-mr5c8xcs7uo",
+      "to": "knowledge:source_section:note-mr5c8xcs7uo#note-evidence",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_doc:note-mr5d6cvqife",
+      "to": "knowledge:source_section:note-mr5d6cvqife#note-evidence",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_doc:note-mr5i0uv2sdg",
+      "to": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5c2remh4y#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5c2remh4y#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5c2remh4y#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-3",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5c2remh4y#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-4",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5c2remh4y#note-evidence",
+      "to": "note:note-mr5c2remh4y",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5c37uw1tw#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5c37uw1tw#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5c37uw1tw#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5c37uw1tw#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5c37uw1tw#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5c37uw1tw#note-evidence:chunk-3",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5c37uw1tw#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5c37uw1tw#note-evidence:chunk-4",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5c37uw1tw#note-evidence",
+      "to": "note:note-mr5c2remh4y",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5c8xcs7uo#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5c8xcs7uo#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5c8xcs7uo#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5c8xcs7uo#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5c8xcs7uo#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5c8xcs7uo#note-evidence:chunk-3",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5c8xcs7uo#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5c8xcs7uo#note-evidence:chunk-4",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5c8xcs7uo#note-evidence",
+      "to": "note:note-mr5c2remh4y",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5d6cvqife#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5d6cvqife#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5d6cvqife#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5d6cvqife#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5d6cvqife#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5d6cvqife#note-evidence:chunk-3",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5d6cvqife#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5d6cvqife#note-evidence:chunk-4",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5d6cvqife#note-evidence",
+      "to": "note:note-mr5d6cvqife",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-3",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-4",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-5",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-6",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-7",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-8",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
+      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-9",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
+      "to": "note:note-mr5i0uv2sdg",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "note:note-mq9gifkl7hh",
+      "to": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
+      "kind": "context",
+      "weight": 0.423,
+      "by": "judge",
+      "judged": true,
+      "score": 0.423,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqhg00za1ld",
+      "to": "note:note-mqp7moo8hc8",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
       "judged": true
+    },
+    {
+      "from": "note:note-mr43rk1dmy0",
+      "to": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.42,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr45ykxy4rf",
+      "to": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
+      "kind": "context",
+      "weight": 0.462,
+      "by": "judge",
+      "judged": true,
+      "score": 0.462,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr48a5ra7bz",
+      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
+      "kind": "context",
+      "weight": 0.424,
+      "by": "judge",
+      "judged": true,
+      "score": 0.424,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr48a5ra7bz",
+      "to": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.456,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr534gig0ek",
+      "to": "codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.473,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "note:note-mr5c2remh4y",
+      "kind": "context",
+      "weight": 0.758,
+      "by": "judge",
+      "judged": true,
+      "score": 0.758,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5b375dvnh",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5b375dvnh",
+      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.482,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5c2remh4y",
+      "to": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5c2remh4y",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.85,
+      "by": "judge",
+      "judged": true,
+      "score": 0.85,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5c2remh4y",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3",
+      "kind": "context",
+      "weight": 0.852,
+      "by": "judge",
+      "judged": true,
+      "score": 0.852,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5c2remh4y",
+      "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.705,
+      "by": "judge",
+      "judged": true,
+      "score": 0.705,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5c2remh4y",
+      "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-3",
+      "kind": "context",
+      "weight": 0.705,
+      "by": "judge",
+      "judged": true,
+      "score": 0.705,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5c2remh4y",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5c2remh4y",
+      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.902,
+      "by": "judge",
+      "judged": true,
+      "score": 0.902,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5c2remh4y",
+      "to": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.902,
+      "by": "judge",
+      "judged": true,
+      "score": 0.902,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5c2remh4y",
+      "to": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
+      "kind": "context",
+      "weight": 0.902,
+      "by": "judge",
+      "judged": true,
+      "score": 0.902,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5c2remh4y",
+      "to": "knowledge:source_section:note-mr59oitveey#note-evidence",
+      "kind": "context",
+      "weight": 0.902,
+      "by": "judge",
+      "judged": true,
+      "score": 0.902,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5c2remh4y",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.811,
+      "by": "judge",
+      "judged": true,
+      "score": 0.811,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5c2remh4y",
+      "to": "knowledge:source_chunk:note-mr59p4ht2vq#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.817,
+      "by": "judge",
+      "judged": true,
+      "score": 0.817,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5c2remh4y",
+      "to": "knowledge:source_section:note-mr59p4ht2vq#note-evidence",
+      "kind": "context",
+      "weight": 0.817,
+      "by": "judge",
+      "judged": true,
+      "score": 0.817,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5d6cvqife",
+      "to": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5efmyx6hw",
+      "to": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5efmyx6hw",
+      "to": "codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen",
+      "kind": "context",
+      "origin": "subconscious-assignment",
+      "by": "autowire",
+      "judged": false
+    },
+    {
+      "from": "note:note-mr5efmyx6hw",
+      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
+      "kind": "context",
+      "origin": "subconscious-assignment",
+      "by": "autowire",
+      "judged": false
+    },
+    {
+      "from": "note:note-mr5hu8iwax0",
+      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5hu8iwax0",
+      "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.682,
+      "by": "judge",
+      "judged": true,
+      "score": 0.682,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5hu8iwax0",
+      "to": "knowledge:source_chunk:note-mr5c8xcs7uo#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.682,
+      "by": "judge",
+      "judged": true,
+      "score": 0.682,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5hu8iwax0",
+      "to": "knowledge:source_chunk:note-mr5d6cvqife#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.682,
+      "by": "judge",
+      "judged": true,
+      "score": 0.682,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5hu8iwax0",
+      "to": "knowledge:source_section:note-mr5c2remh4y#note-evidence",
+      "kind": "context",
+      "weight": 0.682,
+      "by": "judge",
+      "judged": true,
+      "score": 0.682,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5huxkklmo",
+      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5hv30dmnw",
+      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5hv30dmnw",
+      "to": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.757,
+      "by": "judge",
+      "judged": true,
+      "score": 0.757,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5hv30dmnw",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3",
+      "kind": "context",
+      "weight": 0.735,
+      "by": "judge",
+      "judged": true,
+      "score": 0.735,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5hv5vv7wl",
+      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5hv93mr99",
+      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5hvc643og",
+      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5hvc643og",
+      "to": "note:note-mr5i8jmlosb",
+      "kind": "context",
+      "weight": 0.696,
+      "by": "judge",
+      "judged": true,
+      "score": 0.696,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5hvexbzlh",
+      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5hvm5z1hf",
+      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5hw1qsj5m",
+      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5hw1qsj5m",
+      "to": "note:note-mr5hu8iwax0",
+      "kind": "context",
+      "weight": 0.713,
+      "by": "judge",
+      "judged": true,
+      "score": 0.713,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5hxwtjf2m",
+      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5i0uv2sdg",
+      "to": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
+      "kind": "context",
+      "weight": 0.88,
+      "by": "judge",
+      "judged": true,
+      "score": 0.88,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5i0uv2sdg",
+      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.88,
+      "by": "judge",
+      "judged": true,
+      "score": 0.88,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5i0uv2sdg",
+      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.735,
+      "by": "judge",
+      "judged": true,
+      "score": 0.735,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5i0uv2sdg",
+      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-8",
+      "kind": "context",
+      "weight": 0.675,
+      "by": "judge",
+      "judged": true,
+      "score": 0.675,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5i8jmlosb",
+      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5i8jmlosb",
+      "to": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.788,
+      "by": "judge",
+      "judged": true,
+      "score": 0.788,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5i8jmlosb",
+      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.788,
+      "by": "judge",
+      "judged": true,
+      "score": 0.788,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5i8jmlosb",
+      "to": "note:note-mr5hxwtjf2m",
+      "kind": "context",
+      "weight": 0.771,
+      "by": "judge",
+      "judged": true,
+      "score": 0.771,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5i8jmlosb",
+      "to": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.748,
+      "by": "judge",
+      "judged": true,
+      "score": 0.748,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5i8jmlosb",
+      "to": "knowledge:source_section:note-mr5hxwtjf2m#note-evidence",
+      "kind": "context",
+      "weight": 0.748,
+      "by": "judge",
+      "judged": true,
+      "score": 0.748,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5i8jmlosb",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.72,
+      "by": "judge",
+      "judged": true,
+      "score": 0.72,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5i8jmlosb",
+      "to": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
+      "kind": "context",
+      "weight": 0.72,
+      "by": "judge",
+      "judged": true,
+      "score": 0.72,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5i8jmlosb",
+      "to": "note:note-mr5hu8iwax0",
+      "kind": "context",
+      "weight": 0.71,
+      "by": "judge",
+      "judged": true,
+      "score": 0.71,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5i8jmlosb",
+      "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.647,
+      "by": "judge",
+      "judged": true,
+      "score": 0.647,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5i8jmlosb",
+      "to": "knowledge:source_chunk:note-mr5c37uw1tw#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.647,
+      "by": "judge",
+      "judged": true,
+      "score": 0.647,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5l0el0i0k",
+      "to": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5l0el0i0k",
+      "to": "note:note-mr3vdyn5zxa",
+      "kind": "context",
+      "weight": 0.66,
+      "by": "judge",
+      "judged": true,
+      "score": 0.66,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5l0el0i0k",
+      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
+      "kind": "context",
+      "weight": 0.515,
+      "by": "judge",
+      "judged": true,
+      "score": 0.515,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5lqjqbaai",
+      "to": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5lqjqbaai",
+      "to": "knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.613,
+      "by": "judge",
+      "judged": true,
+      "score": 0.613,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5lqjqbaai",
+      "to": "knowledge:source_section:note-mqqyd0ugp2b#note-evidence",
+      "kind": "context",
+      "weight": 0.613,
+      "by": "judge",
+      "judged": true,
+      "score": 0.613,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5lqjqbaai",
+      "to": "note:note-mqi4uvwuwo8",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.62,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5njd22m3l",
+      "to": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5njd22m3l",
+      "to": "note:note-mr5lqjqbaai",
+      "kind": "context",
+      "weight": 0.715,
+      "by": "judge",
+      "judged": true,
+      "score": 0.715,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5njd22m3l",
+      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.537,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5optj7omb",
+      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5optj7omb",
+      "to": "knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.541,
+      "by": "judge",
+      "judged": true,
+      "score": 0.541,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5opzilpv1",
+      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
+      "to": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.414,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
+      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen",
+      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.46,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen",
+      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
+      "to": "note:note-mqqqrlczyc2",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-claude-md-7-2-effect-2-auto-merge-on-judge-approve-whe-85c554656b",
+      "to": "codex/onboard-code-cli-sync-judge",
+      "kind": "context",
+      "weight": 0.531,
+      "by": "judge",
+      "judged": true,
+      "score": 0.531,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-1",
+      "to": "codex/code-node-layer",
+      "kind": "context",
+      "weight": 0.482,
+      "by": "judge",
+      "judged": true,
+      "score": 0.482,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-2",
+      "to": "codex/onboard-code-cli-sync-judge",
+      "kind": "context",
+      "weight": 0.516,
+      "by": "judge",
+      "judged": true,
+      "score": 0.516,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-3",
+      "to": "codex/onboard-code-cli-sync-judge",
+      "kind": "context",
+      "weight": 0.519,
+      "by": "judge",
+      "judged": true,
+      "score": 0.519,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-4",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.3,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqqpqf49a5m#note-evidence:chunk-3",
+      "to": "note:note-mqqt68limis",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqqvw755vf0#note-evidence:chunk-1",
+      "to": "codex/code-node-layer",
+      "kind": "context",
+      "weight": 0.483,
+      "by": "judge",
+      "judged": true,
+      "score": 0.483,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-1",
+      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.347,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-2",
+      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.345,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-3",
+      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.365,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
+      "to": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
+      "kind": "context",
+      "weight": 0.355,
+      "by": "judge",
+      "judged": true,
+      "score": 0.355,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.306,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
+      "to": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.504,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-1",
+      "to": "note:note-mqsi4rz0p98",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-2",
+      "to": "note:note-mqsi4rz0p98",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-3",
+      "to": "note:note-mqsi4rz0p98",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-1",
+      "to": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
+      "kind": "context",
+      "weight": 0.359,
+      "by": "judge",
+      "judged": true,
+      "score": 0.359,
+      "origin": "autowire-semantic"
     },
     {
       "from": "knowledge:source_doc:note-mqqnit1ph68",
@@ -278110,46 +279249,6 @@
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
-    },
-    {
-      "from": "knowledge:source_doc:note-mr5c2remh4y",
-      "to": "knowledge:source_section:note-mr5c2remh4y#note-evidence",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_doc:note-mr5c37uw1tw",
-      "to": "knowledge:source_section:note-mr5c37uw1tw#note-evidence",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_doc:note-mr5c8xcs7uo",
-      "to": "knowledge:source_section:note-mr5c8xcs7uo#note-evidence",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_doc:note-mr5d6cvqife",
-      "to": "knowledge:source_section:note-mr5d6cvqife#note-evidence",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_doc:note-mr5i0uv2sdg",
-      "to": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
     },
     {
       "from": "knowledge:source_section:note-mqsi4rz0p98#note-evidence",
@@ -278182,246 +279281,6 @@
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
-    },
-    {
-      "from": "knowledge:source_section:note-mr5c2remh4y#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5c2remh4y#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5c2remh4y#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-3",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5c2remh4y#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-4",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5c2remh4y#note-evidence",
-      "to": "note:note-mr5c2remh4y",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5c37uw1tw#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5c37uw1tw#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5c37uw1tw#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5c37uw1tw#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5c37uw1tw#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5c37uw1tw#note-evidence:chunk-3",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5c37uw1tw#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5c37uw1tw#note-evidence:chunk-4",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5c37uw1tw#note-evidence",
-      "to": "note:note-mr5c2remh4y",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "note-source-cluster"
-    },
-    {
-      "from": "knowledge:source_section:note-mr5c8xcs7uo#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5c8xcs7uo#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5c8xcs7uo#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5c8xcs7uo#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5c8xcs7uo#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5c8xcs7uo#note-evidence:chunk-3",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5c8xcs7uo#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5c8xcs7uo#note-evidence:chunk-4",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5c8xcs7uo#note-evidence",
-      "to": "note:note-mr5c2remh4y",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "note-source-cluster"
-    },
-    {
-      "from": "knowledge:source_section:note-mr5d6cvqife#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5d6cvqife#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5d6cvqife#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5d6cvqife#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5d6cvqife#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5d6cvqife#note-evidence:chunk-3",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5d6cvqife#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5d6cvqife#note-evidence:chunk-4",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5d6cvqife#note-evidence",
-      "to": "note:note-mr5d6cvqife",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-3",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-4",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-5",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-6",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-7",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-8",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
-      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-9",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
-      "to": "note:note-mr5i0uv2sdg",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
     },
     {
       "from": "knowledge:source_section:section-claude-md-1-orchestrator-dashboard-e5ce5288fe",
@@ -278714,6 +279573,16 @@
       "judged": true
     },
     {
+      "from": "note:note-mq7hef4k5vk",
+      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.418,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mq7hef5qoyk",
       "to": "note:note-mqp50ztrfk8",
       "kind": "context",
@@ -278829,16 +279698,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.565,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mq9gifkl7hh",
-      "to": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.423,
       "origin": "autowire-semantic"
     },
     {
@@ -279949,14 +280808,6 @@
       "judged": true,
       "score": 0.628,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhg00za1ld",
-      "to": "note:note-mqp7moo8hc8",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
     },
     {
       "from": "note:note-mqhgkkxsv3o",
@@ -284132,230 +284983,67 @@
     },
     {
       "from": "note:note-mr43cv6pydy",
-      "to": "codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.464,
+      "score": 0.474,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr43rk1dmy0",
-      "to": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.42,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr45ykxy4rf",
-      "to": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
+      "from": "note:note-mr47mxx2ty3",
+      "to": "note:note-mr49q8juxow",
       "kind": "context",
-      "weight": 0.462,
+      "weight": 0.6,
       "by": "judge",
-      "judged": true,
-      "score": 0.462,
-      "origin": "autowire-semantic"
+      "judged": true
     },
     {
       "from": "note:note-mr48a5ra7bz",
-      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
       "kind": "context",
-      "weight": 0.424,
-      "by": "judge",
-      "judged": true,
-      "score": 0.424,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.469,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr48a5ra7bz",
-      "to": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.456,
+      "from": "note:note-mr4dujpkkos",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.449,
       "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mr534gig0ek",
       "to": "codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen",
-      "kind": "blocking",
-      "by": "judge",
+      "kind": "context",
+      "weight": 1,
       "judged": true,
-      "score": 0.473,
-      "origin": "autowire-semantic"
+      "origin": "asserted"
     },
     {
       "from": "note:note-mr534gig0ek",
       "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
       "score": 0.435,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr534gig0ek",
-      "to": "codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr59w27c05s",
-      "to": "note:note-mr5c2remh4y",
-      "kind": "context",
-      "weight": 0.758,
-      "by": "judge",
-      "judged": true,
-      "score": 0.758,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mr5b375dvnh",
-      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5b375dvnh",
-      "to": "codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen",
+      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.445,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5b375dvnh",
-      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.482,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5c2remh4y",
-      "to": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5c2remh4y",
-      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.85,
-      "by": "judge",
-      "judged": true,
-      "score": 0.85,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5c2remh4y",
-      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3",
-      "kind": "context",
-      "weight": 0.852,
-      "by": "judge",
-      "judged": true,
-      "score": 0.852,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5c2remh4y",
-      "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.705,
-      "by": "judge",
-      "judged": true,
-      "score": 0.705,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5c2remh4y",
-      "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-3",
-      "kind": "context",
-      "weight": 0.705,
-      "by": "judge",
-      "judged": true,
-      "score": 0.705,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5c2remh4y",
-      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5c2remh4y",
-      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.902,
-      "by": "judge",
-      "judged": true,
-      "score": 0.902,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5c2remh4y",
-      "to": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.902,
-      "by": "judge",
-      "judged": true,
-      "score": 0.902,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5c2remh4y",
-      "to": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
-      "kind": "context",
-      "weight": 0.902,
-      "by": "judge",
-      "judged": true,
-      "score": 0.902,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5c2remh4y",
-      "to": "knowledge:source_section:note-mr59oitveey#note-evidence",
-      "kind": "context",
-      "weight": 0.902,
-      "by": "judge",
-      "judged": true,
-      "score": 0.902,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5c2remh4y",
-      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 0.811,
-      "by": "judge",
-      "judged": true,
-      "score": 0.811,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5c2remh4y",
-      "to": "knowledge:source_chunk:note-mr59p4ht2vq#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.817,
-      "by": "judge",
-      "judged": true,
-      "score": 0.817,
+      "score": 0.487,
       "origin": "autowire-semantic"
     },
     {
@@ -284369,118 +285057,14 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr5c2remh4y",
-      "to": "knowledge:source_section:note-mr59p4ht2vq#note-evidence",
-      "kind": "context",
-      "weight": 0.817,
-      "by": "judge",
-      "judged": true,
-      "score": 0.817,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5d6cvqife",
-      "to": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5d6cvqife",
-      "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-3",
+      "from": "note:note-mr5efmyx6hw",
+      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.705,
+      "score": 0.418,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5efmyx6hw",
-      "to": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5efmyx6hw",
-      "to": "codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "note:note-mr5efmyx6hw",
-      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "note:note-mr5efmyx6hw",
-      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.496,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5hu8iwax0",
-      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5hu8iwax0",
-      "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.682,
-      "by": "judge",
-      "judged": true,
-      "score": 0.682,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5hu8iwax0",
-      "to": "knowledge:source_chunk:note-mr5c8xcs7uo#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.682,
-      "by": "judge",
-      "judged": true,
-      "score": 0.682,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5hu8iwax0",
-      "to": "knowledge:source_chunk:note-mr5d6cvqife#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.682,
-      "by": "judge",
-      "judged": true,
-      "score": 0.682,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5hu8iwax0",
-      "to": "knowledge:source_section:note-mr5c2remh4y#note-evidence",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.682,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5huxkklmo",
-      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
     },
     {
       "from": "note:note-mr5huxkklmo",
@@ -284493,200 +285077,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr5hv30dmnw",
-      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5hv30dmnw",
-      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.757,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5hv30dmnw",
-      "to": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.757,
-      "by": "judge",
-      "judged": true,
-      "score": 0.757,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5hv30dmnw",
-      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3",
-      "kind": "context",
-      "weight": 0.735,
-      "by": "judge",
-      "judged": true,
-      "score": 0.735,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5hv5vv7wl",
-      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5hv5vv7wl",
-      "to": "note:note-mr5hv30dmnw",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.705,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5hv5vv7wl",
-      "to": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.682,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5hv93mr99",
-      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5hv93mr99",
-      "to": "note:note-mr5hv5vv7wl",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.679,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5hv93mr99",
-      "to": "knowledge:source_chunk:note-mr5c37uw1tw#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.566,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5hvc643og",
-      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5hvc643og",
-      "to": "note:note-mr5i8jmlosb",
-      "kind": "context",
-      "weight": 0.696,
-      "by": "judge",
-      "judged": true,
-      "score": 0.696,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5hvexbzlh",
-      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5hvexbzlh",
-      "to": "note:note-mr5hvc643og",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.655,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5hvm5z1hf",
-      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5hvm5z1hf",
-      "to": "knowledge:source_section:note-mr59p4ht2vq#note-evidence",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.617,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5hvm5z1hf",
-      "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.595,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5hw1qsj5m",
-      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5hw1qsj5m",
-      "to": "note:note-mr5hu8iwax0",
-      "kind": "context",
-      "weight": 0.713,
-      "by": "judge",
-      "judged": true,
-      "score": 0.713,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5hw1qsj5m",
-      "to": "note:note-mr5hvc643og",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.669,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5hxwtjf2m",
-      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
       "from": "note:note-mr5i0uv2sdg",
       "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
       "kind": "context",
@@ -284695,193 +285085,7 @@
       "origin": "asserted"
     },
     {
-      "from": "note:note-mr5i0uv2sdg",
-      "to": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
-      "kind": "context",
-      "weight": 0.88,
-      "by": "judge",
-      "judged": true,
-      "score": 0.88,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5i0uv2sdg",
-      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.88,
-      "by": "judge",
-      "judged": true,
-      "score": 0.88,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5i0uv2sdg",
-      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 0.735,
-      "by": "judge",
-      "judged": true,
-      "score": 0.735,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5i0uv2sdg",
-      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-8",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.675,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mr5i8jmlosb",
-      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5i8jmlosb",
-      "to": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 0.788,
-      "by": "judge",
-      "judged": true,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5i8jmlosb",
-      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 0.788,
-      "by": "judge",
-      "judged": true,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5i8jmlosb",
-      "to": "note:note-mr5hxwtjf2m",
-      "kind": "context",
-      "weight": 0.771,
-      "by": "judge",
-      "judged": true,
-      "score": 0.771,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5i8jmlosb",
-      "to": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.748,
-      "by": "judge",
-      "judged": true,
-      "score": 0.748,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5i8jmlosb",
-      "to": "knowledge:source_section:note-mr5hxwtjf2m#note-evidence",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.748,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5i8jmlosb",
-      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.72,
-      "by": "judge",
-      "judged": true,
-      "score": 0.72,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5i8jmlosb",
-      "to": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
-      "kind": "context",
-      "weight": 0.72,
-      "by": "judge",
-      "judged": true,
-      "score": 0.72,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5i8jmlosb",
-      "to": "note:note-mr5hu8iwax0",
-      "kind": "context",
-      "weight": 0.71,
-      "by": "judge",
-      "judged": true,
-      "score": 0.71,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5i8jmlosb",
-      "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.647,
-      "by": "judge",
-      "judged": true,
-      "score": 0.647,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5i8jmlosb",
-      "to": "knowledge:source_chunk:note-mr5c37uw1tw#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.647,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5kj4yn7h2",
-      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5kj4yn7h2",
-      "to": "note:note-mr5i8jmlosb",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.884,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5kj4yn7h2",
-      "to": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 0.728,
-      "by": "judge",
-      "judged": true,
-      "score": 0.728,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5kj4yn7h2",
-      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 0.728,
-      "by": "judge",
-      "judged": true,
-      "score": 0.728,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5kj4yn7h2",
       "to": "note:note-mr51e6x60dd",
       "kind": "context",
       "weight": 0.714,
@@ -284892,87 +285096,21 @@
     },
     {
       "from": "note:note-mr5l0el0i0k",
-      "to": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5l0el0i0k",
       "to": "note:note-mr43rk1dmy0",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
       "score": 0.702,
       "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mr5l0el0i0k",
-      "to": "note:note-mr3vdyn5zxa",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
       "kind": "context",
-      "weight": 0.66,
+      "weight": 0.462,
       "by": "judge",
       "judged": true,
-      "score": 0.66,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5l0el0i0k",
-      "to": "note:note-mr48a5ra7bz",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.655,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5l0el0i0k",
-      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
-      "kind": "context",
-      "weight": 0.515,
-      "by": "judge",
-      "judged": true,
-      "score": 0.515,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5lqjqbaai",
-      "to": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5lqjqbaai",
-      "to": "knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.613,
-      "by": "judge",
-      "judged": true,
-      "score": 0.613,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5lqjqbaai",
-      "to": "knowledge:source_section:note-mqqyd0ugp2b#note-evidence",
-      "kind": "context",
-      "weight": 0.613,
-      "by": "judge",
-      "judged": true,
-      "score": 0.613,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5lqjqbaai",
-      "to": "note:note-mqi4uvwuwo8",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.62,
+      "score": 0.462,
       "origin": "autowire-semantic"
     },
     {
@@ -284987,106 +285125,154 @@
     },
     {
       "from": "note:note-mr5njd22m3l",
-      "to": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
+      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.426,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5pulqbnxg",
+      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
       "kind": "context",
       "weight": 1,
       "judged": true,
       "origin": "asserted"
     },
     {
-      "from": "note:note-mr5njd22m3l",
-      "to": "note:note-mr51e6x60dd",
+      "from": "note:note-mr5pulqbnxg",
+      "to": "note:note-mr5optj7omb",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.733,
+      "weight": 0.658,
+      "by": "judge",
+      "judged": true,
+      "score": 0.658,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr5njd22m3l",
-      "to": "note:note-mr43rk1dmy0",
+      "from": "note:note-mr5pulqbnxg",
+      "to": "note:note-mr5opzilpv1",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.719,
+      "weight": 0.658,
+      "by": "judge",
+      "judged": true,
+      "score": 0.658,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr5njd22m3l",
-      "to": "note:note-mr5lqjqbaai",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.715,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5njd22m3l",
-      "to": "note:note-mr3vdyn5zxa",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.702,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5njd22m3l",
-      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
+      "from": "note:note-mr5pulqbnxg",
+      "to": "note:note-mr5njd22m3l",
       "kind": "blocking",
       "by": "judge",
       "judged": true,
-      "score": 0.537,
+      "score": 0.749,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr5optj7omb",
-      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
+      "from": "note:note-mr5r0rqzbmh",
+      "to": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
       "kind": "context",
       "weight": 1,
       "judged": true,
       "origin": "asserted"
     },
     {
-      "from": "note:note-mr5optj7omb",
-      "to": "note:note-mr5njd22m3l",
+      "from": "note:note-mr5w5bfj6do",
+      "to": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5w5bfj6do",
+      "to": "note:note-mr5l0el0i0k",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.541,
+      "score": 0.6,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr5optj7omb",
-      "to": "knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-1",
+      "from": "note:note-mr5w5bfj6do",
+      "to": "note:note-mr5hxwtjf2m",
       "kind": "context",
-      "weight": 0.541,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.556,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5w5bfj6do",
+      "to": "note:note-mqvr2wl8lre",
+      "kind": "context",
+      "weight": 0.553,
       "by": "judge",
       "judged": true,
-      "score": 0.541,
+      "score": 0.553,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr5optj7omb",
-      "to": "note:note-mqgw7oy7b8z",
+      "from": "note:note-mr5w66frk68",
+      "to": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.539,
+      "score": 0.616,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr5opzilpv1",
-      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
+      "from": "note:note-mr5w6g57hnp",
+      "to": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
+      "kind": "context",
+      "weight": 0.616,
+      "by": "judge",
+      "judged": true,
+      "score": 0.616,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5xad0sam6",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
       "kind": "context",
       "weight": 1,
       "judged": true,
       "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5xad0sam6",
+      "to": "note:note-mr5w5bfj6do",
+      "kind": "context",
+      "weight": 0.73,
+      "by": "judge",
+      "judged": true,
+      "score": 0.73,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5xad0sam6",
+      "to": "note:note-mr5pulqbnxg",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.587,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5xad0sam6",
+      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.512,
+      "origin": "autowire-semantic"
     },
     {
       "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/20",
@@ -285206,80 +285392,116 @@
       "judged": true
     },
     {
-      "from": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
-      "to": "codex/ewm-segment-helper-injection-world-model-sandbox",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.452,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
-      "to": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
-      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.414,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
-      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
-      "to": "codex/ewm-goal-discovery-exploration-fast-path-run-sixteen",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.529,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
-      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.437,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
+      "from": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
       "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.409,
+      "score": 0.552,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen",
-      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
+      "from": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "to": "codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.53,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
+      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
       "kind": "blocking",
       "by": "judge",
       "judged": true,
-      "score": 0.46,
+      "score": 0.52,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen",
-      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
+      "from": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
+      "to": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
       "kind": "context",
       "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
+      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.51,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
+      "to": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.445,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.442,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "to": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.424,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.416,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.512,
+      "origin": "autowire-semantic"
     },
     {
       "from": "codex/fix-consolidate-universal-skills-kickback",
@@ -285446,5 +285668,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-07-04T01:37:44.551Z"
+  "compacted_at": "2026-07-04T05:50:20.192Z"
 }
