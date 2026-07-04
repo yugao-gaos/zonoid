@@ -2003,6 +2003,7 @@ function makeResolver() {
   const ov = {};  // ws -> overlay
   const memo = {}; // "ws|key" -> status
   const inEdges = {}; // ws -> Map(targetKey -> edge[]) — inbound-edge index, built once per build
+  const unjIncident = {}; // ws -> Set(nodeKey) incident to any unverified context edge, built once
 
   function loadWs(ws) {
     if (!agg[ws]) {
@@ -2019,8 +2020,12 @@ function makeResolver() {
         bucket.push(e);
       }
       inEdges[ws] = byTarget;
+      // PERF: effective() below calls judgingState() per task (and recursively per dep) — the same
+      // O(tasks × edges) scan judgingState does without an index. Build the incidence Set once here so
+      // both effective() and the outer projection loop share the O(1) membership test.
+      unjIncident[ws] = judge.unverifiedIncidentSet(ov[ws]);
     }
-    return { tasks: agg[ws], overlay: ov[ws], inbound: inEdges[ws] };
+    return { tasks: agg[ws], overlay: ov[ws], inbound: inEdges[ws], unverifiedIncident: unjIncident[ws] };
   }
 
   // Dependency refs for a task: native (same ws) + inbound overlay edges (from may be ghost).
@@ -2056,6 +2061,7 @@ function makeResolver() {
     const base = baseStatus(t.native_status);
     if (base !== 'pending') return (memo[id] = base);
     seen.add(id);
+    const { unverifiedIncident } = loadWs(ws);
     const ready = depRefs(ws, key).filter((d) => d.kind !== 'context').every((d) => depSatisfied(effective(d.ws, d.key, seen))); // context edges never block; a dep is satisfied by terminal-success (done OR tested)
     seen.delete(id);
     if (!ready) return (memo[id] = 'not_ready');
@@ -2064,7 +2070,7 @@ function makeResolver() {
     // 'not_ready' (the 'judging' phase) so it is NOT spawned/claimable yet. P6: STRICT, no time-based
     // release — the task holds until the candidate set drains (eager judge on node-add is the happy
     // path; `node scripts/judge-drain-once.js --node <key> --workspace <ws>` is the on-demand un-gate).
-    const js = judge.judgingState(overlay, key);
+    const js = judge.judgingState(overlay, key, { unverifiedIncident });
     if (js.judging) return (memo[id] = 'not_ready');
     return (memo[id] = 'ready');
   }
