@@ -700,6 +700,28 @@ class WriteGate:
         body = f"unlocking insight: {insight}\n\naction sequence: {actions_text}"
         return self._guarded_note(title, body)
 
+    def write_goal_evidence(
+        self,
+        game_id: str,
+        level: Any,
+        player_position: Any,
+        insight: str,
+    ) -> dict[str, Any]:
+        """Acceptance: FIRST-observed level/score boundary — the goal-contact evidence GOAL DISCOVERY
+        captures so a re-derived ``is_win`` (goal-contact predicate) has real ground truth.
+
+        Body records the player position/state that IMMEDIATELY PRECEDED the boundary (what the
+        avatar touched to trip the level clear) plus a one-line insight. Standalone-token title
+        ``game <id> level <n> goal evidence`` so it round-trips for the exact query GOAL DISCOVERY
+        writes it to answer. Not a grid dump (a single coordinate), so it clears the dump guard."""
+
+        title = _title("game", game_id, "level", level, "goal evidence")
+        body = (
+            f"goal contact at player position: {player_position}\n\n"
+            f"boundary insight: {insight}"
+        )
+        return self._guarded_note(title, body)
+
     def write_mechanism_hypothesis(
         self,
         name: str,

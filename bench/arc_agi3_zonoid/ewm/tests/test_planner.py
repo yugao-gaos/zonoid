@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import unittest
 
-from bench.arc_agi3_zonoid.ewm.planner import PlanResult, plan, rollout_search
+from bench.arc_agi3_zonoid.ewm.planner import (
+    PlanResult,
+    explore_frontier,
+    plan,
+    rollout_search,
+)
 from bench.arc_agi3_zonoid.ewm.tests.test_world_model import TOY_GAME_SOURCE, _grid
 from bench.arc_agi3_zonoid.ewm.world_model import (
     UNKNOWN,
@@ -149,6 +154,75 @@ class RolloutSearchTests(unittest.TestCase):
             state, _ = self.program.step(state, action)
         end_dist = -self._neg_manhattan(state)
         self.assertLess(end_dist, start_dist)
+
+
+class ExploreFrontierTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.program = WorldModelProgram.load(TOY_GAME_SOURCE)
+
+    def _visited_player_cells(self, frame, result: PlanResult) -> set:
+        """Replay a frontier plan and collect the cells the player (differs from start) occupied."""
+
+        start = self.program.init_state(frame)
+        start_grid = self.program.render(start)
+        visited = set()
+        for grid in result.predicted_grids:
+            for r, (srow, row) in enumerate(zip(start_grid, grid)):
+                for c, (s, v) in enumerate(zip(srow, row)):
+                    if s != v:
+                        visited.add((r, c))
+        return visited
+
+    def test_frontier_reaches_unvisited_regions(self) -> None:
+        # An open 1x5 corridor with the goal at the far end: from (0,0) the explorer should drive the
+        # avatar across new cells, covering more distinct player cells than a single step would.
+        frame = _grid("2...3")
+        result = explore_frontier(self.program, frame, max_depth=10)
+        self.assertIsNotNone(result)
+        assert result is not None
+        visited = self._visited_player_cells(frame, result)
+        # The avatar starts at (0,0); frontier exploration should reach the far end (new ground).
+        self.assertIn((0, 3), visited)
+        self.assertGreaterEqual(len(visited), 3)
+
+    def test_frontier_prefix_is_a_valid_reachable_walk(self) -> None:
+        frame = _grid("2...3")
+        result = explore_frontier(self.program, frame, max_depth=10)
+        assert result is not None
+        # Every predicted grid must be the program's real render after the corresponding action.
+        state = self.program.init_state(frame)
+        for action, expected in zip(result.actions, result.predicted_grids):
+            state, _ = self.program.step(state, action)
+            self.assertEqual(self.program.render(state), expected)
+
+    def test_frontier_detects_toy_level_transition_by_reaching_goal(self) -> None:
+        # The frontier walk over the toy level's reachable graph must include the goal cell (0,2):
+        # driving into it is exactly the level-boundary transition GOAL DISCOVERY watches for.
+        frame = _grid("2.3")
+        result = explore_frontier(self.program, frame, max_depth=10)
+        assert result is not None
+        state = self.program.init_state(frame)
+        reached_goal = False
+        for action in result.actions:
+            state, _ = self.program.step(state, action)
+            if self.program.is_win(state):
+                reached_goal = True
+                break
+        self.assertTrue(reached_goal)
+
+    def test_frontier_returns_none_when_no_move_possible(self) -> None:
+        # Avatar (1,1) boxed in by walls on all four sides: no action moves it, nothing to explore.
+        # Goal at (0,0) exists so the program still renders.
+        frame = _grid("31.", "121", ".1.")
+        result = explore_frontier(self.program, frame, max_depth=5)
+        self.assertIsNone(result)
+
+    def test_frontier_is_deterministic(self) -> None:
+        frame = _grid("2...3")
+        a = explore_frontier(self.program, frame, max_depth=10)
+        b = explore_frontier(self.program, frame, max_depth=10)
+        assert a is not None and b is not None
+        self.assertEqual(a.actions, b.actions)
 
 
 if __name__ == "__main__":

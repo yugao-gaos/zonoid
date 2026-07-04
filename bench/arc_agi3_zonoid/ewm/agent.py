@@ -43,7 +43,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from .planner import PlanResult, plan
+from .planner import PlanResult, explore_frontier, plan
 from .world_model import (
     ALLOWED_IMPORTS,
     MaskedProgram,
@@ -239,6 +239,28 @@ class AgentConfig:
     live_window: int = 20   # N: observed transitions the live pass-rate is measured over
     plan_max_depth: int = 40
     plan_max_nodes: int = 20000
+    # GOAL DISCOVERY (Run-16). When a program is adopted, live-trusted, and ``is_win`` never fires
+    # (no banked level boundary — the Run-15 blocker), the loop plans FRONTIER EXPLORATION instead of
+    # falling back to a blind reactive probe: BFS over the model's reachable-state graph for the
+    # action prefix that visits the most NEW player cells (planner.explore_frontier), executed in long
+    # budget-guarded batches. Every real transition is watched for a level/score boundary; the first
+    # one captures the pre-boundary player position, writes a game-scoped goal note, and re-derives
+    # ``is_win`` as a goal-contact predicate so subsequent planning can actually target the win.
+    goal_discovery: bool = True
+    # Live-confidence gate for GOAL DISCOVERY: the frontier explorer only engages once the live
+    # pass-rate over a non-trivial window clears this floor (a trusted model is safe to drive on
+    # long open-loop batches). Below it, the loop stays on the per-turn REPAIR/reactive path.
+    goal_discovery_min_live_rate: float = 0.9
+    goal_discovery_min_live_samples: int = 3
+    frontier_max_depth: int = 24  # cap on the coverage-search action prefix length
+    # MODEL-TRUSTED FAST PATH (Run-16). While the last ``fast_path_trust_window`` live single-step
+    # predictions ALL pass, the model is trusted: the reflect LLM call is skipped (reflection becomes
+    # log-only; the suite still appends every transition) and the planned batch is extended toward the
+    # budget-guard cap so more ground is covered per decide. ANY expect-mismatch (or a scored live
+    # miss) instantly restores full decide/reflect cadence and normal batch sizes.
+    fast_path: bool = True
+    fast_path_trust_window: int = 3   # consecutive passing live predictions before trusting
+    fast_path_batch_cap: int = 16     # extended planned-batch length while trusted
     reactive_batch: int = 1       # actions per reactive probe when the LLM gives nothing usable
     decide_max_tokens: int = 1024
     # SYNTHESIZE/REPAIR decide calls author a whole world-model program (many functions + parsing);
@@ -492,6 +514,24 @@ class RunSummary:
     # `pass_rate` = changed-cells accuracy over them (the non-vacuous metric); `adopted_as` is one of
     # "whole" / "partial" / "rejected". None until ORIENT resolves a program to revalidate.
     orient_revalidation: dict[str, Any] | None = None
+    # GOAL DISCOVERY + FAST PATH telemetry (Run-16).
+    # `coverage_pct` = fraction of the board's cells the player unit occupied across the run (the
+    # frontier-exploration objective). `actions_per_minute` = throughput (env actions / wall minutes).
+    # `llm_calls_per_action` = (decide + reflect) LLM calls per executed action (the fast path drives
+    # this down by skipping reflect while the model is trusted). `frontier_batches` = frontier-explore
+    # executions; `fast_path_batches` = trusted planned batches run; `reflect_skipped` = reflect calls
+    # skipped by the fast path. `level_boundary_captured` = a real level/score boundary was observed
+    # and captured; `goal_note_written` = a goal-evidence note was recorded; `is_win_rederived` = the
+    # goal-contact predicate replaced the vacuous is_win.
+    coverage_pct: float = 0.0
+    actions_per_minute: float = 0.0
+    llm_calls_per_action: float = 0.0
+    frontier_batches: int = 0
+    fast_path_batches: int = 0
+    reflect_skipped: int = 0
+    level_boundary_captured: bool = False
+    goal_note_written: bool = False
+    is_win_rederived: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -515,6 +555,15 @@ class RunSummary:
             "orient_adopted": self.orient_adopted,
             "orient_diagnosis": self.orient_diagnosis,
             "orient_revalidation": self.orient_revalidation,
+            "coverage_pct": self.coverage_pct,
+            "actions_per_minute": self.actions_per_minute,
+            "llm_calls_per_action": self.llm_calls_per_action,
+            "frontier_batches": self.frontier_batches,
+            "fast_path_batches": self.fast_path_batches,
+            "reflect_skipped": self.reflect_skipped,
+            "level_boundary_captured": self.level_boundary_captured,
+            "goal_note_written": self.goal_note_written,
+            "is_win_rederived": self.is_win_rederived,
         }
 
 
@@ -591,6 +640,25 @@ class EwmAgent:
         # config.artifacts_dir is set; every SYNTHESIZE/REPAIR candidate — adopted or rejected —
         # increments it so rejected programs are inspectable rather than discarded.
         self._artifact_counter = 0
+        # Run-16 GOAL DISCOVERY + FAST PATH state.
+        # Wall-clock start (set at run()), used for actions_per_minute.
+        self._run_start = time.monotonic()
+        # Distinct player-occupied cells seen across the run (coverage objective). Keyed by
+        # (level, r, c) so re-visiting the same cell on a new level still counts as new ground.
+        self._coverage_cells: set[tuple[Any, int, int]] = set()
+        # Board cell count captured at the first observation (denominator for coverage_pct).
+        self._board_cell_count = 0
+        # A goal-contact predicate re-derived from a captured level boundary; when set it OVERRIDES
+        # the program's vacuous is_win for planning (see :meth:`_plan`). None until a boundary fires.
+        self._goal_predicate: Callable[[Any], bool] | None = None
+        # Player positions that immediately preceded an observed level/score boundary (goal contact).
+        self._goal_positions: set[tuple[int, int]] = set()
+        # Fast-path trust flag: True while the last window of live predictions all passed. Toggling it
+        # off restores full decide/reflect cadence + normal batch sizes on the very next turn.
+        self._model_trusted = False
+        # Level/score seen on the previous turn, to detect a boundary crossing during exploration.
+        self._prev_level: Any = None
+        self._prev_boundary_score: Any = None
         self._artifacts_ready = False  # lazily mkdir the artifacts dir on first write
         # Graph-native synthesis telemetry (config.graph_synthesis): accumulated across all
         # SynthSession cycles this run so the driver can report truthful per-change stats — changes
@@ -1050,6 +1118,19 @@ class EwmAgent:
             self._live_results.append(self._predicts_transition(before_grid, action, after))
         self.suite.append(before_grid, action, after)
         self.summary.transitions += 1
+        self._refresh_model_trust()
+
+    def _refresh_model_trust(self) -> None:
+        """Update the fast-path trust flag: trusted iff the last ``fast_path_trust_window`` live
+        single-step predictions ALL passed. Any miss (a False in the tail window, or too few samples)
+        drops trust immediately, restoring full decide/reflect cadence + normal batch sizes."""
+
+        if not self.config.fast_path or self.program is None:
+            self._model_trusted = False
+            return
+        window = max(1, self.config.fast_path_trust_window)
+        recent = list(self._live_results)[-window:]
+        self._model_trusted = len(recent) >= window and all(recent)
 
     # -- program lifecycle -------------------------------------------------------------------------
 
@@ -1059,6 +1140,8 @@ class EwmAgent:
         self.program = candidate
         self.summary.program_accepted = True
         self._live_results.clear()
+        # A fresh adoption has no live evidence yet: distrust until the window re-fills.
+        self._model_trusted = False
         # A fully-passing adoption is NOT partial: clear any prior partial-adoption telemetry.
         self.summary.program_adopted_partial = False
         self.summary.mask_cells = 0
@@ -1195,6 +1278,9 @@ class EwmAgent:
         self._live_results.clear()
         self._repairs_this_divergence = 0
         self._orient_note_key = None
+        # A dropped program cannot be trusted or plan toward a re-derived goal.
+        self._model_trusted = False
+        self._goal_predicate = None
 
     def _predicts_transition(
         self, before_grid: list[list[int]], action: Any, after_grid: list[list[int]]
@@ -1859,12 +1945,23 @@ class EwmAgent:
         if self.program is None:
             return None
         program = self.program
+        rederived = self._goal_predicate
 
         def goal(state: Any) -> bool:
             try:
-                return bool(program.is_win(state))
+                if program.is_win(state):
+                    return True
             except Exception:  # noqa: BLE001
-                return False
+                pass
+            # A goal-contact predicate re-derived from a captured level boundary (GOAL DISCOVERY):
+            # once we have SEEN a win, planning targets that goal even if the program's own is_win
+            # stays vacuously False (the Run-15 blocker: no banked boundary, so is_win never fired).
+            if rederived is not None:
+                try:
+                    return bool(rederived(state))
+                except Exception:  # noqa: BLE001
+                    return False
+            return False
 
         try:
             return plan(
@@ -2021,11 +2118,159 @@ class EwmAgent:
         }
         if isinstance(score, (int, float)):
             self._prev_score = score
-        try:
-            reflect_text = self._reflect(self._reflect_messages(struct, image_url))
-        except Exception:  # noqa: BLE001 - reflection is advisory; never crash the loop on it
+        # Track player-cell coverage from this real transition (the frontier-exploration objective).
+        self._update_coverage(before, after_grid)
+        # Watch every real transition for a level/score boundary; the first one seeds GOAL DISCOVERY.
+        self._maybe_capture_boundary(before, actions, result)
+        # MODEL-TRUSTED FAST PATH: while the model is trusted, SKIP the reflect LLM call — reflection
+        # becomes log-only (the suite still appended the transition above). Any expect-mismatch has
+        # already dropped trust via _refresh_model_trust, so this only skips when the model held.
+        if self.config.fast_path and self._model_trusted:
+            self.summary.reflect_skipped += 1
             reflect_text = ""
+        else:
+            try:
+                reflect_text = self._reflect(self._reflect_messages(struct, image_url))
+            except Exception:  # noqa: BLE001 - reflection is advisory; never crash the loop on it
+                reflect_text = ""
         self._maybe_write_from_reflection(before, result, reflect_text)
+
+    # -- GOAL DISCOVERY: coverage + level-boundary capture -----------------------------------------
+
+    def _update_coverage(
+        self, before: dict[str, Any], after_grid: list[list[int]]
+    ) -> None:
+        """Add the player-occupied cells of ``after_grid`` to the run's coverage set.
+
+        Player cells are inferred model-agnostically as the cells that DIFFER from the before-grid
+        (the moving unit is exactly what an action changes). Keyed by (level, r, c) so the same cell
+        on a new level is fresh ground. Feeds ``coverage_pct`` telemetry."""
+
+        before_grid = self._frame_grid(before)
+        level = before.get("level")
+        if _grid_shape(before_grid) != _grid_shape(after_grid):
+            for r, row in enumerate(after_grid):
+                for c in range(len(row)):
+                    self._coverage_cells.add((level, r, c))
+            return
+        for r, (brow, arow) in enumerate(zip(before_grid, after_grid)):
+            for c, (b, a) in enumerate(zip(brow, arow)):
+                if b != a:
+                    self._coverage_cells.add((level, r, c))
+
+    def _boundary_crossed(self, before: dict[str, Any], result: dict[str, Any]) -> bool:
+        """True iff this transition crossed a level/score boundary — an explicit
+        ``level_transition`` stop reason, a level counter increment, or a score jump."""
+
+        if self._stop_reason(result) == "level_transition":
+            return True
+        after_level = self._result_after_level(result)
+        before_level = before.get("level")
+        if (
+            isinstance(after_level, (int, float))
+            and isinstance(before_level, (int, float))
+            and after_level > before_level
+        ):
+            return True
+        after_score = self._result_after_score(result)
+        before_score = before.get("score")
+        if (
+            isinstance(after_score, (int, float))
+            and isinstance(before_score, (int, float))
+            and after_score > before_score
+        ):
+            return True
+        return False
+
+    @staticmethod
+    def _result_after_level(result: dict[str, Any]) -> Any:
+        frame = result.get("current_frame")
+        if isinstance(frame, dict) and frame.get("level") is not None:
+            return frame.get("level")
+        ar = result.get("action_result")
+        return ar.get("level") if isinstance(ar, dict) else result.get("level")
+
+    @staticmethod
+    def _result_after_score(result: dict[str, Any]) -> Any:
+        frame = result.get("current_frame")
+        if isinstance(frame, dict) and frame.get("score") is not None:
+            return frame.get("score")
+        ar = result.get("action_result")
+        if isinstance(ar, dict) and ar.get("score") is not None:
+            return ar.get("score")
+        return result.get("score")
+
+    def _player_position(self, grid: list[list[int]]) -> tuple[int, int] | None:
+        """The player unit's (row, col) in ``grid``, taken as the position of the ARC avatar color 2
+        (the mover in every ls20 suite and the toy game). None when no such cell exists."""
+
+        for r, row in enumerate(grid):
+            for c, v in enumerate(row):
+                if v == 2:
+                    return (r, c)
+        return None
+
+    def _maybe_capture_boundary(
+        self, before: dict[str, Any], actions: list[Any], result: dict[str, Any]
+    ) -> None:
+        """On the FIRST observed level/score boundary, capture the pre-boundary player position,
+        record a game-scoped goal-evidence note, and re-derive ``is_win`` as a goal-contact predicate
+        so subsequent planning can target the win the agent has now SEEN (the Run-15 blocker)."""
+
+        if not self.config.goal_discovery:
+            return
+        if not self._boundary_crossed(before, result):
+            return
+        before_grid = self._frame_grid(before)
+        pos = self._player_position(before_grid)
+        # The player pos that immediately preceded the boundary IS the goal-contact evidence.
+        if pos is not None:
+            self._goal_positions.add(pos)
+        first_boundary = not self.summary.level_boundary_captured
+        self.summary.level_boundary_captured = True
+        # Re-derive is_win: a state is a win when the player unit contacts a captured goal position.
+        if self._goal_positions and self._goal_predicate is None:
+            self._install_goal_predicate()
+        if not first_boundary:
+            return
+        # Record the goal-evidence note (best-effort; a live daemon persists it for future runs).
+        if self.kb is not None:
+            try:
+                self.kb.begin_turn()
+                insight = (
+                    f"level cleared by driving avatar into goal from {pos}; "
+                    f"actions {self._executed_actions(result, actions)}"
+                )
+                out = self.kb.write_goal_evidence(
+                    self.config.game_id, before.get("level"), pos, insight
+                )
+                if isinstance(out, dict) and out.get("ok"):
+                    self.summary.kb_writes += 1
+                    self.summary.goal_note_written = True
+            except Exception:  # noqa: BLE001 - note write is advisory; never crash the loop
+                pass
+
+    def _install_goal_predicate(self) -> None:
+        """Set ``_goal_predicate`` to a goal-contact predicate over the captured player positions.
+
+        The program renders states; a state is a WIN once the player unit (avatar color 2) sits on a
+        cell we observed the player occupy IMMEDIATELY BEFORE a real boundary. Rendering is wrapped
+        so a broken program simply never satisfies the predicate rather than crashing the planner."""
+
+        goal_positions = frozenset(self._goal_positions)
+        program = self.program
+
+        def contacts_goal(state: Any) -> bool:
+            if program is None or not goal_positions:
+                return False
+            try:
+                grid = program.render(state)
+            except Exception:  # noqa: BLE001
+                return False
+            return self._player_position(grid) in goal_positions
+
+        self._goal_predicate = contacts_goal
+        self.summary.is_win_rederived = True
 
     # -- KB writes (acceptance events) -------------------------------------------------------------
 
@@ -2180,10 +2425,15 @@ class EwmAgent:
         """Play until win, budget exhaustion, or ``max_turns``. Returns a run-summary dict."""
 
         prev_frame: dict[str, Any] | None = None
+        self._run_start = time.monotonic()
 
         for turn in range(self.config.max_turns):
             self.summary.turns = turn + 1
             frame = self._observe()
+
+            # Coverage denominator: the board cell count, captured on the first real observation.
+            if not self._board_cell_count:
+                self._board_cell_count = self._board_cells(frame)
 
             if frame.get("done") or self._out_of_budget(frame):
                 self.summary.stop_reason = "budget" if self._out_of_budget(frame) else "done"
@@ -2257,6 +2507,25 @@ class EwmAgent:
 
             plan_result = self._plan(frame)
             if plan_result is None or not plan_result.actions:
+                # GOAL DISCOVERY (Run-16): a live-trusted program with no goal plan has never SEEN a
+                # win (is_win vacuously False — no banked level boundary). Instead of a blind reactive
+                # probe, drive FRONTIER EXPLORATION: BFS the model's reachable-state graph for the
+                # prefix that visits the most NEW player cells, execute it in one long budget-guarded
+                # batch, and watch each real transition for a level/score boundary (captured +
+                # goal-noted in _ingest_result). Only when the model is trusted enough to open-loop.
+                if self._goal_discovery_ready():
+                    result, diverged = self._frontier_execute(frame)
+                    if self._result_done(result):
+                        self.summary.won = True
+                        self.summary.stop_reason = "won"
+                        break
+                    if diverged:
+                        self._handle_divergence(frame, decide_image)
+                    else:
+                        self._repairs_this_divergence = 0
+                        self._failure_cycles = 0
+                    prev_frame = frame
+                    continue
                 # No plan (e.g. already-at-goal empty plan or unreachable): reactive probe.
                 #
                 # Live-divergence REPAIR engagement (Run-14): a recalled program can be plannable-blind
@@ -2280,6 +2549,12 @@ class EwmAgent:
                 prev_frame = frame
                 continue
 
+            # MODEL-TRUSTED FAST PATH: while trusted, extend the planned batch toward the budget-guard
+            # cap so more ground is covered per decide (a short goal plan is run whole; a longer one is
+            # capped at fast_path_batch_cap). Untrusted, the batch stays as planned.
+            if self.config.fast_path and self._model_trusted:
+                self.summary.fast_path_batches += 1
+                plan_result = self._cap_plan(plan_result, self.config.fast_path_batch_cap)
             result, diverged = self._execute(plan_result, frame)
             if self._result_done(result):
                 self.summary.won = True
@@ -2298,6 +2573,7 @@ class EwmAgent:
         self.summary.suite_size = len(self.suite)
         self.summary.transitions = len(self.suite)
         self.summary.live_pass_rate = self._live_pass_rate()
+        self._finalize_telemetry()
         # End-of-run persistence (any stop reason): the observed suite + the final adopted program.
         self._write_run_artifacts()
         out = self.summary.to_dict()
@@ -2313,6 +2589,74 @@ class EwmAgent:
                 out["graph_ops_ok"] = int(ok or 0)
                 out["graph_ops_failed"] = int(failed or 0)
         return out
+
+    # -- GOAL DISCOVERY: frontier exploration + telemetry ------------------------------------------
+
+    def _goal_discovery_ready(self) -> bool:
+        """True iff GOAL DISCOVERY should drive frontier exploration this turn: enabled, a program is
+        adopted, and its live pass-rate over a non-trivial window clears the confidence floor (a
+        trusted model is safe to drive on long open-loop batches). Below the floor, the loop stays on
+        the per-turn REPAIR/reactive path so a shaky model is not open-looped into the weeds."""
+
+        if not self.config.goal_discovery or self.program is None:
+            return False
+        samples = len(self._live_results)
+        if samples < self.config.goal_discovery_min_live_samples:
+            return False
+        return self._live_pass_rate() >= self.config.goal_discovery_min_live_rate
+
+    def _frontier_execute(self, frame: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+        """Plan and run one FRONTIER EXPLORATION batch: the action prefix that visits the most NEW
+        player cells (planner.explore_frontier), executed open-loop with ``expect`` divergence-abort.
+
+        Returns ``(result, diverged)`` like :meth:`_execute`. Falls back to a reactive probe when the
+        explorer finds no move (nothing to explore)."""
+
+        program = self.program
+        try:
+            frontier = explore_frontier(
+                program,
+                self._frame_grid(frame),
+                max_depth=min(self.config.frontier_max_depth, self.config.plan_max_depth),
+                max_nodes=self.config.plan_max_nodes,
+            )
+        except Exception:  # noqa: BLE001 - a broken program must not crash the loop
+            frontier = None
+        if frontier is None or not frontier.actions:
+            result = self._reactive_turn(frame, None)
+            return result, False
+        self.summary.frontier_batches += 1
+        # Cap the open-loop batch by the budget guard (and the trusted fast-path cap when trusted).
+        cap = self.config.fast_path_batch_cap if self._model_trusted else self.config.frontier_max_depth
+        frontier = self._cap_plan(frontier, cap)
+        return self._execute(frontier, frame)
+
+    @staticmethod
+    def _cap_plan(plan_result: PlanResult, cap: int) -> PlanResult:
+        """A copy of ``plan_result`` truncated to at most ``cap`` actions (and aligned grids)."""
+
+        cap = max(1, cap)
+        if len(plan_result.actions) <= cap:
+            return plan_result
+        return PlanResult(
+            actions=list(plan_result.actions[:cap]),
+            predicted_grids=list(plan_result.predicted_grids[:cap]),
+        )
+
+    def _finalize_telemetry(self) -> None:
+        """Compute end-of-run coverage_pct, actions_per_minute, llm_calls_per_action."""
+
+        board = self._board_cell_count or 0
+        self.summary.coverage_pct = (
+            round(len(self._coverage_cells) / board, 4) if board else 0.0
+        )
+        elapsed = max(1e-9, time.monotonic() - self._run_start)
+        actions = len(self.suite)  # one recorded transition per executed action/batch
+        self.summary.actions_per_minute = round(actions / (elapsed / 60.0), 4)
+        llm_calls = self.summary.decide_calls + self.summary.reflect_calls
+        self.summary.llm_calls_per_action = (
+            round(llm_calls / actions, 4) if actions else 0.0
+        )
 
     def _handle_divergence(self, frame: dict[str, Any], image_url: str | None) -> None:
         """On an expect-mismatch: engage REPAIR, but enforce the repair caps and live pass-rate

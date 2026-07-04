@@ -689,6 +689,16 @@ def live_run(
             "vision": vision,
             "graph_synthesis": graph,
             "graph_synth_stats": summary.get("graph_synth_stats"),
+            # Run-16 GOAL DISCOVERY + FAST PATH telemetry.
+            "coverage_pct": summary.get("coverage_pct", 0.0),
+            "actions_per_minute": summary.get("actions_per_minute", 0.0),
+            "llm_calls_per_action": summary.get("llm_calls_per_action", 0.0),
+            "frontier_batches": summary.get("frontier_batches", 0),
+            "fast_path_batches": summary.get("fast_path_batches", 0),
+            "reflect_skipped": summary.get("reflect_skipped", 0),
+            "level_boundary_captured": summary.get("level_boundary_captured", False),
+            "goal_note_written": summary.get("goal_note_written", False),
+            "is_win_rederived": summary.get("is_win_rederived", False),
         }
     finally:
         session.close()
