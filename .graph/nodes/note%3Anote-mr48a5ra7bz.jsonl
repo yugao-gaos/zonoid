@@ -57,3 +57,4 @@
 {"evt":"edge_removed","from":"note:note-mr48a5ra7bz","to":"codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen","kind":"context","actor":"overlay-sync","ts":"2026-07-04T02:33:21.309Z"}
 {"evt":"edge_added","from":"note:note-mr48a5ra7bz","to":"codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen","kind":"context","actor":"overlay-sync","ts":"2026-07-04T04:58:57.136Z","weight":0,"by":"autowire","judged":false,"score":0.59,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr48a5ra7bz","to":"codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:02:50.608Z","weight":0,"by":"autowire","judged":false,"score":0.469,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mr48a5ra7bz","to":"codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:21:15.541Z"}
