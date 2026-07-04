@@ -3952,6 +3952,24 @@ class PlayerColorInferenceTests(unittest.TestCase):
         self.assertTrue(echo["bump_probes"])
         self.assertIn(12, echo["player_colors"])
 
+    def test_player_color_inference_survives_unknown_rendering_program(self):
+        # Run-23 LIVE finding: the real ls20 dev program renders EVERYTHING except the player as the
+        # UNKNOWN sentinel, so the moving-cell diff contains UNKNOWN values. int(UNKNOWN) raising out
+        # of the color-collection loop discarded the WHOLE color set and fell back to {2} live
+        # (player_colors=[2] in the run-23 summary). The per-cell guard must keep the int colors
+        # (9/12-style) and skip only the UNKNOWN cells.
+        unknown_src = LS20_COLORED_QUOTA_MODEL_SOURCE.replace(
+            "grid = [[0 for _ in range(cols)] for _ in range(rows)]",
+            "grid = [[UNKNOWN for _ in range(cols)] for _ in range(rows)]",
+        )
+        self.assertIn("UNKNOWN", unknown_src)  # the substitution took (render is all-UNKNOWN + player)
+        env = _Ls20ColoredQuotaEnv()
+        ag = self._trusted_agent(env, unknown_src)
+        colors = ag._player_color_set()
+        # The avatar color 12 survives; the UNKNOWN background cells are skipped, not fatal.
+        self.assertIn(12, colors)
+        self.assertNotIn(2, colors)
+
     def test_bump_skip_reason_records_no_player_when_player_absent(self):
         # Silent-drop guard: if the player genuinely cannot be found, _bump_discovery records WHY rather
         # than returning None invisibly. Simulate the old pathology by forcing the color set to {2} on a

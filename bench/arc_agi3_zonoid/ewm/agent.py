@@ -2540,10 +2540,20 @@ class EwmAgent:
                     for brow, arow in zip(base, after):
                         for b, a in zip(brow, arow):
                             if b != a:
-                                if b != 0:
-                                    colors.add(int(b))
-                                if a != 0:
-                                    colors.add(int(a))
+                                # Per-cell guard (Run-23 live finding): the ls20 program renders
+                                # UNKNOWN sentinels at some moving cells; a non-int sentinel must
+                                # discard THAT cell only, never the whole color set (int(UNKNOWN)
+                                # raising out of this loop was the fallback-to-{2} failure observed
+                                # live on run 23 — player_colors=[2] despite the {9,12} player).
+                                for v in (b, a):
+                                    if _is_unknown(v):
+                                        continue
+                                    try:
+                                        iv = int(v)
+                                    except Exception:  # noqa: BLE001 - non-int sentinel: skip cell
+                                        continue
+                                    if iv != 0:
+                                        colors.add(iv)
             except Exception:  # noqa: BLE001 - inference must never crash the loop
                 colors = set()
         self._player_colors = frozenset(colors) if colors else frozenset({2})
