@@ -299,6 +299,105 @@ class GraphFlagTests(unittest.TestCase):
         self.assertEqual(graph.daemon_url, "http://localhost:8787")
 
 
+class LiveConfigWiringTests(unittest.TestCase):
+    """Run-23 regression: the config knobs (bump quota + coverage persistence) must survive the REAL
+    live_run AgentConfig constructor to the agent — NOT a bespoke test config.
+
+    The Run-17..22 live silent-drop hypothesis was that live_run builds AgentConfig without a new
+    exploration field, so the mechanism was test-green (bespoke configs) yet live-silent. These tests
+    go through driver.live_run's own AgentConfig(...) call and assert the effective knob values reach
+    the agent AND appear in the run summary's config_echo, so a dropped field FAILS here forever."""
+
+    def _drive_live_run(self):
+        """Call driver.live_run with a fake session + fake LLM, capturing the AgentConfig the driver
+        actually constructs. Returns (captured_config, summary)."""
+        from bench.arc_agi3_zonoid.ewm import live as live_mod
+        from bench.arc_agi3_zonoid.ewm import llm_client as llm_mod
+        from bench.arc_agi3_zonoid.ewm import agent as agent_mod
+
+        captured = {}
+
+        class _FakeSession:
+            levels_completed = 0
+            actions_taken = 0
+
+            def open(self):
+                return self
+
+            def scorecard_url(self):
+                return None
+
+            def close(self):
+                return None
+
+        def _fake_build(game, *, benchmarking_repo, max_actions, max_seconds):
+            return _FakeSession()
+
+        class _FakeLlm:
+            base_url = "http://x"
+            api_key = "k"
+            timeout_s = 300
+
+        # Capture the config by wrapping EwmAgent: record the config, then short-circuit run().
+        class _CapturingAgent:
+            def __init__(self, *args, config=None, **kwargs):
+                captured["config"] = config
+                self._config = config
+
+            def run(self):
+                # Return a summary shaped like the real one; config_echo is what _finalize_telemetry
+                # would emit, so the driver's summary passthrough is exercised too.
+                cfg = self._config
+                return {
+                    "won": False,
+                    "config_echo": {
+                        "bump_probes": cfg.bump_probes,
+                        "bump_quota_fraction": cfg.bump_quota_fraction,
+                        "coverage_persistence": cfg.coverage_persistence,
+                        "coverage_plateau_exhaust": cfg.coverage_plateau_exhaust,
+                        "exploration_min_bump_actions": cfg.exploration_min_bump_actions,
+                    },
+                    "bumps_probed": 0,
+                    "bump_due_batches": 0,
+                    "bump_empty_batches": 0,
+                }
+
+        # live_run does `from .agent import EwmAgent` at call time, so patch the source module attribute.
+        prev_build = live_mod.build_live_session
+        prev_from_env = llm_mod.LlmClient.from_env
+        prev_agent = agent_mod.EwmAgent
+        live_mod.build_live_session = _fake_build
+        llm_mod.LlmClient.from_env = classmethod(lambda cls, timeout_s=120: _FakeLlm())
+        agent_mod.EwmAgent = _CapturingAgent
+        try:
+            summary = driver_mod.live_run(
+                "ls20", benchmarking_repo=None, max_actions=160, max_seconds=60.0, graph=False,
+            )
+        finally:
+            live_mod.build_live_session = prev_build
+            llm_mod.LlmClient.from_env = prev_from_env
+            agent_mod.EwmAgent = prev_agent
+        return captured["config"], summary
+
+    def test_bump_and_persistence_knobs_survive_live_config_constructor(self):
+        cfg, _summary = self._drive_live_run()
+        # The exact fields whose live silence run 22 could not explain: they must reach the agent ON.
+        self.assertTrue(cfg.bump_probes, "bump_probes dropped from live AgentConfig")
+        self.assertGreater(cfg.bump_quota_fraction, 0.0, "bump_quota_fraction dropped/zeroed")
+        self.assertTrue(cfg.coverage_persistence, "coverage_persistence dropped from live AgentConfig")
+
+    def test_config_echo_surfaces_effective_knobs_in_summary(self):
+        _cfg, summary = self._drive_live_run()
+        echo = summary.get("config_echo")
+        self.assertIsNotNone(echo, "config_echo missing from live_run summary — a drop would be silent")
+        self.assertTrue(echo["bump_probes"])
+        self.assertGreater(echo["bump_quota_fraction"], 0.0)
+        self.assertTrue(echo["coverage_persistence"])
+        # The driver must also forward the Run-23 diagnostics so a live drop is visible in the arm.
+        for key in ("bump_due_batches", "bump_empty_batches", "bump_skip_reason", "player_colors"):
+            self.assertIn(key, summary, f"driver dropped Run-23 diagnostic {key!r} from the summary")
+
+
 class ImportPurityTests(unittest.TestCase):
     def test_module_import_is_sdk_free(self):
         # Importing the driver must not pull in any ARC SDK candidate or PIL.

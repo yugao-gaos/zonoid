@@ -590,6 +590,57 @@
    "scorecard_url": "https://arcprize.org/scorecards/06e7eddf-8fd0-4e19-8852-bf21d3c48064",
    "daemon_action": "bounced (launchctl kickstart pid 35149->32550); re-saturated, note WRITES timed out",
    "note": "Plateau=1 + bump-first landed & test-proven, but live still 0 bumps: frontier never plateaus in 80 actions (every ~16-action batch adds fresh ground so the counter resets) AND coverage never resumed (coverage_persisted=false: /overlay/note write starved by pegged daemon). Bump-first gate is guarded on coverage_resumed_pct>0, so it cannot fire live until persistence write unblocks."
+  },
+  "ewm_warmstart11_run23_player_color_wiring": {
+   "agent": "EwmAgent (five-pillar world-model agent)",
+   "source": "out/ewm-ls20-ewm-warmstart11.json (Run 23 live)",
+   "model": "qwen-coding:latest (35B, vision composites, ollama)",
+   "harness": "run23: player color inferred from the ACTIVE program (not hardcoded 2) + bump silent-drop diagnostics (bump_due/empty_batches, bump_skip_reason) + config echo of effective knobs in the run summary",
+   "vision": true,
+   "graph_synthesis": true,
+   "levels_completed": 0,
+   "actions_taken": 160,
+   "actions_per_level_completed": null,
+   "won": false,
+   "program_adopted": true,
+   "orient_adopted": true,
+   "orient_revalidation": {
+    "probes": 4,
+    "pass_rate": 1.0,
+    "adopted_as": "whole"
+   },
+   "live_pass_rate": 1.0,
+   "suite_size": 49,
+   "synthesis_attempts": 0,
+   "repair_attempts": 6,
+   "bumps_probed": 0,
+   "bumps_found": 0,
+   "bump_due_batches": 21,
+   "bump_empty_batches": 21,
+   "bump_skip_reason": "no player cell on live grid (player_colors=[2])",
+   "coverage_resumed_pct": 0.0,
+   "coverage_persisted": false,
+   "level_boundary_captured": false,
+   "frontier_batches": 21,
+   "coverage_pct": 0.0662,
+   "stop_reason": "budget",
+   "scorecard_url": "https://arcprize.org/scorecards/e00ebd31-3731-4563-a789-6f72aede0411",
+   "config_echo": {
+    "bump_probes": true,
+    "bump_quota_fraction": 0.4,
+    "bump_probe_repeats": 3,
+    "exploration_min_bump_actions": 24,
+    "coverage_persistence": true,
+    "coverage_plateau_exhaust": 1,
+    "interaction_discovery": true,
+    "exploration_executor": true,
+    "graph_synthesis": true,
+    "player_colors": [
+     2
+    ]
+   },
+   "note": "WIRING GAP FOUND AND CLOSED: runs 17-22 fired 0 bumps live because _player_position/_bump_player_cells hardcoded avatar color 2 while the live ls20 player renders as {9,12} (the 64x64 live grid has NO color-2 cell) - so bump discovery no-oped silently while every color-2 toy test stayed green. Run 23 shipped (a) program-derived player-color inference, (b) silent-drop diagnostics, (c) a config echo; the diagnostics IMMEDIATELY caught a second layer live: the ls20 program renders non-player cells as the UNKNOWN sentinel and int(UNKNOWN) discarded the inferred set, falling back to [2] (bump_skip_reason recorded it exactly). Fixed post-run with a per-cell guard; verified offline against the REAL dev program + REAL live grid: colors [9,12], player found. THE RUN ITSELF WAS INFRA-DEAD: the ARC API rejected all 160 actions with GAME_NOT_STARTED_ERROR after a successful RESET (two consecutive launches, same server-side state; board never changed - bumps could not have had any effect regardless). coverage_persisted=false was a transient daemon /overlay/note 404 (endpoint 200 OK right after the run). Summary-oddity explained: driver maps 'divergences' to reactive_turns (mislabeled counter), so run-22's divergences=24 at live 1.0 = 24 reactive turns, zero model misses. No level cleared. Next: rerun on a healthy ARC session; expect player_colors=[9,12] echoed and first-class bumps from batch 1.",
+   "config_wiring_finding": "live_run's AgentConfig passes only game_id/max_turns/synth_llm/artifacts_dir/graph_synthesis; all exploration knobs arrive via dataclass defaults - nothing was dropped (config_echo proves it), and a regression test now goes through the REAL live_run constructor so a future dropped field fails CI."
   }
  },
  "delta": {

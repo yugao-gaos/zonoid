@@ -697,6 +697,18 @@ class RunSummary:
     # `coverage_persisted` = True once this run's end-of-run coverage note write succeeded.
     coverage_resumed_pct: float = 0.0
     coverage_persisted: bool = False
+    # BUMP DIAGNOSTICS (Run-23). Make a silent bump-quota drop IMPOSSIBLE to miss: every time the quota
+    # says a bump is DUE but `_bump_discovery` fires nothing, record WHY (no player found, no bump
+    # contexts, no movement action, unreachable, dedup-exhausted). `player_colors` echoes the inferred
+    # player color set — a value that is NOT the live avatar color means the color-2 pathology returned.
+    bump_due_batches: int = 0        # exploration batches where the quota said a bump was due
+    bump_empty_batches: int = 0      # of those, batches where _bump_discovery fired nothing (None)
+    bump_skip_reason: str | None = None  # last reason a due bump fired nothing (None once a bump fires)
+    player_colors: list[int] | None = None  # inferred player color set (echoed for the config echo)
+    # CONFIG ECHO (Run-23). The EFFECTIVE knob values that actually reached the agent, so a dropped
+    # config field (the Run-22 live-silent hypothesis) is visible in the summary FOREVER rather than
+    # inferred from a zero counter. Populated by `_finalize_telemetry` from the live config.
+    config_echo: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -739,6 +751,11 @@ class RunSummary:
             "bumps_found": self.bumps_found,
             "coverage_resumed_pct": self.coverage_resumed_pct,
             "coverage_persisted": self.coverage_persisted,
+            "bump_due_batches": self.bump_due_batches,
+            "bump_empty_batches": self.bump_empty_batches,
+            "bump_skip_reason": self.bump_skip_reason,
+            "player_colors": list(self.player_colors) if self.player_colors else None,
+            "config_echo": dict(self.config_echo) if self.config_echo else None,
         }
 
 
@@ -848,6 +865,14 @@ class EwmAgent:
         # batches (movement). Paired with `summary.bumps_probed` (contact-bump actions), it drives the
         # running quota ratio that decides whether the NEXT exploration batch is frontier or bump.
         self._explore_frontier_actions = 0
+        # PLAYER COLOR SET (Run-23): the color(s) the ACTIVE program's player unit renders as, inferred
+        # model-agnostically from the program (the cells that MOVE when the program steps ARE the player)
+        # and cached. `_player_position`/`_bump_player_cells` key off THIS set, not a hardcoded color 2 —
+        # the Run-17..22 live silent-drop was that the ls20 live player is color {9,12}, so the color-2
+        # scan returned None on every live frame and bump discovery no-oped silently. None until first
+        # derived; falls back to {2} (the toy/dev avatar) when no program can demonstrate a move.
+        self._player_colors: frozenset[int] | None = None
+        self._player_colors_for: Any = None  # the program identity the cached color set was derived from
         # Fast-path trust flag: True while the last window of live predictions all passed. Toggling it
         # off restores full decide/reflect cadence + normal batch sizes on the very next turn.
         self._model_trusted = False
@@ -2477,13 +2502,73 @@ class EwmAgent:
             return ar.get("score")
         return result.get("score")
 
-    def _player_position(self, grid: list[list[int]]) -> tuple[int, int] | None:
-        """The player unit's (row, col) in ``grid``, taken as the position of the ARC avatar color 2
-        (the mover in every ls20 suite and the toy game). None when no such cell exists."""
+    def _player_color_set(self) -> frozenset[int]:
+        """The color(s) the ACTIVE program's player unit renders as — inferred model-agnostically and
+        cached (Run-23).
 
+        THE LIVE WIRING GAP THIS CLOSES: the ls20 live player renders as color {9,12} (the dev program
+        flood-fills the player from color 12 linked to color 9), NOT the ARC avatar color 2. The old
+        color-2 scan in ``_player_position``/``_bump_player_cells`` therefore returned None/empty on every
+        live frame, so ``_bump_contexts`` was empty, ``_bump_discovery`` returned None, and the bump quota
+        fired 0 bumps SILENTLY across Runs 17-22 while every toy test (avatar color 2) passed.
+
+        Inference: step the program from its init state and diff the rendered before/after grids — the
+        cells that CHANGE are exactly the moving player unit (the same model-agnostic principle
+        ``_update_coverage`` already uses). Collect the colors on those cells. Falls back to ``{2}`` when
+        no program is adopted or no action demonstrates a move (the toy/dev avatar)."""
+
+        program = self.program
+        # Cache keyed on the ACTIVE program identity: a drop/re-adopt (which can change the player
+        # rendering) invalidates it, so a stale color set never outlives the program it was derived from.
+        if self._player_colors is not None and self._player_colors_for is program:
+            return self._player_colors
+        colors: set[int] = set()
+        if program is not None:
+            try:
+                frame = self._observe()
+                grid0 = self._frame_grid(frame)
+                start = program.init_state(grid0)
+                base = program.render(start)
+                for action in (frame.get("valid_actions") or []):
+                    try:
+                        ns, _ev = program.step(start, action)
+                        after = program.render(ns)
+                    except Exception:  # noqa: BLE001
+                        continue
+                    if _grid_shape(base) != _grid_shape(after):
+                        continue
+                    for brow, arow in zip(base, after):
+                        for b, a in zip(brow, arow):
+                            if b != a:
+                                # Per-cell guard (Run-23 live finding): the ls20 program renders
+                                # UNKNOWN sentinels at some moving cells; a non-int sentinel must
+                                # discard THAT cell only, never the whole color set (int(UNKNOWN)
+                                # raising out of this loop was the fallback-to-{2} failure observed
+                                # live on run 23 — player_colors=[2] despite the {9,12} player).
+                                for v in (b, a):
+                                    if _is_unknown(v):
+                                        continue
+                                    try:
+                                        iv = int(v)
+                                    except Exception:  # noqa: BLE001 - non-int sentinel: skip cell
+                                        continue
+                                    if iv != 0:
+                                        colors.add(iv)
+            except Exception:  # noqa: BLE001 - inference must never crash the loop
+                colors = set()
+        self._player_colors = frozenset(colors) if colors else frozenset({2})
+        self._player_colors_for = program
+        return self._player_colors
+
+    def _player_position(self, grid: list[list[int]]) -> tuple[int, int] | None:
+        """The player unit's (row, col) in ``grid``. The player color(s) are inferred from the ACTIVE
+        program (``_player_color_set``) — NOT a hardcoded color 2 — so the live ls20 player (color
+        {9,12}) is found rather than silently missed. None when no player-colored cell exists."""
+
+        colors = self._player_color_set()
         for r, row in enumerate(grid):
             for c, v in enumerate(row):
-                if v == 2:
+                if v in colors:
                     return (r, c)
         return None
 
@@ -2951,13 +3036,22 @@ class EwmAgent:
         counts feed the quota denominator via ``_explore_frontier_actions``."""
 
         if self._bump_quota_due():
+            # SILENT-DROP GUARD (Run-23): count every batch where the quota said a bump was DUE, and —
+            # when the bump fires nothing — count that too and record WHY (set on self.summary by
+            # _bump_discovery). A due batch that fires no bump is the exact live pathology (bumps_probed
+            # stuck at 0 while the quota kept saying "due"); it is now visible in the summary, not silent.
+            self.summary.bump_due_batches += 1
+            before = self.summary.bumps_probed
             probed = self._bump_discovery(frame)
-            if probed is not None:
+            if probed is not None and self.summary.bumps_probed > before:
                 # A bump batch may open new ground: reset the plateau so the frontier re-sweeps.
                 self._coverage_plateau = 0
                 return probed
-            # Nothing left to bump (persisted dedup exhausted this object set): run a frontier batch so
-            # the turn still steps. The quota re-evaluates next batch (bumps_probed unchanged).
+            # Nothing bumped: either dedup exhausted the object set, or (the live bug) the player/context
+            # inference found nothing. bump_skip_reason (set in _bump_discovery) says which.
+            self.summary.bump_empty_batches += 1
+            if probed is not None:
+                return probed
         return self._frontier_execute(frame)
 
     def _bump_quota_due(self) -> bool:
@@ -3301,12 +3395,14 @@ class EwmAgent:
             return []
         rows = len(grid)
         cols = len(grid[0]) if rows else 0
-        player_color = grid[player[0]][player[1]]
+        # Exclude EVERY player color (Run-23): a multi-color player unit (ls20 live is {9,12}) must not
+        # bump-probe its own second colored segment as if it were an external object.
+        player_colors = self._player_color_set()
         contexts: dict[Any, tuple[int, tuple[int, int], tuple[int, int]]] = {}
         for obj_hash, cells in _object_components(grid):
             sample = next(iter(cells))
             color = grid[sample[0]][sample[1]]
-            if color == 0 or color == player_color:
+            if color == 0 or color in player_colors:
                 continue
             best: tuple[int, tuple[int, int], tuple[int, int]] | None = None
             for (br, bc) in cells:
@@ -3471,18 +3567,31 @@ class EwmAgent:
         last: tuple[dict[str, Any], bool] | None = None
         cap = max(1, self.config.max_interaction_probes_per_turn)
         fired = 0
+        # SILENT-DROP DIAGNOSTIC (Run-23): record the player color set + the reason NO bump fired, so the
+        # Run-17..22 pathology (bumps_probed stuck at 0) is never invisible again. Overwritten to None the
+        # moment a bump actually fires below.
+        self.summary.player_colors = sorted(self._player_color_set())
+        if self._player_position(self._frame_grid(cur_frame)) is None:
+            self.summary.bump_skip_reason = (
+                f"no player cell on live grid (player_colors={self.summary.player_colors})"
+            )
+            return None
         # Re-SEGMENT each pass from the CURRENT frame: moving the avatar between probes shifts reach
         # costs and the closest approach cell, so a context computed once up front goes stale. Each pass
         # picks the cheapest un-fired object, plans to its approach cell, and bumps — then breaks to
         # re-segment for the next. Bounded by the probe cap.
         while fired < cap:
             contexts = self._bump_contexts(self._frame_grid(cur_frame))
+            if not contexts:
+                self.summary.bump_skip_reason = "no bump contexts (no distinct adjacent object class)"
             picked = None
             for ctx in contexts:
                 if (self._BUMP_MARKER, ctx[0]) not in self._fired_probes:
                     picked = ctx
                     break
             if picked is None:
+                if contexts:
+                    self.summary.bump_skip_reason = "all bump contexts already deduped (persisted probes)"
                 break  # every distinct object class already bumped (persisted dedup)
             obj_hash, approach, bump_dir, _cost = picked
             # Record the dedup key up front so a SKIP (no bump action / unreachable) does not spin on the
@@ -3493,10 +3602,12 @@ class EwmAgent:
             dir_map = self._movement_direction_map(cur_frame)
             bump_action = dir_map.get(bump_dir)
             if bump_action is None:
+                self.summary.bump_skip_reason = "no movement action drives the bump direction"
                 continue
             # CPU-plan movement onto the approach cell (skip when already there / unreachable -> skip).
             mv = self._plan_to_cell(cur_frame, approach)
             if mv is None:
+                self.summary.bump_skip_reason = "bump approach cell unreachable"
                 continue
             if mv.actions:
                 result, diverged = self._execute(mv, cur_frame)
@@ -3532,6 +3643,8 @@ class EwmAgent:
         diverged = False
         found = False
         cur = frame
+        # A bump IS firing: clear any pending skip reason so the summary reflects that discovery engaged.
+        self.summary.bump_skip_reason = None
         for _ in range(repeats):
             self.summary.bumps_probed += 1
             before_grid = self._frame_grid(cur)
@@ -3559,20 +3672,24 @@ class EwmAgent:
                 break
         return result, diverged
 
-    @staticmethod
     def _bump_player_cells(
-        before: list[list[int]], after: list[list[int]]
+        self, before: list[list[int]], after: list[list[int]]
     ) -> set[tuple[int, int]]:
         """The player's own vacated + occupied cells across a bump, so a pure translation is not
         mistaken for a contact effect. On a shape mismatch (a level transition) returns empty — every
-        changed cell is then significant (new level ground)."""
+        changed cell is then significant (new level ground).
+
+        The player color(s) are the inferred set (Run-23), not a hardcoded color 2 — otherwise on the
+        live ls20 board (player color {9,12}) a translation's own cells would count as a false contact
+        effect."""
 
         if _grid_shape(before) != _grid_shape(after):
             return set()
+        colors = self._player_color_set()
         cells: set[tuple[int, int]] = set()
         for r, (brow, arow) in enumerate(zip(before, after)):
             for c, (b, a) in enumerate(zip(brow, arow)):
-                if b != a and (b == 2 or a == 2):  # avatar color 2 vacated/occupied this cell
+                if b != a and (b in colors or a in colors):  # player vacated/occupied this cell
                     cells.add((r, c))
         return cells
 
@@ -3709,6 +3826,24 @@ class EwmAgent:
         self.summary.llm_calls_per_action = (
             round(llm_calls / actions, 4) if actions else 0.0
         )
+        # CONFIG ECHO (Run-23): the EFFECTIVE exploration/discovery knob values that actually reached the
+        # agent this run. A dropped config field (the Run-22 live-silent hypothesis: live_run building
+        # AgentConfig without a new field) is now visible in the summary forever — no more inferring a
+        # silent drop from a zero counter. Also echo the inferred player color set, whose value being the
+        # live avatar color is direct proof the color-2 pathology is closed.
+        cfg = self.config
+        self.summary.config_echo = {
+            "bump_probes": cfg.bump_probes,
+            "bump_quota_fraction": cfg.bump_quota_fraction,
+            "bump_probe_repeats": cfg.bump_probe_repeats,
+            "exploration_min_bump_actions": cfg.exploration_min_bump_actions,
+            "coverage_persistence": cfg.coverage_persistence,
+            "coverage_plateau_exhaust": cfg.coverage_plateau_exhaust,
+            "interaction_discovery": cfg.interaction_discovery,
+            "exploration_executor": cfg.exploration_executor,
+            "graph_synthesis": cfg.graph_synthesis,
+            "player_colors": sorted(self._player_color_set()),
+        }
 
     # -- divergence classification (Run-18) --------------------------------------------------------
 
