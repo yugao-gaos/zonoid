@@ -3,8 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "29556785-fa39-442e-8eba-b5dd9dc00862",
   "branch": "orch/attempt/codex-ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-07-04T02:05:37.523Z",
   "lease_until": "2026-07-04T03:05:37.523Z",
-  "completed_at": "2026-07-04T02:36:30.881Z"
+  "completed_at": "2026-07-04T02:37:12.676Z"
 }
