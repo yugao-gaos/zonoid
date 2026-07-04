@@ -704,6 +704,9 @@ def live_run(
             "transients_tolerated": summary.get("transients_tolerated", 0),
             "mask_auto_extensions": summary.get("mask_auto_extensions", 0),
             "repair_skips": summary.get("repair_skips", 0),
+            # Run-19 INTERACTION DISCOVERY telemetry.
+            "interactions_probed": summary.get("interactions_probed", 0),
+            "interactions_found": summary.get("interactions_found", 0),
         }
     finally:
         session.close()

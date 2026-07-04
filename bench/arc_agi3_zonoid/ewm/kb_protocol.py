@@ -738,6 +738,29 @@ class WriteGate:
         )
         return self._guarded_note(title, body)
 
+    def write_interaction(
+        self,
+        game_id: str,
+        action: Any,
+        context: str,
+        effect: str,
+    ) -> dict[str, Any]:
+        """Acceptance: an INTERACTION DISCOVERY — a non-movement action fired at an interesting
+        context that produced a state change BEYOND the known auto-changing region (Run-19).
+
+        Body records the action, the context it was fired in (player adjacent to an object class),
+        and the observed effect (which cells changed / whether a boundary followed). Standalone-token
+        title ``game <id> interaction <action>`` so it round-trips for the query the discovery mode
+        writes it to answer. A short coordinate/summary line, not a grid dump, so it clears the dump
+        guard."""
+
+        title = _title("game", game_id, "interaction", action)
+        body = (
+            f"action {action} fired at context: {context}\n\n"
+            f"observed effect: {effect}"
+        )
+        return self._guarded_note(title, body)
+
     def write_mechanism_hypothesis(
         self,
         name: str,

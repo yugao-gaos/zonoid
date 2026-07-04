@@ -330,6 +330,19 @@ class WriteGateTest(unittest.TestCase):
             gate.write_level_solution("ls20", 1, [1, 2, 3], "go right")
         self.assertIn("1 2 3", json.loads(rec.calls[0]["body"])["summary"])
 
+    def test_interaction_title_and_body(self) -> None:
+        rec, gate = self._gate()
+        with mock.patch.object(kb_protocol.request, "urlopen", rec):
+            gate.write_interaction(
+                "ls20", "SPACE", "player adjacent to object class abc123",
+                "changed 4 cells beyond the auto-changing region at rows 1-2 cols 3-4",
+            )
+        body = json.loads(rec.calls[0]["body"])
+        # Standalone-token title (lowercased) so it round-trips for an interaction query.
+        self.assertEqual(body["title"], "game ls20 interaction space")
+        self.assertIn("player adjacent to object class abc123", body["summary"])
+        self.assertIn("changed 4 cells", body["summary"])
+
 
 class MechanismHypothesisSchemaTest(unittest.TestCase):
     def _gate(self, payload=None):

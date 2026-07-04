@@ -161,6 +161,9 @@ class FakeKb:
     def write_goal_evidence(self, *args, **kw):
         return self._write("goal_evidence", *args)
 
+    def write_interaction(self, *args, **kw):
+        return self._write("interaction", *args)
+
     def write_failed_repair(self, *args, **kw):
         return self._write("failed_repair", *args)
 
@@ -2773,7 +2776,8 @@ class GoalDiscoveryAndFastPathTests(unittest.TestCase):
         out = ag.run()
         for key in ("coverage_pct", "actions_per_minute", "llm_calls_per_action",
                     "frontier_batches", "fast_path_batches", "reflect_skipped",
-                    "level_boundary_captured", "goal_note_written", "is_win_rederived"):
+                    "level_boundary_captured", "goal_note_written", "is_win_rederived",
+                    "interactions_probed", "interactions_found"):
             self.assertIn(key, out)
 
 
@@ -3018,6 +3022,253 @@ class _DeviatingCorridorEnv(_CorridorEnv):
         # Never move: the program predicts a move (RIGHT: (0,0)->(0,1)) but the env stays put, so the
         # first expect grid mismatches immediately.
         return None
+
+
+# Movement-only model for the switch-door game: the avatar (2) translates on background (0); walls
+# (1), the switch (4), the door (5), and the goal (3) are impassable statics. SPACE is a legal action
+# the model predicts as a NO-OP (it is not a translation) — exactly the interaction the model cannot
+# see, so the discovery mode must find it by probing. Renders every non-avatar cell exactly as read,
+# so movement BFS covers the reachable region and then EXHAUSTS with no boundary.
+SWITCH_MODEL_SOURCE = '''
+import copy
+
+AVATAR = 2
+DELTAS = {"UP": (-1, 0), "DOWN": (1, 0), "LEFT": (0, -1), "RIGHT": (0, 1)}
+# Walls (1), the switch (4), and the closed door (5) block movement; the goal (3) is WALKABLE (the
+# avatar drives onto it). The model does not know the door can open — that is the interaction.
+BLOCKERS = {1, 4, 5}
+
+
+def init_state(frame):
+    rows = len(frame)
+    cols = len(frame[0]) if rows else 0
+    avatar = None
+    statics = {}
+    for r in range(rows):
+        for c in range(cols):
+            v = frame[r][c]
+            if v == AVATAR:
+                avatar = (r, c)
+            elif v != 0:
+                statics[(r, c)] = v
+    return {"avatar": avatar, "statics": statics, "rows": rows, "cols": cols}
+
+
+def legal_actions(state):
+    return ["UP", "DOWN", "LEFT", "RIGHT", "SPACE"]
+
+
+def step(state, action):
+    state = copy.deepcopy(state)
+    if action not in DELTAS:
+        return state, {"moved": False}  # SPACE etc: the model sees no effect
+    dr, dc = DELTAS[action]
+    r, c = state["avatar"]
+    nr, nc = r + dr, c + dc
+    blocked = state["statics"].get((nr, nc)) in BLOCKERS
+    if 0 <= nr < state["rows"] and 0 <= nc < state["cols"] and not blocked:
+        state["avatar"] = (nr, nc)
+    return state, {"moved": state["avatar"] == (nr, nc)}
+
+
+def render(state):
+    rows, cols = state["rows"], state["cols"]
+    grid = [[0 for _ in range(cols)] for _ in range(rows)]
+    for (r, c), v in state["statics"].items():
+        grid[r][c] = v
+    ar, ac = state["avatar"]
+    grid[ar][ac] = AVATAR
+    return grid
+
+
+def is_win(state):
+    return False
+'''
+
+
+class SwitchDoorEnv:
+    """A toy game whose WIN needs an INTERACTION, not movement. The avatar (2) moves on 0-cells; a
+    switch (4) and a door (5) block a corridor to the goal (3). Movement alone exhausts the reachable
+    region without reaching the goal. Firing SPACE while STANDING ADJACENT to the switch opens the
+    door (removes the door cell -> a NEW reachable region), and once the avatar reaches the goal the
+    env reports ``level_transition``. SPACE anywhere else is a no-op."""
+
+    ACTIONS = ["UP", "DOWN", "LEFT", "RIGHT", "SPACE"]
+
+    def __init__(self, budget: int = 200) -> None:
+        # 3x5 board — the goal is walled off behind a DOOR that only the switch opens, so movement
+        # alone can never reach it:
+        #   row0:  2 . . 1 3      avatar(0,0), wall(0,3), goal(0,4)
+        #   row1:  . . 4 . 5      switch(1,2), door(1,4)
+        #   row2:  . . . . 1      wall(2,4)
+        # goal(0,4)'s only non-wall neighbour is the door(1,4); the reachable region includes cells
+        # adjacent to the switch, so INTERACTION DISCOVERY can fire SPACE next to it to open the door.
+        self._rows, self._cols = 3, 5
+        self._avatar = (0, 0)
+        self._switch = (1, 2)
+        self._door = (1, 4)
+        self._goal = (0, 4)
+        self._walls = frozenset({(0, 3), (2, 4)})
+        self._door_open = False
+        self.remaining_actions = budget
+        self.act_calls = 0
+        self._level = 1
+
+    def _grid(self):
+        grid = [[0] * self._cols for _ in range(self._rows)]
+        for (r, c) in self._walls:
+            grid[r][c] = 1
+        grid[self._switch[0]][self._switch[1]] = 4
+        if not self._door_open:
+            grid[self._door[0]][self._door[1]] = 5
+        grid[self._goal[0]][self._goal[1]] = 3
+        grid[self._avatar[0]][self._avatar[1]] = 2
+        return grid
+
+    def observe(self):
+        return {
+            "grid": self._grid(),
+            "level": self._level,
+            "step": 0,
+            "valid_actions": list(self.ACTIONS),
+            "score": 0,
+            "remaining_actions": self.remaining_actions,
+        }
+
+    def _adjacent_to_switch(self) -> bool:
+        ar, ac = self._avatar
+        sr, sc = self._switch
+        return abs(ar - sr) + abs(ac - sc) == 1
+
+    def _apply_one(self, action: str) -> None:
+        if action == "SPACE":
+            if self._adjacent_to_switch():
+                self._door_open = True
+            return
+        dr, dc = DELTAS[action]
+        ar, ac = self._avatar
+        nr, nc = ar + dr, ac + dc
+        if not (0 <= nr < self._rows and 0 <= nc < self._cols):
+            return
+        cell = (nr, nc)
+        if cell in self._walls or cell == self._switch:
+            return  # walls and the switch are solid
+        if cell == self._door and not self._door_open:
+            return  # closed door blocks
+        self._avatar = cell
+
+    def act(self, actions, expect=None):
+        self.act_calls += 1
+        executed = []
+        stop_reason = "completed"
+        crossed = False
+        for index, action in enumerate(actions):
+            name = action.get("action") if isinstance(action, dict) else action
+            self.remaining_actions = max(0, self.remaining_actions - 1)
+            self._apply_one(str(name))
+            executed.append(name)
+            after = self._grid()
+            if expect is not None and index < len(expect) and expect[index] is not None:
+                if not grids_match([list(r) for r in expect[index]], after):
+                    stop_reason = "expect_mismatch"
+                    break
+            if self._avatar == self._goal:
+                crossed = True
+                stop_reason = "level_transition"
+                self._level += 1
+                break
+        frame = {"grid": self._grid(), "level": self._level, "step": 0,
+                 "score": 1 if crossed else 0}
+        return {
+            "current_frame": frame,
+            "action_result": {"score": 1 if crossed else 0, "done": False},
+            "valid_actions": list(self.ACTIONS),
+            "remaining_actions": self.remaining_actions,
+            "executed": executed,
+            "stop_reason": stop_reason,
+            "done": False,
+        }
+
+
+class InteractionDiscoveryTests(unittest.TestCase):
+    """Run-19: INTERACTION DISCOVERY — on movement-frontier exhaustion with no boundary, probe
+    untried (non-movement action, adjacent-object) pairs, dedup them, order cheapest-first, and record
+    a discovery when a probe changes cells beyond the auto-changing region."""
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _trusted_agent(self, env, **cfg):
+        from bench.arc_agi3_zonoid.ewm.world_model import WorldModelProgram
+
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        base = dict(
+            game_id="switch", max_turns=40, min_probe_transitions=1,
+            fast_path_trust_window=2, goal_discovery_min_live_samples=2,
+            goal_discovery_min_live_rate=0.9, max_frontier_batches_per_turn=8,
+            max_interaction_probes_per_turn=6,
+        )
+        base.update(cfg)
+        ag = EwmAgent(env, FakeLlm([]), kb=FakeKb(max_writes_per_turn=8),
+                      vision_enabled=False, config=AgentConfig(**base))
+        ag.program = WorldModelProgram.load(SWITCH_MODEL_SOURCE)
+        ag._live_results.extend([True, True, True])
+        ag._refresh_model_trust()
+        return ag
+
+    def test_non_movement_actions_isolated(self):
+        env = SwitchDoorEnv()
+        ag = self._trusted_agent(env)
+        frame = env.observe()
+        non_move = ag._non_movement_actions(frame)
+        # SPACE is the only action the movement-only model predicts as a no-op.
+        self.assertEqual(non_move, ["SPACE"])
+
+    def test_contexts_ordered_cheapest_first(self):
+        env = SwitchDoorEnv()
+        ag = self._trusted_agent(env)
+        contexts = ag._adjacent_object_contexts(env._grid())
+        # At least the switch (4) and goal (3) object classes yield a reachable adjacent context.
+        self.assertGreaterEqual(len(contexts), 1)
+        costs = [cost for (_h, _t, cost) in contexts]
+        self.assertEqual(costs, sorted(costs))  # cheapest reach first
+
+    def test_probe_dedup_same_action_object_fired_once(self):
+        # Door pinned open so SPACE is a pure no-op: no probe ever changes the board, so the ONLY
+        # thing that stops probing is DEDUP. Drive discovery to exhaustion, then assert one more pass
+        # fires nothing (every (action, object) pair already recorded) and no pair is ever double-fired.
+        env = SwitchDoorEnv()
+        env._door_open = True
+        ag = self._trusted_agent(env)
+        for _ in range(12):
+            before = ag.summary.interactions_probed
+            ag._interaction_discovery(env.observe())
+            if ag.summary.interactions_probed == before:
+                break
+        exhausted_probed = ag.summary.interactions_probed
+        exhausted_fired = set(ag._fired_probes)
+        self.assertGreater(exhausted_probed, 0)
+        # Distinct pairs fired == probes fired: no (action, object) pair was ever re-fired.
+        self.assertEqual(exhausted_probed, len(exhausted_fired))
+        # A further pass adds nothing.
+        ag._interaction_discovery(env.observe())
+        self.assertEqual(ag.summary.interactions_probed, exhausted_probed)
+        self.assertEqual(set(ag._fired_probes), exhausted_fired)
+
+    def test_switch_game_solved_end_to_end_by_discovery(self):
+        env = SwitchDoorEnv()
+        ag = self._trusted_agent(env)
+        out = ag.run()
+        # The probe of SPACE adjacent to the switch was fired and recorded as a discovery.
+        self.assertGreaterEqual(out["interactions_probed"], 1)
+        self.assertGreaterEqual(out["interactions_found"], 1)
+        # Opening the door let movement reach the goal -> a level boundary was captured end-to-end.
+        self.assertTrue(out["level_boundary_captured"])
+        # A game-scoped interaction note was recorded.
+        kinds = [k for (k, _args) in ag.kb.writes]
+        self.assertIn("interaction", kinds)
 
 
 def _script_reflect_only() -> FakeLlm:

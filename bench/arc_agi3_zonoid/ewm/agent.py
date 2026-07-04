@@ -182,6 +182,53 @@ def build_synth_context(
     return "\n".join(parts) + "\n"
 
 
+def _grids_equal_lists(a: list[list[int]], b: list[list[int]]) -> bool:
+    """True iff two rendered grids are cell-for-cell identical."""
+
+    return [list(r) for r in a] == [list(r) for r in b]
+
+
+def _grids_key(grid: list[list[int]]) -> tuple:
+    """Hashable canonical form of a rendered grid (for BFS visited-set dedup)."""
+
+    return tuple(tuple(row) for row in grid)
+
+
+def _object_components(
+    grid: list[list[int]],
+) -> list[tuple[Any, frozenset[tuple[int, int]]]]:
+    """4-connected same-color components of ``grid`` as ``(object_hash, cells)`` pairs.
+
+    The hash is the segmentation module's translation-invariant color+shape signature, so two
+    instances of the same object class share a hash. Background (color 0) is skipped by the caller,
+    not here. Reuses the segmentation flood-fill so the hash matches ``segment_grid``."""
+
+    from .segmentation import _object_hash  # local: keep the module's hashing single-source
+
+    rows = len(grid)
+    cols = len(grid[0]) if rows else 0
+    seen = [[False] * cols for _ in range(rows)]
+    out: list[tuple[Any, frozenset[tuple[int, int]]]] = []
+    for sr in range(rows):
+        for sc in range(cols):
+            if seen[sr][sc]:
+                continue
+            color = grid[sr][sc]
+            cells: set[tuple[int, int]] = set()
+            stack = [(sr, sc)]
+            seen[sr][sc] = True
+            while stack:
+                r, c = stack.pop()
+                cells.add((r, c))
+                for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                    nr, nc = r + dr, c + dc
+                    if 0 <= nr < rows and 0 <= nc < cols and not seen[nr][nc] and grid[nr][nc] == color:
+                        seen[nr][nc] = True
+                        stack.append((nr, nc))
+            out.append((_object_hash(cells, color), frozenset(cells)))
+    return out
+
+
 REFLECT_PROMPT = (
     "Reflect on the action you just took. Structured result: {result}.\n"
     "The CURRENT|RESULT composite (if provided) shows the board before and after. State briefly "
@@ -292,6 +339,26 @@ class AgentConfig:
     goal_discovery_min_live_rate: float = 0.9
     goal_discovery_min_live_samples: int = 3
     frontier_max_depth: int = 24  # cap on the coverage-search action prefix length
+    # INTERACTION DISCOVERY (Run-19). Run 18 exhausted the ls20 MOVEMENT frontier uninterrupted (80
+    # actions, ~5% coverage, no level boundary): with a live-trusted model that only translates the
+    # player, more movement never trips a win — the win needs an INTERACTION (a non-movement action
+    # fired at the right context). When frontier exploration finds no NEW player cells to reach AND no
+    # level boundary has been captured, the loop enters INTERACTION DISCOVERY instead of a blind
+    # reactive probe: it enumerates untried (action, context) pairs — non-movement valid actions
+    # (SPACE/ACTION5/ACTION6/...) fired with the player standing ADJACENT to each distinct segmented
+    # object class — CPU-plans movement to the cheapest-to-reach context, fires the probe, and diffs
+    # the real result against the known auto-changing region. Any change beyond that region is a
+    # DISCOVERY: recorded as a game-scoped interaction note and counted. Probes are de-duplicated by
+    # (action, object-hash) so each pair is tried at most once per run.
+    interaction_discovery: bool = True
+    # Consecutive frontier batches that add NO new coverage before the movement frontier is declared
+    # exhausted (the Run-18 signal: explore_frontier keeps returning redundant plans that re-visit
+    # already-covered ground). Small so discovery engages promptly instead of burning the budget.
+    coverage_plateau_exhaust: int = 2
+    # Per-turn cap on interaction probes fired before yielding control back to run() (a budget guard so
+    # a large object/action product can't monopolise a turn). One probe == one movement-plan + one
+    # non-movement action.
+    max_interaction_probes_per_turn: int = 6
     # MODEL-TRUSTED FAST PATH (Run-16). While the last ``fast_path_trust_window`` live single-step
     # predictions ALL pass, the model is trusted: the reflect LLM call is skipped (reflection becomes
     # log-only; the suite still appends every transition) and the planned batch is extended toward the
@@ -582,6 +649,12 @@ class RunSummary:
     transients_tolerated: int = 0
     mask_auto_extensions: int = 0
     repair_skips: int = 0
+    # INTERACTION DISCOVERY telemetry (Run-19). `interactions_probed` = untried (action, context)
+    # pairs actually fired (non-movement action with the player adjacent to a distinct object class);
+    # `interactions_found` = probes whose real result changed cells BEYOND the known auto-changing
+    # region — a genuine discovery recorded as a game-scoped interaction note.
+    interactions_probed: int = 0
+    interactions_found: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -618,6 +691,8 @@ class RunSummary:
             "transients_tolerated": self.transients_tolerated,
             "mask_auto_extensions": self.mask_auto_extensions,
             "repair_skips": self.repair_skips,
+            "interactions_probed": self.interactions_probed,
+            "interactions_found": self.interactions_found,
         }
 
 
@@ -714,6 +789,15 @@ class EwmAgent:
         self._goal_predicate: Callable[[Any], bool] | None = None
         # Player positions that immediately preceded an observed level/score boundary (goal contact).
         self._goal_positions: set[tuple[int, int]] = set()
+        # INTERACTION DISCOVERY (Run-19): fired-probe dedup set. Each entry is (action, object_hash)
+        # so a given non-movement action is tried at most once against each distinct object class per
+        # run. object_hash is None for the "no adjacent object" (probe in place) fallback context.
+        self._fired_probes: set[tuple[str, Any]] = set()
+        # Movement-coverage plateau counter: consecutive frontier batches that added NO new coverage
+        # cell. The movement frontier is EXHAUSTED once this reaches `coverage_plateau_exhaust` — the
+        # honest signal that the reachable region is fully swept even though explore_frontier still
+        # returns a (redundant) plan. Reset whenever a batch grows coverage.
+        self._coverage_plateau = 0
         # Fast-path trust flag: True while the last window of live predictions all passed. Toggling it
         # off restores full decide/reflect cadence + normal batch sizes on the very next turn.
         self._model_trusted = False
@@ -2804,14 +2888,40 @@ class EwmAgent:
             )
         except Exception:  # noqa: BLE001 - a broken program must not crash the loop
             frontier = None
-        if frontier is None or not frontier.actions:
-            result = self._reactive_turn(frame, None)
-            return result, False
+        # MOVEMENT FRONTIER EXHAUSTED when no action moves the player at all (explore_frontier returned
+        # None) OR the reachable region has been fully swept — the Run-18 pathology, where the explorer
+        # keeps returning redundant plans that re-visit already-covered ground (coverage plateaus) yet
+        # never trips a boundary. When exhausted with no level boundary captured, the win is gated
+        # behind an INTERACTION: enter INTERACTION DISCOVERY instead of a blind reactive probe.
+        plateaued = self._coverage_plateau >= max(1, self.config.coverage_plateau_exhaust)
+        exhausted = frontier is None or not frontier.actions or plateaued
+        if exhausted:
+            if (
+                self.config.interaction_discovery
+                and not self.summary.level_boundary_captured
+            ):
+                probed = self._interaction_discovery(frame)
+                if probed is not None:
+                    self._coverage_plateau = 0  # a probe may have opened new ground; re-sweep
+                    return probed
+            if frontier is None or not frontier.actions:
+                result = self._reactive_turn(frame, None)
+                return result, False
+            # No interaction discovery engaged (disabled/nothing new to probe): fall through and run
+            # the (redundant) movement batch so the loop still makes an env step and re-evaluates.
         self.summary.frontier_batches += 1
         # Cap the open-loop batch by the budget guard (and the trusted fast-path cap when trusted).
         cap = self.config.fast_path_batch_cap if self._model_trusted else self.config.frontier_max_depth
         frontier = self._cap_plan(frontier, cap)
-        return self._execute(frontier, frame)
+        before_cov = len(self._coverage_cells)
+        result, diverged = self._execute(frontier, frame)
+        # Track the coverage plateau: a batch that added no new covered cell advances the counter; any
+        # new ground resets it. This is the honest exhaustion signal (real coverage, not predicted).
+        if len(self._coverage_cells) > before_cov:
+            self._coverage_plateau = 0
+        else:
+            self._coverage_plateau += 1
+        return result, diverged
 
     @staticmethod
     def _cap_plan(plan_result: PlanResult, cap: int) -> PlanResult:
@@ -2824,6 +2934,277 @@ class EwmAgent:
             actions=list(plan_result.actions[:cap]),
             predicted_grids=list(plan_result.predicted_grids[:cap]),
         )
+
+    # -- INTERACTION DISCOVERY (Run-19) ------------------------------------------------------------
+
+    @staticmethod
+    def _safe_render(program: Any, state: Any) -> list[list[int]]:
+        """``program.render(state)`` that returns an empty grid instead of raising."""
+
+        try:
+            return program.render(state)
+        except Exception:  # noqa: BLE001
+            return []
+
+    def _non_movement_actions(self, frame: dict[str, Any]) -> list[Any]:
+        """Valid actions that are NOT movement, per the ACTIVE model: an action that moves the player
+        (changes the render) in NO reachable state. The frontier explorer has already exhausted every
+        action that DOES translate the player; what remains is the interaction vocabulary
+        (SPACE/ACTION5/ACTION6/... — whatever the game exposes that is not a translation).
+
+        A translation action can be BLOCKED from the current cell (an edge/wall), so classifying by a
+        single init-state step gives false positives. Instead we sample a handful of reachable states
+        (a shallow BFS over the model) and call an action MOVEMENT if it changes the render in ANY of
+        them; the rest are non-movement. Model-agnostic — no hard-coded action names, so it transfers
+        across games."""
+
+        program = self.program
+        valid = list(frame.get("valid_actions") or [])
+        if program is None:
+            return valid
+        try:
+            start = program.init_state(self._frame_grid(frame))
+        except Exception:  # noqa: BLE001
+            return valid
+        # Shallow BFS to collect a few distinct reachable states to test each action against.
+        states = [start]
+        seen = {_grids_key(self._safe_render(program, start))}
+        frontier = [start]
+        for _depth in range(4):
+            nxt: list[Any] = []
+            for st in frontier:
+                for action in valid:
+                    try:
+                        ns, _ev = program.step(st, action)
+                        key = _grids_key(program.render(ns))
+                    except Exception:  # noqa: BLE001
+                        continue
+                    if key not in seen:
+                        seen.add(key)
+                        states.append(ns)
+                        nxt.append(ns)
+                        if len(states) >= 24:
+                            frontier = []
+                            break
+                if not frontier:
+                    break
+            frontier = nxt
+            if not frontier:
+                break
+        moves: set[str] = set()
+        for st in states:
+            try:
+                base = program.render(st)
+            except Exception:  # noqa: BLE001
+                continue
+            for action in valid:
+                if str(action) in moves:
+                    continue
+                try:
+                    ns, _ev = program.step(st, action)
+                    after = program.render(ns)
+                except Exception:  # noqa: BLE001
+                    continue
+                if not _grids_equal_lists(base, after):
+                    moves.add(str(action))
+        return [a for a in valid if str(a) not in moves]
+
+    def _adjacent_object_contexts(
+        self, grid: list[list[int]]
+    ) -> list[tuple[Any, tuple[int, int], int]]:
+        """INTERESTING contexts to probe from: for each DISTINCT segmented object class the player is
+        NOT already part of, the (object_hash, target_player_cell, reach_cost) to stand adjacent to
+        one instance of it.
+
+        Segments the board, then for each object whose translation-invariant hash is distinct, finds
+        the empty (background 0) cell orthogonally adjacent to the object that is CLOSEST to the
+        player (Manhattan reach cost, a cheap proxy for movement-plan length). Returns one context per
+        distinct object hash, sorted CHEAPEST-first so the loop probes the nearest contexts before the
+        far ones. The player's own object and the background are skipped."""
+
+        player = self._player_position(grid)
+        if player is None:
+            return []
+        rows = len(grid)
+        cols = len(grid[0]) if rows else 0
+        player_color = grid[player[0]][player[1]]
+        contexts: dict[Any, tuple[int, int, int]] = {}
+        for obj_hash, cells in _object_components(grid):
+            sample = next(iter(cells))
+            color = grid[sample[0]][sample[1]]
+            if color == 0 or color == player_color:
+                continue  # skip background and the player's own class
+            # Empty cells orthogonally adjacent to any cell of this object.
+            best: tuple[int, tuple[int, int]] | None = None
+            for (br, bc) in cells:
+                for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                    ar, ac = br + dr, bc + dc
+                    if 0 <= ar < rows and 0 <= ac < cols and grid[ar][ac] == 0:
+                        cost = abs(ar - player[0]) + abs(ac - player[1])
+                        if best is None or cost < best[0]:
+                            best = (cost, (ar, ac))
+            if best is None:
+                continue
+            cost, target = best
+            prev = contexts.get(obj_hash)
+            if prev is None or cost < prev[2]:
+                contexts[obj_hash] = (target[0], target[1], cost)
+        out = [
+            (obj_hash, (tr, tc), cost)
+            for obj_hash, (tr, tc, cost) in contexts.items()
+        ]
+        out.sort(key=lambda item: item[2])  # cheapest reach first
+        return out
+
+    def _plan_to_cell(
+        self, frame: dict[str, Any], target: tuple[int, int]
+    ) -> PlanResult | None:
+        """CPU-plan a movement path that puts the player on ``target`` (BFS over the model), or None
+        when the model can't reach it. Zero LLM calls. When the player is already on target, returns
+        an empty plan (no movement needed)."""
+
+        program = self.program
+        if program is None:
+            return None
+
+        def at_target(state: Any) -> bool:
+            try:
+                grid = program.render(state)
+            except Exception:  # noqa: BLE001
+                return False
+            return self._player_position(grid) == target
+
+        try:
+            return plan(
+                program,
+                self._frame_grid(frame),
+                at_target,
+                max_depth=self.config.plan_max_depth,
+                max_nodes=self.config.plan_max_nodes,
+            )
+        except Exception:  # noqa: BLE001 - a broken program must not crash discovery
+            return None
+
+    def _interaction_discovery(
+        self, frame: dict[str, Any]
+    ) -> tuple[dict[str, Any], bool] | None:
+        """Movement frontier exhausted with no boundary: probe untried (action, context) pairs.
+
+        Enumerate non-movement actions from ``valid_actions`` fired at interesting contexts (player
+        adjacent to each distinct object class), cheapest-to-reach first. For each untried pair not
+        already in ``_fired_probes``: CPU-plan movement to the context, execute the movement (if any),
+        then fire the single non-movement probe action. Diff the probe's real transition against the
+        known auto-changing region — any changed cell OUTSIDE that region is a DISCOVERY, recorded as
+        a game-scoped interaction note and counted. Dedup by (action, object_hash).
+
+        Returns the LAST executed ``(result, diverged)`` like :meth:`_frontier_execute`, or None when
+        there was nothing new to probe (the caller then falls back to a reactive probe)."""
+
+        actions = self._non_movement_actions(frame)
+        if not actions:
+            return None
+        cur_frame = frame
+        last: tuple[dict[str, Any], bool] | None = None
+        cap = max(1, self.config.max_interaction_probes_per_turn)
+        fired = 0
+        for probe_action in actions:
+            if fired >= cap:
+                break
+            contexts = self._adjacent_object_contexts(self._frame_grid(cur_frame))
+            # Always include the current position as a fallback context (obj_hash None) so a game with
+            # no distinct adjacent object still gets each non-movement action tried once in place.
+            targets: list[tuple[Any, tuple[int, int] | None]] = [
+                (obj_hash, target) for (obj_hash, target, _cost) in contexts
+            ]
+            targets.append((None, None))
+            for obj_hash, target in targets:
+                if fired >= cap:
+                    break
+                key = (str(probe_action), obj_hash)
+                if key in self._fired_probes:
+                    continue
+                self._fired_probes.add(key)
+                # Move to the context (skip if in place / already there / unreachable-in-place ok).
+                if target is not None:
+                    mv = self._plan_to_cell(cur_frame, target)
+                    if mv is None:
+                        continue  # model can't reach this context; try the next
+                    if mv.actions:
+                        result, diverged = self._execute(mv, cur_frame)
+                        last = (result, diverged)
+                        cur_frame = self._observe()
+                        if diverged or cur_frame.get("done") or self._out_of_budget(cur_frame):
+                            return last
+                # Fire the single non-movement probe and score the effect.
+                last = self._fire_probe(cur_frame, probe_action, obj_hash)
+                fired += 1
+                cur_frame = self._observe()
+                if cur_frame.get("done") or self._out_of_budget(cur_frame):
+                    return last
+                break  # one context per action per turn-pass; re-segment for the next action
+        return last
+
+    def _fire_probe(
+        self, frame: dict[str, Any], action: Any, obj_hash: Any
+    ) -> tuple[dict[str, Any], bool]:
+        """Fire one non-movement probe action, ingest the transition, and classify the effect.
+
+        A change is a DISCOVERY when the probe changed cells OUTSIDE the known auto-changing region
+        (the every-action-changing HUD/timer cells) — a real new dynamic, not the background churn.
+        Records a game-scoped interaction note on discovery. Returns ``(result, diverged)``."""
+
+        self.summary.interactions_probed += 1
+        before_grid = self._frame_grid(frame)
+        result = self._act([action])
+        self._ingest_result(frame, [action], result)
+        after_frame = self._result_frame(result)
+        after_grid = self._frame_grid(after_frame) if after_frame else before_grid
+        changed = self._changed_cells(before_grid, after_grid)
+        auto = self._auto_changing_cells()
+        novel = changed - auto
+        diverged = self._stop_reason(result) == "expect_mismatch"
+        if novel:
+            self.summary.interactions_found += 1
+            self._record_interaction(frame, action, obj_hash, novel, result)
+        return result, diverged
+
+    def _record_interaction(
+        self,
+        frame: dict[str, Any],
+        action: Any,
+        obj_hash: Any,
+        novel_cells: set[tuple[int, int]],
+        result: dict[str, Any],
+    ) -> None:
+        """Record a game-scoped interaction note (best-effort). Standalone-token body describing the
+        action, the object-class context, and the observed effect."""
+
+        if self.kb is None:
+            return
+        boxes = self._changing_boxes(set(novel_cells))
+        where = "; ".join(
+            f"{self._range_str(r0, r1, 'row', 'rows')} {self._range_str(c0, c1, 'col', 'cols')}"
+            for (r0, c0, r1, c1) in boxes
+        )
+        boundary = self._stop_reason(result) == "level_transition" or self._boundary_crossed(
+            frame, result
+        )
+        context = (
+            f"player adjacent to object class {obj_hash}"
+            if obj_hash is not None
+            else "player in place (no distinct adjacent object)"
+        )
+        effect = (
+            f"changed {len(novel_cells)} cells beyond the auto-changing region at {where}"
+            + ("; a level boundary followed" if boundary else "")
+        )
+        try:
+            self.kb.begin_turn()
+            out = self.kb.write_interaction(self.config.game_id, action, context, effect)
+            if isinstance(out, dict) and out.get("ok"):
+                self.summary.kb_writes += 1
+        except Exception:  # noqa: BLE001 - note write is advisory; never crash the loop
+            pass
 
     def _finalize_telemetry(self) -> None:
         """Compute end-of-run coverage_pct, actions_per_minute, llm_calls_per_action."""
