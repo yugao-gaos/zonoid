@@ -243599,6 +243599,44 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix": {
+      "id": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "tested",
+      "summary": "Root cause (CPU-profile evidence via kill -USR1 + inspector): the :8787 daemon pegged 100-140% because buildGraph ran a full O(tasks) projection with two inner O(tasks x edges) scans (judgingState/unverifiedEdgesForNode, depRefs, hasBlockingEdge) plus per-task transcript resolution, AND buildGraph itself was UNCACHED while ~50 route handlers called it directly — the label drain's gate-label.js fires ~220 /task/detail probes per tick, each a fresh full projection, which pegged CPU and starved the write path (every write bumps the overlay mtime, and uncached rebuilds blocked the event loop). Fixes (6 commits, minimal/indexing+caching, unit-tested, equivalence-verified): (1) judge.unverifiedIncidentSet -> O(1) judgingState; (2) inbound-edge-by-target Map in makeResolver -> O(1) depRefs; (3) agentsBySession index -> O(1) harnessTranscriptForTask; (4) index the effective() judgingState callsite; (5) mtime-gated per-tick drain-overlay cache (collapses 3-5 graph loads/tick to 1) + reuse it in the review-merge drain; (6) overlay.blockingEdgeSet O(1) hasBlockingEdge; (7 - decisive) moved the mtime-keyed snapCache INTO buildGraph so all callers share one projection over a stable overlay. Deployed via the symlinked checkout (~/.claude/orchestrator -> repo; daemon git-commits only .graph, never code, so the working-tree fix persists across launchctl kickstart), .bak backups kept. Verified: /ready 0.002s, /state 0.36s, /task/detail 0.014s, /note/get resolves; drains tick with ZERO timedOut=true spin (was 61); decision notes written+judged live. BEFORE: CPU flat 100-140%, POST /overlay/note 5.36s (30s /state timeouts). AFTER: idle CPU averages 1.5% (sustained 0.0% between drain events, 7/9 post-boot samples <30%), POST /overlay/note 0.00s.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "daemon cpu hot loop write path starvation investigation fix",
+        "description": "Run-21 lever 2: the :8787 daemon re-pegs to 100-140% CPU within hours of every restart (observed across 5 consecutive EWM runs; last bounce pid 35149->32550 re-pegged same day) and its WRITE path starves first (/overlay/note 20s+/timeout while GET reads serve) — this is strangling coverage persistence, notes, and ORIENT retries. INVESTIGATE the hot loop in /Users/imyu/Desktop/zonoid: profile the live process (sample <pid> on macOS, or --cpu-prof if restart-instrumented; also check daemon logs for tight tick loops), inspect likely suspects: the drain runner loops (judge/label/learner lanes, daemon.js ~1756 source-chunk lane), embed batching, git snapshot loop (GRAPH_CHECKPOINT touch errors appear repeatedly — a failing touch retried hot?), poll intervals in the automode config (minPoll 30?). Identify the spinning code path with EVIDENCE, apply a minimal fix (backoff, batch, or repair the failing op it retries), unit-test where feasible, then deploy with the proven protocol (surgical patch of the installed copy at /Users/imyu/.claude/orchestrator with .bak backups if files diverge — check first; launchctl kickstart -k gui/501/com.zonoid.daemon; verify /state, /task/detail, /note/get, drains ticking) and MEASURE: CPU% at idle after 10 minutes must be sane (<30%) and a timed /overlay/note write must complete <2s. If the root cause needs bigger surgery, apply the best bounded mitigation, document, and say so honestly. Commit repo changes on the attempt branch.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-04T11:12:53.327Z"
+      },
+      "assignee": "worker-daemon-hotloop",
+      "timestamps": {
+        "firstSeen": "2026-07-04T11:12:53.327Z",
+        "lastChanged": "2026-07-04T12:34:12.796Z",
+        "lastStatus": "tested"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -278667,10 +278705,10 @@
       "from": "note:note-mr5efmyx6hw",
       "to": "codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen",
       "kind": "context",
+      "weight": 0.5,
       "by": "judge",
       "judged": true,
-      "origin": "subconscious-assignment",
-      "weight": 0.5
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mr5hu8iwax0",
@@ -279383,6 +279421,109 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-2",
+      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
+      "kind": "context",
+      "weight": 0.502,
+      "by": "judge",
+      "judged": true,
+      "score": 0.502,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqqyd0ugp2b",
+      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
+      "kind": "context",
+      "weight": 0.499,
+      "by": "judge",
+      "judged": true,
+      "score": 0.499,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5lqjqbaai",
+      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.531,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5optj7omb",
+      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
+      "kind": "context",
+      "weight": 0.491,
+      "by": "judge",
+      "judged": true,
+      "score": 0.491,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5w66frk68",
+      "to": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.616,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5xad0sam6",
+      "to": "codex/ewm-bump-quota-interleave-action-budget-raise",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.368,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5y9i24316",
+      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "kind": "blocking",
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5y9o2i9wy",
+      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5y9o2i9wy",
+      "to": "note:note-mr5xad0sam6",
+      "kind": "context",
+      "weight": 0.753,
+      "by": "judge",
+      "judged": true,
+      "score": 0.753,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
+      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.51,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "to": "codex/ewm-bump-quota-interleave-action-budget-raise",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
       "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
       "to": "note:note-mqqqrlczyc2",
       "kind": "context",
@@ -279449,16 +279590,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-2",
-      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
-      "kind": "context",
-      "weight": 0.502,
-      "by": "judge",
-      "judged": true,
-      "score": 0.502,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-1",
       "to": "note:note-mqsi4rz0p98",
       "kind": "context",
@@ -279483,6 +279614,14 @@
       "origin": "note-source-cluster"
     },
     {
+      "from": "knowledge:source_chunk:note-mr6bu1tyaaa#note-evidence:chunk-1",
+      "to": "note:note-mr6bu1tyaaa",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
       "from": "knowledge:source_doc:note-mqqnit1ph68",
       "to": "note:note-mqqnit1ph68",
       "kind": "context",
@@ -279497,6 +279636,14 @@
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_doc:note-mr6bu1tyaaa",
+      "to": "knowledge:source_section:note-mr6bu1tyaaa#note-evidence",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
     },
     {
       "from": "knowledge:source_section:note-mqsi4rz0p98#note-evidence",
@@ -279529,6 +279676,14 @@
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr6bu1tyaaa#note-evidence",
+      "to": "knowledge:source_chunk:note-mr6bu1tyaaa#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
     },
     {
       "from": "knowledge:source_section:section-claude-md-1-orchestrator-dashboard-e5ce5288fe",
@@ -284257,6 +284412,14 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqpywsqkwff",
+      "to": "note:note-mqpv6qx0gzv",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
       "from": "note:note-mqpz36sv7ns",
       "to": "codex/search-economy-retrieval-phase1",
       "kind": "context",
@@ -284881,16 +285044,6 @@
       "judged": true
     },
     {
-      "from": "note:note-mqqyd0ugp2b",
-      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
-      "kind": "context",
-      "weight": 0.499,
-      "by": "judge",
-      "judged": true,
-      "score": 0.499,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqr2jk9hawd",
       "to": "note:note-mqqtne9zs3u",
       "kind": "context",
@@ -285238,16 +285391,6 @@
       "origin": "asserted"
     },
     {
-      "from": "note:note-mr534gig0ek",
-      "to": "codex/ewm-bump-quota-interleave-action-budget-raise",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.394,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mr5c2remh4y",
       "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4",
       "kind": "context",
@@ -285286,25 +285429,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr5lqjqbaai",
-      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.531,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5optj7omb",
-      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
-      "kind": "context",
-      "weight": 0.491,
-      "by": "judge",
-      "judged": true,
-      "score": 0.491,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mr5w5bfj6do",
       "to": "note:note-mr5hxwtjf2m",
       "kind": "context",
@@ -285312,15 +285436,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.556,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5w66frk68",
-      "to": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.616,
       "origin": "autowire-semantic"
     },
     {
@@ -285334,37 +285449,99 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr5xad0sam6",
-      "to": "codex/ewm-bump-quota-interleave-action-budget-raise",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.368,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5y9i24316",
-      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
-      "kind": "blocking",
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5y9o2i9wy",
-      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "from": "note:note-mr6bu1tyaaa",
+      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
       "kind": "context",
       "weight": 1,
       "judged": true,
       "origin": "asserted"
     },
     {
-      "from": "note:note-mr5y9o2i9wy",
-      "to": "note:note-mr5xad0sam6",
+      "from": "note:note-mr6bu1tyaaa",
+      "to": "knowledge:source_section:note-mr6bu1tyaaa#note-evidence",
       "kind": "context",
-      "weight": 0.753,
+      "weight": 0.858,
       "by": "judge",
       "judged": true,
-      "score": 0.753,
+      "score": 0.858,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6bu1tyaaa",
+      "to": "knowledge:source_chunk:note-mr6bu1tyaaa#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.858,
+      "by": "judge",
+      "judged": true,
+      "score": 0.858,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6bu1tyaaa",
+      "to": "knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.727,
+      "by": "judge",
+      "judged": true,
+      "score": 0.727,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6ce97il7j",
+      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr6ce97il7j",
+      "to": "knowledge:source_chunk:note-mr6bu1tyaaa#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.859,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6ce97il7j",
+      "to": "knowledge:source_section:note-mr6bu1tyaaa#note-evidence",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.859,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6ce97il7j",
+      "to": "note:note-mr6bu1tyaaa",
+      "kind": "context",
+      "weight": 0.803,
+      "by": "judge",
+      "judged": true,
+      "score": 0.803,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6ce97il7j",
+      "to": "note:note-mqgztj9lza0",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.734,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6ce97il7j",
+      "to": "knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.733,
       "origin": "autowire-semantic"
     },
     {
@@ -285483,27 +285660,6 @@
       "kind": "context",
       "weight": 0.252,
       "judged": true
-    },
-    {
-      "from": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
-      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.51,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
-      "to": "codex/ewm-bump-quota-interleave-action-budget-raise",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
-      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
-      "kind": "context",
-      "origin": "subconscious-assignment"
     },
     {
       "from": "codex/fix-consolidate-universal-skills-kickback",
@@ -285670,5 +285826,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-07-04T11:39:56.079Z"
+  "compacted_at": "2026-07-04T12:34:51.439Z"
 }
