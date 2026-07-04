@@ -3507,19 +3507,20 @@ class BumpProbeTests(unittest.TestCase):
         kinds = [k for (k, _args) in ag.kb.writes]
         self.assertIn("interaction", kinds)
 
-    def test_bump_dedup_respects_fired_probes(self):
+    def test_bump_dedup_respects_per_run_guard(self):
         # A block pushed off-board is a pure no-op wall: bumps never change the board, so the ONLY
-        # thing that stops probing is the persisted (<bump>, object) dedup.
+        # thing that stops probing is the PER-RUN (_bump_attempted) dedup (Run-25 fix: bump discovery is
+        # per-run, NOT gated by the persisted _fired_probes set).
         env = PushBlockEnv()
         env._solved = True  # goal/block removed -> the avatar's neighbors are all background/edge
         ag = self._trusted_agent(env, PUSHBLOCK_MODEL_SOURCE)
-        # Seed a persisted-probe set as if a PRIOR run already bumped every object class.
+        # Seed the per-run attempt guard as if THIS run already bumped every object class.
         contexts = ag._bump_contexts(env._grid())
         for (obj_hash, _a, _b, _c) in contexts:
-            ag._fired_probes.add((ag._BUMP_MARKER, obj_hash))
+            ag._bump_attempted.add(obj_hash)
         before = ag.summary.bumps_probed
         ag._bump_discovery(env.observe())
-        # Every object class already recorded as bumped -> no new bump fires (persisted dedup holds).
+        # Every object class already recorded as bumped THIS run -> no new bump fires (per-run dedup holds).
         self.assertEqual(ag.summary.bumps_probed, before)
 
     def test_plateau_one_hands_off_to_bumps_within_short_budget(self):
@@ -3848,16 +3849,17 @@ class BumpQuotaInterleaveTests(unittest.TestCase):
         # monopolise the whole budget as it did pre-Run-22).
         self.assertGreaterEqual(ag.summary.bumps_probed, 1)
 
-    def test_dedup_respects_persisted_probes_on_quota_path(self):
-        # The quota interleave shares the SAME persisted _fired_probes dedup as the exhaustion path: a
-        # block whose class a prior run already bumped is not re-bumped, even when the quota is due.
+    def test_dedup_respects_per_run_guard_on_quota_path(self):
+        # The quota interleave shares the SAME per-run _bump_attempted dedup as the exhaustion path: a
+        # block whose class THIS run already bumped is not re-bumped, even when the quota is due (Run-25
+        # fix: dedup is per-run, not the persisted _fired_probes set).
         env = _QuotaMultiBlockEnv()
         ag = self._trusted_agent(env, QUOTA_MODEL_SOURCE, exploration_min_bump_actions=24)
-        # Seed every block's object class as already bumped by a prior run.
+        # Seed every block's object class as already bumped THIS run.
         contexts = ag._bump_contexts(env._grid())
         self.assertGreaterEqual(len(contexts), 1)
         for (obj_hash, _a, _b, _c) in contexts:
-            ag._fired_probes.add((ag._BUMP_MARKER, obj_hash))
+            ag._bump_attempted.add(obj_hash)
         before = ag.summary.bumps_probed
         # Quota is due, but every target is deduped -> _bump_discovery finds nothing new to bump and
         # the batch falls through to a frontier step (no new bump fired).
@@ -3951,6 +3953,25 @@ class PlayerColorInferenceTests(unittest.TestCase):
         self.assertIsNotNone(echo)
         self.assertTrue(echo["bump_probes"])
         self.assertIn(12, echo["player_colors"])
+
+    def test_bumps_fire_despite_persisted_bump_dedup(self):
+        # Run-25 regression: a FRESH game instance whose persisted probe state ALREADY contains every
+        # current-frame object's <bump> key must STILL fire bumps. object_hashes are translation-invariant,
+        # so ls20 objects match across runs — routing bump dedup through the persisted _fired_probes set
+        # permanently suppressed bumps in ALL future runs (bump_due_batches>0 but bumps_probed=0). Bump
+        # discovery is now PER-RUN (self._bump_attempted), so the persisted keys no longer gate.
+        env = _Ls20ColoredQuotaEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE)
+        # Seed the PERSISTED-style set with the <bump> key of EVERY distinct current-frame object class,
+        # exactly as a prior run's resumed coverage note would. On the OLD code this suppressed all bumps.
+        contexts = ag._bump_contexts(env._grid())
+        self.assertGreaterEqual(len(contexts), 1)
+        for (obj_hash, _a, _b, _c) in contexts:
+            ag._fired_probes.add((ag._BUMP_MARKER, obj_hash))
+        before = ag.summary.bumps_probed
+        ag._bump_discovery(env.observe())
+        # The fresh per-run guard was empty, so bumps fired despite the persisted dedup.
+        self.assertGreater(ag.summary.bumps_probed, before)
 
     def test_player_color_inference_survives_unknown_rendering_program(self):
         # Run-23 LIVE finding: the real ls20 dev program renders EVERYTHING except the player as the
@@ -4056,9 +4077,11 @@ class CrossRunCoveragePersistenceTests(unittest.TestCase):
     def test_second_run_resumes_persisted_coverage(self):
         from bench.arc_agi3_zonoid.ewm import kb_protocol
 
-        # A prior run swept these cells + bumped this object class.
+        # A prior run swept these cells + recorded a NON-movement interaction probe (SPACE) AND a bump
+        # probe (<bump>). Run-25 fix: NON-bump probes resume; bump probes are EXCLUDED on load (bump
+        # discovery is per-run, so a prior run's bump intent must not gate this run).
         visited = {(1, 0, 0), (1, 0, 1), (1, 0, 2)}
-        probes = {("<bump>", "objA")}
+        probes = {("SPACE", "objA"), ("<bump>", "objA")}
         body = kb_protocol.encode_coverage_state(visited, probes, board_cells=3)
 
         env = PushBlockEnv()
@@ -4068,7 +4091,10 @@ class CrossRunCoveragePersistenceTests(unittest.TestCase):
         ag._resume_coverage(env.observe())
         # The persisted ground is pre-loaded: the frontier will not re-sweep it.
         self.assertTrue(visited.issubset(ag._coverage_cells))
-        self.assertIn(("<bump>", "objA"), ag._fired_probes)
+        # Non-bump interaction probes resume so run 20's coverage feature is not regressed...
+        self.assertIn(("SPACE", "objA"), ag._fired_probes)
+        # ...but the persisted <bump> probe is EXCLUDED so bumps are re-probed this run (Run-25 fix).
+        self.assertNotIn(("<bump>", "objA"), ag._fired_probes)
         # coverage_resumed_pct reflects the resumed fraction of the board (3/3 == 1.0 here).
         self.assertGreater(ag.summary.coverage_resumed_pct, 0.0)
 
