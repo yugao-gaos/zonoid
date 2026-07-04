@@ -19,3 +19,4 @@
 {"evt":"edge_removed","from":"knowledge:source_section:note-mr5hxwtjf2m#note-evidence","to":"knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-8","kind":"context","actor":"overlay-sync","ts":"2026-07-03T22:24:33.468Z"}
 {"evt":"edge_removed","from":"knowledge:source_section:note-mr5hxwtjf2m#note-evidence","to":"knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-9","kind":"context","actor":"overlay-sync","ts":"2026-07-03T22:24:33.468Z"}
 {"evt":"edge_removed","from":"knowledge:source_section:note-mr5hxwtjf2m#note-evidence","to":"note:note-mr5hxwtjf2m","kind":"context","actor":"overlay-sync","ts":"2026-07-03T22:24:33.468Z"}
+{"evt":"timestamps_set","id":"knowledge:source_section:note-mr5hxwtjf2m#note-evidence","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-07-04T00:07:35.380Z","lastChanged":"2026-07-04T00:07:35.380Z","lastStatus":"knowledge"},"actor":"overlay-sync","ts":"2026-07-04T00:07:35.412Z"}
