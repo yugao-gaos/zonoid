@@ -12,3 +12,4 @@
 {"evt":"edge_removed","from":"note:note-mr5njd22m3l","to":"codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen","kind":"context","actor":"overlay-sync","ts":"2026-07-04T01:31:30.310Z"}
 {"evt":"edge_removed","from":"note:note-mr5njd22m3l","to":"note:note-mr5l0el0i0k","kind":"context","actor":"overlay-sync","ts":"2026-07-04T01:35:17.003Z"}
 {"evt":"edge_promoted","from":"note:note-mr5njd22m3l","to":"note:note-mr5lqjqbaai","kind":"context","actor":"overlay-sync","ts":"2026-07-04T02:02:00.271Z","weight":0.715,"by":"judge","judged":true,"score":0.715,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mr5njd22m3l","to":"note:note-mr3vdyn5zxa","kind":"context","actor":"overlay-sync","ts":"2026-07-04T02:04:09.452Z"}
