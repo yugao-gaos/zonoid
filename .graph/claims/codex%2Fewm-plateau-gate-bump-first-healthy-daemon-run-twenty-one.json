@@ -3,7 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "29556785-fa39-442e-8eba-b5dd9dc00862",
   "branch": "orch/attempt/codex-ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-07-04T05:38:02.657Z",
-  "lease_until": "2026-07-04T06:38:02.657Z"
+  "lease_until": "2026-07-04T06:38:02.657Z",
+  "completed_at": "2026-07-04T05:58:37.428Z"
 }
