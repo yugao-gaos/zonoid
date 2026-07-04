@@ -209,6 +209,65 @@ class GraphFlagTests(unittest.TestCase):
     def test_live_run_accepts_graph_kwarg(self):
         self.assertIn("graph", driver_mod.live_run.__code__.co_varnames)
 
+    def test_max_actions_passes_through_to_live_session(self):
+        # The driver must forward --max-actions cleanly into build_live_session so a larger action
+        # budget reaches the live session (Run-22: run 22 fires with a raised budget). We monkeypatch
+        # build_live_session to capture the kwarg and short-circuit before any SDK/LLM work.
+        from bench.arc_agi3_zonoid.ewm import live as live_mod
+
+        captured = {}
+
+        class _Sentinel(RuntimeError):
+            pass
+
+        def _fake_build(game, *, benchmarking_repo, max_actions, max_seconds):
+            captured["max_actions"] = max_actions
+            raise _Sentinel("short-circuit after capturing the budget")
+
+        prev = live_mod.build_live_session
+        live_mod.build_live_session = _fake_build
+        try:
+            with self.assertRaises(_Sentinel):
+                driver_mod.live_run(
+                    "ls20", benchmarking_repo=None, max_actions=240, max_seconds=60.0,
+                )
+        finally:
+            live_mod.build_live_session = prev
+        self.assertEqual(captured["max_actions"], 240)
+
+    def test_main_forwards_max_actions_to_live_run(self):
+        # End-to-end argparse -> live_run wiring: `--max-actions 240` reaches live_run's max_actions.
+        captured = {}
+
+        def _fake_live_run(game, **kwargs):
+            captured.update(kwargs)
+            captured["game"] = game
+            return {"won": False}
+
+        prev = driver_mod.live_run
+        driver_mod.live_run = _fake_live_run
+        try:
+            driver_mod.main(["--game", "ls20", "--max-actions", "240"])
+        finally:
+            driver_mod.live_run = prev
+        self.assertEqual(captured["max_actions"], 240)
+
+    def test_default_max_actions_is_eighty(self):
+        # The default budget is unchanged (80); Run-22 raises it via the flag, not the default.
+        captured = {}
+
+        def _fake_live_run(game, **kwargs):
+            captured.update(kwargs)
+            return {"won": False}
+
+        prev = driver_mod.live_run
+        driver_mod.live_run = _fake_live_run
+        try:
+            driver_mod.main(["--game", "ls20"])
+        finally:
+            driver_mod.live_run = prev
+        self.assertEqual(captured["max_actions"], 80)
+
     def test_build_daemon_graph_uses_env_url(self):
         import os
 
