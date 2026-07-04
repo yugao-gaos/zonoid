@@ -371,6 +371,20 @@ class AgentConfig:
     # by (bump-marker, object_hash) through the same _fired_probes set (persisted across runs).
     bump_probes: bool = True
     bump_probe_repeats: int = 3
+    # BUMP QUOTA INTERLEAVE (Run-22). Run 21 proved the frontier NEVER plateaus in-budget: every
+    # frontier batch found a fresh crumb, so the exhaustion/plateau gate that hands off to bump
+    # discovery never tripped and the contact win (which needs a bump) was never probed. Make contact
+    # probing a FIRST-CLASS budget quota instead of an exhaustion-gated fallback: from the START of
+    # exploration, the exploration executor alternates frontier batches and bump-probe batches so that
+    # ~``bump_quota_fraction`` of executed exploration actions are contact bumps. The plateau/exhaustion
+    # handoff (``coverage_plateau_exhaust`` + interaction/bump discovery) remains as a BONUS path.
+    # 0.0 -> quota off (pre-Run-22 exhaustion-only behaviour).
+    bump_quota_fraction: float = 0.4
+    # Minimum contact-bump actions guaranteed this run even under a tight action budget: until this many
+    # bumps have fired, the exploration executor prefers a bump batch regardless of the running ratio, so
+    # a small ``--max-actions`` budget still gets its contact probes rather than spending everything on
+    # frontier movement. Guaranteed floor; the ratio quota governs once the floor is met.
+    exploration_min_bump_actions: int = 24
     # CROSS-RUN COVERAGE PERSISTENCE (Run-20). At run end the agent persists the swept ground (visited
     # cells + fired probes + plateau) as a game-scoped KB note; on ORIENT it loads and RESUMES the
     # frontier so budgets never compound into a fresh re-sweep every run. Telemetry coverage_resumed_pct.
@@ -830,6 +844,10 @@ class EwmAgent:
         # honest signal that the reachable region is fully swept even though explore_frontier still
         # returns a (redundant) plan. Reset whenever a batch grows coverage.
         self._coverage_plateau = 0
+        # BUMP QUOTA INTERLEAVE (Run-22): total env actions executed during frontier exploration
+        # batches (movement). Paired with `summary.bumps_probed` (contact-bump actions), it drives the
+        # running quota ratio that decides whether the NEXT exploration batch is frontier or bump.
+        self._explore_frontier_actions = 0
         # Fast-path trust flag: True while the last window of live predictions all passed. Toggling it
         # off restores full decide/reflect cadence + normal batch sizes on the very next turn.
         self._model_trusted = False
@@ -2887,9 +2905,15 @@ class EwmAgent:
 
         Returns ``(last_result, diverged, last_frame)``. When ``exploration_executor`` is off this runs
         exactly one batch (the Run-16 behaviour).
+
+        BUMP QUOTA INTERLEAVE (Run-22): each batch is dispatched through :meth:`_explore_batch`, which
+        runs a CONTACT-BUMP batch instead of a frontier batch whenever the running bump quota is due
+        (:meth:`_bump_quota_due`). This makes bump probing a first-class share of the action budget from
+        action 1 — not an exhaustion-gated fallback — so a frontier that never plateaus still probes the
+        contact win.
         """
 
-        result, diverged = self._frontier_execute(frame)
+        result, diverged = self._explore_batch(frame)
         last_frame = frame
         if not self.config.exploration_executor:
             return result, diverged, last_frame
@@ -2911,8 +2935,53 @@ class EwmAgent:
                 break
             last_frame = next_frame
             batches += 1
-            result, diverged = self._frontier_execute(next_frame)
+            result, diverged = self._explore_batch(next_frame)
         return result, diverged, last_frame
+
+    def _explore_batch(self, frame: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+        """Dispatch ONE exploration batch: a CONTACT-BUMP batch when the running quota is due, else a
+        FRONTIER movement batch (Run-22).
+
+        The bump-quota interleave makes contact probing a first-class share of the exploration action
+        budget from the very first batch, rather than waiting for the frontier to plateau. When
+        :meth:`_bump_quota_due` says the bump share has fallen below ``bump_quota_fraction`` (or the
+        ``exploration_min_bump_actions`` floor is unmet), run :meth:`_bump_discovery`; a None result
+        (nothing left to bump — every object class already deduped) falls through to a frontier batch so
+        the turn still makes progress. Otherwise run the normal frontier batch. Frontier-batch action
+        counts feed the quota denominator via ``_explore_frontier_actions``."""
+
+        if self._bump_quota_due():
+            probed = self._bump_discovery(frame)
+            if probed is not None:
+                # A bump batch may open new ground: reset the plateau so the frontier re-sweeps.
+                self._coverage_plateau = 0
+                return probed
+            # Nothing left to bump (persisted dedup exhausted this object set): run a frontier batch so
+            # the turn still steps. The quota re-evaluates next batch (bumps_probed unchanged).
+        return self._frontier_execute(frame)
+
+    def _bump_quota_due(self) -> bool:
+        """True iff the NEXT exploration batch should be a CONTACT-BUMP batch to hold the quota (Run-22).
+
+        Two conditions make a bump due, checked against the running counts (``bumps_probed`` contact-bump
+        actions vs ``_explore_frontier_actions`` frontier-movement actions):
+
+        - MIN-BUMP GUARANTEE: fewer than ``exploration_min_bump_actions`` bumps have fired -> due, so a
+          tight action budget still gets its guaranteed contact probes before the frontier eats it all.
+        - RATIO QUOTA: the bump share of executed exploration actions has fallen below
+          ``bump_quota_fraction`` -> due, so ~40% of actions are contact bumps from action 1.
+
+        Returns False when bumping is disabled (``bump_probes`` off or ``bump_quota_fraction`` <= 0)."""
+
+        if not self.config.bump_probes or self.config.bump_quota_fraction <= 0.0:
+            return False
+        bumps = self.summary.bumps_probed
+        if bumps < max(0, self.config.exploration_min_bump_actions):
+            return True
+        total = bumps + self._explore_frontier_actions
+        if total <= 0:
+            return True  # nothing executed yet: seed the interleave with a bump batch
+        return (bumps / total) < self.config.bump_quota_fraction
 
     def _frontier_execute(self, frame: dict[str, Any]) -> tuple[dict[str, Any], bool]:
         """Plan and run one FRONTIER EXPLORATION batch: the action prefix that visits the most NEW
@@ -2974,6 +3043,9 @@ class EwmAgent:
         frontier = self._cap_plan(frontier, cap)
         before_cov = len(self._coverage_cells)
         result, diverged = self._execute(frontier, frame)
+        # BUMP QUOTA denominator (Run-22): count the frontier-movement actions actually executed so the
+        # running bump share (bumps_probed / (bumps_probed + frontier actions)) stays honest.
+        self._explore_frontier_actions += len(self._executed_actions(result, frontier.actions))
         # Track the coverage plateau: a batch that added no new covered cell advances the counter; any
         # new ground resets it. This is the honest exhaustion signal (real coverage, not predicted).
         if len(self._coverage_cells) > before_cov:

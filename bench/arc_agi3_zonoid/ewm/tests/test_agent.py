@@ -3598,6 +3598,275 @@ class BumpProbeTests(unittest.TestCase):
         self.assertGreaterEqual(ag.summary.bumps_probed, 1)
 
 
+# Movement-only model for the multi-block quota env: the avatar (2) translates on background (0);
+# every non-zero, non-avatar color (blocks 4,5,6,7) is an impassable static — ls20-shaped (only the
+# four translations are valid, so the non-movement vocabulary is empty and interaction discovery
+# falls through to BUMP PROBES). The model does NOT know bumping does anything (a no-op wall to it),
+# so the quota interleave is the ONLY thing that fires contact bumps.
+QUOTA_MODEL_SOURCE = '''
+import copy
+
+AVATAR = 2
+DELTAS = {"UP": (-1, 0), "DOWN": (1, 0), "LEFT": (0, -1), "RIGHT": (0, 1)}
+
+
+def init_state(frame):
+    rows = len(frame)
+    cols = len(frame[0]) if rows else 0
+    avatar = None
+    statics = {}
+    for r in range(rows):
+        for c in range(cols):
+            v = frame[r][c]
+            if v == AVATAR:
+                avatar = (r, c)
+            elif v != 0:
+                statics[(r, c)] = v
+    return {"avatar": avatar, "statics": statics, "rows": rows, "cols": cols}
+
+
+def legal_actions(state):
+    return ["UP", "DOWN", "LEFT", "RIGHT"]
+
+
+def step(state, action):
+    state = copy.deepcopy(state)
+    if action not in DELTAS:
+        return state, {"moved": False}
+    dr, dc = DELTAS[action]
+    r, c = state["avatar"]
+    nr, nc = r + dr, c + dc
+    blocked = (nr, nc) in state["statics"]
+    if 0 <= nr < state["rows"] and 0 <= nc < state["cols"] and not blocked:
+        state["avatar"] = (nr, nc)
+    return state, {"moved": state["avatar"] == (nr, nc)}
+
+
+def render(state):
+    rows, cols = state["rows"], state["cols"]
+    grid = [[0 for _ in range(cols)] for _ in range(rows)]
+    for (r, c), v in state["statics"].items():
+        grid[r][c] = v
+    ar, ac = state["avatar"]
+    grid[ar][ac] = AVATAR
+    return grid
+
+
+def is_win(state):
+    return False
+'''
+
+
+class _QuotaMultiBlockEnv:
+    """A wide OPEN board whose movement frontier NEVER plateaus within a short budget (every batch
+    reaches fresh cells) yet also carries several DISTINCT-color bumpable blocks (Run-22).
+
+    This is the Run-21 pathology in miniature: with only the exhaustion/plateau handoff, bumps would
+    NEVER fire because the frontier keeps finding new ground. With the bump QUOTA interleave, contact
+    bumps must fire from the start. Each block is a solid wall to BOTH the env and the model, so a bump
+    is a pure no-op on the board (the run never ends) and the four distinct block colors give four
+    dedup-distinct bump targets so bumps keep firing across passes."""
+
+    ACTIONS = ["UP", "DOWN", "LEFT", "RIGHT"]
+
+    def __init__(self, budget: int = 200) -> None:
+        # 3x12 open corridor: avatar at (0,0) with a long clear row0 to sweep (frontier never
+        # plateaus in-budget), and four distinct-color single-cell blocks parked in row2 with empty
+        # approach cells in row1 above each, so each is reachable AND bumpable.
+        self._rows, self._cols = 3, 12
+        self._avatar = (0, 0)
+        # color -> cell; distinct colors => distinct (translation-invariant) object hashes.
+        self._blocks = {(2, 2): 4, (2, 5): 5, (2, 8): 6, (2, 10): 7}
+        self.remaining_actions = budget
+        self.act_calls = 0
+        self._level = 1
+
+    def _grid(self):
+        grid = [[0] * self._cols for _ in range(self._rows)]
+        for (r, c), color in self._blocks.items():
+            grid[r][c] = color
+        grid[self._avatar[0]][self._avatar[1]] = 2
+        return grid
+
+    def observe(self):
+        return {
+            "grid": self._grid(),
+            "level": self._level,
+            "step": 0,
+            "valid_actions": list(self.ACTIONS),
+            "score": 0,
+            "remaining_actions": self.remaining_actions,
+        }
+
+    def _apply_one(self, action: str) -> None:
+        dr, dc = DELTAS[action]
+        ar, ac = self._avatar
+        nr, nc = ar + dr, ac + dc
+        if not (0 <= nr < self._rows and 0 <= nc < self._cols):
+            return
+        if (nr, nc) in self._blocks:
+            return  # blocks are solid to the avatar (a bump is a pure no-op)
+        self._avatar = (nr, nc)
+
+    def act(self, actions, expect=None):
+        self.act_calls += 1
+        executed = []
+        stop_reason = "completed"
+        for index, action in enumerate(actions):
+            name = action.get("action") if isinstance(action, dict) else action
+            self.remaining_actions = max(0, self.remaining_actions - 1)
+            self._apply_one(str(name))
+            executed.append(name)
+            after = self._grid()
+            if expect is not None and index < len(expect) and expect[index] is not None:
+                if not grids_match([list(r) for r in expect[index]], after):
+                    stop_reason = "expect_mismatch"
+                    break
+        frame = {"grid": self._grid(), "level": self._level, "step": 0, "score": 0}
+        return {
+            "current_frame": frame,
+            "action_result": {"score": 0, "done": False},
+            "valid_actions": list(self.ACTIONS),
+            "remaining_actions": self.remaining_actions,
+            "executed": executed,
+            "stop_reason": stop_reason,
+            "done": False,
+        }
+
+
+class BumpQuotaInterleaveTests(unittest.TestCase):
+    """Run-22: contact bump probing is a FIRST-CLASS budget quota interleaved from action 1, not an
+    exhaustion-gated fallback. ~``bump_quota_fraction`` of executed exploration actions are bumps, with
+    a ``exploration_min_bump_actions`` guaranteed floor under a tight budget."""
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _trusted_agent(self, env, source, **cfg):
+        from bench.arc_agi3_zonoid.ewm.world_model import WorldModelProgram
+
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        base = dict(
+            game_id="quota", max_turns=40, min_probe_transitions=1,
+            fast_path_trust_window=2, goal_discovery_min_live_samples=2,
+            goal_discovery_min_live_rate=0.9, max_frontier_batches_per_turn=8,
+            max_interaction_probes_per_turn=6, coverage_persistence=False,
+        )
+        base.update(cfg)
+        ag = EwmAgent(env, FakeLlm([]), kb=FakeKb(max_writes_per_turn=8),
+                      vision_enabled=False, config=AgentConfig(**base))
+        ag.program = WorldModelProgram.load(source)
+        ag._live_results.extend([True, True, True])
+        ag._refresh_model_trust()
+        return ag
+
+    # -- quota decision (unit) --------------------------------------------------------------------
+
+    def test_quota_due_at_start_min_bump_floor(self):
+        # Before any bump fires (bumps_probed=0 < exploration_min_bump_actions) the quota is due from
+        # action 1 — bump probing does NOT wait for a plateau.
+        env = _QuotaMultiBlockEnv()
+        ag = self._trusted_agent(env, QUOTA_MODEL_SOURCE, exploration_min_bump_actions=24)
+        self.assertEqual(ag.summary.bumps_probed, 0)
+        self.assertTrue(ag._bump_quota_due())
+
+    def test_quota_due_tracks_ratio_once_floor_met(self):
+        # Floor met (min=0). Below the 40% share -> due; at/above -> not due.
+        env = _QuotaMultiBlockEnv()
+        ag = self._trusted_agent(
+            env, QUOTA_MODEL_SOURCE, exploration_min_bump_actions=0, bump_quota_fraction=0.4,
+        )
+        ag.summary.bumps_probed = 3      # 3 bumps vs 10 frontier => 3/13 ~= 0.23 < 0.4 -> due
+        ag._explore_frontier_actions = 10
+        self.assertTrue(ag._bump_quota_due())
+        ag.summary.bumps_probed = 6      # 6 vs 6 => 0.5 >= 0.4 -> not due
+        ag._explore_frontier_actions = 6
+        self.assertFalse(ag._bump_quota_due())
+
+    def test_quota_off_when_fraction_zero(self):
+        env = _QuotaMultiBlockEnv()
+        ag = self._trusted_agent(env, QUOTA_MODEL_SOURCE, bump_quota_fraction=0.0)
+        self.assertFalse(ag._bump_quota_due())
+
+    # -- interleave from action 1 (no plateau) ----------------------------------------------------
+
+    def test_quota_fires_bump_on_the_very_first_batch(self):
+        # The frontier NEVER plateaus on this open board (every batch reaches fresh cells), so the
+        # Run-21 exhaustion gate would never hand off to bumps. The quota must still fire a contact bump
+        # on the VERY FIRST exploration batch — before any frontier movement executes — proving bump
+        # probing is a first-class quota, not an exhaustion-gated fallback.
+        env = _QuotaMultiBlockEnv()
+        ag = self._trusted_agent(env, QUOTA_MODEL_SOURCE, exploration_min_bump_actions=24)
+        self.assertEqual(ag.summary.frontier_batches, 0)
+        ag._explore_batch(env.observe())
+        # The first batch was a BUMP batch: contact bumps fired and NO frontier movement ran yet.
+        self.assertGreaterEqual(ag.summary.bumps_probed, 1)
+        self.assertEqual(ag._explore_frontier_actions, 0)
+
+    def test_quota_targets_forty_percent_share_while_targets_remain(self):
+        # While fresh bump targets remain, the quota holds ~40% of executed exploration actions as
+        # contact bumps: it keeps requesting a bump batch whenever the running share dips below the
+        # fraction, and lets the frontier run only until the share is met again. We drive batches until
+        # the block targets are exhausted (dedup) and assert the share stayed at/above the quota over
+        # that window — the first-class 40% behaviour, independent of any plateau.
+        env = _QuotaMultiBlockEnv()
+        # One bump probe + one small frontier batch per pass so the interleave genuinely ALTERNATES
+        # (bump, frontier, bump, ...) rather than firing every block in a single greedy bump batch —
+        # this exercises the running-ratio scheduler, not just the min floor.
+        ag = self._trusted_agent(
+            env, QUOTA_MODEL_SOURCE, exploration_min_bump_actions=0,
+            bump_quota_fraction=0.4, frontier_max_depth=3, bump_probe_repeats=1,
+            max_interaction_probes_per_turn=1,
+        )
+        distinct_blocks = len(ag._bump_contexts(env._grid()))
+        self.assertGreaterEqual(distinct_blocks, 4)
+        # Drive exploration batches until every distinct block class has been bumped (targets drained).
+        for _ in range(40):
+            frame = env.observe()
+            ag._explore_batch(frame)
+            if ag.summary.bumps_probed >= distinct_blocks:
+                break
+        # All distinct block classes were bumped (the quota drained the available targets)...
+        self.assertGreaterEqual(ag.summary.bumps_probed, distinct_blocks)
+        # ...and over the window where targets existed, the bump share met/held the 40% quota (the
+        # frontier was throttled to keep bumps a first-class ~40% share, not an incidental trickle).
+        total = ag.summary.bumps_probed + ag._explore_frontier_actions
+        self.assertGreater(total, 0)
+        self.assertGreaterEqual(ag.summary.bumps_probed / total, 0.4)
+
+    def test_min_bump_guarantee_under_tiny_budget(self):
+        # A tiny action budget must STILL deliver the guaranteed bump floor rather than spending
+        # everything on frontier movement: with min=4 and a small budget, bumps fire before the budget
+        # is exhausted on frontier sweeps.
+        env = _QuotaMultiBlockEnv(budget=24)
+        ag = self._trusted_agent(env, QUOTA_MODEL_SOURCE, exploration_min_bump_actions=4,
+                                 bump_quota_fraction=0.4, max_turns=30)
+        ag.run()
+        # The guarantee held: at least one contact bump fired under the tight budget (frontier did not
+        # monopolise the whole budget as it did pre-Run-22).
+        self.assertGreaterEqual(ag.summary.bumps_probed, 1)
+
+    def test_dedup_respects_persisted_probes_on_quota_path(self):
+        # The quota interleave shares the SAME persisted _fired_probes dedup as the exhaustion path: a
+        # block whose class a prior run already bumped is not re-bumped, even when the quota is due.
+        env = _QuotaMultiBlockEnv()
+        ag = self._trusted_agent(env, QUOTA_MODEL_SOURCE, exploration_min_bump_actions=24)
+        # Seed every block's object class as already bumped by a prior run.
+        contexts = ag._bump_contexts(env._grid())
+        self.assertGreaterEqual(len(contexts), 1)
+        for (obj_hash, _a, _b, _c) in contexts:
+            ag._fired_probes.add((ag._BUMP_MARKER, obj_hash))
+        before = ag.summary.bumps_probed
+        # Quota is due, but every target is deduped -> _bump_discovery finds nothing new to bump and
+        # the batch falls through to a frontier step (no new bump fired).
+        self.assertTrue(ag._bump_quota_due())
+        ag._explore_batch(env.observe())
+        self.assertEqual(ag.summary.bumps_probed, before)
+
+
+
 class _CoverageKbClient:
     """KbClient stand-in for coverage resume: returns a native full-body coverage note for the index
     hit so read_coverage_state's preferred (native) path recovers it in one call."""
