@@ -10,3 +10,8 @@
 {"evt":"edge_removed","from":"note:note-mr6p3nheta6","to":"note:note-mr5i8jmlosb","kind":"context","actor":"overlay-sync","ts":"2026-07-04T18:40:03.193Z"}
 {"evt":"edge_removed","from":"note:note-mr6p3nheta6","to":"note:note-mr6httweaeo","kind":"context","actor":"overlay-sync","ts":"2026-07-04T18:46:02.559Z"}
 {"evt":"edge_added","from":"note:note-mr6p3nheta6","to":"codex/ewm-model-quantum-interaction-discovery-stride-agnostic-run-twenty-seven","kind":"context","actor":"overlay-sync","ts":"2026-07-04T19:10:28.975Z","origin":"subconscious-assignment"}
+{"evt":"note_superseded","id":"note-mr6p3nheta6","supersededBy":"note-mr6r3yco9dm","validTo":"2026-07-04T19:24:24.360Z","ts":"2026-07-04T19:24:24.360Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mr6p3nheta6","to":"knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-2","kind":"context","actor":"overlay-sync","ts":"2026-07-04T19:32:03.978Z"}
+{"evt":"edge_removed","from":"note:note-mr6p3nheta6","to":"knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-2","kind":"context","actor":"overlay-sync","ts":"2026-07-04T19:32:03.978Z"}
+{"evt":"edge_removed","from":"note:note-mr6p3nheta6","to":"note:note-mr5hu8iwax0","kind":"context","actor":"overlay-sync","ts":"2026-07-04T19:32:03.978Z"}
+{"evt":"edge_removed","from":"note:note-mr6p3nheta6","to":"codex/ewm-model-quantum-interaction-discovery-stride-agnostic-run-twenty-seven","kind":"context","actor":"overlay-sync","ts":"2026-07-04T19:32:03.978Z"}
