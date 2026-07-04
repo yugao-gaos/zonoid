@@ -1547,7 +1547,7 @@
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "tested",
-      "summary": "Divergence-tolerance policy + live run 18 (see commit f14a7f736). 3 divergences tolerated, 0 repairs, 80 uninterrupted actions, 2.35 actions/min, llm_calls_per_action 0.61. 327 tests + smoke green. No level cleared.",
+      "summary": "Run-22: contact bump probing is now a first-class exploration budget quota (bump_quota_fraction=0.4, exploration_min_bump_actions=24) interleaved from action 1 via _explore_batch/_bump_quota_due; plateau/exhaustion handoff kept as bonus. Driver --max-actions forwards cleanly. Full ewm suite 359 passed + driver --smoke green. Committed 0079169fe.",
       "category": null,
       "tags": [],
       "knowledge": [],
@@ -1556,7 +1556,7 @@
       "code_node": null,
       "entity_node": null,
       "snapshot": null,
-      "assignee": "worker-ewm-tolerance",
+      "assignee": "worker-ewm-quota",
       "timestamps": {
         "firstSeen": "2026-06-11T17:23:25.748Z",
         "lastChanged": "2026-07-03T00:40:13.853Z",
@@ -243523,6 +243523,82 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "codex/ewm-bump-quota-interleave-action-budget-raise": {
+      "id": "codex/ewm-bump-quota-interleave-action-budget-raise",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "failed",
+      "summary": "Run-22: made contact bump probing a first-class exploration budget quota (bump_quota_fraction=0.4, exploration_min_bump_actions=24) interleaved from action 1 via _explore_batch/_bump_quota_due; plateau/exhaustion handoff kept as bonus. Driver --max-actions forwards cleanly. Full ewm suite 359 passed + driver --smoke green. Committed 0079169fe.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM bump quota interleave action budget raise",
+        "description": "Run-21 lever 1+3: stop gating contact probes on frontier exhaustion (which never fires — every batch finds a fresh crumb). In bench/arc_agi3_zonoid/ewm/ (agent.py + driver.py, +tests): (1) BUMP QUOTA INTERLEAVE — config bump_quota_fraction (default 0.4): from the START of exploration, alternate frontier batches with bump-probe batches so ~40% of actions go to contact probing (cheapest-to-reach untried (bump, object-class) targets per segmentation, persisted dedup respected); exhaustion/plateau gating becomes a bonus trigger, not the only path. (2) ACTION BUDGET — driver --max-actions default stays but live_run accepts and passes through larger values cleanly; add config exploration_min_bump_actions (default 24) guaranteeing bumps get their quota even under tight budgets. Tests: quota interleave delivers ~40% bump actions on the toy game from action 1 (no plateau needed); push-block toy still solved; quota respects persisted dedup. Full suite + --smoke green. DO NOT run live — build/test/commit/complete only; the dispatcher fires run 22 after the parallel daemon fix lands.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-04T11:12:07.293Z"
+      },
+      "assignee": "worker-ewm-quota",
+      "timestamps": {
+        "firstSeen": "2026-07-04T11:12:07.293Z",
+        "lastChanged": "2026-07-04T11:37:18.880Z",
+        "lastStatus": "failed"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one": {
+      "id": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM plateau gate bump first healthy daemon run twenty one",
+        "description": "Run 20's mechanisms are merged and test-proven but never fired live: the bump gate needs 2 consecutive plateau batches (too conservative for an 80-action budget re-sweeping known ground) and the CPU-pegged daemon starved coverage save/resume (4th consecutive run with degraded KB). Small fixes + a healthy-daemon run: (1) config coverage_plateau_exhaust default 2 -> 1, AND bump-first ordering: when resumed/persisted coverage already contains the current frontier region (re-sweeping known ground), skip straight to interaction/bump probing before further frontier batches. (2) PRE-RUN DAEMON HEALTH: check the live daemon (ps CPU% of the :8787 listener + a timed /search probe); if pegged/slow, bounce it with the proven procedure (launchctl kickstart -k com.zonoid.daemon; verify /state, /task/detail, /note/get, drains ticking) BEFORE the run so ORIENT/coverage/notes actually function. (3) Tests: plateau=1 hands off to bumps within a short toy budget; bump-first path when coverage is resumed. Full suite + --smoke green. LIVE RUN 21: standard command (--graph on, 80 actions/1500s), foreground bounded wait. Report daemon health action taken, coverage_resumed_pct, bumps probed/found + effects, boundary?, LEVELS_COMPLETED, scorecard; write out/ewm-ls20-ewm-warmstart10.json + append arm. Truthful either way. Commit code + artifacts.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-04T05:36:13.701Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-04T05:36:13.701Z",
+        "lastChanged": "2026-07-04T05:59:36.441Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -278591,17 +278667,10 @@
       "from": "note:note-mr5efmyx6hw",
       "to": "codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen",
       "kind": "context",
+      "by": "judge",
+      "judged": true,
       "origin": "subconscious-assignment",
-      "by": "autowire",
-      "judged": false
-    },
-    {
-      "from": "note:note-mr5efmyx6hw",
-      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
-      "kind": "context",
-      "origin": "subconscious-assignment",
-      "by": "autowire",
-      "judged": false
+      "weight": 0.5
     },
     {
       "from": "note:note-mr5hu8iwax0",
@@ -279066,6 +279135,254 @@
       "origin": "subconscious-assignment"
     },
     {
+      "from": "knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-3",
+      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "kind": "context",
+      "weight": 0.365,
+      "by": "judge",
+      "judged": true,
+      "score": 0.365,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
+      "to": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
+      "kind": "context",
+      "weight": 0.355,
+      "by": "judge",
+      "judged": true,
+      "score": 0.355,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "kind": "context",
+      "weight": 0.306,
+      "by": "judge",
+      "judged": true,
+      "score": 0.306,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
+      "to": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.504,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-1",
+      "to": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
+      "kind": "context",
+      "weight": 0.359,
+      "by": "judge",
+      "judged": true,
+      "score": 0.359,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr47mxx2ty3",
+      "to": "note:note-mr49q8juxow",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mr4dujpkkos",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "kind": "context",
+      "weight": 0.449,
+      "by": "judge",
+      "judged": true,
+      "score": 0.449,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr534gig0ek",
+      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.435,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5i8jmlosb",
+      "to": "note:note-mr51e6x60dd",
+      "kind": "context",
+      "weight": 0.714,
+      "by": "judge",
+      "judged": true,
+      "score": 0.714,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5l0el0i0k",
+      "to": "note:note-mr43rk1dmy0",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.702,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5l0el0i0k",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "kind": "context",
+      "weight": 0.462,
+      "by": "judge",
+      "judged": true,
+      "score": 0.462,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5njd22m3l",
+      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "kind": "context",
+      "weight": 0.426,
+      "by": "judge",
+      "judged": true,
+      "score": 0.426,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5pulqbnxg",
+      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5pulqbnxg",
+      "to": "note:note-mr5optj7omb",
+      "kind": "context",
+      "weight": 0.658,
+      "by": "judge",
+      "judged": true,
+      "score": 0.658,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5pulqbnxg",
+      "to": "note:note-mr5opzilpv1",
+      "kind": "context",
+      "weight": 0.658,
+      "by": "judge",
+      "judged": true,
+      "score": 0.658,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5pulqbnxg",
+      "to": "note:note-mr5njd22m3l",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.749,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5r0rqzbmh",
+      "to": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5w5bfj6do",
+      "to": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5w5bfj6do",
+      "to": "note:note-mqvr2wl8lre",
+      "kind": "context",
+      "weight": 0.553,
+      "by": "judge",
+      "judged": true,
+      "score": 0.553,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5xad0sam6",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5xad0sam6",
+      "to": "note:note-mr5w5bfj6do",
+      "kind": "context",
+      "weight": 0.73,
+      "by": "judge",
+      "judged": true,
+      "score": 0.73,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5xad0sam6",
+      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "kind": "context",
+      "weight": 0.512,
+      "by": "judge",
+      "judged": true,
+      "score": 0.512,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
+      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.52,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
+      "to": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
+      "to": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.512,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
       "to": "note:note-mqqqrlczyc2",
       "kind": "context",
@@ -279114,16 +279431,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-4",
-      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.3,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "knowledge:source_chunk:note-mqqpqf49a5m#note-evidence:chunk-3",
       "to": "note:note-mqqt68limis",
       "kind": "context",
@@ -279142,62 +279449,13 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-1",
-      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.347,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-2",
-      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.345,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-3",
-      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.365,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
-      "to": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
-      "kind": "context",
-      "weight": 0.355,
+      "weight": 0.502,
       "by": "judge",
       "judged": true,
-      "score": 0.355,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
-      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.306,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
-      "to": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.504,
+      "score": 0.502,
       "origin": "autowire-semantic"
     },
     {
@@ -279223,16 +279481,6 @@
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-1",
-      "to": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
-      "kind": "context",
-      "weight": 0.359,
-      "by": "judge",
-      "judged": true,
-      "score": 0.359,
-      "origin": "autowire-semantic"
     },
     {
       "from": "knowledge:source_doc:note-mqqnit1ph68",
@@ -279571,16 +279819,6 @@
       "kind": "context",
       "weight": 0.7,
       "judged": true
-    },
-    {
-      "from": "note:note-mq7hef4k5vk",
-      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.418,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mq7hef5qoyk",
@@ -284643,6 +284881,16 @@
       "judged": true
     },
     {
+      "from": "note:note-mqqyd0ugp2b",
+      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
+      "kind": "context",
+      "weight": 0.499,
+      "by": "judge",
+      "judged": true,
+      "score": 0.499,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqr2jk9hawd",
       "to": "note:note-mqqtne9zs3u",
       "kind": "context",
@@ -284982,44 +285230,6 @@
       "origin": "subconscious-agentic-search"
     },
     {
-      "from": "note:note-mr43cv6pydy",
-      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.474,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr47mxx2ty3",
-      "to": "note:note-mr49q8juxow",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
-    },
-    {
-      "from": "note:note-mr48a5ra7bz",
-      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.469,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr4dujpkkos",
-      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.449,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mr534gig0ek",
       "to": "codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen",
       "kind": "context",
@@ -285029,21 +285239,12 @@
     },
     {
       "from": "note:note-mr534gig0ek",
-      "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.435,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5b375dvnh",
-      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "to": "codex/ewm-bump-quota-interleave-action-budget-raise",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.487,
+      "score": 0.394,
       "origin": "autowire-semantic"
     },
     {
@@ -285054,16 +285255,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.816,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5efmyx6hw",
-      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.418,
       "origin": "autowire-semantic"
     },
     {
@@ -285085,35 +285276,6 @@
       "origin": "asserted"
     },
     {
-      "from": "note:note-mr5i8jmlosb",
-      "to": "note:note-mr51e6x60dd",
-      "kind": "context",
-      "weight": 0.714,
-      "by": "judge",
-      "judged": true,
-      "score": 0.714,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5l0el0i0k",
-      "to": "note:note-mr43rk1dmy0",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.702,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5l0el0i0k",
-      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
-      "kind": "context",
-      "weight": 0.462,
-      "by": "judge",
-      "judged": true,
-      "score": 0.462,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mr5lqjqbaai",
       "to": "note:note-mqi4uvwuwo8",
       "kind": "context",
@@ -285124,105 +285286,40 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr5njd22m3l",
-      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.426,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5pulqbnxg",
-      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5pulqbnxg",
-      "to": "note:note-mr5optj7omb",
-      "kind": "context",
-      "weight": 0.658,
-      "by": "judge",
-      "judged": true,
-      "score": 0.658,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5pulqbnxg",
-      "to": "note:note-mr5opzilpv1",
-      "kind": "context",
-      "weight": 0.658,
-      "by": "judge",
-      "judged": true,
-      "score": 0.658,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5pulqbnxg",
-      "to": "note:note-mr5njd22m3l",
+      "from": "note:note-mr5lqjqbaai",
+      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
       "kind": "blocking",
       "by": "judge",
       "judged": true,
-      "score": 0.749,
+      "score": 0.531,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr5r0rqzbmh",
-      "to": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
+      "from": "note:note-mr5optj7omb",
+      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
       "kind": "context",
-      "weight": 1,
+      "weight": 0.491,
+      "by": "judge",
       "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5w5bfj6do",
-      "to": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr5w5bfj6do",
-      "to": "note:note-mr5l0el0i0k",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.6,
+      "score": 0.491,
       "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mr5w5bfj6do",
       "to": "note:note-mr5hxwtjf2m",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.556,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5w5bfj6do",
-      "to": "note:note-mqvr2wl8lre",
-      "kind": "context",
-      "weight": 0.553,
+      "weight": 0.556,
       "by": "judge",
       "judged": true,
-      "score": 0.553,
+      "score": 0.556,
       "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mr5w66frk68",
       "to": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
       "score": 0.616,
       "origin": "autowire-semantic"
     },
@@ -285238,40 +285335,36 @@
     },
     {
       "from": "note:note-mr5xad0sam6",
-      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "to": "codex/ewm-bump-quota-interleave-action-budget-raise",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.368,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5y9i24316",
+      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "kind": "blocking",
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5y9o2i9wy",
+      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
       "kind": "context",
       "weight": 1,
       "judged": true,
       "origin": "asserted"
     },
     {
-      "from": "note:note-mr5xad0sam6",
-      "to": "note:note-mr5w5bfj6do",
+      "from": "note:note-mr5y9o2i9wy",
+      "to": "note:note-mr5xad0sam6",
       "kind": "context",
-      "weight": 0.73,
+      "weight": 0.753,
       "by": "judge",
       "judged": true,
-      "score": 0.73,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5xad0sam6",
-      "to": "note:note-mr5pulqbnxg",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.587,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5xad0sam6",
-      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.512,
+      "score": 0.753,
       "origin": "autowire-semantic"
     },
     {
@@ -285392,116 +285485,25 @@
       "judged": true
     },
     {
-      "from": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
-      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.552,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
-      "to": "codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.53,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
-      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
+      "from": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
       "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
       "kind": "blocking",
       "by": "judge",
       "judged": true,
-      "score": 0.52,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
-      "to": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
-      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
       "score": 0.51,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen",
-      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
-      "to": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
+      "from": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "to": "codex/ewm-bump-quota-interleave-action-budget-raise",
       "kind": "context",
       "origin": "subconscious-assignment"
     },
     {
       "from": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
-      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.445,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
-      "to": "codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.442,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
-      "to": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.424,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
-      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.416,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
-      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.512,
-      "origin": "autowire-semantic"
+      "origin": "subconscious-assignment"
     },
     {
       "from": "codex/fix-consolidate-universal-skills-kickback",
@@ -285668,5 +285670,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-07-04T05:50:20.192Z"
+  "compacted_at": "2026-07-04T11:39:56.079Z"
 }
