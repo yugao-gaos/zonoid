@@ -9,3 +9,4 @@
 {"evt":"edge_removed","from":"note:note-mr4zl6nk8f5","to":"note:note-mr47mxx2ty3","kind":"context","actor":"overlay-sync","ts":"2026-07-03T14:15:36.959Z"}
 {"evt":"edge_removed","from":"note:note-mr4zl6nk8f5","to":"note:note-mr45ykxy4rf","kind":"context","actor":"overlay-sync","ts":"2026-07-03T14:37:00.098Z"}
 {"evt":"edge_removed","from":"note:note-mr4zl6nk8f5","to":"note:note-mr43rk1dmy0","kind":"context","actor":"overlay-sync","ts":"2026-07-03T15:23:03.974Z"}
+{"evt":"edge_added","from":"note:note-mr4zl6nk8f5","to":"codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four","kind":"context","actor":"overlay-sync","ts":"2026-07-04T14:00:24.744Z","weight":0,"by":"autowire","judged":false,"score":0.426,"origin":"autowire-semantic"}
