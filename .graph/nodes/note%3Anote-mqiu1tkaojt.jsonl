@@ -16,3 +16,4 @@
 {"evt":"note_supersedes","id":"note-mqiu1tkaojt","supersedes":"note-mq7hefalghc","ts":"2026-06-18T01:40:15.466Z","actor":"supersede"}
 {"evt":"edge_added","from":"note:note-mqiu1tkaojt","to":"ce0b4fd0-93df-4f10-99aa-49b7156c351a/1","kind":"context","actor":"overlay-sync","ts":"2026-07-01T02:22:53.887Z","weight":0.374,"judged":true}
 {"evt":"edge_added","from":"note:note-mqiu1tkaojt","to":"3875ca4b-760e-41d4-b17b-98619b23b5e5/2","kind":"context","actor":"overlay-sync","ts":"2026-07-01T02:22:53.887Z","weight":0.5,"by":"judge","judged":true}
+{"evt":"edge_added","from":"note:note-mqiu1tkaojt","to":"codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix","kind":"context","actor":"overlay-sync","ts":"2026-07-04T11:15:53.790Z","weight":0,"by":"autowire","judged":false,"score":0.506,"origin":"autowire-semantic"}
