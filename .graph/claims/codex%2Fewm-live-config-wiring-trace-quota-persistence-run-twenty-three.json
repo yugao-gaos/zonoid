@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/ewm-live-config-wiring-trace-quota-persistence-run-twenty-three",
+  "git_user": "test <test@example.com>",
+  "session_id": "worker-ewm-trace23",
+  "branch": "orch/attempt/codex-ewm-live-config-wiring-trace-quota-persistence-run-twenty-three",
+  "status": "claimed",
+  "claimed_at": "2026-07-04T12:55:33.977Z",
+  "lease_until": "2026-07-04T13:55:33.977Z"
+}
