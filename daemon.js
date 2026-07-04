@@ -2544,8 +2544,11 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
 }
 
 // Build the graph for one workspace: explicit reconciliation side effects, then projection.
-function buildGraph(ws) {
-  if (!ws) return { tasks: [], ghosts: [], summary: summaryFor([], [], overlayStore.EMPTY()) };
+// Graph snapshot cache (shared by buildGraph + readGraphSnapshot). Keyed by the overlay file mtime —
+// the SAME stamp the overlay + response caches use — so any mutation rebuilds immediately, but repeated
+// reads over a stable overlay reuse ONE projection.
+const snapCache = new Map();   // ws -> { graph, stamp }
+function buildGraphUncached(ws) {
   // P3: every workspace's overlay is the per-workspace cache entry (overlayFor) — there is no
   // special "current" workspace. The cache entry is the authoritative, write-coalesced in-memory
   // store for ANY workspace, so lifecycle reconciliation runs for every valid ws.
@@ -2555,24 +2558,26 @@ function buildGraph(ws) {
   commitGraphProjectionEffects(ws, ovWs, projection.effects);
   return { tasks: projection.tasks, ghosts: projection.ghosts, summary: summaryFor(projection.tasks, projection.ghosts, ovWs) };
 }
-
-// Search-path graph snapshot cache. The agentic context-search compiler (lib/search/context-compiler.js)
-// reads the graph ONCE PER ROUND (up to MAX_SEARCH_CONTEXT_ROUNDS rounds per /subconscious/search-context
-// request). With no readGraphSnapshot on the ctx it fell back to calling the synchronous buildGraph()
-// every round — a full projection (O(graph)) repeated 4-6x per request, the measured search-latency
-// climb. Cache the built graph per workspace, keyed by the overlay file mtime (the SAME stamp the
-// overlay + response caches use) so any mutation rebuilds immediately; within one read-only multi-round
-// search the stamp is stable, so the whole request reuses ONE buildGraph. buildGraph may itself save the
-// overlay (first-seen stamping / adopt), so re-stamp AFTER building — mirrors respCachePut.
-const snapCache = new Map();   // ws -> { graph, stamp }
-function readGraphSnapshot(ws) {
-  if (!ws) return { graph: buildGraph(ws), overlay: overlayStore.EMPTY() };
+// CPU hot-loop fix: buildGraph was UNCACHED, and ~50 route callers (/task/detail, /label, /judge,
+// /git, /graph …) each ran a full O(tasks) projection per call. The label drain alone fires ~220
+// /task/detail probes per tick — that many fresh projections kept the daemon pegged even while idle.
+// Cache on the overlay mtime: a stable overlay (no write) serves the cached projection; any write bumps
+// the mtime and the next call rebuilds. buildGraphUncached commits first-seen/adoption effects on the
+// building call, so a cache hit (stamp unchanged ⇒ nothing changed) has no pending effects to run.
+function buildGraph(ws) {
+  if (!ws) return { tasks: [], ghosts: [], summary: summaryFor([], [], overlayStore.EMPTY()) };
   const stamp = overlayStamp(ws);
   const hit = snapCache.get(ws);
-  if (hit && hit.stamp === stamp) return { graph: hit.graph, overlay: overlayFor(ws) };
-  const graph = buildGraph(ws);
+  if (hit && hit.stamp === stamp) return hit.graph;
+  const graph = buildGraphUncached(ws);
+  // Re-stamp AFTER building: buildGraphUncached may itself save the overlay (first-seen stamping /
+  // adopt), so the post-build mtime is the one a subsequent read must match to hit — mirrors respCachePut.
   snapCache.set(ws, { graph, stamp: overlayStamp(ws) });
-  return { graph, overlay: overlayFor(ws) };
+  return graph;
+}
+function readGraphSnapshot(ws) {
+  if (!ws) return { graph: buildGraph(ws), overlay: overlayStore.EMPTY() };
+  return { graph: buildGraph(ws), overlay: overlayFor(ws) };
 }
 
 function summaryFor(tasks, ghosts, ov = overlayStore.EMPTY()) {
