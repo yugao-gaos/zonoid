@@ -718,5 +718,76 @@ class StrippedNewGameEntryTest(unittest.TestCase):
         self.assertNotRegex("mechanism hypothesis gravity pull", r"\b[a-z]{2,}\d+\b")
 
 
+class CoverageStateCodecTest(unittest.TestCase):
+    """Run-20: the cross-run coverage codec must round-trip visited cells + fired probes exactly, and
+    RUN-LENGTH encode a contiguously-swept row so the body stays compact."""
+
+    def test_encode_decode_round_trip(self) -> None:
+        visited = {(1, 0, 0), (1, 0, 1), (1, 0, 2), (1, 2, 5), (2, 3, 3)}
+        probes = {("SPACE", "objA"), ("<bump>", "objB"), ("FIRE", None)}
+        body = kb_protocol.encode_coverage_state(
+            visited, probes, board_cells=225, coverage_plateau=2
+        )
+        out = kb_protocol.decode_coverage_state(body)
+        self.assertEqual(out["visited"], visited)
+        self.assertEqual(out["probes"], probes)
+        self.assertEqual(out["board"], 225)
+        self.assertEqual(out["plateau"], 2)
+
+    def test_contiguous_row_is_one_range(self) -> None:
+        visited = {(1, 0, c) for c in range(10)}  # a fully-swept row
+        body = kb_protocol.encode_coverage_state(visited, set())
+        # RLE: the ten columns collapse to a single "0-9" range on one visited line.
+        self.assertIn("1|0|0-9", body)
+        self.assertEqual(kb_protocol.decode_coverage_state(body)["visited"], visited)
+
+    def test_deterministic_encoding(self) -> None:
+        visited = {(1, 2, 3), (1, 0, 0), (2, 1, 1)}
+        probes = {("B", "y"), ("A", "x")}
+        a = kb_protocol.encode_coverage_state(visited, probes)
+        b = kb_protocol.encode_coverage_state(set(visited), set(probes))
+        self.assertEqual(a, b)  # sorted ordering -> identical body for an unchanged run
+
+    def test_corrupt_lines_skipped(self) -> None:
+        body = "coverage state v1\nvisited\n1|0|0-2\ngarbage line\nprobes\nSPACE:objA\nnosep\n"
+        out = kb_protocol.decode_coverage_state(body)
+        self.assertEqual(out["visited"], {(1, 0, 0), (1, 0, 1), (1, 0, 2)})
+        self.assertEqual(out["probes"], {("SPACE", "objA")})
+
+
+class CoverageStateRoundTripTest(unittest.TestCase):
+    """Run-20: write_coverage_state + read_coverage_state must round-trip a large coverage body through
+    the same truncating daemon that clips writes to 2000 and reads to 1200 (chunk fallback path)."""
+
+    def _big_state(self):
+        # A coverage set large enough to force multiple chunk notes (>1200 chars encoded).
+        visited = {(1, r, c) for r in range(30) for c in range(0, 30, 2)}
+        probes = {("<bump>", f"obj{i}") for i in range(20)}
+        return visited, probes
+
+    def test_round_trip_through_truncating_daemon(self) -> None:
+        visited, probes = self._big_state()
+        body = kb_protocol.encode_coverage_state(visited, probes, board_cells=900)
+        self.assertGreater(len(body), kb_protocol.CHUNK_BODY_LIMIT)  # must span chunks
+
+        daemon = _TruncatingDaemon()
+        gate = WriteGate(_client(), max_writes_per_turn=2)
+        with mock.patch.object(kb_protocol.request, "urlopen", daemon):
+            written = gate.write_coverage_state("ls20", body)
+            self.assertTrue(written["ok"])
+            self.assertEqual(len(daemon.notes), written["chunks"] + 1)  # index + chunks
+            # Recall (native get_note_full unavailable on this daemon -> chunk-reassembly fallback).
+            out = kb_protocol.read_coverage_state(_client(), "ls20")
+        self.assertIsNotNone(out)
+        self.assertEqual(out["visited"], visited)
+        self.assertEqual(out["probes"], probes)
+
+    def test_missing_game_returns_none(self) -> None:
+        daemon = _TruncatingDaemon()
+        with mock.patch.object(kb_protocol.request, "urlopen", daemon):
+            out = kb_protocol.read_coverage_state(_client(), "nogame99")
+        self.assertIsNone(out)  # no coverage note -> fresh sweep
+
+
 if __name__ == "__main__":
     unittest.main()

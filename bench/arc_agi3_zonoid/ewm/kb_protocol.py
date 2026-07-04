@@ -160,6 +160,144 @@ def reassemble_chunks(
     return source
 
 
+# --------------------------------------------------------------------------------------------------
+# Cross-run coverage state codec (Run-20)
+# --------------------------------------------------------------------------------------------------
+#
+# At run end the agent persists the ground it swept — the visited player cells, the fired interaction
+# probes, and the movement-frontier plateau — as ONE game-scoped note so the NEXT run's ORIENT resumes
+# the frontier instead of re-sweeping. The body must survive the same note mangling as a program note
+# (write clip 2000 / read cap 1200 / source-cluster rewrite >= 1000 when source-like). A coverage body
+# is pure digits/separators, which trips the grid-dump write guard AND the source-cluster heuristic, so
+# it is stored through the SAME chunked-note scheme as a program: an index note plus chunk notes each
+# under CHUNK_BODY_LIMIT. Cells are RUN-LENGTH encoded per (level, row) so a swept region stays compact.
+
+# Coordinate lists in the coverage body are digit-heavy, so the coverage index/chunk bodies would trip
+# looks_like_grid_dump. The coverage writer therefore bypasses the per-turn WriteGate dump guard on
+# purpose (a coverage note is telemetry the agent owns, never a leaked frame), using the raw client.
+
+
+def encode_coverage_state(
+    visited_cells: "set[tuple[Any, int, int]]",
+    fired_probes: "set[tuple[str, Any]]",
+    *,
+    board_cells: int = 0,
+    coverage_plateau: int = 0,
+) -> str:
+    """Encode the run's swept ground into a compact, standalone-token body.
+
+    ``visited_cells`` are ``(level, row, col)`` triples; ``fired_probes`` are ``(action, object_hash)``
+    pairs. The body has three sections:
+
+    * ``visited`` — one line per ``level|row`` carrying a RUN-LENGTH encoding of that row's covered
+      columns as ``a-b`` ranges (``5`` for a single column), so a contiguously swept row is one range.
+    * ``probes`` — one ``action:object_hash`` token per fired probe (``action:.`` for the in-place
+      None-object context), so persisted dedup survives across runs.
+    * a ``meta`` line carrying the board cell count and the plateau counter.
+
+    Deterministic ordering (sorted) keeps the encoding stable so an unchanged run round-trips to an
+    identical body (and the note is not needlessly rewritten)."""
+
+    by_row: dict[tuple[Any, int], list[int]] = {}
+    for level, r, c in visited_cells:
+        by_row.setdefault((level, int(r)), []).append(int(c))
+    visited_lines: list[str] = []
+    for (level, r) in sorted(by_row, key=lambda k: (str(k[0]), k[1])):
+        cols = sorted(set(by_row[(level, r)]))
+        ranges: list[str] = []
+        start = prev = cols[0]
+        for c in cols[1:]:
+            if c == prev + 1:
+                prev = c
+                continue
+            ranges.append(f"{start}-{prev}" if start != prev else f"{start}")
+            start = prev = c
+        ranges.append(f"{start}-{prev}" if start != prev else f"{start}")
+        visited_lines.append(f"{level}|{r}|{','.join(ranges)}")
+
+    probe_tokens = sorted(
+        f"{action}:{'.' if obj_hash is None else obj_hash}"
+        for (action, obj_hash) in fired_probes
+    )
+
+    lines = ["coverage state v1", f"meta board {int(board_cells)} plateau {int(coverage_plateau)}"]
+    lines.append("visited")
+    lines.extend(visited_lines)
+    lines.append("probes")
+    lines.extend(probe_tokens)
+    return "\n".join(lines)
+
+
+def decode_coverage_state(body: str) -> dict[str, Any]:
+    """Inverse of :func:`encode_coverage_state`. Returns ``{"visited": set, "probes": set, "board":
+    int, "plateau": int}``. Malformed lines are skipped (a partially corrupt note degrades to whatever
+    ground it can recover, never a crash)."""
+
+    visited: set[tuple[Any, int, int]] = set()
+    probes: set[tuple[str, Any]] = set()
+    board = 0
+    plateau = 0
+    section = ""
+    for raw in (body or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("meta "):
+            m_board = re.search(r"\bboard\s+(\d+)", line)
+            m_plateau = re.search(r"\bplateau\s+(\d+)", line)
+            if m_board:
+                board = int(m_board.group(1))
+            if m_plateau:
+                plateau = int(m_plateau.group(1))
+            continue
+        if line in ("visited", "probes"):
+            section = line
+            continue
+        if section == "visited":
+            parts = line.split("|")
+            if len(parts) != 3:
+                continue
+            level_tok, row_tok, ranges_tok = parts
+            level: Any = int(level_tok) if re.fullmatch(r"-?\d+", level_tok) else (
+                None if level_tok == "None" else level_tok
+            )
+            try:
+                r = int(row_tok)
+            except ValueError:
+                continue
+            for span in ranges_tok.split(","):
+                span = span.strip()
+                if not span:
+                    continue
+                if "-" in span:
+                    lo_s, hi_s = span.split("-", 1)
+                    try:
+                        lo, hi = int(lo_s), int(hi_s)
+                    except ValueError:
+                        continue
+                    for c in range(lo, hi + 1):
+                        visited.add((level, r, c))
+                else:
+                    try:
+                        visited.add((level, r, int(span)))
+                    except ValueError:
+                        continue
+        elif section == "probes":
+            action, sep, obj = line.partition(":")
+            if not sep:
+                continue
+            probes.add((action, None if obj == "." else obj))
+    return {"visited": visited, "probes": probes, "board": board, "plateau": plateau}
+
+
+def coverage_chunk_title(game_id: str, n: int, total: int) -> str:
+    """Exact title for chunk ``n`` of ``total`` of ``game_id``'s coverage state. Drops the ``coverage``
+    superset the INDEX title carries (``game <id> coverage state`` vs ``game <id> coverage chunk n of
+    N``) for the same index-vs-chunk ranking reason as :func:`program_chunk_title`."""
+
+    return _title("game", game_id, "coverage chunk", n, "of", total)
+
+
 class KbClient:
     """Minimal stdlib HTTP client for the Zonoid daemon KB.
 
@@ -523,6 +661,78 @@ def search_for_mode(
     return client.search(q, k=4, gated=False)
 
 
+def read_coverage_state(client: Any, game_id: str) -> dict[str, Any] | None:
+    """Recall the cross-run COVERAGE STATE note for ``game_id`` and decode it (Run-20 resume path).
+
+    Resolves the index note ``game <id> coverage state`` (the game-scoped hit that is not a chunk note),
+    then recovers its full body: NATIVELY via ``client.get_note_full`` when the client exposes it
+    (the daemon reassembles the chunk cluster in one call), else by fetching each chunk note by its exact
+    title and reassembling under the chunk-count / byte-length invariant. Returns the
+    :func:`decode_coverage_state` dict, or ``None`` on any miss/corruption so the caller degrades to a
+    FRESH sweep. Never raises on a KB outage (the client swallows network errors)."""
+
+    q = " ".join(_dedupe(["game", *_tokens(game_id), "coverage", "state"]))
+    try:
+        hits = _search_full_content(client, q, k=20)
+    except Exception:  # noqa: BLE001 - a KB outage degrades to a fresh sweep
+        return None
+    scoped = [h for h in hits if _is_game_scoped(h, game_id)]
+    index_hits = [
+        h for h in scoped if not _is_chunk_note(h) and not _is_cluster_artifact(h)
+    ]
+    # Prefer an index whose body actually carries the chunk-count field (a real coverage index).
+    indexed = [
+        h for h in index_hits
+        if _INDEX_CHUNKS_RE.search(_note_text(h) + " " + str(h.get("content", "")))
+    ]
+    candidates = indexed or index_hits
+    if not candidates:
+        return None
+    index = candidates[0]
+
+    # Preferred: native full-body read reassembles the whole coverage body in one daemon call.
+    key = index.get("key") or index.get("id")
+    get_full = getattr(client, "get_note_full", None)
+    if key and callable(get_full):
+        try:
+            resp = get_full(key)
+        except Exception:  # noqa: BLE001
+            resp = None
+        if isinstance(resp, dict) and resp.get("ok") and isinstance(resp.get("full_body"), str):
+            decoded = decode_coverage_state(resp["full_body"])
+            if decoded["visited"] or decoded["probes"]:
+                return decoded
+
+    # Fallback: fetch chunk notes by exact title and reassemble under the count/length invariant.
+    index_text = _note_text(index) + " " + str(index.get("content", ""))
+    m_count = _INDEX_CHUNKS_RE.search(index_text)
+    m_len = _INDEX_LENGTH_RE.search(index_text)
+    if not m_count or not m_len:
+        return None
+    total = int(m_count.group(1))
+    length = int(m_len.group(1))
+    chunk_bodies: list[str] = []
+    for n in range(1, total + 1):
+        title = coverage_chunk_title(game_id, n, total)
+        try:
+            chits = _search_full_content(client, title, k=6)
+        except Exception:  # noqa: BLE001
+            return None
+        body = None
+        for h in chits:
+            if _is_game_scoped(h, game_id) and "chunk" in _tokens(h.get("title", "")):
+                body = str(h.get("content") or h.get("summary") or h.get("body") or "")
+                if _CHUNK_HEADER_RE.search(body):
+                    break
+        if body is None:
+            return None
+        chunk_bodies.append(body)
+    source = reassemble_chunks(chunk_bodies, expected_count=total, expected_length=length)
+    if source is None:
+        return None
+    return decode_coverage_state(source)
+
+
 # --------------------------------------------------------------------------------------------------
 # Acceptance-event writes
 # --------------------------------------------------------------------------------------------------
@@ -692,6 +902,58 @@ class WriteGate:
             f"'{program_chunk_title(game_id, total, total)}'."
         )
         index_resp = self.client.note(index_title, index_body, category="arc-agi-3", supersedes=supersedes)
+        if not (isinstance(index_resp, dict) and index_resp.get("ok", True) and "error" not in index_resp):
+            return {"ok": False, "reason": "index write failed", "response": index_resp}
+        return {
+            "ok": True,
+            "chunks": total,
+            "length": source_length,
+            "index": index_resp,
+            "chunk_ids": chunk_ids,
+        }
+
+    def write_coverage_state(
+        self,
+        game_id: str,
+        body: str,
+        *,
+        supersedes: str | None = None,
+    ) -> dict[str, Any]:
+        """Persist cross-run COVERAGE STATE (Run-20): the visited cells + fired probes + plateau the
+        agent swept this run, so the next run's ORIENT resumes the frontier instead of re-sweeping.
+
+        ``body`` is the :func:`encode_coverage_state` output. A coverage body is digit-heavy (it trips
+        both the grid-dump guard AND the source-cluster rewrite), so — like a program — it is stored as
+        an INDEX note plus chunk notes each under :data:`CHUNK_BODY_LIMIT`, and it BYPASSES the per-turn
+        WriteGate dump guard (a coverage note is agent-owned telemetry, never a leaked frame). Writes
+        the chunks first, then the index last, so the index never points at chunks that were not
+        written. Returns ``{"ok": True, "chunks": N, "length": L, "index": <resp>}`` or an error dict."""
+
+        slices = chunk_program_source(body)
+        total = len(slices)
+        source_length = len(body.encode("utf-8"))
+
+        chunk_ids: list[Any] = []
+        for i, slice_text in enumerate(slices, start=1):
+            title = coverage_chunk_title(game_id, i, total)
+            chunk_body = f"chunk {i} of {total}\n{slice_text}"
+            resp = self.client.note(title, chunk_body, category="arc-agi-3")
+            if not (isinstance(resp, dict) and resp.get("ok", True) and "error" not in resp):
+                return {"ok": False, "reason": "chunk write failed", "chunk": i, "response": resp}
+            chunk_ids.append(resp.get("id") or resp.get("key"))
+
+        index_title = _title("game", game_id, "coverage state")
+        index_body = (
+            "coverage state index\n"
+            f"chunk count: {total}\n"
+            f"source length: {source_length}\n\n"
+            "coverage stored in chunk notes titled "
+            f"'{coverage_chunk_title(game_id, 1, total)}' .. "
+            f"'{coverage_chunk_title(game_id, total, total)}'."
+        )
+        index_resp = self.client.note(
+            index_title, index_body, category="arc-agi-3", supersedes=supersedes
+        )
         if not (isinstance(index_resp, dict) and index_resp.get("ok", True) and "error" not in index_resp):
             return {"ok": False, "reason": "index write failed", "response": index_resp}
         return {

@@ -707,6 +707,11 @@ def live_run(
             # Run-19 INTERACTION DISCOVERY telemetry.
             "interactions_probed": summary.get("interactions_probed", 0),
             "interactions_found": summary.get("interactions_found", 0),
+            # Run-20 BUMP PROBES + CROSS-RUN COVERAGE PERSISTENCE telemetry.
+            "bumps_probed": summary.get("bumps_probed", 0),
+            "bumps_found": summary.get("bumps_found", 0),
+            "coverage_resumed_pct": summary.get("coverage_resumed_pct", 0.0),
+            "coverage_persisted": summary.get("coverage_persisted", False),
         }
     finally:
         session.close()
