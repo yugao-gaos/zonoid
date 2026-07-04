@@ -10,3 +10,4 @@
 {"evt":"edge_promoted","from":"note:note-mr5l0el0i0k","to":"note:note-mr3vdyn5zxa","kind":"context","actor":"overlay-sync","ts":"2026-07-04T00:57:23.146Z","weight":0.66,"by":"judge","judged":true,"score":0.66,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr5l0el0i0k","to":"note:note-mr51e6x60dd","kind":"context","actor":"overlay-sync","ts":"2026-07-04T01:02:09.780Z"}
 {"evt":"edge_added","from":"note:note-mr5l0el0i0k","to":"codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen","kind":"context","actor":"overlay-sync","ts":"2026-07-04T01:03:51.139Z","weight":0,"by":"autowire","judged":false,"score":0.515,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mr5l0el0i0k","to":"codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen","kind":"context","actor":"overlay-sync","ts":"2026-07-04T01:30:53.270Z","weight":0.515,"by":"judge","judged":true,"score":0.515,"origin":"autowire-semantic"}
