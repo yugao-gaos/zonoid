@@ -692,6 +692,20 @@ class RunSummary:
     # recolored/vanished object, a score delta, or newly reachable ground) — a genuine contact mechanic.
     bumps_probed: int = 0
     bumps_found: int = 0
+    # STRIDE-AGNOSTIC CONTACT DISCOVERY telemetry (Run-27). The old bump path hardcoded UNIT-STEP
+    # adjacency (approach cell orthogonally adjacent to the object, unit bump direction), so a
+    # STRIDE-N mover (ls20 steps ±5 per the adopted program) never lands adjacent -> _plan_to_cell
+    # None -> bumps_probed=0 despite bump_due_batches>0. Contact is now the game's OWN movement
+    # geometry: `movement_stride` is the inferred per-action delta magnitude (1 for a unit mover,
+    # N for a stride-N mover); `reachable_cell_count` is the size of the model's movement lattice
+    # (distinct player positions reachable from the current state); `contact_probes_probed` /
+    # `contact_probes_found` count moves whose destination lands ON or whose swept path CROSSES a
+    # distinct object class (a superset of the old bump counters — bumps_* still counts fired env
+    # actions). For a unit mover the geometry reduces to the old adjacency behavior.
+    movement_stride: int | None = None
+    reachable_cell_count: int = 0
+    contact_probes_probed: int = 0
+    contact_probes_found: int = 0
     # CROSS-RUN COVERAGE PERSISTENCE telemetry (Run-20). `coverage_resumed_pct` = fraction of the board
     # RESUMED from a prior run's persisted coverage note at ORIENT (0.0 on a fresh sweep / KB miss).
     # `coverage_persisted` = True once this run's end-of-run coverage note write succeeded.
@@ -749,6 +763,10 @@ class RunSummary:
             "interactions_found": self.interactions_found,
             "bumps_probed": self.bumps_probed,
             "bumps_found": self.bumps_found,
+            "movement_stride": self.movement_stride,
+            "reachable_cell_count": self.reachable_cell_count,
+            "contact_probes_probed": self.contact_probes_probed,
+            "contact_probes_found": self.contact_probes_found,
             "coverage_resumed_pct": self.coverage_resumed_pct,
             "coverage_persisted": self.coverage_persisted,
             "bump_due_batches": self.bump_due_batches,
@@ -880,6 +898,14 @@ class EwmAgent:
         # derived; falls back to {2} (the toy/dev avatar) when no program can demonstrate a move.
         self._player_colors: frozenset[int] | None = None
         self._player_colors_for: Any = None  # the program identity the cached color set was derived from
+        # MOVEMENT LATTICE (Run-27): per-adopted-program cache of the player's per-action deltas — the
+        # full (dr, dc) each action translates the player by, NOT filtered to unit steps. The stride is
+        # the min nonzero L-inf magnitude across those deltas (1 for a unit mover, N for a stride-N
+        # mover). Contact probing keys off THIS geometry, so a sparse-lattice stride-N mover reaches
+        # objects it can never stand adjacent to. Keyed on program identity so a drop/re-adopt (which
+        # can change the mover) invalidates it. None until first derived.
+        self._player_deltas: dict[tuple[int, int], Any] | None = None
+        self._player_deltas_for: Any = None
         # Fast-path trust flag: True while the last window of live predictions all passed. Toggling it
         # off restores full decide/reflect cadence + normal batch sizes on the very next turn.
         self._model_trusted = False
@@ -3321,23 +3347,51 @@ class EwmAgent:
         return out
 
     def _movement_direction_map(self, frame: dict[str, Any]) -> dict[tuple[int, int], Any]:
-        """Map each unit direction ``(dr, dc)`` to the valid action that translates the player by it,
-        derived empirically from the ACTIVE model (no hard-coded action names, so it transfers).
+        """Map each axis-aligned player delta ``(dr, dc)`` to the valid action that translates the
+        player by it, derived empirically from the ACTIVE model (no hard-coded action names or stride,
+        so it transfers across games AND across movers of any stride).
+
+        STRIDE-AGNOSTIC (Run-27): the delta is the model's OWN per-action translation, captured at its
+        real magnitude — ``(-1, 0)`` for a unit mover, ``(-5, 0)`` for a stride-5 mover (ls20). The old
+        version filtered to ``(abs(dr), abs(dc)) in ((1, 0), (0, 1))`` (unit steps only); for a stride-N
+        mover EVERY delta was discarded, the map came back empty, and ``_bump_discovery`` skipped every
+        object with "no movement action drives the bump direction". We now keep any axis-aligned delta
+        (one of ``dr``/``dc`` zero) at its true magnitude.
 
         A translation action can be BLOCKED from any single cell (an edge/wall), so probing only the
         init state misses directions the boxed-in avatar cannot demonstrate there. We sample a handful of
         reachable states (a shallow BFS over the model) and, for each, record the ``(dr, dc)`` each action
         moves the player by — so a direction is captured as long as SOME reachable cell can demonstrate
-        it. First action seen for a direction wins (they are equivalent translations)."""
+        it. Cached per adopted program (see :meth:`_player_delta_map`). First action seen for a delta
+        wins (they are equivalent translations)."""
+
+        return self._player_delta_map(frame)
+
+    def _player_delta_map(self, frame: dict[str, Any]) -> dict[tuple[int, int], Any]:
+        """Per-action axis-aligned player deltas at TRUE magnitude, cached per adopted program.
+
+        Shallow-BFS over the model to gather a few reachable states, then for each state record the
+        ``(dr, dc)`` each valid action moves the player by (any axis-aligned translation, whatever the
+        stride). This is the movement-geometry primitive both stride inference and contact probing key
+        off. Empty when no program is adopted or no action demonstrates a move."""
 
         program = self.program
+        if (
+            self._player_deltas is not None
+            and self._player_deltas_for is program
+        ):
+            return self._player_deltas
         out: dict[tuple[int, int], Any] = {}
         if program is None:
+            self._player_deltas = out
+            self._player_deltas_for = program
             return out
         valid = list(frame.get("valid_actions") or [])
         try:
             start = program.init_state(self._frame_grid(frame))
         except Exception:  # noqa: BLE001
+            self._player_deltas = out
+            self._player_deltas_for = program
             return out
         # Shallow BFS to collect a few distinct reachable states to probe each action from.
         states = [start]
@@ -3381,30 +3435,145 @@ class EwmAgent:
                 if p1 is None or p1 == p0:
                     continue
                 dr, dc = p1[0] - p0[0], p1[1] - p0[1]
-                if (abs(dr), abs(dc)) in ((1, 0), (0, 1)) and (dr, dc) not in out:
+                # Keep only axis-aligned translations (one component zero) — a diagonal delta would
+                # be a compound move the swept-path contact geometry does not model. Any magnitude.
+                if (dr == 0) == (dc == 0):
+                    continue  # both zero (no move) or both nonzero (diagonal)
+                if (dr, dc) not in out:
                     out[(dr, dc)] = action
+        self._player_deltas = out
+        self._player_deltas_for = program
         return out
+
+    def _movement_stride(self, frame: dict[str, Any]) -> int:
+        """The inferred movement STRIDE: the number of cells one action translates the player by along
+        an axis, model-derived (:meth:`_player_delta_map`). The min nonzero L-inf magnitude across the
+        per-action deltas — 1 for a unit mover, N for a stride-N mover (ls20 is 5). Defaults to 1 when
+        no program demonstrates a move (the toy/dev avatar), so contact probing reduces to the old
+        unit-step adjacency behavior."""
+
+        deltas = self._player_delta_map(frame)
+        mags = [max(abs(dr), abs(dc)) for (dr, dc) in deltas if (dr, dc) != (0, 0)]
+        stride = min(mags) if mags else 1
+        self.summary.movement_stride = stride
+        return stride
+
+    def _reachable_player_cells(self, frame: dict[str, Any]) -> set[tuple[int, int]]:
+        """The MOVEMENT LATTICE: the set of player positions reachable from the current state by
+        replaying the model's own moves (``planner.explore_frontier`` semantics, but collecting player
+        CELLS rather than a plan). Model-derived, no assumed stride: a stride-N mover yields a sparse
+        lattice on an N-spacing, a unit mover a dense one. Bounded by the plan budget; deterministic.
+
+        This is what makes contact probing stride-agnostic: an object's contact probe must be planned to
+        a LATTICE cell (one the player can actually occupy), never an arbitrary distance-1 approach cell
+        the sparse mover can never stand on."""
+
+        program = self.program
+        if program is None:
+            return set()
+        try:
+            start = program.init_state(self._frame_grid(frame))
+        except Exception:  # noqa: BLE001
+            return set()
+        p0 = self._player_position(self._safe_render(program, start))
+        cells: set[tuple[int, int]] = set()
+        if p0 is not None:
+            cells.add(p0)
+        valid = list(frame.get("valid_actions") or [])
+        seen = {_grids_key(self._safe_render(program, start))}
+        queue: deque[Any] = deque([start])
+        expanded = 0
+        while queue and expanded < self.config.plan_max_nodes:
+            st = queue.popleft()
+            expanded += 1
+            for action in valid:
+                try:
+                    ns, _ev = program.step(st, action)
+                    grid = program.render(ns)
+                except Exception:  # noqa: BLE001
+                    continue
+                key = _grids_key(grid)
+                if key in seen:
+                    continue
+                seen.add(key)
+                pos = self._player_position(grid)
+                if pos is not None:
+                    cells.add(pos)
+                queue.append(ns)
+        self.summary.reachable_cell_count = len(cells)
+        return cells
 
     def _bump_contexts(
         self, grid: list[list[int]]
     ) -> list[tuple[Any, tuple[int, int], tuple[int, int], int]]:
-        """CONTACT contexts for BUMP PROBES (Run-20): for each distinct segmented object class the
-        player is not part of, the ``(object_hash, approach_cell, bump_direction, reach_cost)`` to
-        stand on an empty cell orthogonally adjacent to the object and then step INTO it.
+        """CONTACT contexts for BUMP PROBES, STRIDE-AGNOSTIC (Run-27): for each distinct segmented
+        object class the player is not part of, the ``(object_hash, approach_cell, bump_direction,
+        reach_cost)`` to stand on a LATTICE-reachable cell from which ONE move lands on / sweeps
+        through the object.
 
-        ``approach_cell`` is the empty (background 0) cell next to the object closest to the player;
-        ``bump_direction`` is the unit ``(dr, dc)`` from the approach cell toward the object cell (the
-        movement that drives the player into the object). One context per distinct object hash, cheapest
-        reach first. Skips background and the player's own class."""
+        Contact is the game's OWN movement geometry, read off the model's per-action deltas
+        (:meth:`_player_delta_map`) and its reachable lattice (:meth:`_reachable_player_cells`):
+
+        * For each object cell and each movement delta ``(dr, dc)`` (any stride), we walk BACKWARDS
+          from the object cell in ``-(dr, dc)`` steps to find the FIRST lattice cell — the cell the
+          sparse mover can actually occupy from which the single move ``(dr, dc)`` drives the player
+          ONTO the object (unit mover: the adjacent cell) or THROUGH it (stride-N mover: a cell N away
+          whose swept path crosses the object). The swept path (all cells strictly between the approach
+          cell and the destination, inclusive of the destination) must contain an object cell.
+        * ``approach_cell`` is that lattice cell; ``bump_direction`` is the model delta ``(dr, dc)`` (at
+          its true magnitude, NOT a unit step); ``reach_cost`` is Manhattan distance from the player.
+
+        For a UNIT mover the backwards walk stops at distance 1 and this reduces to the old adjacency
+        behavior. One context per distinct object hash, cheapest reach first. Skips background and the
+        player's own class. Returns [] when no program/lattice/deltas are available (degrades safely)."""
 
         player = self._player_position(grid)
         if player is None:
             return []
         rows = len(grid)
         cols = len(grid[0]) if rows else 0
+        frame = self._observe()
+        deltas = list(self._player_delta_map(frame).keys())
+        if not deltas:
+            return []
+        lattice = self._reachable_player_cells(frame)
         # Exclude EVERY player color (Run-23): a multi-color player unit (ls20 live is {9,12}) must not
         # bump-probe its own second colored segment as if it were an external object.
         player_colors = self._player_color_set()
+        object_cells = {
+            (r, c)
+            for r in range(rows)
+            for c in range(cols)
+            if grid[r][c] != 0 and grid[r][c] not in player_colors
+        }
+
+        def _lattice_approach(
+            obr: int, obc: int, dr: int, dc: int
+        ) -> tuple[int, int] | None:
+            """The nearest lattice cell BEHIND object cell ``(obr, obc)`` from which the single move
+            ``(dr, dc)`` sweeps a path crossing that object cell.
+
+            Walks back ONE CELL at a time along the delta's unit direction — the target lattice cell can
+            sit fewer than a full stride behind an object the move only CROSSES (a stride-2 mover's
+            approach cell is 1 cell behind an object it crosses, not 2). Bounded by one full stride: no
+            farther lattice cell's swept path can still reach this object cell."""
+
+            udr = (dr > 0) - (dr < 0)
+            udc = (dc > 0) - (dc < 0)
+            stride_len = max(abs(dr), abs(dc))
+            for k in range(1, stride_len + 1):  # within one stride behind the object
+                ar, ac = obr - udr * k, obc - udc * k
+                if not (0 <= ar < rows and 0 <= ac < cols):
+                    break
+                if (ar, ac) not in lattice:
+                    continue  # the mover cannot stand here (sparse lattice) — keep walking back
+                # Swept path of the full-magnitude move from this lattice cell.
+                dest = (ar + dr, ac + dc)
+                swept = self._swept_path((ar, ac), dest)
+                if any(cell in object_cells for cell in swept):
+                    return (ar, ac)
+            return None
+
         contexts: dict[Any, tuple[int, tuple[int, int], tuple[int, int]]] = {}
         for obj_hash, cells in _object_components(grid):
             sample = next(iter(cells))
@@ -3413,14 +3582,13 @@ class EwmAgent:
                 continue
             best: tuple[int, tuple[int, int], tuple[int, int]] | None = None
             for (br, bc) in cells:
-                for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-                    ar, ac = br + dr, bc + dc  # candidate approach cell (empty, next to object)
-                    if 0 <= ar < rows and 0 <= ac < cols and grid[ar][ac] == 0:
-                        cost = abs(ar - player[0]) + abs(ac - player[1])
-                        # Bump direction = from the approach cell back toward the object cell.
-                        bump = (br - ar, bc - ac)
-                        if best is None or cost < best[0]:
-                            best = (cost, (ar, ac), bump)
+                for (dr, dc) in deltas:
+                    approach = _lattice_approach(br, bc, dr, dc)
+                    if approach is None:
+                        continue
+                    cost = abs(approach[0] - player[0]) + abs(approach[1] - player[1])
+                    if best is None or cost < best[0]:
+                        best = (cost, approach, (dr, dc))
             if best is None:
                 continue
             cost, approach, bump = best
@@ -3433,6 +3601,24 @@ class EwmAgent:
         ]
         out.sort(key=lambda item: item[3])
         return out
+
+    @staticmethod
+    def _swept_path(
+        src: tuple[int, int], dest: tuple[int, int]
+    ) -> list[tuple[int, int]]:
+        """The cells a single axis-aligned move from ``src`` to ``dest`` passes through, EXCLUDING the
+        source and INCLUDING every intermediate cell up to and including ``dest``. For a unit move this
+        is just ``[dest]``; for a stride-N move it is the N cells the player crosses — the geometry a
+        stride-N contact probe collides with. Empty for a zero/diagonal move."""
+
+        sr, sc = src
+        dr_total, dc_total = dest[0] - sr, dest[1] - sc
+        if (dr_total == 0) == (dc_total == 0):
+            return []  # no move, or diagonal (not modeled)
+        step_r = (dr_total > 0) - (dr_total < 0)
+        step_c = (dc_total > 0) - (dc_total < 0)
+        length = max(abs(dr_total), abs(dc_total))
+        return [(sr + step_r * k, sc + step_c * k) for k in range(1, length + 1)]
 
     def _plan_to_cell(
         self, frame: dict[str, Any], target: tuple[int, int]
@@ -3578,6 +3764,11 @@ class EwmAgent:
         # Run-17..22 pathology (bumps_probed stuck at 0) is never invisible again. Overwritten to None the
         # moment a bump actually fires below.
         self.summary.player_colors = sorted(self._player_color_set())
+        # STRIDE-AGNOSTIC telemetry (Run-27): record the inferred movement stride + reachable lattice
+        # size the moment contact discovery engages, so a stride-N mover's geometry is visible on the
+        # summary (movement_stride=1 for a unit mover, N for a stride-N mover; ls20 is 5).
+        self._movement_stride(cur_frame)
+        self._reachable_player_cells(cur_frame)
         if self._player_position(self._frame_grid(cur_frame)) is None:
             self.summary.bump_skip_reason = (
                 f"no player cell on live grid (player_colors={self.summary.player_colors})"
@@ -3653,6 +3844,10 @@ class EwmAgent:
         cur = frame
         # A bump IS firing: clear any pending skip reason so the summary reflects that discovery engaged.
         self.summary.bump_skip_reason = None
+        # STRIDE-AGNOSTIC telemetry (Run-27): one _fire_bump call IS one CONTACT PROBE (a move whose
+        # destination lands on / whose swept path crosses the object), independent of how many env
+        # repeats it takes. bumps_* count fired env actions; contact_probes_* count probes.
+        self.summary.contact_probes_probed += 1
         for _ in range(repeats):
             self.summary.bumps_probed += 1
             before_grid = self._frame_grid(cur)
@@ -3671,6 +3866,7 @@ class EwmAgent:
             if novel or boundary:
                 if not found:
                     self.summary.bumps_found += 1
+                    self.summary.contact_probes_found += 1
                     effect_cells = novel or self._changed_cells(before_grid, after_grid)
                     self._record_interaction(cur, f"bump {action}", obj_hash, effect_cells, result)
                 found = True

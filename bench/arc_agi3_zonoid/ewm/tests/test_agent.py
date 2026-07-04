@@ -2999,9 +2999,10 @@ class ExplorationExecutorTests(unittest.TestCase):
 
     def test_trust_drop_restores_cadence_single_batch(self):
         # With the exploration executor OFF the loop runs exactly ONE frontier batch (Run-16 cadence),
-        # confirming the multi-batch loop is what the executor flag adds.
+        # confirming the multi-batch loop is what the executor flag adds. bump_probes OFF so that single
+        # batch is the FRONTIER path (the Run-22 bump-quota interleave would otherwise make it a bump).
         env = _CorridorEnv(boundary_after=3)
-        ag = self._trusted_agent(env, exploration_executor=False)
+        ag = self._trusted_agent(env, exploration_executor=False, bump_probes=False)
         ag._explore_frontier_loop({"grid": env._grid(), "level": 1})
         self.assertEqual(ag.summary.frontier_batches, 1)
         self.assertEqual(env.act_calls, 1)
@@ -3010,8 +3011,10 @@ class ExplorationExecutorTests(unittest.TestCase):
         # A DEVIATING env (the toy program mispredicts the very first frontier batch) trips an
         # expect-mismatch: the loop must break after ONE batch and hand control back to run() for the
         # single strategy decide (REPAIR), never spinning zero-decide on a model that just diverged.
+        # bump_probes OFF so the first (and only) batch is the FRONTIER path under test — with the
+        # Run-22 bump-quota interleave ON the very first batch could otherwise be a contact-bump batch.
         env = _DeviatingCorridorEnv()
-        ag = self._trusted_agent(env)
+        ag = self._trusted_agent(env, bump_probes=False)
         result, diverged, last_frame = ag._explore_frontier_loop({"grid": env._grid(), "level": 1})
         self.assertTrue(diverged)
         self.assertEqual(ag.summary.frontier_batches, 1)
@@ -4004,6 +4007,278 @@ class PlayerColorInferenceTests(unittest.TestCase):
         self.assertIsNotNone(ag.summary.bump_skip_reason)
         self.assertIn("no player cell", ag.summary.bump_skip_reason)
 
+
+# ---------------------------------------------------------------------------------------------------
+# Run-27 STRIDE-AGNOSTIC CONTACT DISCOVERY
+# ---------------------------------------------------------------------------------------------------
+
+# A STRIDE-2 mover model: the avatar (2) translates TWO cells per action (ls20-shaped: ls20's player
+# moves ±5 per the adopted program). The target (3) is WALKABLE — the model steps the avatar over it
+# (it does not know crossing the target wins; that is the positional win discovery must find). Only the
+# four translations are legal, so the non-movement vocabulary is EMPTY and interaction discovery falls
+# through to CONTACT probes — which must be STRIDE-aware to ever reach an odd-parity target the mover
+# can only CROSS, never land adjacent to.
+STRIDE2_MODEL_SOURCE = '''
+import copy
+
+AVATAR = 2
+STRIDE = 2
+DELTAS = {"UP": (-1, 0), "DOWN": (1, 0), "LEFT": (0, -1), "RIGHT": (0, 1)}
+
+
+def init_state(frame):
+    rows = len(frame)
+    cols = len(frame[0]) if rows else 0
+    avatar = None
+    statics = {}
+    for r in range(rows):
+        for c in range(cols):
+            v = frame[r][c]
+            if v == AVATAR:
+                avatar = (r, c)
+            elif v != 0:
+                statics[(r, c)] = v
+    return {"avatar": avatar, "statics": statics, "rows": rows, "cols": cols}
+
+
+def legal_actions(state):
+    return ["UP", "DOWN", "LEFT", "RIGHT"]
+
+
+def step(state, action):
+    state = copy.deepcopy(state)
+    if action not in DELTAS:
+        return state, {"moved": False}
+    dr, dc = DELTAS[action]
+    r, c = state["avatar"]
+    nr, nc = r + dr * STRIDE, c + dc * STRIDE
+    # Walls (1) block; the target (3) is walkable (the avatar drives over/through it).
+    blocked = state["statics"].get((nr, nc)) == 1
+    if 0 <= nr < state["rows"] and 0 <= nc < state["cols"] and not blocked:
+        state["avatar"] = (nr, nc)
+    return state, {"moved": state["avatar"] == (nr, nc)}
+
+
+def render(state):
+    rows, cols = state["rows"], state["cols"]
+    grid = [[0 for _ in range(cols)] for _ in range(rows)]
+    for (r, c), v in state["statics"].items():
+        grid[r][c] = v
+    ar, ac = state["avatar"]
+    grid[ar][ac] = AVATAR
+    return grid
+
+
+def is_win(state):
+    return False
+'''
+
+
+class Stride2CrossEnv:
+    """A STRIDE-2 toy whose WIN needs the mover to CROSS a target it can NEVER land adjacent to. The
+    avatar (2) starts at (0,0) and moves TWO cells per action, so it only ever occupies EVEN columns —
+    a sparse lattice {(0,0),(0,2),(0,4),(0,6)}. The target (3) sits on ODD column (0,3): unit-step
+    adjacency probing plans onto a distance-1 cell then steps in, but the mover can occupy NEITHER
+    (0,2)-then-step-1 nor (0,4)-then-step-1 to land on (0,3) — a distance-1 approach cell is off the
+    lattice. Only the STRIDE-2 move (0,2)->(0,4), whose swept path crosses (0,3), reaches the target;
+    crossing it clears the level (``level_transition``). Movement alone never wins (the model does not
+    know the crossing wins), so the contact probe must be stride-aware."""
+
+    ACTIONS = ["UP", "DOWN", "LEFT", "RIGHT"]
+
+    def __init__(self, budget: int = 200) -> None:
+        self._rows, self._cols = 1, 7
+        self._avatar = (0, 0)
+        self._target = (0, 3)   # ODD column -> off the even-parity movement lattice
+        self._solved = False
+        self.remaining_actions = budget
+        self.act_calls = 0
+        self._level = 1
+
+    def _grid(self):
+        grid = [[0] * self._cols for _ in range(self._rows)]
+        if not self._solved:
+            grid[self._target[0]][self._target[1]] = 3
+        grid[self._avatar[0]][self._avatar[1]] = 2
+        return grid
+
+    def observe(self):
+        return {
+            "grid": self._grid(),
+            "level": self._level,
+            "step": 0,
+            "valid_actions": list(self.ACTIONS),
+            "score": 1 if self._solved else 0,
+            "remaining_actions": self.remaining_actions,
+        }
+
+    def _apply_one(self, action: str) -> bool:
+        dr, dc = DELTAS[action]
+        ar, ac = self._avatar
+        nr, nc = ar + dr * 2, ac + dc * 2  # STRIDE 2
+        if not (0 <= nr < self._rows and 0 <= nc < self._cols):
+            return False
+        # The swept path of this stride-2 move (the cells crossed, destination inclusive).
+        step_r = (dr > 0) - (dr < 0)
+        step_c = (dc > 0) - (dc < 0)
+        swept = [(ar + step_r * k, ac + step_c * k) for k in (1, 2)]
+        self._avatar = (nr, nc)
+        if not self._solved and self._target in swept:
+            # The mover CROSSED the target -> level solved (a positional/crossing win).
+            self._solved = True
+            return True
+        return False
+
+    def act(self, actions, expect=None):
+        self.act_calls += 1
+        executed = []
+        stop_reason = "completed"
+        for index, action in enumerate(actions):
+            name = action.get("action") if isinstance(action, dict) else action
+            self.remaining_actions = max(0, self.remaining_actions - 1)
+            solved_now = self._apply_one(str(name))
+            executed.append(name)
+            after = self._grid()
+            if expect is not None and index < len(expect) and expect[index] is not None:
+                if not grids_match([list(r) for r in expect[index]], after):
+                    stop_reason = "expect_mismatch"
+                    break
+            if solved_now:
+                stop_reason = "level_transition"
+                self._level += 1
+                break
+        frame = {"grid": self._grid(), "level": self._level, "step": 0,
+                 "score": 1 if self._solved else 0}
+        return {
+            "current_frame": frame,
+            "action_result": {"score": 1 if self._solved else 0, "done": False},
+            "valid_actions": list(self.ACTIONS),
+            "remaining_actions": self.remaining_actions,
+            "executed": executed,
+            "stop_reason": stop_reason,
+            "done": False,
+        }
+
+
+class StrideAgnosticContactTests(unittest.TestCase):
+    """Run-27: contact probing is the game's OWN movement geometry, not hardcoded unit-step adjacency.
+    A STRIDE-2 mover infers stride=2, redefines contact as a move whose swept path CROSSES an object,
+    reaches an odd-parity target it can never stand adjacent to, and detects the crossing win. The OLD
+    unit-step code returns 0 probes on this toy (regression guard); stride-1 reduces to old behavior."""
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _trusted_agent(self, env, source, **cfg):
+        from bench.arc_agi3_zonoid.ewm.world_model import WorldModelProgram
+
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        base = dict(
+            game_id="stride2", max_turns=40, min_probe_transitions=1,
+            fast_path_trust_window=2, goal_discovery_min_live_samples=2,
+            goal_discovery_min_live_rate=0.9, max_frontier_batches_per_turn=8,
+            max_interaction_probes_per_turn=6, coverage_persistence=False,
+        )
+        base.update(cfg)
+        ag = EwmAgent(env, FakeLlm([]), kb=FakeKb(max_writes_per_turn=8),
+                      vision_enabled=False, config=AgentConfig(**base))
+        ag.program = WorldModelProgram.load(source)
+        ag._live_results.extend([True, True, True])
+        ag._refresh_model_trust()
+        return ag
+
+    def test_stride_inferred_as_two_from_model(self):
+        env = Stride2CrossEnv()
+        ag = self._trusted_agent(env, STRIDE2_MODEL_SOURCE)
+        self.assertEqual(ag._movement_stride(env.observe()), 2)
+        # The reachable lattice is the sparse even-column set, NOT every cell.
+        lattice = ag._reachable_player_cells(env.observe())
+        self.assertEqual(lattice, {(0, 0), (0, 2), (0, 4), (0, 6)})
+
+    def test_target_off_lattice_is_unreachable_by_landing(self):
+        # The odd-column target can never be LANDED on: it is off the even-parity movement lattice, so
+        # a unit-step "plan onto the cell" strategy has no cell to plan to.
+        env = Stride2CrossEnv()
+        ag = self._trusted_agent(env, STRIDE2_MODEL_SOURCE)
+        self.assertIsNone(ag._plan_to_cell(env.observe(), env._target))
+
+    def test_contact_context_is_stride_aware_crossing_probe(self):
+        env = Stride2CrossEnv()
+        ag = self._trusted_agent(env, STRIDE2_MODEL_SOURCE)
+        contexts = ag._bump_contexts(env._grid())
+        # The target (3) yields a contact context whose bump direction is the STRIDE-2 delta (0, +2)
+        # from lattice cell (0, 2) — the move whose swept path crosses the odd-parity target.
+        self.assertGreaterEqual(len(contexts), 1)
+        by_dir = {bump: approach for (_h, approach, bump, _c) in contexts}
+        self.assertIn((0, 2), by_dir)
+        self.assertEqual(by_dir[(0, 2)], (0, 2))
+
+    def test_stride2_crossing_solved_end_to_end(self):
+        env = Stride2CrossEnv()
+        ag = self._trusted_agent(env, STRIDE2_MODEL_SOURCE)
+        out = ag.run()
+        # The stride-aware contact probe fired, crossed the target, and the crossing cleared the level.
+        self.assertEqual(out["movement_stride"], 2)
+        self.assertGreaterEqual(out["contact_probes_probed"], 1)
+        self.assertGreaterEqual(out["contact_probes_found"], 1)
+        self.assertTrue(out["level_boundary_captured"])
+
+    def test_old_unit_step_contexts_return_zero_probes_on_stride2_toy(self):
+        # REGRESSION GUARD: the OLD unit-step contact code (approach = empty cell orthogonally ADJACENT
+        # to the object, bump direction = UNIT delta from the approach cell toward the object) fires 0
+        # probes on this toy. The odd-column target's only empty neighbors are (0,2)/(0,4); the old code
+        # would plan onto one and then fire a UNIT bump (0,1)/(0,-1) INTO the target — but a STRIDE-2
+        # mover has no action that translates by a unit step, so the old _movement_direction_map has no
+        # action for a unit bump direction ("no movement action drives the bump direction") and every
+        # such context is skipped. Reproduce the old algorithm inline and assert it drives no bump.
+        env = Stride2CrossEnv()
+        ag = self._trusted_agent(env, STRIDE2_MODEL_SOURCE)
+        grid = env._grid()
+        rows, cols = len(grid), len(grid[0])
+        player_colors = ag._player_color_set()
+        dir_map = ag._movement_direction_map(env.observe())  # stride-2: only (0, +/-2) deltas
+        old_firable = 0
+        for r in range(rows):
+            for c in range(cols):
+                if grid[r][c] == 0 or grid[r][c] in player_colors:
+                    continue
+                for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):  # UNIT-STEP adjacency only
+                    ar, ac = r + dr, c + dc
+                    if 0 <= ar < rows and 0 <= ac < cols and grid[ar][ac] == 0:
+                        # OLD bump direction = UNIT delta from the approach cell back to the object.
+                        unit_bump = (r - ar, c - ac)
+                        # OLD code fired this bump ONLY if an action drives that unit direction.
+                        if dir_map.get(unit_bump) is not None:
+                            old_firable += 1
+        self.assertEqual(old_firable, 0)  # no unit bump direction has a stride-2 action to drive it
+
+    def test_stride1_reduces_to_old_unit_step_behavior(self):
+        # A STRIDE-1 mover (the push-block toy) must keep firing unit-step contact probes unchanged:
+        # stride inference returns 1 and the contexts are the same adjacency the old code produced.
+        env = PushBlockEnv()
+        from bench.arc_agi3_zonoid.ewm.world_model import WorldModelProgram
+
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        ag = EwmAgent(
+            env, FakeLlm([]), kb=FakeKb(max_writes_per_turn=8), vision_enabled=False,
+            config=AgentConfig(
+                game_id="push", max_turns=40, min_probe_transitions=1,
+                fast_path_trust_window=2, goal_discovery_min_live_samples=2,
+                goal_discovery_min_live_rate=0.9, coverage_persistence=False,
+            ),
+        )
+        ag.program = WorldModelProgram.load(PUSHBLOCK_MODEL_SOURCE)
+        ag._live_results.extend([True, True, True])
+        ag._refresh_model_trust()
+        self.assertEqual(ag._movement_stride(env.observe()), 1)
+        contexts = ag._bump_contexts(env._grid())
+        # Unit-step contact into the block: bump direction is a unit delta (the block is reached by a
+        # single-cell move onto the adjacent lattice cell), exactly the old behavior.
+        dirs = {bump for (_h, _a, bump, _c) in contexts}
+        self.assertIn((0, 1), dirs)
+        self.assertTrue(all(max(abs(dr), abs(dc)) == 1 for (dr, dc) in dirs))
 
 
 class _CoverageKbClient:
