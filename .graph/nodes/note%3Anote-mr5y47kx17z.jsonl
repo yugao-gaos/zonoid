@@ -12,3 +12,10 @@
 {"evt":"edge_promoted","from":"note:note-mr5y47kx17z","to":"note:note-mqoxvl18k5p","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:56:53.202Z","weight":0,"by":"autowire","judged":false,"score":0.416,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr5y47kx17z","to":"note:note-mr5y3qztehj","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:56:53.202Z"}
 {"evt":"edge_removed","from":"note:note-mr5y47kx17z","to":"codex/probe-subconscious-assignment-main-live","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:58:41.400Z"}
+{"evt":"edge_removed","from":"note:note-mr5y47kx17z","to":"note:note-mr5cjepwfzr","kind":"context","actor":"overlay-sync","ts":"2026-07-04T06:00:14.771Z"}
+{"evt":"edge_added","from":"note:note-mr5y47kx17z","to":"note:note-mr5cjepwfzr","kind":"context","actor":"overlay-sync","ts":"2026-07-04T06:00:18.151Z","weight":0,"by":"autowire","judged":false,"score":0.57,"origin":"autowire-semantic"}
+{"evt":"note_superseded","id":"note-mr5y47kx17z","supersededBy":"note-mr5y9ed7evz","validTo":"2026-07-04T05:56:49.531Z","ts":"2026-07-04T05:56:49.531Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mr5y47kx17z","to":"note:note-mr5cjepwfzr","kind":"context","actor":"overlay-sync","ts":"2026-07-04T06:00:25.794Z"}
+{"evt":"edge_removed","from":"note:note-mr5y47kx17z","to":"note:note-mq9l5eqdgt4","kind":"context","actor":"overlay-sync","ts":"2026-07-04T06:00:25.794Z"}
+{"evt":"edge_removed","from":"note:note-mr5y47kx17z","to":"note:note-mqoxvl18k5p","kind":"context","actor":"overlay-sync","ts":"2026-07-04T06:00:25.794Z"}
+{"evt":"edge_removed","from":"note:note-mr5y47kx17z","to":"knowledge:source_chunk:note-mqqpp70ivco#note-evidence:chunk-5","kind":"context","actor":"overlay-sync","ts":"2026-07-04T06:00:25.794Z"}
