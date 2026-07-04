@@ -14,3 +14,4 @@
 {"evt":"edge_removed","from":"note:note-mr5w6g57hnp","to":"note:note-mr4dujpkkos","kind":"context","actor":"overlay-sync","ts":"2026-07-04T04:58:55.959Z"}
 {"evt":"edge_removed","from":"note:note-mr5w6g57hnp","to":"note:note-mr5hxwtjf2m","kind":"context","actor":"overlay-sync","ts":"2026-07-04T04:58:55.959Z"}
 {"evt":"edge_added","from":"note:note-mr5w6g57hnp","to":"codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen","kind":"context","actor":"overlay-sync","ts":"2026-07-04T04:58:57.136Z","weight":0,"by":"autowire","judged":false,"score":0.616,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mr5w6g57hnp","to":"codex/ewm-interaction-discovery-probing-untried-actions-run-nineteen","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:26:39.892Z","weight":0.616,"by":"judge","judged":true,"score":0.616,"origin":"autowire-semantic"}
