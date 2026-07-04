@@ -10,3 +10,7 @@
 {"evt":"edge_removed","from":"note:note-mr5qw9ye65l","to":"note:note-mr43rk1dmy0","kind":"context","actor":"overlay-sync","ts":"2026-07-04T02:49:45.508Z"}
 {"evt":"edge_removed","from":"note:note-mr5qw9ye65l","to":"note:note-mr5njd22m3l","kind":"context","actor":"overlay-sync","ts":"2026-07-04T02:50:56.996Z"}
 {"evt":"edge_removed","from":"note:note-mr5qw9ye65l","to":"note:note-mr51e6x60dd","kind":"context","actor":"overlay-sync","ts":"2026-07-04T03:22:43.507Z"}
+{"evt":"note_superseded","id":"note-mr5qw9ye65l","supersededBy":"note-mr5r0rqzbmh","validTo":"2026-07-04T02:34:09.659Z","ts":"2026-07-04T02:34:09.659Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mr5qw9ye65l","to":"codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen","kind":"context","actor":"overlay-sync","ts":"2026-07-04T03:23:32.364Z"}
+{"evt":"edge_removed","from":"note:note-mr5qw9ye65l","to":"note:note-mr534gig0ek","kind":"context","actor":"overlay-sync","ts":"2026-07-04T03:23:32.364Z"}
+{"evt":"edge_removed","from":"note:note-mr5qw9ye65l","to":"note:note-mq7iakmckgt","kind":"context","actor":"overlay-sync","ts":"2026-07-04T03:23:32.364Z"}
