@@ -4,3 +4,9 @@
 {"evt":"edge_added","from":"note:note-mr5y3qztehj","to":"note:note-mq9l5eqdgt4","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:52:27.405Z","weight":0,"by":"autowire","judged":false,"score":0.466,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr5y3qztehj","to":"knowledge:source_chunk:note-mqqpp70ivco#note-evidence:chunk-5","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:52:27.405Z","weight":0,"by":"autowire","judged":false,"score":0.431,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr5y3qztehj","to":"note:note-mqoxvl18k5p","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:52:27.405Z","weight":0,"by":"autowire","judged":false,"score":0.416,"origin":"autowire-semantic"}
+{"evt":"note_superseded","id":"note-mr5y3qztehj","supersededBy":"note-mr5y47kx17z","validTo":"2026-07-04T05:52:47.457Z","ts":"2026-07-04T05:52:47.457Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mr5y3qztehj","to":"note:note-mr5cjepwfzr","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:56:53.202Z"}
+{"evt":"edge_removed","from":"note:note-mr5y3qztehj","to":"codex/probe-subconscious-assignment-main-live","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:56:53.202Z"}
+{"evt":"edge_removed","from":"note:note-mr5y3qztehj","to":"note:note-mq9l5eqdgt4","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:56:53.202Z"}
+{"evt":"edge_removed","from":"note:note-mr5y3qztehj","to":"knowledge:source_chunk:note-mqqpp70ivco#note-evidence:chunk-5","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:56:53.202Z"}
+{"evt":"edge_removed","from":"note:note-mr5y3qztehj","to":"note:note-mqoxvl18k5p","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:56:53.202Z"}
