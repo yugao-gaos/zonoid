@@ -2637,6 +2637,249 @@ class GoalDiscoveryAndFastPathTests(unittest.TestCase):
             self.assertIn(key, out)
 
 
+class _FlakyKbClient:
+    """A KbClient stand-in that TIMES OUT on the first ``fail_first`` searches (returning [] with
+    ``last_search_failed=True``, exactly like the real client on a daemon timeout) and then serves a
+    stored-program hit. Exercises the Run-17 ORIENT retry: a timeout is retried, not conceded."""
+
+    def __init__(self, hits, fail_first: int) -> None:
+        self.hits = hits
+        self.fail_first = fail_first
+        self.calls = 0
+        self.last_search_failed = False
+
+    def search(self, q, k, gated=False, full_content=False):
+        self.calls += 1
+        if self.calls <= self.fail_first:
+            self.last_search_failed = True   # a retryable daemon timeout, NOT an absence
+            return []
+        self.last_search_failed = False
+        return list(self.hits)
+
+
+class _FlakyKb(FakeKb):
+    def __init__(self, client, max_writes_per_turn: int = 2) -> None:
+        super().__init__(max_writes_per_turn=max_writes_per_turn)
+        self.client = client
+
+
+class OrientRetryTests(unittest.TestCase):
+    """Run-17: ORIENT retries a daemon TIMEOUT (retryable) instead of conceding "no stored program"
+    and burning a needless SYNTHESIZE cycle."""
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _stored_hit(self):
+        return {
+            "title": "game toy world model program",
+            "summary": f"program source:\n{TOY_GAME_SOURCE}",
+        }
+
+    def _agent(self, client, orient_retries=3):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        env = ToyEnv(_grid("2.3"))
+        llm = FakeLlm(['{"prediction_ok": true}'] * 6)
+        ag = EwmAgent(
+            env, llm, kb=_FlakyKb(client),
+            config=AgentConfig(game_id="toy", max_turns=10, orient_retries=orient_retries),
+        )
+        ag._sleep = lambda _d: None  # no real backoff sleeps in the test
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        return ag
+
+    def test_orient_retries_flaky_timeout_then_adopts(self):
+        # First two ORIENT searches time out; the third succeeds and adopts the stored program.
+        client = _FlakyKbClient([self._stored_hit()], fail_first=2)
+        ag = self._agent(client, orient_retries=3)
+        adopted = ag._orient({"grid": _grid("2.3")})
+        self.assertTrue(adopted)
+        self.assertTrue(ag.summary.orient_adopted)
+        # Three ORIENT attempts were made (two timeouts + the successful one).
+        self.assertEqual(ag.summary.orient_kb_attempts, 3)
+
+    def test_orient_exhausts_retries_on_persistent_timeout(self):
+        # The daemon NEVER answers: after exhausting the retries ORIENT gives up (falls through to
+        # SYNTHESIZE) rather than spinning forever, and the attempt count is bounded.
+        client = _FlakyKbClient([self._stored_hit()], fail_first=99)
+        ag = self._agent(client, orient_retries=3)
+        adopted = ag._orient({"grid": _grid("2.3")})
+        self.assertFalse(adopted)
+        self.assertEqual(ag.summary.orient_kb_attempts, 4)  # 1 initial + 3 retries
+
+    def test_orient_genuine_absence_does_not_retry(self):
+        # An EMPTY result that is NOT a timeout (last_search_failed False) is a genuine absence:
+        # ORIENT must NOT retry it — exactly one attempt.
+        client = _FlakyKbClient([], fail_first=0)  # succeeds immediately, returns no hits
+        ag = self._agent(client, orient_retries=3)
+        adopted = ag._orient({"grid": _grid("2.3")})
+        self.assertFalse(adopted)
+        self.assertEqual(ag.summary.orient_kb_attempts, 1)
+
+
+class _CorridorEnv:
+    """An open corridor with the goal WALLED OFF (unreachable), so ``_plan`` finds no win and the loop
+    drives FRONTIER EXPLORATION with correct toy-game movement (no divergence). ``act`` moves the
+    avatar one cell per action; the env reports a ``level_transition`` on the ``boundary_after``-th
+    ``act`` call — i.e. after that many zero-decide frontier batches — which is the level boundary the
+    multi-batch exploration must detect. Counts ``act`` calls so a test can assert multiple batches
+    ran. ``boundary_after=None`` never crosses a boundary."""
+
+    ACTIONS = ["UP", "DOWN", "LEFT", "RIGHT"]
+
+    def __init__(self, boundary_after=None, budget: int = 200) -> None:
+        # 2x6 board: row0 open corridor with the avatar at (0,0); goal at (1,5) walled off ((0,5) and
+        # all of row0-adjacent row1 are walls) so BFS never reaches it -> plan() returns None ->
+        # frontier path drives exploration.
+        self._rows, self._cols = 2, 6
+        self._avatar = (0, 0)
+        self._goal = (1, 5)
+        self._walls = frozenset({(0, 5), (1, 0), (1, 1), (1, 2), (1, 3), (1, 4)})
+        self._boundary_after = boundary_after
+        self.remaining_actions = budget
+        self.act_calls = 0
+        self._level = 1
+
+    def _grid(self):
+        grid = [[0] * self._cols for _ in range(self._rows)]
+        for (r, c) in self._walls:
+            grid[r][c] = 1
+        gr, gc = self._goal
+        grid[gr][gc] = 3
+        ar, ac = self._avatar
+        grid[ar][ac] = 2
+        return grid
+
+    def observe(self):
+        return {
+            "grid": self._grid(),
+            "level": self._level,
+            "step": 0,
+            "valid_actions": list(self.ACTIONS),
+            "score": 0,
+            "remaining_actions": self.remaining_actions,
+        }
+
+    def _apply_one(self, action: str) -> None:
+        dr, dc = DELTAS[action]
+        ar, ac = self._avatar
+        nr, nc = ar + dr, ac + dc
+        if 0 <= nr < self._rows and 0 <= nc < self._cols and (nr, nc) not in self._walls:
+            self._avatar = (nr, nc)
+
+    def act(self, actions, expect=None):
+        self.act_calls += 1
+        executed = []
+        stop_reason = "completed"
+        crossed = False
+        for index, action in enumerate(actions):
+            name = action.get("action") if isinstance(action, dict) else action
+            self.remaining_actions = max(0, self.remaining_actions - 1)
+            self._apply_one(str(name))
+            executed.append(name)
+            after = self._grid()
+            if expect is not None and index < len(expect) and expect[index] is not None:
+                if not grids_match([list(r) for r in expect[index]], after):
+                    stop_reason = "expect_mismatch"
+                    break
+        # The level boundary fires on the configured act-call (after N zero-decide batches).
+        if self._boundary_after is not None and self.act_calls >= self._boundary_after:
+            crossed = True
+            stop_reason = "level_transition"
+            self._level += 1
+        frame = {"grid": self._grid(), "level": self._level, "step": 0, "score": 0}
+        return {
+            "current_frame": frame,
+            "action_result": {"score": 1 if crossed else 0, "done": False},
+            "valid_actions": list(self.ACTIONS),
+            "remaining_actions": self.remaining_actions,
+            "executed": executed,
+            "stop_reason": stop_reason,
+            "done": False,
+        }
+
+
+class ExplorationExecutorTests(unittest.TestCase):
+    """Run-17: the LLM-FREE EXPLORATION EXECUTOR loops CPU-plan -> execute frontier batch -> re-plan
+    with ZERO decide calls while trusted; trust-drop restores the decide/reflect cadence."""
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _trusted_agent(self, env, **cfg):
+        from bench.arc_agi3_zonoid.ewm.world_model import WorldModelProgram
+
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        base = dict(
+            game_id="toy", max_turns=20, min_probe_transitions=1,
+            fast_path_trust_window=2, fast_path_batch_cap=2, frontier_max_depth=2,
+            goal_discovery_min_live_samples=2, goal_discovery_min_live_rate=0.9,
+            max_frontier_batches_per_turn=8,
+        )
+        base.update(cfg)
+        ag = EwmAgent(env, FakeLlm([]), kb=FakeKb(), vision_enabled=False,
+                      config=AgentConfig(**base))
+        ag.program = WorldModelProgram.load(TOY_GAME_SOURCE)
+        # Prime the model as trusted: a full window of passing live single-step predictions.
+        ag._live_results.extend([True, True, True])
+        ag._refresh_model_trust()
+        self.assertTrue(ag._model_trusted)
+        self.assertTrue(ag._goal_discovery_ready())
+        return ag
+
+    def test_multi_batch_zero_decide_exploration_detects_boundary(self):
+        # The boundary fires only on the 3rd act call, so the executor must loop CPU-plan -> execute
+        # -> re-plan at least three times with NO decide calls before it detects the level boundary.
+        env = _CorridorEnv(boundary_after=3)
+        ag = self._trusted_agent(env)
+        decide_before = ag.summary.decide_calls
+        result, diverged, last_frame = ag._explore_frontier_loop({"grid": env._grid(), "level": 1})
+        # Multiple frontier batches ran within the single turn (the executor kept re-planning).
+        self.assertGreaterEqual(ag.summary.frontier_batches, 2)
+        self.assertGreater(env.act_calls, 1)
+        # ZERO decide (LLM) calls happened across the whole exploration loop.
+        self.assertEqual(ag.summary.decide_calls, decide_before)
+        # The level boundary was observed and captured (is_win re-derived from it).
+        self.assertTrue(ag.summary.level_boundary_captured)
+        self.assertFalse(diverged)
+
+    def test_trust_drop_restores_cadence_single_batch(self):
+        # With the exploration executor OFF the loop runs exactly ONE frontier batch (Run-16 cadence),
+        # confirming the multi-batch loop is what the executor flag adds.
+        env = _CorridorEnv(boundary_after=3)
+        ag = self._trusted_agent(env, exploration_executor=False)
+        ag._explore_frontier_loop({"grid": env._grid(), "level": 1})
+        self.assertEqual(ag.summary.frontier_batches, 1)
+        self.assertEqual(env.act_calls, 1)
+
+    def test_exploration_loop_stops_when_trust_drops(self):
+        # A DEVIATING env (the toy program mispredicts the very first frontier batch) trips an
+        # expect-mismatch: the loop must break after ONE batch and hand control back to run() for the
+        # single strategy decide (REPAIR), never spinning zero-decide on a model that just diverged.
+        env = _DeviatingCorridorEnv()
+        ag = self._trusted_agent(env)
+        result, diverged, last_frame = ag._explore_frontier_loop({"grid": env._grid(), "level": 1})
+        self.assertTrue(diverged)
+        self.assertEqual(ag.summary.frontier_batches, 1)
+
+
+class _DeviatingCorridorEnv(_CorridorEnv):
+    """A corridor whose avatar does NOT move as the toy program predicts (it ignores the action), so
+    the first frontier batch's ``expect`` grids mismatch -> the executor loop breaks on divergence."""
+
+    def __init__(self, budget: int = 200) -> None:
+        super().__init__(boundary_after=None, budget=budget)  # boundary never reached
+
+    def _apply_one(self, action: str) -> None:
+        # Never move: the program predicts a move (RIGHT: (0,0)->(0,1)) but the env stays put, so the
+        # first expect grid mismatches immediately.
+        return None
+
+
 def _script_reflect_only() -> FakeLlm:
     """A FakeLlm that always returns a benign reflect (no program authoring) — for loop-drive tests
     where the program is not needed (the toy env just gets reactive/probe play)."""

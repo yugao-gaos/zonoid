@@ -699,6 +699,7 @@ def live_run(
             "level_boundary_captured": summary.get("level_boundary_captured", False),
             "goal_note_written": summary.get("goal_note_written", False),
             "is_win_rederived": summary.get("is_win_rederived", False),
+            "orient_kb_attempts": summary.get("orient_kb_attempts", 0),
         }
     finally:
         session.close()

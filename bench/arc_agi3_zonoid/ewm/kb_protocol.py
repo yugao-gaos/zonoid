@@ -174,6 +174,11 @@ class KbClient:
         self.workspace = workspace
         self.task_key = task_key
         self.timeout_s = timeout_s
+        # Retryable-outage signal: set True when the LAST search/note-get failed on a network
+        # error (timeout / connection refused), cleared to False on any successful call. ORIENT
+        # reads this to distinguish a daemon TIMEOUT (retryable — the program may still be there)
+        # from a genuine ABSENCE (empty results, nothing to retry). See EwmAgent._orient retry loop.
+        self.last_search_failed = False
 
     def search(
         self, q: str, k: int, gated: bool = False, full_content: bool = False
@@ -204,7 +209,9 @@ class KbClient:
                 payload = json.loads(resp.read().decode("utf-8"))
         except (error.URLError, TimeoutError, ValueError, OSError) as exc:  # noqa: BLE001
             logger.warning("KB search failed for %r: %r", q, exc)
+            self.last_search_failed = True
             return []
+        self.last_search_failed = False
         return _extract_results(payload)
 
     def get_note_full(self, key: str) -> dict[str, Any]:
@@ -233,6 +240,9 @@ class KbClient:
             return {"ok": False, "error": f"http {exc.code}"}
         except (error.URLError, TimeoutError, ValueError, OSError) as exc:  # noqa: BLE001
             logger.warning("KB note/get failed for %r: %r", key, exc)
+            # A note/get network failure is the same retryable-outage class as a search timeout:
+            # flag it so ORIENT retries rather than concluding the program is absent.
+            self.last_search_failed = True
             return {"ok": False, "error": repr(exc)}
         if not isinstance(payload, dict):
             return {"ok": False, "error": "unexpected note/get payload"}
@@ -473,6 +483,12 @@ def search_for_mode(
             # over any bare same-title note left over from an older single-note write.
             chunked = [h for h in index_hits if _INDEX_CHUNKS_RE.search(_note_text(h) + " " + str(h.get("content", "")))]
             return chunked or index_hits or scoped
+        # An EMPTY program search that FAILED on a daemon timeout (Run-17) is NOT a new game: it is a
+        # retryable outage, and the stored program may still be there. Return [] WITHOUT running the
+        # hypothesis-menu search (which would issue a second client call and CLEAR last_search_failed,
+        # masking the timeout) so ORIENT sees the failure flag and retries rather than conceding.
+        if getattr(client, "last_search_failed", False):
+            return []
         # New game: no game-scoped program note. Hand back a hypothesis menu, NOT raw semantic hits.
         return [hypothesis_menu(game_id, list(_tokens(vocabulary)), client=client)]
 

@@ -248,6 +248,25 @@ class AgentConfig:
     # one captures the pre-boundary player position, writes a game-scoped goal note, and re-derives
     # ``is_win`` as a goal-contact predicate so subsequent planning can actually target the win.
     goal_discovery: bool = True
+    # ORIENT RETRY (Run-17). The daemon KB search can TIME OUT under load (run 16: the daemon was
+    # CPU-pegged, KB search failed x4, and ORIENT concluded "no stored program" and burned ~15 min in
+    # a needless SYNTHESIZE cycle before a later retry finally recalled the run-15 program). A timeout
+    # is RETRYABLE — the program may still be there — not an absence. When ORIENT's KB call fails on a
+    # network error (KbClient.last_search_failed), retry up to ``orient_retries`` times with the
+    # backoff schedule below; only after the retries are exhausted (or a real empty result comes back)
+    # does ORIENT fall through to SYNTHESIZE. ``orient_kb_attempts`` telemetry counts total ORIENT KB
+    # attempts this run. Set orient_retries=0 to disable (tests that assert single-shot behaviour).
+    orient_retries: int = 3
+    orient_retry_backoff: tuple[float, ...] = (5.0, 15.0, 30.0)
+    # LLM-FREE EXPLORATION EXECUTOR (Run-17). Once the model is trusted (revalidation passed + the live
+    # window is passing), GOAL DISCOVERY should loop CPU-plan -> execute frontier batch -> CPU-plan the
+    # NEXT frontier batch with ZERO decide calls, re-entering the LLM only on an expect-mismatch or when
+    # the frontier is exhausted. Run 16 still spent 1.91 LLM calls/action because each frontier turn ran
+    # a fresh reflect and a multi-action batch never re-seeded single-step trust, so trust decayed and
+    # decide/reflect cadence returned. This caps how many back-to-back zero-decide frontier batches one
+    # turn runs (a budget guard so a broken explorer can't spin forever) before yielding to the loop.
+    exploration_executor: bool = True
+    max_frontier_batches_per_turn: int = 8
     # Live-confidence gate for GOAL DISCOVERY: the frontier explorer only engages once the live
     # pass-rate over a non-trivial window clears this floor (a trusted model is safe to drive on
     # long open-loop batches). Below it, the loop stays on the per-turn REPAIR/reactive path.
@@ -533,6 +552,9 @@ class RunSummary:
     level_boundary_captured: bool = False
     goal_note_written: bool = False
     is_win_rederived: bool = False
+    # ORIENT RETRY telemetry (Run-17): total ORIENT KB attempts this run (>1 means a daemon timeout
+    # was retried rather than conceded to SYNTHESIZE).
+    orient_kb_attempts: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -565,6 +587,7 @@ class RunSummary:
             "level_boundary_captured": self.level_boundary_captured,
             "goal_note_written": self.goal_note_written,
             "is_win_rederived": self.is_win_rederived,
+            "orient_kb_attempts": self.orient_kb_attempts,
         }
 
 
@@ -661,6 +684,9 @@ class EwmAgent:
         self._prev_level: Any = None
         self._prev_boundary_score: Any = None
         self._artifacts_ready = False  # lazily mkdir the artifacts dir on first write
+        # ORIENT RETRY (Run-17): the sleep used between backoff attempts. Injectable so tests exercise
+        # the retry loop without real wall-clock delays.
+        self._sleep: Callable[[float], None] = time.sleep
         # Graph-native synthesis telemetry (config.graph_synthesis): accumulated across all
         # SynthSession cycles this run so the driver can report truthful per-change stats — changes
         # proposed/passed/skipped and the FINAL full-suite pass rate observed each cycle.
@@ -1374,11 +1400,45 @@ class EwmAgent:
         Returns True if a stored program was adopted. A program is never adopted against an empty
         suite: with zero observed transitions there is nothing to validate against, so we defer
         adoption until the probe batch has seeded at least one real transition.
+
+        ORIENT RETRY (Run-17): a KB call that FAILS on a daemon timeout (client.last_search_failed) is
+        retryable — the stored program may still be there — not an absence. When ``_orient_once``
+        returns no adoption AND the last KB call failed on a network error, retry up to
+        ``orient_retries`` times with the ``orient_retry_backoff`` schedule; only after the retries are
+        exhausted (or a real empty/rejecting result comes back) does ORIENT fall through to SYNTHESIZE.
         """
 
         if len(self.suite) == 0:
             self.summary.orient_diagnosis = "empty suite"
             return False
+        attempts = max(0, self.config.orient_retries)
+        for attempt in range(attempts + 1):
+            self.summary.orient_kb_attempts += 1
+            if self._orient_once(frame):
+                return True
+            # Retry only when the KB call actually FAILED on a network error (a retryable daemon
+            # timeout). A genuine empty result (or a resolved-but-rejected program) is NOT retryable.
+            if attempt >= attempts or not self._kb_call_failed():
+                break
+            backoff = self.config.orient_retry_backoff
+            delay = backoff[attempt] if attempt < len(backoff) else (backoff[-1] if backoff else 0.0)
+            self.summary.orient_diagnosis = (
+                f"daemon timeout, retrying ORIENT (attempt {attempt + 1}/{attempts})"
+            )
+            if delay > 0:
+                self._sleep(delay)
+        return False
+
+    def _kb_call_failed(self) -> bool:
+        """True iff the KB client reports its LAST call failed on a network error (retryable daemon
+        timeout), as opposed to a clean empty result. False when there is no client (offline)."""
+
+        client = getattr(self.kb, "client", None) if self.kb is not None else None
+        return bool(getattr(client, "last_search_failed", False))
+
+    def _orient_once(self, frame: dict[str, Any]) -> bool:
+        """A single ORIENT KB lookup + revalidation pass (no retry). Returns True on adoption."""
+
         hits = self._kb_search("ORIENT")
         if not hits:
             self.summary.orient_diagnosis = "no stored program"
@@ -2524,17 +2584,17 @@ class EwmAgent:
                 # batch, and watch each real transition for a level/score boundary (captured +
                 # goal-noted in _ingest_result). Only when the model is trusted enough to open-loop.
                 if self._goal_discovery_ready():
-                    result, diverged = self._frontier_execute(frame)
+                    result, diverged, last_frame = self._explore_frontier_loop(frame)
                     if self._result_done(result):
                         self.summary.won = True
                         self.summary.stop_reason = "won"
                         break
                     if diverged:
-                        self._handle_divergence(frame, decide_image)
+                        self._handle_divergence(last_frame, decide_image)
                     else:
                         self._repairs_this_divergence = 0
                         self._failure_cycles = 0
-                    prev_frame = frame
+                    prev_frame = last_frame
                     continue
                 # No plan (e.g. already-at-goal empty plan or unreachable): reactive probe.
                 #
@@ -2614,6 +2674,45 @@ class EwmAgent:
         if samples < self.config.goal_discovery_min_live_samples:
             return False
         return self._live_pass_rate() >= self.config.goal_discovery_min_live_rate
+
+    def _explore_frontier_loop(
+        self, frame: dict[str, Any]
+    ) -> tuple[dict[str, Any], bool, dict[str, Any]]:
+        """LLM-FREE EXPLORATION EXECUTOR (Run-17): loop CPU-plan -> execute frontier batch -> re-plan
+        the NEXT frontier from the resulting frame, all with ZERO decide calls, while the model stays
+        trusted. The LLM re-enters only on an expect-mismatch (``diverged``) or frontier exhaustion —
+        both break the loop and return control to :meth:`run`, which then does the single strategy
+        decide (REPAIR) or falls through. Reflect stays log-only throughout (skipped by the fast path
+        while trusted). Bounded by ``max_frontier_batches_per_turn`` so a broken explorer can't spin.
+
+        Returns ``(last_result, diverged, last_frame)``. When ``exploration_executor`` is off this runs
+        exactly one batch (the Run-16 behaviour).
+        """
+
+        result, diverged = self._frontier_execute(frame)
+        last_frame = frame
+        if not self.config.exploration_executor:
+            return result, diverged, last_frame
+        batches = 1
+        cap = max(1, self.config.max_frontier_batches_per_turn)
+        # Keep looping zero-decide batches only while the model is still trusted, the last batch held
+        # (no divergence), the run is not done, and we are under budget + the per-turn cap. Any of
+        # those failing hands control back to run() — the LLM re-enters there if needed.
+        while (
+            batches < cap
+            and not diverged
+            and not self._result_done(result)
+            and self._model_trusted
+            and self._goal_discovery_ready()
+        ):
+            next_frame = self._observe()
+            if next_frame.get("done") or self._out_of_budget(next_frame):
+                last_frame = next_frame
+                break
+            last_frame = next_frame
+            batches += 1
+            result, diverged = self._frontier_execute(next_frame)
+        return result, diverged, last_frame
 
     def _frontier_execute(self, frame: dict[str, Any]) -> tuple[dict[str, Any], bool]:
         """Plan and run one FRONTIER EXPLORATION batch: the action prefix that visits the most NEW
