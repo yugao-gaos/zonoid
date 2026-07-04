@@ -6,3 +6,11 @@
 {"evt":"edge_added","from":"note:note-mr5yada5usg","to":"note:note-mr5y9unfh2k","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:57:36.108Z","weight":0,"by":"autowire","judged":false,"score":0.981,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr5yada5usg","to":"note:note-mr5njd22m3l","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:57:36.108Z","weight":0,"by":"autowire","judged":false,"score":0.745,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr5yada5usg","to":"note:note-mr5xad0sam6","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:57:36.108Z","weight":0,"by":"autowire","judged":false,"score":0.741,"origin":"autowire-semantic"}
+{"evt":"note_supersedes","id":"note-mr5yada5usg","supersedes":"note-mr5y9i24316","ts":"2026-07-04T05:57:34.781Z","actor":"supersede"}
+{"evt":"note_superseded","id":"note-mr5yada5usg","supersededBy":"note-mr5y9o2i9wy","validTo":"2026-07-04T05:57:02.106Z","ts":"2026-07-04T05:57:02.106Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mr5yada5usg","to":"codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:58:59.449Z"}
+{"evt":"edge_removed","from":"note:note-mr5yada5usg","to":"note:note-mr5y9i24316","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:58:59.449Z"}
+{"evt":"edge_removed","from":"note:note-mr5yada5usg","to":"note:note-mr5y9o2i9wy","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:58:59.449Z"}
+{"evt":"edge_removed","from":"note:note-mr5yada5usg","to":"note:note-mr5y9unfh2k","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:58:59.449Z"}
+{"evt":"edge_removed","from":"note:note-mr5yada5usg","to":"note:note-mr5njd22m3l","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:58:59.449Z"}
+{"evt":"edge_removed","from":"note:note-mr5yada5usg","to":"note:note-mr5xad0sam6","kind":"context","actor":"overlay-sync","ts":"2026-07-04T05:58:59.449Z"}
