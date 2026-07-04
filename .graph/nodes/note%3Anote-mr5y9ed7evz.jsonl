@@ -14,3 +14,4 @@
 {"evt":"edge_removed","from":"note:note-mr5y9ed7evz","to":"knowledge:source_chunk:note-mqqpp70ivco#note-evidence:chunk-5","kind":"context","actor":"overlay-sync","ts":"2026-07-04T06:27:46.398Z"}
 {"evt":"edge_removed","from":"note:note-mr5y9ed7evz","to":"note:note-mqh0gwz1mxc","kind":"context","actor":"overlay-sync","ts":"2026-07-04T06:28:34.804Z"}
 {"evt":"edge_removed","from":"note:note-mr5y9ed7evz","to":"codex/probe-subconscious-assignment-main-live","kind":"context","actor":"overlay-sync","ts":"2026-07-04T06:53:34.270Z"}
+{"evt":"edge_removed","from":"note:note-mr5y9ed7evz","to":"note:note-mqoxvl18k5p","kind":"context","actor":"overlay-sync","ts":"2026-07-04T06:54:06.814Z"}
