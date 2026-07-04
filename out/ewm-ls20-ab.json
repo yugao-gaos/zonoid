@@ -489,6 +489,43 @@
    "note": "Run 18 divergence-tolerance policy: on an expect-mismatch the loop first CLASSIFIES the divergence \u2014 if the mispredicted cells are confined to (or 8-neighbour-adjacent to) a partial adoption's known-unmodelable mask AND the model is proven healthy (prior live window >= repair_trigger_pass_rate 0.85), it AUTO-EXTENDS the mask (respecting mask_cap), counts a transient tolerated, and CONTINUES with NO trust drop and NO repair. REPAIR now engages only once the rolling window degrades below 0.85; a runtime sanity cap halts repairing a divergence signature after 2 consecutive extract/compile failures (the qwen 0-for-18 loop). Telemetry: transients_tolerated=None, mask_auto_extensions=None, repair_skips=None. Target: kill the futile REPAIR decides that dropped fast-path trust and strangled the LLM-free explorer at 2 batches/20 actions in run 17.",
    "divergences": 3,
    "telemetry_caveat": "This run executed on the driver BEFORE the transients_tolerated/mask_auto_extensions/repair_skips fields were propagated into the live_run summary, so those top-level fields were not emitted. transients_tolerated=3 is DERIVED (divergences=3 with repair_attempts=0 -> every divergence was tolerated, none repaired). The driver now propagates all three; future runs surface them natively. Adoption was WHOLE (native note_get), not a partial mask adoption, so tolerance here fired via the REPAIR-GATING path (window held at 1.0), not mask auto-extension."
+  },
+  "ewm_warmstart_run19_interaction_discovery": {
+   "agent": "EwmAgent + ORIENT warm-start + LLM-free exploration executor + divergence tolerance + Run-19 INTERACTION DISCOVERY (on movement-frontier exhaustion with no boundary: probe untried non-movement actions adjacent to each distinct object class, cheapest-first, deduped, effect-diffed against the auto-changing region, discoveries recorded as game-scoped interaction notes)",
+   "source": "out/ewm-ls20-ewm-warmstart8.json",
+   "model": "qwen-coding:latest (35B, ollama, vision)",
+   "harness": "FIXED harness through run-18, plus config.interaction_discovery=True (coverage_plateau_exhaust=2, max_interaction_probes_per_turn=6): frontier exhaustion is now ALSO declared when real coverage plateaus for 2 consecutive batches, routing to interaction probing instead of a blind reactive probe. graph_synthesis=True.",
+   "vision": true,
+   "levels_completed": 0,
+   "actions_taken": 80,
+   "actions_per_level_completed": null,
+   "won": false,
+   "program_adopted": true,
+   "orient_adopted": true,
+   "orient_revalidation": {
+    "probes": 5,
+    "pass_rate": 1.0,
+    "adopted_as": "whole"
+   },
+   "orient_kb_attempts": 5,
+   "live_pass_rate": 1.0,
+   "suite_size": 19,
+   "synthesis_attempts": 1,
+   "repair_attempts": 0,
+   "transients_tolerated": 0,
+   "repair_skips": 0,
+   "stop_reason": "budget",
+   "scorecard_url": "https://arcprize.org/scorecards/2b45c0c1-c8d2-4394-b505-c8a046d6ee3f",
+   "coverage_pct": 0.05,
+   "actions_per_minute": 1.2801,
+   "llm_calls_per_action": 0.6842,
+   "frontier_batches": 11,
+   "reflect_skipped": 12,
+   "level_boundary_captured": false,
+   "interactions_probed": 0,
+   "interactions_found": 0,
+   "divergences": 4,
+   "note": "Interaction discovery landed and is test-proven (toy switch game solved end-to-end) but did NOT engage live: (1) the within-run coverage plateau (2 zero-coverage batches) never fired \u2014 80 actions were consumed re-sweeping the same 5% the previous runs covered, because coverage resets per run; (2) decisively, ls20 exposes ONLY ACTION1-4, all translations \u2014 the non-movement probe vocabulary is EMPTY on this game, so the mode as specified (SPACE-class actions at object contexts) cannot fire on ls20 at all. The win interaction must be contact/positional. Next levers: cross-run coverage persistence (plateau fires within one budget) + BUMP probes (movement actions fired INTO each adjacent blocked object class)."
   }
  },
  "delta": {
@@ -499,5 +536,5 @@
  },
  "verdict": "TRUTHFUL FOUR-ARM FAILED A/B. All four arms completed 0 of 7 ls20 levels. Arm 4 (qwen-coding, both roles, vision on, FIXED probe-first harness) is the first arm where the world-model machinery behaved fully honestly end-to-end: probe seeding banked 4 real transitions before any synthesis, SYNTHESIZE engaged 4 times against a non-empty suite that grew to 80 transitions, and every candidate program failed validate() -- so the harness refused adoption and fell back to reactive play (76 reactive turns), exactly as designed. Contrast with arm 3, where the pre-fix harness adopted a program against zero evidence and then watched it miss all 80 transitions. Net: the fix converted 'confidently wrong world model' into 'no world model, honest fallback' -- same level score, better epistemics. The remaining bottleneck is unchanged and now cleanly isolated: neither local 35B-class model can yet author a Python program that reproduces real ls20 dynamics, whether validated before (arm 4) or after (arm 3) adoption. Telemetry caveats recorded on arm 4: live_pass_rate=1.0 is the vacuous empty-window default (no adopted program to score), and divergences=76 counts reactive turns, not expect-mismatches.",
  "pair_recommendation": "For the Kaggle two-local-model pair: use qwen-coding:latest as the SYNTHESIS model and qwen35b-arc:latest as the GAMEPLAY (+vision) model. Rationale, stated with its evidential limits: qwen-coding is the only model observed emitting candidate programs under the fixed harness's real validation gate (4 attempts, parseable fenced programs, no thinking-drain with reasoning_effort:none), making it the better-evidenced synthesis half even though none of its candidates validated yet; qwen35b-arc showed the sharper multimodal grounding in sanity checks (named the exact changed cell+color on the composite, where qwen-coding was off-by-one on a 3x3), making it the better-evidenced gameplay/vision half. CAVEAT: no arm has run qwen35b-arc on the fixed harness, and no arm has cleared a level, so this recommendation ranks failure modes rather than successes; a qwen35b-arc-synthesis arm on the fixed harness would be the decisive missing data point.",
- "total_arms": 12
+ "total_arms": 13
 }
