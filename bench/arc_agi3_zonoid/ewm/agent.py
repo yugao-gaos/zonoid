@@ -43,6 +43,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from .llm_client import LlmError
 from .planner import PlanResult, explore_frontier, plan
 from .world_model import (
     ALLOWED_IMPORTS,
@@ -949,11 +950,20 @@ class EwmAgent:
     ) -> str:
         self.summary.decide_calls += 1
         client = client or self.llm
-        resp = client.chat(
-            messages,
-            max_tokens=self.config.decide_max_tokens if max_tokens is None else max_tokens,
-            temperature=0.0,
-        )
+        try:
+            resp = client.chat(
+                messages,
+                max_tokens=self.config.decide_max_tokens if max_tokens is None else max_tokens,
+                temperature=0.0,
+            )
+        except LlmError as exc:
+            # Run-16 crash fix: a timed-out/failed decide call must degrade to an unusable response
+            # — the callers already handle that (reactive falls back to a probe action; a SYNTHESIZE/
+            # REPAIR candidate simply fails extract/compile) — never crash the whole run. Run 16's
+            # first live attempt died 17 minutes in when one REPAIR decide hit the client timeout and
+            # the LlmError propagated uncaught through _handle_divergence -> run().
+            print(f"[ewm] decide LLM call failed (degrading): {exc!r}", file=sys.stderr)
+            return ""
         return str(resp.get("content", "")) if isinstance(resp, dict) else str(resp)
 
     def _synth_client(self) -> Any:

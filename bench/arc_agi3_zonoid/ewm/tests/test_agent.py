@@ -2608,6 +2608,20 @@ class GoalDiscoveryAndFastPathTests(unittest.TestCase):
         ag._live_results.append(False)
         self.assertFalse(ag._goal_discovery_ready())
 
+    def test_decide_llm_error_degrades_instead_of_crashing(self) -> None:
+        # Run-16 live crash: a timed-out decide call raised LlmError and killed the whole run.
+        # _decide must catch it and return "" (callers treat that as an unusable response).
+        from bench.arc_agi3_zonoid.ewm.llm_client import LlmError
+
+        class _Boom:
+            def chat(self, *a, **k):
+                raise LlmError("chat completion failed: TimeoutError('timed out')")
+
+        ag = self._agent()
+        ag.llm = _Boom()
+        out = ag._decide([{"role": "user", "content": "hi"}])
+        self.assertEqual(out, "")
+
     def test_telemetry_fields_present_after_run(self) -> None:
         env = ToyEnv(_grid("2.3"), budget=50)
         llm = _script_reflect_only()
