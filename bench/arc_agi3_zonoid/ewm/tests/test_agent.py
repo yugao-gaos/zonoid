@@ -3866,6 +3866,106 @@ class BumpQuotaInterleaveTests(unittest.TestCase):
         self.assertEqual(ag.summary.bumps_probed, before)
 
 
+# ls20-COLORED variants (Run-23): the LIVE player renders as color 12, NOT the toy avatar color 2.
+# The Run-17..22 live silent-drop was that _player_position hardcoded color 2, so on the live board it
+# returned None, _bump_contexts was empty, and the bump quota fired 0 bumps SILENTLY while every
+# color-2 toy test above stayed green. These recolored copies reproduce that exact live condition.
+LS20_COLORED_QUOTA_MODEL_SOURCE = QUOTA_MODEL_SOURCE.replace("AVATAR = 2", "AVATAR = 12")
+
+
+class _Ls20ColoredQuotaEnv(_QuotaMultiBlockEnv):
+    """The quota env with the avatar rendered as color 12 (the real ls20 player color) instead of 2 —
+    everything else identical. On this board the OLD color-2 _player_position finds no player and bumps
+    silently never fire; the Run-23 model-agnostic inference must find the color-12 player and bump."""
+
+    def _grid(self):
+        grid = [[0] * self._cols for _ in range(self._rows)]
+        for (r, c), color in self._blocks.items():
+            grid[r][c] = color
+        grid[self._avatar[0]][self._avatar[1]] = 12  # player is color 12, not 2
+        return grid
+
+
+class PlayerColorInferenceTests(unittest.TestCase):
+    """Run-23 regression: the live wiring gap. The player is inferred from the ACTIVE program, not a
+    hardcoded color 2, so a non-color-2 live player (ls20 is {9,12}) is found and bumps fire."""
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _trusted_agent(self, env, source, **cfg):
+        from bench.arc_agi3_zonoid.ewm.world_model import WorldModelProgram
+
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        base = dict(
+            game_id="ls20color", max_turns=40, min_probe_transitions=1,
+            fast_path_trust_window=2, goal_discovery_min_live_samples=2,
+            goal_discovery_min_live_rate=0.9, max_frontier_batches_per_turn=8,
+            max_interaction_probes_per_turn=6, coverage_persistence=False,
+        )
+        base.update(cfg)
+        ag = EwmAgent(env, FakeLlm([]), kb=FakeKb(max_writes_per_turn=8),
+                      vision_enabled=False, config=AgentConfig(**base))
+        ag.program = WorldModelProgram.load(source)
+        ag._live_results.extend([True, True, True])
+        ag._refresh_model_trust()
+        return ag
+
+    def test_player_color_inferred_from_program_not_hardcoded_two(self):
+        env = _Ls20ColoredQuotaEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE)
+        colors = ag._player_color_set()
+        # The inference derives the player color from the program's own render — 12, not the old 2.
+        self.assertIn(12, colors)
+        self.assertNotIn(2, colors)
+
+    def test_player_position_found_on_non_color_two_board(self):
+        env = _Ls20ColoredQuotaEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE)
+        grid = env._grid()
+        pos = ag._player_position(grid)
+        # The OLD color-2 scan would return None here (no color-2 cell) — the silent-drop root cause.
+        self.assertIsNotNone(pos)
+        self.assertEqual(grid[pos[0]][pos[1]], 12)
+
+    def test_bump_contexts_nonempty_on_non_color_two_board(self):
+        env = _Ls20ColoredQuotaEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE)
+        contexts = ag._bump_contexts(env._grid())
+        # With the player found, the distinct-color blocks yield bump contexts (was [] with color-2).
+        self.assertGreaterEqual(len(contexts), 1)
+
+    def test_bumps_fire_live_on_non_color_two_player(self):
+        # THE end-to-end regression: on an ls20-colored board (player 12), the quota interleave actually
+        # FIRES contact bumps — the live pathology (bumps_probed=0) is closed.
+        env = _Ls20ColoredQuotaEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE,
+                                 exploration_min_bump_actions=24, max_turns=30)
+        out = ag.run()
+        self.assertGreaterEqual(out["bumps_probed"], 1)
+        # The config echo surfaces the effective knobs AND the inferred player color (12), so a future
+        # regression to color 2 is visible in the summary, not silent.
+        echo = out.get("config_echo")
+        self.assertIsNotNone(echo)
+        self.assertTrue(echo["bump_probes"])
+        self.assertIn(12, echo["player_colors"])
+
+    def test_bump_skip_reason_records_no_player_when_player_absent(self):
+        # Silent-drop guard: if the player genuinely cannot be found, _bump_discovery records WHY rather
+        # than returning None invisibly. Simulate the old pathology by forcing the color set to {2} on a
+        # board that has no color-2 cell.
+        env = _Ls20ColoredQuotaEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE)
+        ag._player_colors = frozenset({2})  # pin the OLD hardcoded color
+        ag._player_colors_for = ag.program
+        result = ag._bump_discovery(env.observe())
+        self.assertIsNone(result)
+        self.assertIsNotNone(ag.summary.bump_skip_reason)
+        self.assertIn("no player cell", ag.summary.bump_skip_reason)
+
+
 
 class _CoverageKbClient:
     """KbClient stand-in for coverage resume: returns a native full-body coverage note for the index

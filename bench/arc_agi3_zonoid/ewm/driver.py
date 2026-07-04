@@ -712,6 +712,12 @@ def live_run(
             "bumps_found": summary.get("bumps_found", 0),
             "coverage_resumed_pct": summary.get("coverage_resumed_pct", 0.0),
             "coverage_persisted": summary.get("coverage_persisted", False),
+            # Run-23 SILENT-DROP DIAGNOSTICS + CONFIG ECHO: make a dropped field / no-op bump visible.
+            "bump_due_batches": summary.get("bump_due_batches", 0),
+            "bump_empty_batches": summary.get("bump_empty_batches", 0),
+            "bump_skip_reason": summary.get("bump_skip_reason"),
+            "player_colors": summary.get("player_colors"),
+            "config_echo": summary.get("config_echo"),
         }
     finally:
         session.close()
