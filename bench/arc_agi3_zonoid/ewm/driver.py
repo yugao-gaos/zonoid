@@ -700,6 +700,10 @@ def live_run(
             "goal_note_written": summary.get("goal_note_written", False),
             "is_win_rederived": summary.get("is_win_rederived", False),
             "orient_kb_attempts": summary.get("orient_kb_attempts", 0),
+            # Run-18 DIVERGENCE TOLERANCE telemetry.
+            "transients_tolerated": summary.get("transients_tolerated", 0),
+            "mask_auto_extensions": summary.get("mask_auto_extensions", 0),
+            "repair_skips": summary.get("repair_skips", 0),
         }
     finally:
         session.close()

@@ -1582,6 +1582,146 @@ class FallbackFloorTests(unittest.TestCase):
         self.assertEqual(ag._select_mode(), "RECOVER")
 
 
+class DivergenceToleranceTests(unittest.TestCase):
+    """Run-18: a TRANSIENT divergence confined to (or adjacent to) a partial adoption's known-
+    unmodelable mask is TOLERATED — auto-extend the mask, NO trust drop, NO repair, exploration
+    continues with zero LLM calls. Window degradation still triggers repair; the runtime sanity cap
+    halts identical extract/compile loops for a divergence signature."""
+
+    def setUp(self):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _masked_mover(self, cols=64):
+        """A partial adoption: inner mover(+1) wrapped with the mask of its persistently-wrong cells
+        over a truth(+5) suite. A WIDE board keeps the mask fraction well under mask_cap so the
+        auto-extend path is exercised (a real ls20 board is 64x64). Returns (ag, wrapped, mask)."""
+        from bench.arc_agi3_zonoid.ewm.world_model import (
+            WorldModelProgram, masked_program, mismatch_mask,
+        )
+
+        env = _MoverEnv(cols=cols, truth_mag=5)
+        ag = EwmAgent(
+            env, FakeLlm([]),
+            config=AgentConfig(
+                game_id="toy", min_probe_transitions=1,
+                repair_trigger_pass_rate=0.85, repair_sanity_cap=2,
+                fast_path_trust_window=3, mask_cap=0.15,
+            ),
+        )
+        # A few transitions near the left so the mask stays small vs the wide board.
+        for start in range(0, 8, 2):
+            ag.suite.append(_mover_grid(cols, start), "RIGHT", _mover_grid(cols, start + 5))
+        inner = WorldModelProgram.load(_mover_source(1))
+        mask = mismatch_mask(inner, ag.suite)
+        wrapped = masked_program(inner, mask)
+        ag.program = wrapped
+        ag.summary.program_adopted_partial = True
+        ag.summary.mask_cells = len(mask)
+        ag._partial_repaired = True  # already live-repaired: window is authoritative
+        return ag, wrapped, mask
+
+    def test_masked_adjacent_transient_tolerated_zero_llm_and_continues(self):
+        ag, wrapped, mask = self._masked_mover()
+        # Prove the model healthy: a passing prior window.
+        ag._live_results.extend([True] * 5)
+        ag._refresh_model_trust()
+        self.assertTrue(ag._model_trusted)
+        # Append a live transition the INNER program mispredicts on cells INSIDE the mask (a transient
+        # in the region the model already declines to model). before: avatar at a masked col mc, so
+        # inner(+1) renders the avatar at mc+1 while truth(+5) puts it at mc+5 -> the mismatch cells
+        # (old+new positions) land in/adjacent to the mask.
+        (_mr, mc) = sorted(mask)[0]
+        before = _mover_grid(64, mc)
+        after = _mover_grid(64, min(63, mc + 5))
+        ag.suite.append(before, "RIGHT", after)
+        ag._live_results.append(ag._predicts_transition(before, "RIGHT", after))
+
+        cells = ag._last_divergence_cells()
+        self.assertTrue(cells, "the inner program must mispredict this transition")
+        self.assertTrue(
+            all(ag._cells_adjacent_to(cell, set(wrapped.mask_cells)) for cell in cells),
+            "the transient must be confined to / adjacent to the mask",
+        )
+
+        calls_before = ag.llm.calls
+        repairs_before = ag.summary.repair_attempts
+        ag._handle_divergence({"grid": before, "valid_actions": ["RIGHT"]}, None)
+
+        # Tolerated: NO LLM call, NO repair, program kept, trust NOT dropped, exploration continues.
+        self.assertEqual(ag.llm.calls, calls_before, "tolerating a transient must make zero LLM calls")
+        self.assertEqual(ag.summary.repair_attempts, repairs_before, "no repair on a tolerated transient")
+        self.assertIsNotNone(ag.program)
+        self.assertFalse(ag._modelability_poor)
+        self.assertTrue(ag._model_trusted, "a tolerated transient must NOT drop fast-path trust")
+        self.assertEqual(ag.summary.transients_tolerated, 1)
+        self.assertNotEqual(ag._select_mode(), "RECOVER")
+
+    def test_window_degradation_still_triggers_repair(self):
+        # A partial adoption whose live window has degraded below the repair trigger is NOT a
+        # transient: _handle_divergence must engage REPAIR (repair_attempts > 0), not tolerate.
+        ag, wrapped, mask = self._masked_mover()
+        ag._partial_repaired = True
+        # Window degraded: mostly failing predictions (rate < 0.85).
+        ag._live_results.extend([False, False, False, False, True])
+        self.assertLess(ag._live_pass_rate(), 0.85)
+        # One scripted repair candidate (still wrong; correctness not asserted) + reflects.
+        ag.llm = FakeLlm([_fenced(_mover_source(2))] + ['{"prediction_ok": false}'] * 20)
+        ag.config.max_repair_attempts = 1
+        ag.config.max_repairs_per_divergence = 1
+        before = _mover_grid(64, 0)
+        after = _mover_grid(64, 5)
+        ag.suite.append(before, "RIGHT", after)
+        ag._live_results.append(False)
+        ag._handle_divergence({"grid": before, "valid_actions": ["RIGHT"]}, None)
+        self.assertGreater(
+            ag.summary.repair_attempts, 0,
+            "a degraded window must still route to REPAIR, not be tolerated",
+        )
+        self.assertEqual(ag.summary.transients_tolerated, 0)
+
+    def test_sanity_cap_halts_identical_failure_loop(self):
+        # After repair_sanity_cap consecutive candidates fail extract/compile for the SAME divergence
+        # signature, that signature is halted: a subsequent repair is SKIPPED (repair_skips++) with no
+        # further LLM calls, instead of looping the 0-for-N qwen failure forever.
+        from bench.arc_agi3_zonoid.ewm.world_model import validate
+
+        ag, wrapped, mask = self._masked_mover()
+        ag._partial_repaired = True
+        # Repair candidates that are PROSE ONLY (no fenced block) -> extract failure every time.
+        ag.llm = FakeLlm(["no code here, sorry"] * 40)
+        ag.config.max_repair_attempts = 1
+        ag.config.min_live_pass_rate = 0.0        # isolate the sanity cap from the floor drop
+        ag.config.max_repairs_per_game = 99
+        ag.config.max_repairs_per_divergence = 99
+        before = _mover_grid(64, 0)
+        after = _mover_grid(64, 5)
+        ag.suite.append(before, "RIGHT", after)
+
+        # Drive divergences on the SAME signature. Window degraded so gating routes to repair.
+        def diverge():
+            ag._live_results.append(False)
+            ag._handle_divergence({"grid": before, "valid_actions": ["RIGHT"]}, None)
+
+        # First two divergences each attempt repair (extract fails); the 2nd hit halts the signature.
+        diverge()
+        diverge()
+        attempts_after_cap = ag.summary.repair_attempts
+        self.assertGreater(attempts_after_cap, 0)
+        # Third divergence on the halted signature: repair is SKIPPED — no new attempt, repair_skips++.
+        skips_before = ag.summary.repair_skips
+        diverge()
+        self.assertEqual(
+            ag.summary.repair_attempts, attempts_after_cap,
+            "a halted signature must not attempt another repair",
+        )
+        self.assertGreater(ag.summary.repair_skips, skips_before)
+
+
 class SynthSessionCapTests(unittest.TestCase):
     """Graph-native session pacing: once max_synth_sessions_per_game is hit, _synthesize_graph
     refuses to launch another SynthSession and drops to reactive (modelability poor) — the run-8

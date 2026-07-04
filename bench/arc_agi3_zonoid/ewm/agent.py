@@ -229,6 +229,25 @@ class AgentConfig:
     max_repairs_per_divergence: int = 2
     max_repairs_per_game: int = 6
     min_live_pass_rate: float = 0.5
+    # DIVERGENCE TOLERANCE (Run-18). Run-17 evidence: an ORIENT-recalled model that was otherwise
+    # perfect (final live_pass_rate 1.0) still hit 3 TRANSIENT divergences confined to cells the
+    # program already CANNOT model (or immediately adjacent to them). Each fired a futile REPAIR
+    # (qwen repair 0-for-18 across runs 15-17), and every repair miss dropped fast-path trust and
+    # strangled the LLM-free explorer at 2 batches / 20 actions. The fix is to make the loop tolerate
+    # what it cannot fix and never interrupt a working model:
+    #   (1) CLASSIFY a divergence: if the mismatched cells are confined to the program's known-
+    #       unmodelable set (a MaskedProgram's mask) or ADJACENT to already-masked cells, auto-extend
+    #       the mask (respecting mask_cap), count it tolerated, and CONTINUE with NO trust drop and NO
+    #       repair — a transient in a region the model already declines to predict is not a defect.
+    #   (2) GATE repair on the rolling live pass-rate window: REPAIR engages only once the window
+    #       degrades below repair_trigger_pass_rate; an isolated transient while the window still holds
+    #       never triggers repair.
+    #   (3) SANITY-CAP repair per divergence SIGNATURE: after repair_sanity_cap consecutive candidates
+    #       fail extract/compile for the SAME signature, stop repairing that signature for the rest of
+    #       the game (logged for the dev-time pass) — trust restores when predictions resume passing.
+    divergence_tolerance: bool = True
+    repair_trigger_pass_rate: float = 0.85
+    repair_sanity_cap: int = 2
     # Partial adoption (Run-9 fix): stop demanding a perfectly-passing program before the planner
     # gets ANY model. When synthesis produces no fully-passing program, the BEST candidate whose
     # full-suite pass_rate >= min_partial_adopt_rate is adopted with its persistently-wrong cells
@@ -555,6 +574,14 @@ class RunSummary:
     # ORIENT RETRY telemetry (Run-17): total ORIENT KB attempts this run (>1 means a daemon timeout
     # was retried rather than conceded to SYNTHESIZE).
     orient_kb_attempts: int = 0
+    # DIVERGENCE TOLERANCE telemetry (Run-18). `transients_tolerated` = divergences classified as
+    # confined-to/adjacent-to the known-unmodelable set and tolerated with NO trust drop and NO
+    # repair. `mask_auto_extensions` = tolerated divergences that actually grew the mask (new cells
+    # masked UNKNOWN). `repair_skips` = repair engagements skipped because the divergence signature
+    # had already hit the runtime sanity cap (repair_sanity_cap consecutive extract/compile failures).
+    transients_tolerated: int = 0
+    mask_auto_extensions: int = 0
+    repair_skips: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -588,6 +615,9 @@ class RunSummary:
             "goal_note_written": self.goal_note_written,
             "is_win_rederived": self.is_win_rederived,
             "orient_kb_attempts": self.orient_kb_attempts,
+            "transients_tolerated": self.transients_tolerated,
+            "mask_auto_extensions": self.mask_auto_extensions,
+            "repair_skips": self.repair_skips,
         }
 
 
@@ -638,6 +668,13 @@ class EwmAgent:
         # Repair engagement + live pass-rate floor bookkeeping.
         self._repairs_this_game = 0
         self._repairs_this_divergence = 0
+        # DIVERGENCE TOLERANCE runtime sanity cap (Run-18): per divergence SIGNATURE, the count of
+        # consecutive REPAIR candidates that failed extract/compile; once a signature reaches
+        # config.repair_sanity_cap it is halted (added to _repair_halted_signatures) and no further
+        # repair is attempted for it this game. A signature clears from the failure map the moment a
+        # repair candidate for it compiles, so the cap only bites identical-failure loops.
+        self._repair_signature_failures: dict[str, int] = {}
+        self._repair_halted_signatures: set[str] = set()
         # Partial-adoption divergence engagement (Run-10 fix): a masked program masks exactly the
         # cells its inner source gets wrong, so the ``expect``-grid check (which treats masked cells
         # as wildcards) would NEVER see a divergence in the modeled-wrong region and REPAIR would
@@ -1920,6 +1957,25 @@ class EwmAgent:
             return [formatted]
         return []
 
+    @staticmethod
+    def _divergence_signature(report: ValidationReport) -> str:
+        """A stable key identifying WHICH divergence a repair is targeting, for the runtime sanity
+        cap. Derived from the first-failure action + the first few mismatch cell coordinates, so two
+        divergences on the same action failing on the same cells share a signature and their
+        extract/compile failures accumulate together."""
+
+        cells = tuple((m[0], m[1]) for m in (report.mismatches or [])[:4])
+        return f"{report.fail_action!r}|{cells}"
+
+    def _note_repair_extract_failure(self, signature: str) -> None:
+        """Record one extract/compile failure for ``signature``; halt the signature once it reaches
+        ``config.repair_sanity_cap`` consecutive failures (logged for the dev-time pass)."""
+
+        count = self._repair_signature_failures.get(signature, 0) + 1
+        self._repair_signature_failures[signature] = count
+        if count >= self.config.repair_sanity_cap:
+            self._repair_halted_signatures.add(signature)
+
     def _repair(self, frame: dict[str, Any], image_url: str | None) -> bool:
         """Patch the current program from the first-failure report and re-validate.
 
@@ -1941,6 +1997,17 @@ class EwmAgent:
         report = validate(inner, self.suite)
         if report.ok:
             return True
+        # RUNTIME REPAIR SANITY CAP (Run-18): a divergence SIGNATURE that has already burned
+        # config.repair_sanity_cap consecutive extract/compile failures is halted for the game — no
+        # further LLM repair is attempted for it (qwen was 0-for-18 across runs 15-17; identical
+        # candidates fail identically). The signature clears the moment any candidate for it compiles.
+        signature = self._divergence_signature(report)
+        if (
+            self.config.divergence_tolerance
+            and signature in self._repair_halted_signatures
+        ):
+            self.summary.repair_skips += 1
+            return False
         kb_hits = self._kb_search(
             "REPAIR", divergence=self._divergence_text(report)
         )
@@ -1962,6 +2029,7 @@ class EwmAgent:
                     self._write_attempt_artifact(
                         "REPAIR", frame, self._prompt_text(messages), text, None, None, False
                     )
+                    self._note_repair_extract_failure(signature)
                     break
             try:
                 candidate = WorldModelProgram.load(source)
@@ -1975,7 +2043,12 @@ class EwmAgent:
                     ValidationReport(ok=False, pass_count=0, total=len(self.suite), error=str(exc)),
                     False,
                 )
+                self._note_repair_extract_failure(signature)
+                if signature in self._repair_halted_signatures:
+                    break
                 continue
+            # The candidate compiled: this signature is no longer stuck in an extract/compile loop.
+            self._repair_signature_failures.pop(signature, None)
             report = validate(candidate, self.suite)
             adopted = bool(report.ok and report.total > 0)
             self._write_attempt_artifact(
@@ -2767,10 +2840,137 @@ class EwmAgent:
             round(llm_calls / actions, 4) if actions else 0.0
         )
 
+    # -- divergence classification (Run-18) --------------------------------------------------------
+
+    def _last_divergence_cells(self) -> set[tuple[int, int]] | None:
+        """The cells where the active program's INNER render mispredicts the most recent observed
+        transition, or ``None`` when there is nothing usable to classify (no program, empty suite,
+        or a crash/shape-mismatch — those are real model breakage, never a maskable transient).
+
+        Compared against the UNWRAPPED inner program so a MaskedProgram's mask does not hide the very
+        cells we are trying to classify. Cells the inner render already declines to predict (UNKNOWN)
+        are excluded — a decline is not a mismatch."""
+
+        program = self.program
+        if program is None or len(self.suite) == 0:
+            return None
+        inner = program.inner if isinstance(program, MaskedProgram) else program
+        transition = self.suite[-1]
+        before = transition.before_grid
+        after = transition.after_grid
+        try:
+            state = inner.init_state(before)
+            next_state, _events = inner.step(state, transition.action)
+            got = inner.render(next_state)
+        except Exception:  # noqa: BLE001 - a crash predicts nothing: real breakage, not a transient
+            return None
+        if _grid_shape(after) != _grid_shape(got):
+            return None
+        cells: set[tuple[int, int]] = set()
+        for r, (arow, grow) in enumerate(zip(after, got)):
+            for c, (a, g) in enumerate(zip(arow, grow)):
+                if _is_unknown(g) or _is_unknown(a):
+                    continue
+                if a != g:
+                    cells.add((r, c))
+        return cells
+
+    @staticmethod
+    def _cells_adjacent_to(cell: tuple[int, int], mask: set[tuple[int, int]]) -> bool:
+        """True iff ``cell`` is in ``mask`` or 8-neighbour-adjacent to a masked cell."""
+
+        r, c = cell
+        for dr in (-1, 0, 1):
+            for dc in (-1, 0, 1):
+                if (r + dr, c + dc) in mask:
+                    return True
+        return False
+
+    def _try_tolerate_transient(self, frame: dict[str, Any]) -> bool:
+        """Classify the latest divergence; if it is a TRANSIENT confined to the program's known-
+        unmodelable set (a MaskedProgram's mask) or adjacent to already-masked cells, auto-extend the
+        mask (respecting ``mask_cap``) and tolerate it: NO trust drop, NO repair. Returns True when the
+        divergence was tolerated (the caller then CONTINUES exploration), False otherwise.
+
+        Only a MaskedProgram carries a known-unmodelable set, so tolerance only applies to partial
+        adoptions — a whole-program divergence has no mask to be confined to and routes to repair."""
+
+        if not self.config.divergence_tolerance:
+            return False
+        program = self.program
+        if not isinstance(program, MaskedProgram):
+            return False
+        # Tolerance is for an ISOLATED transient on a model PROVEN healthy. Measured over the window
+        # EXCLUDING the current (failing) tail: there must be prior passing evidence AND that prior
+        # history must hold >= repair_trigger_pass_rate. A model with no prior evidence, or one whose
+        # window has already degraded (e.g. a mover mispredicting EVERY step, dragging the rate to ~0),
+        # is not showing a transient — it is a persistent defect that must route to REPAIR, never be
+        # masked away forever.
+        prior = list(self._live_results)[:-1] if self._live_results else []
+        if not prior:
+            return False
+        prior_rate = sum(1 for ok in prior if ok) / len(prior)
+        if prior_rate < self.config.repair_trigger_pass_rate:
+            return False
+        cells = self._last_divergence_cells()
+        # None (crash/shape-mismatch/no evidence) or empty is not a maskable transient.
+        if not cells:
+            return False
+        mask = set(program.mask_cells)
+        if not all(self._cells_adjacent_to(cell, mask) for cell in cells):
+            return False
+        # Confined/adjacent: auto-extend the mask, respecting the board mask-cap.
+        new_mask = mask | cells
+        board = self._board_cells(frame)
+        if board <= 0 or (len(new_mask) / board) > self.config.mask_cap:
+            # Over the cap: refuse to grow the model into mostly holes. Not tolerated -> repair path.
+            return False
+        extended = bool(cells - mask)
+        if extended:
+            program.mask_cells = new_mask
+            self.summary.mask_cells = len(new_mask)
+            self.summary.mask_auto_extensions += 1
+        self.summary.transients_tolerated += 1
+        # A tolerated transient must NOT drop trust: the last live result mispredicted the (now-masked)
+        # cell, so re-score it as a pass against the extended mask and refresh trust.
+        if self._live_results:
+            self._live_results[-1] = True
+        self._refresh_model_trust()
+        # A tolerated divergence resets the per-divergence repair budget — the model held.
+        self._repairs_this_divergence = 0
+        return True
+
     def _handle_divergence(self, frame: dict[str, Any], image_url: str | None) -> None:
-        """On an expect-mismatch: engage REPAIR, but enforce the repair caps and live pass-rate
-        floor. A program whose live pass-rate has collapsed (or which has burned its repair budget)
-        is DROPPED and the loop switches to reactive — never keep planning from a dead model."""
+        """On an expect-mismatch: first try to TOLERATE it as a transient confined to the program's
+        known-unmodelable set (auto-extend the mask, no trust drop, no repair). Otherwise GATE repair
+        on the rolling live pass-rate window — REPAIR only engages once the window degrades below
+        ``repair_trigger_pass_rate`` — then enforce the repair caps and live pass-rate floor. A
+        program whose live pass-rate collapses (or which burns its repair budget) is DROPPED and the
+        loop switches to reactive; never keep planning from a dead model."""
+
+        # (1) DIVERGENCE CLASSIFICATION: tolerate a transient in the known-unmodelable region.
+        if self._try_tolerate_transient(frame):
+            self._failure_cycles = 0
+            return
+
+        # (2) REPAIR GATING: while the rolling window still holds, an isolated transient does NOT
+        # trigger repair — the model is working, so do not interrupt it. The live window scores the
+        # ACTIVE program; for a partial adoption that wrapper renders UNKNOWN over its mask, so the
+        # window understates a real inner defect (the Run-10 hole). An un-live-repaired partial's
+        # divergence came from the UNWRAPPED inner ``expect``, so it is authoritative — never gate it.
+        unrepaired_partial = (
+            isinstance(self.program, MaskedProgram) and not self._partial_repaired
+        )
+        window_holds = (
+            self.config.divergence_tolerance
+            and not unrepaired_partial
+            and len(self._live_results) >= 1
+            and self._live_pass_rate() >= self.config.repair_trigger_pass_rate
+        )
+        if window_holds:
+            self._repairs_this_divergence = 0
+            self._failure_cycles = 0
+            return
 
         self._repairs_this_divergence += 1
         self._repairs_this_game += 1
