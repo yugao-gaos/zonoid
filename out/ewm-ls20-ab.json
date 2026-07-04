@@ -526,6 +526,47 @@
    "interactions_found": 0,
    "divergences": 4,
    "note": "Interaction discovery landed and is test-proven (toy switch game solved end-to-end) but did NOT engage live: (1) the within-run coverage plateau (2 zero-coverage batches) never fired \u2014 80 actions were consumed re-sweeping the same 5% the previous runs covered, because coverage resets per run; (2) decisively, ls20 exposes ONLY ACTION1-4, all translations \u2014 the non-movement probe vocabulary is EMPTY on this game, so the mode as specified (SPACE-class actions at object contexts) cannot fire on ls20 at all. The win interaction must be contact/positional. Next levers: cross-run coverage persistence (plateau fires within one budget) + BUMP probes (movement actions fired INTO each adjacent blocked object class)."
+  },
+  "ewm_warmstart_run20_coverage_persistence_bump_probes": {
+   "agent": "EwmAgent + ORIENT warm-start + LLM-free exploration executor + divergence tolerance + interaction discovery + Run-20 CROSS-RUN COVERAGE PERSISTENCE (persist visited cells + fired probes + frontier plateau as a chunked game-scoped KB note at run end; resume the frontier at run start so budgets never compound) + BUMP PROBES (non-movement vocabulary empty -> probe CONTACT: plan movement INTO each adjacent distinct object class, repeated bumps, diff for any effect beyond blocked/no-op and the auto-changing region; persisted (<bump>,object) dedup)",
+   "source": "out/ewm-ls20-ewm-warmstart9.json",
+   "model": "qwen-coding:latest (35B, ollama, vision)",
+   "harness": "FIXED harness through run-19, plus config.coverage_persistence=True (encode/decode + chunked write_coverage_state/read_coverage_state in kb_protocol; resume at run start, persist at run end, coverage_resumed_pct telemetry) and config.bump_probes=True (bump_probe_repeats=3): when _non_movement_actions is empty, interaction discovery falls back to _bump_discovery which moves INTO adjacent object classes and diffs for a contact effect (bumps_probed/bumps_found telemetry). graph_synthesis=True.",
+   "vision": true,
+   "levels_completed": 0,
+   "actions_taken": 80,
+   "actions_per_level_completed": null,
+   "won": false,
+   "program_adopted": true,
+   "orient_adopted": true,
+   "orient_revalidation": {
+    "probes": 4,
+    "pass_rate": 1.0,
+    "adopted_as": "whole"
+   },
+   "orient_kb_attempts": 3,
+   "live_pass_rate": 1.0,
+   "suite_size": 18,
+   "synthesis_attempts": 0,
+   "repair_attempts": 0,
+   "transients_tolerated": 0,
+   "repair_skips": 0,
+   "stop_reason": "budget",
+   "scorecard_url": "https://arcprize.org/scorecards/142cb9a7-c302-4e95-b2fc-0c6877279cc0",
+   "coverage_pct": 0.05,
+   "coverage_resumed_pct": 0.0,
+   "coverage_persisted": false,
+   "actions_per_minute": 3.1703,
+   "llm_calls_per_action": 0.6111,
+   "frontier_batches": 11,
+   "reflect_skipped": 12,
+   "level_boundary_captured": false,
+   "interactions_probed": 0,
+   "interactions_found": 0,
+   "bumps_probed": 0,
+   "bumps_found": 0,
+   "divergences": 3,
+   "note": "Both Run-20 levers named by the run-19 arm LANDED and are test-proven: coverage codec round-trips through the truncating daemon; a second toy run resumes persisted coverage with no re-visits; the push-block toy is solved END-TO-END by a contact bump (bump moves block -> block-on-goal -> level_transition); bump dedup respects persisted probes. Full EWM suite (346) + bench suite (375) + --smoke green. But NO bump fired LIVE: bump discovery only engages after the movement frontier plateaus for 2 consecutive batches, and on the 80-action budget the ls20 sweep never plateaus (frontier_batches=11, coverage 5%, same shape as runs 18/19). Coverage persistence -- designed to break exactly this by resuming the plateau across runs -- could not engage because the daemon was degraded again and the coverage-state search TIMED OUT (coverage_resumed_pct=0.0, fresh sweep); the coverage note write also 404'd (coverage_persisted=false). Both KB paths degraded CLEANLY with no crash and 80 actions completed; ORIENT still warm-started the program whole via native /note/get. Next levers: lower coverage_plateau_exhaust to 1 (or raise the action budget) so the movement frontier plateaus within budget and hands off to bumps, and/or a healthy daemon so persisted coverage actually resumes the plateau cross-run."
   }
  },
  "delta": {
@@ -536,5 +577,5 @@
  },
  "verdict": "TRUTHFUL FOUR-ARM FAILED A/B. All four arms completed 0 of 7 ls20 levels. Arm 4 (qwen-coding, both roles, vision on, FIXED probe-first harness) is the first arm where the world-model machinery behaved fully honestly end-to-end: probe seeding banked 4 real transitions before any synthesis, SYNTHESIZE engaged 4 times against a non-empty suite that grew to 80 transitions, and every candidate program failed validate() -- so the harness refused adoption and fell back to reactive play (76 reactive turns), exactly as designed. Contrast with arm 3, where the pre-fix harness adopted a program against zero evidence and then watched it miss all 80 transitions. Net: the fix converted 'confidently wrong world model' into 'no world model, honest fallback' -- same level score, better epistemics. The remaining bottleneck is unchanged and now cleanly isolated: neither local 35B-class model can yet author a Python program that reproduces real ls20 dynamics, whether validated before (arm 4) or after (arm 3) adoption. Telemetry caveats recorded on arm 4: live_pass_rate=1.0 is the vacuous empty-window default (no adopted program to score), and divergences=76 counts reactive turns, not expect-mismatches.",
  "pair_recommendation": "For the Kaggle two-local-model pair: use qwen-coding:latest as the SYNTHESIS model and qwen35b-arc:latest as the GAMEPLAY (+vision) model. Rationale, stated with its evidential limits: qwen-coding is the only model observed emitting candidate programs under the fixed harness's real validation gate (4 attempts, parseable fenced programs, no thinking-drain with reasoning_effort:none), making it the better-evidenced synthesis half even though none of its candidates validated yet; qwen35b-arc showed the sharper multimodal grounding in sanity checks (named the exact changed cell+color on the composite, where qwen-coding was off-by-one on a 3x3), making it the better-evidenced gameplay/vision half. CAVEAT: no arm has run qwen35b-arc on the fixed harness, and no arm has cleared a level, so this recommendation ranks failure modes rather than successes; a qwen35b-arc-synthesis arm on the fixed harness would be the decisive missing data point.",
- "total_arms": 13
+ "total_arms": 14
 }

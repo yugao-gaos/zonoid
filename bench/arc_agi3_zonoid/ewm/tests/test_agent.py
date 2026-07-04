@@ -7,6 +7,7 @@ the KB WriteGate. All tests run without any real LLM or daemon; the PIL-free tes
 
 from __future__ import annotations
 
+import re
 import unittest
 
 from bench.arc_agi3_zonoid.ewm import agent as agent_mod
@@ -166,6 +167,11 @@ class FakeKb:
 
     def write_failed_repair(self, *args, **kw):
         return self._write("failed_repair", *args)
+
+    def write_coverage_state(self, game_id, body, *, supersedes=None):
+        # Coverage persistence bypasses the per-turn write cap (one acceptance event, agent-owned).
+        self.writes.append(("coverage_state", (game_id, body, supersedes)))
+        return {"ok": True}
 
 
 class FakeKbClient:
@@ -3269,6 +3275,367 @@ class InteractionDiscoveryTests(unittest.TestCase):
         # A game-scoped interaction note was recorded.
         kinds = [k for (k, _args) in ag.kb.writes]
         self.assertIn("interaction", kinds)
+
+
+# ---------------------------------------------------------------------------------------------------
+# Run-20 BUMP PROBES + CROSS-RUN COVERAGE PERSISTENCE
+# ---------------------------------------------------------------------------------------------------
+
+# Movement-only model for the push-block game. The avatar (2) translates on background (0); walls (1),
+# the block (6), and the goal (3) are ALL treated as impassable statics — the model does NOT know the
+# block can be pushed (that is the contact mechanic bump discovery must find). ls20-shaped: the only
+# valid actions are the four translations, so _non_movement_actions returns [] and interaction discovery
+# falls through to BUMP PROBES (movement INTO the block).
+PUSHBLOCK_MODEL_SOURCE = '''
+import copy
+
+AVATAR = 2
+DELTAS = {"UP": (-1, 0), "DOWN": (1, 0), "LEFT": (0, -1), "RIGHT": (0, 1)}
+BLOCKERS = {1, 6, 3}
+
+
+def init_state(frame):
+    rows = len(frame)
+    cols = len(frame[0]) if rows else 0
+    avatar = None
+    statics = {}
+    for r in range(rows):
+        for c in range(cols):
+            v = frame[r][c]
+            if v == AVATAR:
+                avatar = (r, c)
+            elif v != 0:
+                statics[(r, c)] = v
+    return {"avatar": avatar, "statics": statics, "rows": rows, "cols": cols}
+
+
+def legal_actions(state):
+    return ["UP", "DOWN", "LEFT", "RIGHT"]
+
+
+def step(state, action):
+    state = copy.deepcopy(state)
+    if action not in DELTAS:
+        return state, {"moved": False}
+    dr, dc = DELTAS[action]
+    r, c = state["avatar"]
+    nr, nc = r + dr, c + dc
+    blocked = state["statics"].get((nr, nc)) in BLOCKERS
+    if 0 <= nr < state["rows"] and 0 <= nc < state["cols"] and not blocked:
+        state["avatar"] = (nr, nc)
+    return state, {"moved": state["avatar"] == (nr, nc)}
+
+
+def render(state):
+    rows, cols = state["rows"], state["cols"]
+    grid = [[0 for _ in range(cols)] for _ in range(rows)]
+    for (r, c), v in state["statics"].items():
+        grid[r][c] = v
+    ar, ac = state["avatar"]
+    grid[ar][ac] = AVATAR
+    return grid
+
+
+def is_win(state):
+    return False
+'''
+
+
+class PushBlockEnv:
+    """A toy push-block (sokoban) game whose WIN needs a CONTACT bump, not movement. The avatar (2)
+    moves on 0-cells; a block (6) sits between the avatar and the goal (3). Movement alone can never
+    pass the block (it is solid to the avatar), so the movement frontier exhausts on {avatar}. Bumping
+    INTO the block pushes it one cell in the bump direction when that cell is empty OR the GOAL; pushing
+    the block ONTO the goal clears the level (``level_transition``). A bump into a wall/edge is a no-op."""
+
+    ACTIONS = ["UP", "DOWN", "LEFT", "RIGHT"]
+
+    def __init__(self, budget: int = 200) -> None:
+        # 3x4 open board — the avatar has room to TRANSLATE (so the movement-only model exposes real
+        # movement actions and the non-movement vocabulary is empty, ls20-shaped), while a block(6) is
+        # walled so its ONLY empty neighbour is its left cell — forcing the bump RIGHT that pushes it
+        # ONTO the goal(3) and clears the level. Movement alone sweeps the background but never reaches
+        # the goal (a solid to the model):
+        #   row0:  2 . 1 .
+        #   row1:  . . 6 3     block(1,2), goal(1,3)
+        #   row2:  . . 1 .
+        self._rows, self._cols = 3, 4
+        self._avatar = (0, 0)
+        self._block = (1, 2)
+        self._goal = (1, 3)
+        self._walls = frozenset({(0, 2), (2, 2)})
+        self._solved = False
+        self.remaining_actions = budget
+        self.act_calls = 0
+        self._level = 1
+
+    def _grid(self):
+        grid = [[0] * self._cols for _ in range(self._rows)]
+        for (r, c) in self._walls:
+            grid[r][c] = 1
+        if not self._solved:
+            grid[self._goal[0]][self._goal[1]] = 3
+            grid[self._block[0]][self._block[1]] = 6
+        grid[self._avatar[0]][self._avatar[1]] = 2
+        return grid
+
+    def observe(self):
+        return {
+            "grid": self._grid(),
+            "level": self._level,
+            "step": 0,
+            "valid_actions": list(self.ACTIONS),
+            "score": 1 if self._solved else 0,
+            "remaining_actions": self.remaining_actions,
+        }
+
+    def _apply_one(self, action: str) -> bool:
+        dr, dc = DELTAS[action]
+        ar, ac = self._avatar
+        nr, nc = ar + dr, ac + dc
+        if not (0 <= nr < self._rows and 0 <= nc < self._cols):
+            return False
+        target = (nr, nc)
+        if target in self._walls:
+            return False  # walls are solid
+        if target == self._block and not self._solved:
+            # Bump the block: push it one further in the same direction if that cell is on-board.
+            br, bc = nr + dr, nc + dc
+            if not (0 <= br < self._rows and 0 <= bc < self._cols):
+                return False  # block against the edge: no-op
+            beyond = (br, bc)
+            if beyond == self._goal:
+                # Block pushed ONTO the goal -> level solved.
+                self._block = beyond
+                self._solved = True
+                self._avatar = target
+                return True
+            # Otherwise the block slides to an empty cell and the avatar follows.
+            self._block = beyond
+            self._avatar = target
+            return False
+        if target == self._goal and not self._solved:
+            return False  # goal is solid until the block clears it (matches the model's view)
+        self._avatar = target
+        return False
+
+    def act(self, actions, expect=None):
+        self.act_calls += 1
+        executed = []
+        stop_reason = "completed"
+        crossed = False
+        for index, action in enumerate(actions):
+            name = action.get("action") if isinstance(action, dict) else action
+            self.remaining_actions = max(0, self.remaining_actions - 1)
+            solved_now = self._apply_one(str(name))
+            executed.append(name)
+            after = self._grid()
+            if expect is not None and index < len(expect) and expect[index] is not None:
+                if not grids_match([list(r) for r in expect[index]], after):
+                    stop_reason = "expect_mismatch"
+                    break
+            if solved_now:
+                crossed = True
+                stop_reason = "level_transition"
+                self._level += 1
+                break
+        frame = {"grid": self._grid(), "level": self._level, "step": 0,
+                 "score": 1 if self._solved else 0}
+        return {
+            "current_frame": frame,
+            "action_result": {"score": 1 if self._solved else 0, "done": False},
+            "valid_actions": list(self.ACTIONS),
+            "remaining_actions": self.remaining_actions,
+            "executed": executed,
+            "stop_reason": stop_reason,
+            "done": False,
+        }
+
+
+class BumpProbeTests(unittest.TestCase):
+    """Run-20: when the non-movement vocabulary is EMPTY (ls20), interaction discovery falls back to
+    CONTACT bump probes — move INTO each adjacent object class and diff for a contact effect."""
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _trusted_agent(self, env, source, **cfg):
+        from bench.arc_agi3_zonoid.ewm.world_model import WorldModelProgram
+
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        base = dict(
+            game_id="push", max_turns=40, min_probe_transitions=1,
+            fast_path_trust_window=2, goal_discovery_min_live_samples=2,
+            goal_discovery_min_live_rate=0.9, max_frontier_batches_per_turn=8,
+            max_interaction_probes_per_turn=6, coverage_persistence=False,
+        )
+        base.update(cfg)
+        ag = EwmAgent(env, FakeLlm([]), kb=FakeKb(max_writes_per_turn=8),
+                      vision_enabled=False, config=AgentConfig(**base))
+        ag.program = WorldModelProgram.load(source)
+        ag._live_results.extend([True, True, True])
+        ag._refresh_model_trust()
+        return ag
+
+    def test_non_movement_vocabulary_empty_on_movement_only_model(self):
+        env = PushBlockEnv()
+        ag = self._trusted_agent(env, PUSHBLOCK_MODEL_SOURCE)
+        # The model exposes only translations -> nothing to fire in place.
+        self.assertEqual(ag._non_movement_actions(env.observe()), [])
+
+    def test_bump_contexts_include_block_with_direction(self):
+        env = PushBlockEnv()
+        ag = self._trusted_agent(env, PUSHBLOCK_MODEL_SOURCE)
+        contexts = ag._bump_contexts(env._grid())
+        # The block (6) yields a contact context; the bump direction points from the approach cell
+        # toward the block (RIGHT: (0, +1) from avatar's cell (0,0) toward block (0,1)).
+        self.assertGreaterEqual(len(contexts), 1)
+        dirs = {bump for (_h, _a, bump, _c) in contexts}
+        self.assertIn((0, 1), dirs)
+
+    def test_push_block_solved_end_to_end_by_bump(self):
+        env = PushBlockEnv()
+        ag = self._trusted_agent(env, PUSHBLOCK_MODEL_SOURCE)
+        out = ag.run()
+        # A contact bump was fired and found the push mechanic; the block-on-goal cleared the level.
+        self.assertGreaterEqual(out["bumps_probed"], 1)
+        self.assertGreaterEqual(out["bumps_found"], 1)
+        self.assertTrue(out["level_boundary_captured"])
+        # A game-scoped interaction note recorded the discovered contact mechanic.
+        kinds = [k for (k, _args) in ag.kb.writes]
+        self.assertIn("interaction", kinds)
+
+    def test_bump_dedup_respects_fired_probes(self):
+        # A block pushed off-board is a pure no-op wall: bumps never change the board, so the ONLY
+        # thing that stops probing is the persisted (<bump>, object) dedup.
+        env = PushBlockEnv()
+        env._solved = True  # goal/block removed -> the avatar's neighbors are all background/edge
+        ag = self._trusted_agent(env, PUSHBLOCK_MODEL_SOURCE)
+        # Seed a persisted-probe set as if a PRIOR run already bumped every object class.
+        contexts = ag._bump_contexts(env._grid())
+        for (obj_hash, _a, _b, _c) in contexts:
+            ag._fired_probes.add((ag._BUMP_MARKER, obj_hash))
+        before = ag.summary.bumps_probed
+        ag._bump_discovery(env.observe())
+        # Every object class already recorded as bumped -> no new bump fires (persisted dedup holds).
+        self.assertEqual(ag.summary.bumps_probed, before)
+
+
+class _CoverageKbClient:
+    """KbClient stand-in for coverage resume: returns a native full-body coverage note for the index
+    hit so read_coverage_state's preferred (native) path recovers it in one call."""
+
+    def __init__(self, game_id: str, body: str) -> None:
+        self._game_id = game_id
+        self._body = body
+        self._index_key = f"note:{game_id}-coverage-index"
+        self.last_search_failed = False
+
+    def search(self, q, k, gated=False, full_content=False):
+        toks = set(re.split(r"[^0-9A-Za-z]+", q.lower()))
+        if {"coverage", "state", self._game_id}.issubset(toks):
+            return [{
+                "key": self._index_key,
+                "title": f"game {self._game_id} coverage state",
+                "summary": "coverage state index\nchunk count: 1\nsource length: 1",
+                "content": "coverage state index\nchunk count: 1\nsource length: 1",
+            }]
+        return []
+
+    def get_note_full(self, key):
+        if key == self._index_key:
+            return {"ok": True, "key": key, "full_body": self._body}
+        return {"ok": False, "error": "http 404"}
+
+
+class _CoverageKb(FakeKb):
+    """A FakeKb whose ``client`` serves a persisted coverage note, so _resume_coverage recovers it."""
+
+    def __init__(self, game_id: str, body: str, max_writes_per_turn: int = 8) -> None:
+        super().__init__(max_writes_per_turn=max_writes_per_turn)
+        self.client = _CoverageKbClient(game_id, body)
+
+
+class CrossRunCoveragePersistenceTests(unittest.TestCase):
+    """Run-20: the run persists its swept ground at run end, and a SECOND run RESUMES it at ORIENT so
+    budgets never compound (persisted cells are pre-loaded; the frontier never re-sweeps them)."""
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _agent(self, env, kb, **cfg):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        base = dict(game_id="push", max_turns=6, min_probe_transitions=1, coverage_persistence=True)
+        base.update(cfg)
+        return EwmAgent(env, FakeLlm([]), kb=kb, vision_enabled=False, config=AgentConfig(**base))
+
+    def test_persist_writes_coverage_note_with_swept_cells(self):
+        from bench.arc_agi3_zonoid.ewm import kb_protocol
+
+        env = PushBlockEnv()
+        kb = FakeKb(max_writes_per_turn=8)
+        ag = self._agent(env, kb)
+        ag._board_cell_count = 3
+        ag._coverage_cells = {(1, 0, 0), (1, 0, 1)}
+        ag._fired_probes = {("<bump>", "objA")}
+        ag._persist_coverage()
+        self.assertTrue(ag.summary.coverage_persisted)
+        cov = [args for (kind, args) in kb.writes if kind == "coverage_state"]
+        self.assertEqual(len(cov), 1)
+        body = cov[0][1]
+        decoded = kb_protocol.decode_coverage_state(body)
+        self.assertEqual(decoded["visited"], {(1, 0, 0), (1, 0, 1)})
+        self.assertEqual(decoded["probes"], {("<bump>", "objA")})
+
+    def test_second_run_resumes_persisted_coverage(self):
+        from bench.arc_agi3_zonoid.ewm import kb_protocol
+
+        # A prior run swept these cells + bumped this object class.
+        visited = {(1, 0, 0), (1, 0, 1), (1, 0, 2)}
+        probes = {("<bump>", "objA")}
+        body = kb_protocol.encode_coverage_state(visited, probes, board_cells=3)
+
+        env = PushBlockEnv()
+        kb = _CoverageKb("push", body)
+        ag = self._agent(env, kb)
+        ag._board_cell_count = 3
+        ag._resume_coverage(env.observe())
+        # The persisted ground is pre-loaded: the frontier will not re-sweep it.
+        self.assertTrue(visited.issubset(ag._coverage_cells))
+        self.assertIn(("<bump>", "objA"), ag._fired_probes)
+        # coverage_resumed_pct reflects the resumed fraction of the board (3/3 == 1.0 here).
+        self.assertGreater(ag.summary.coverage_resumed_pct, 0.0)
+
+    def test_resume_degrades_gracefully_on_kb_miss(self):
+        env = PushBlockEnv()
+        # FakeKb.client is None -> no KB -> a clean fresh sweep, no crash, no resumed coverage.
+        ag = self._agent(env, FakeKb(max_writes_per_turn=8))
+        ag._board_cell_count = 3
+        ag._resume_coverage(env.observe())
+        self.assertEqual(ag._coverage_cells, set())
+        self.assertEqual(ag.summary.coverage_resumed_pct, 0.0)
+
+    def test_resumed_cells_are_not_re_persisted_as_new(self):
+        # Round-trip invariant: resume then persist must not LOSE the resumed ground (it accumulates).
+        from bench.arc_agi3_zonoid.ewm import kb_protocol
+
+        visited = {(1, 0, 0), (1, 0, 1)}
+        body = kb_protocol.encode_coverage_state(visited, set(), board_cells=3)
+        env = PushBlockEnv()
+        kb = _CoverageKb("push", body)
+        ag = self._agent(env, kb)
+        ag._board_cell_count = 3
+        ag._resume_coverage(env.observe())
+        ag._coverage_cells.add((1, 0, 2))  # this run swept one new cell
+        ag._persist_coverage()
+        cov = [args for (kind, args) in kb.writes if kind == "coverage_state"]
+        decoded = kb_protocol.decode_coverage_state(cov[-1][1])
+        # Persisted set = prior resumed ground UNION this run's new cell (budgets accumulate).
+        self.assertEqual(decoded["visited"], {(1, 0, 0), (1, 0, 1), (1, 0, 2)})
 
 
 def _script_reflect_only() -> FakeLlm:

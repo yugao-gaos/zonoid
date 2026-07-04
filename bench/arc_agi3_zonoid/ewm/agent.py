@@ -359,6 +359,20 @@ class AgentConfig:
     # a large object/action product can't monopolise a turn). One probe == one movement-plan + one
     # non-movement action.
     max_interaction_probes_per_turn: int = 6
+    # BUMP PROBES (Run-20). Run 19 proved ls20 exposes ONLY movement actions (non-movement vocabulary
+    # empty), so _interaction_discovery found nothing to fire and the win — which is contact/positional
+    # — was never probed. When the non-movement vocabulary is empty, interaction discovery falls back to
+    # CONTACT probes: plan MOVEMENT INTO each adjacent distinct object class, repeating the bump
+    # ``bump_probe_repeats`` times per target, and diff for ANY effect beyond blocked/no-op and the
+    # auto-changing region (object moved/recolored/vanished, score delta, new reachable cells). Deduped
+    # by (bump-marker, object_hash) through the same _fired_probes set (persisted across runs).
+    bump_probes: bool = True
+    bump_probe_repeats: int = 3
+    # CROSS-RUN COVERAGE PERSISTENCE (Run-20). At run end the agent persists the swept ground (visited
+    # cells + fired probes + plateau) as a game-scoped KB note; on ORIENT it loads and RESUMES the
+    # frontier so budgets never compound into a fresh re-sweep every run. Telemetry coverage_resumed_pct.
+    # A KB read failure degrades gracefully to a fresh sweep. Off -> today's per-run coverage.
+    coverage_persistence: bool = True
     # MODEL-TRUSTED FAST PATH (Run-16). While the last ``fast_path_trust_window`` live single-step
     # predictions ALL pass, the model is trusted: the reflect LLM call is skipped (reflection becomes
     # log-only; the suite still appends every transition) and the planned batch is extended toward the
@@ -655,6 +669,17 @@ class RunSummary:
     # region — a genuine discovery recorded as a game-scoped interaction note.
     interactions_probed: int = 0
     interactions_found: int = 0
+    # BUMP PROBES telemetry (Run-20). `bumps_probed` = contact bumps fired (movement INTO a distinct
+    # object class, repeated per target) when the non-movement vocabulary was empty; `bumps_found` =
+    # bumps whose real result changed cells beyond blocked/no-op and the auto-changing region (a moved/
+    # recolored/vanished object, a score delta, or newly reachable ground) — a genuine contact mechanic.
+    bumps_probed: int = 0
+    bumps_found: int = 0
+    # CROSS-RUN COVERAGE PERSISTENCE telemetry (Run-20). `coverage_resumed_pct` = fraction of the board
+    # RESUMED from a prior run's persisted coverage note at ORIENT (0.0 on a fresh sweep / KB miss).
+    # `coverage_persisted` = True once this run's end-of-run coverage note write succeeded.
+    coverage_resumed_pct: float = 0.0
+    coverage_persisted: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -693,6 +718,10 @@ class RunSummary:
             "repair_skips": self.repair_skips,
             "interactions_probed": self.interactions_probed,
             "interactions_found": self.interactions_found,
+            "bumps_probed": self.bumps_probed,
+            "bumps_found": self.bumps_found,
+            "coverage_resumed_pct": self.coverage_resumed_pct,
+            "coverage_persisted": self.coverage_persisted,
         }
 
 
@@ -2653,6 +2682,7 @@ class EwmAgent:
 
         prev_frame: dict[str, Any] | None = None
         self._run_start = time.monotonic()
+        coverage_resumed = False
 
         for turn in range(self.config.max_turns):
             self.summary.turns = turn + 1
@@ -2661,6 +2691,13 @@ class EwmAgent:
             # Coverage denominator: the board cell count, captured on the first real observation.
             if not self._board_cell_count:
                 self._board_cell_count = self._board_cells(frame)
+
+            # CROSS-RUN COVERAGE RESUME (Run-20): once the board is known, load a prior run's persisted
+            # coverage note ONCE so the frontier resumes instead of re-sweeping. Before ORIENT runs, so
+            # a recalled program's frontier explorer never re-visits ground a prior run already swept.
+            if not coverage_resumed:
+                coverage_resumed = True
+                self._resume_coverage(frame)
 
             if frame.get("done") or self._out_of_budget(frame):
                 self.summary.stop_reason = "budget" if self._out_of_budget(frame) else "done"
@@ -2801,6 +2838,9 @@ class EwmAgent:
         self.summary.transitions = len(self.suite)
         self.summary.live_pass_rate = self._live_pass_rate()
         self._finalize_telemetry()
+        # CROSS-RUN COVERAGE PERSISTENCE (Run-20): persist the swept ground (visited cells + fired
+        # probes + plateau) so the next run resumes the frontier instead of re-sweeping. Best-effort.
+        self._persist_coverage()
         # End-of-run persistence (any stop reason): the observed suite + the final adopted program.
         self._write_run_artifacts()
         out = self.summary.to_dict()
@@ -3056,6 +3096,118 @@ class EwmAgent:
         out.sort(key=lambda item: item[2])  # cheapest reach first
         return out
 
+    def _movement_direction_map(self, frame: dict[str, Any]) -> dict[tuple[int, int], Any]:
+        """Map each unit direction ``(dr, dc)`` to the valid action that translates the player by it,
+        derived empirically from the ACTIVE model (no hard-coded action names, so it transfers).
+
+        A translation action can be BLOCKED from any single cell (an edge/wall), so probing only the
+        init state misses directions the boxed-in avatar cannot demonstrate there. We sample a handful of
+        reachable states (a shallow BFS over the model) and, for each, record the ``(dr, dc)`` each action
+        moves the player by — so a direction is captured as long as SOME reachable cell can demonstrate
+        it. First action seen for a direction wins (they are equivalent translations)."""
+
+        program = self.program
+        out: dict[tuple[int, int], Any] = {}
+        if program is None:
+            return out
+        valid = list(frame.get("valid_actions") or [])
+        try:
+            start = program.init_state(self._frame_grid(frame))
+        except Exception:  # noqa: BLE001
+            return out
+        # Shallow BFS to collect a few distinct reachable states to probe each action from.
+        states = [start]
+        seen = {_grids_key(self._safe_render(program, start))}
+        frontier = [start]
+        for _depth in range(6):
+            nxt: list[Any] = []
+            for st in frontier:
+                for action in valid:
+                    try:
+                        ns, _ev = program.step(st, action)
+                        key = _grids_key(program.render(ns))
+                    except Exception:  # noqa: BLE001
+                        continue
+                    if key not in seen:
+                        seen.add(key)
+                        states.append(ns)
+                        nxt.append(ns)
+                        if len(states) >= 32:
+                            frontier = []
+                            break
+                if not frontier:
+                    break
+            frontier = nxt
+            if not frontier:
+                break
+        for st in states:
+            try:
+                base = program.render(st)
+            except Exception:  # noqa: BLE001
+                continue
+            p0 = self._player_position(base)
+            if p0 is None:
+                continue
+            for action in valid:
+                try:
+                    ns, _ev = program.step(st, action)
+                    p1 = self._player_position(program.render(ns))
+                except Exception:  # noqa: BLE001
+                    continue
+                if p1 is None or p1 == p0:
+                    continue
+                dr, dc = p1[0] - p0[0], p1[1] - p0[1]
+                if (abs(dr), abs(dc)) in ((1, 0), (0, 1)) and (dr, dc) not in out:
+                    out[(dr, dc)] = action
+        return out
+
+    def _bump_contexts(
+        self, grid: list[list[int]]
+    ) -> list[tuple[Any, tuple[int, int], tuple[int, int], int]]:
+        """CONTACT contexts for BUMP PROBES (Run-20): for each distinct segmented object class the
+        player is not part of, the ``(object_hash, approach_cell, bump_direction, reach_cost)`` to
+        stand on an empty cell orthogonally adjacent to the object and then step INTO it.
+
+        ``approach_cell`` is the empty (background 0) cell next to the object closest to the player;
+        ``bump_direction`` is the unit ``(dr, dc)`` from the approach cell toward the object cell (the
+        movement that drives the player into the object). One context per distinct object hash, cheapest
+        reach first. Skips background and the player's own class."""
+
+        player = self._player_position(grid)
+        if player is None:
+            return []
+        rows = len(grid)
+        cols = len(grid[0]) if rows else 0
+        player_color = grid[player[0]][player[1]]
+        contexts: dict[Any, tuple[int, tuple[int, int], tuple[int, int]]] = {}
+        for obj_hash, cells in _object_components(grid):
+            sample = next(iter(cells))
+            color = grid[sample[0]][sample[1]]
+            if color == 0 or color == player_color:
+                continue
+            best: tuple[int, tuple[int, int], tuple[int, int]] | None = None
+            for (br, bc) in cells:
+                for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                    ar, ac = br + dr, bc + dc  # candidate approach cell (empty, next to object)
+                    if 0 <= ar < rows and 0 <= ac < cols and grid[ar][ac] == 0:
+                        cost = abs(ar - player[0]) + abs(ac - player[1])
+                        # Bump direction = from the approach cell back toward the object cell.
+                        bump = (br - ar, bc - ac)
+                        if best is None or cost < best[0]:
+                            best = (cost, (ar, ac), bump)
+            if best is None:
+                continue
+            cost, approach, bump = best
+            prev = contexts.get(obj_hash)
+            if prev is None or cost < prev[0]:
+                contexts[obj_hash] = (cost, approach, bump)
+        out = [
+            (obj_hash, approach, bump, cost)
+            for obj_hash, (cost, approach, bump) in contexts.items()
+        ]
+        out.sort(key=lambda item: item[3])
+        return out
+
     def _plan_to_cell(
         self, frame: dict[str, Any], target: tuple[int, int]
     ) -> PlanResult | None:
@@ -3102,6 +3254,11 @@ class EwmAgent:
 
         actions = self._non_movement_actions(frame)
         if not actions:
+            # BUMP PROBES (Run-20): ls20's non-movement vocabulary is EMPTY (run 19 finding), so there
+            # is nothing to fire in place — the win is contact/positional. Fall back to CONTACT probing:
+            # move INTO each adjacent distinct object class and diff for an effect.
+            if self.config.bump_probes:
+                return self._bump_discovery(frame)
             return None
         cur_frame = frame
         last: tuple[dict[str, Any], bool] | None = None
@@ -3168,6 +3325,134 @@ class EwmAgent:
             self._record_interaction(frame, action, obj_hash, novel, result)
         return result, diverged
 
+    # BUMP PROBES marker: the dedup token for a contact bump against an object class. A leading angle
+    # bracket can never be a real action name, so ("<bump>", obj_hash) never collides with a
+    # non-movement probe key ("SPACE", obj_hash) in the shared _fired_probes set.
+    _BUMP_MARKER = "<bump>"
+
+    def _bump_discovery(
+        self, frame: dict[str, Any]
+    ) -> tuple[dict[str, Any], bool] | None:
+        """CONTACT BUMP discovery (Run-20): the non-movement vocabulary is empty, so probe the win by
+        MOVING INTO each adjacent distinct object class.
+
+        For each distinct object class (cheapest reach first, deduped by ``(<bump>, object_hash)`` via
+        the persisted ``_fired_probes`` set): CPU-plan movement onto the empty approach cell next to the
+        object, then fire the movement action that steps INTO the object ``bump_probe_repeats`` times.
+        Diff each bump for ANY effect beyond blocked/no-op and the auto-changing region — an object that
+        moved/recolored/vanished, a score delta, or newly reachable ground. A found effect is recorded as
+        a game-scoped interaction note and extends the exploration frontier (coverage plateau reset by the
+        caller). Returns the LAST executed ``(result, diverged)``, or None when nothing new to bump."""
+
+        cur_frame = frame
+        last: tuple[dict[str, Any], bool] | None = None
+        cap = max(1, self.config.max_interaction_probes_per_turn)
+        fired = 0
+        # Re-SEGMENT each pass from the CURRENT frame: moving the avatar between probes shifts reach
+        # costs and the closest approach cell, so a context computed once up front goes stale. Each pass
+        # picks the cheapest un-fired object, plans to its approach cell, and bumps — then breaks to
+        # re-segment for the next. Bounded by the probe cap.
+        while fired < cap:
+            contexts = self._bump_contexts(self._frame_grid(cur_frame))
+            picked = None
+            for ctx in contexts:
+                if (self._BUMP_MARKER, ctx[0]) not in self._fired_probes:
+                    picked = ctx
+                    break
+            if picked is None:
+                break  # every distinct object class already bumped (persisted dedup)
+            obj_hash, approach, bump_dir, _cost = picked
+            # Record the dedup key up front so a SKIP (no bump action / unreachable) does not spin on the
+            # same object every pass; it is a fired-probe record whether or not the bump lands.
+            self._fired_probes.add((self._BUMP_MARKER, obj_hash))
+            # Resolve which valid action drives the player in the bump direction (empirically, off the
+            # model). No such action (the model can't move that way) -> skip this object class.
+            dir_map = self._movement_direction_map(cur_frame)
+            bump_action = dir_map.get(bump_dir)
+            if bump_action is None:
+                continue
+            # CPU-plan movement onto the approach cell (skip when already there / unreachable -> skip).
+            mv = self._plan_to_cell(cur_frame, approach)
+            if mv is None:
+                continue
+            if mv.actions:
+                result, diverged = self._execute(mv, cur_frame)
+                last = (result, diverged)
+                cur_frame = self._observe()
+                if diverged or cur_frame.get("done") or self._out_of_budget(cur_frame):
+                    return last
+            # Fire the bump into the object, repeated, diffing each for a contact effect.
+            last = self._fire_bump(cur_frame, bump_action, bump_dir, obj_hash)
+            fired += 1
+            cur_frame = self._observe()
+            if cur_frame.get("done") or self._out_of_budget(cur_frame):
+                return last
+        return last
+
+    def _fire_bump(
+        self,
+        frame: dict[str, Any],
+        action: Any,
+        bump_dir: tuple[int, int],
+        obj_hash: Any,
+    ) -> tuple[dict[str, Any], bool]:
+        """Fire a CONTACT bump (movement INTO an object) ``bump_probe_repeats`` times, ingesting each
+        transition and classifying the effect (Run-20).
+
+        A bump is a DISCOVERY when a repeat changed cells OUTSIDE the auto-changing region (the object
+        moved/recolored/vanished, new ground opened) OR a level/score boundary followed — a real contact
+        mechanic, not a blocked no-op. Records a game-scoped interaction note on the first discovery and
+        stops early once found. Returns the LAST ``(result, diverged)``."""
+
+        repeats = max(1, self.config.bump_probe_repeats)
+        result: dict[str, Any] = {}
+        diverged = False
+        found = False
+        cur = frame
+        for _ in range(repeats):
+            self.summary.bumps_probed += 1
+            before_grid = self._frame_grid(cur)
+            result = self._act([action])
+            self._ingest_result(cur, [action], result)
+            after_frame = self._result_frame(result)
+            after_grid = self._frame_grid(after_frame) if after_frame else before_grid
+            changed = self._changed_cells(before_grid, after_grid)
+            auto = self._auto_changing_cells()
+            # A bump that only translated the player (movement) is not a contact effect: exclude the
+            # player's own before/after cells so only the OBJECT's response (or new ground) counts.
+            player_cells = self._bump_player_cells(before_grid, after_grid)
+            novel = changed - auto - player_cells
+            diverged = self._stop_reason(result) == "expect_mismatch"
+            boundary = self._boundary_crossed(cur, result)
+            if novel or boundary:
+                if not found:
+                    self.summary.bumps_found += 1
+                    effect_cells = novel or self._changed_cells(before_grid, after_grid)
+                    self._record_interaction(cur, f"bump {action}", obj_hash, effect_cells, result)
+                found = True
+                break
+            cur = self._observe()
+            if diverged or cur.get("done") or self._out_of_budget(cur):
+                break
+        return result, diverged
+
+    @staticmethod
+    def _bump_player_cells(
+        before: list[list[int]], after: list[list[int]]
+    ) -> set[tuple[int, int]]:
+        """The player's own vacated + occupied cells across a bump, so a pure translation is not
+        mistaken for a contact effect. On a shape mismatch (a level transition) returns empty — every
+        changed cell is then significant (new level ground)."""
+
+        if _grid_shape(before) != _grid_shape(after):
+            return set()
+        cells: set[tuple[int, int]] = set()
+        for r, (brow, arow) in enumerate(zip(before, after)):
+            for c, (b, a) in enumerate(zip(brow, arow)):
+                if b != a and (b == 2 or a == 2):  # avatar color 2 vacated/occupied this cell
+                    cells.add((r, c))
+        return cells
+
     def _record_interaction(
         self,
         frame: dict[str, Any],
@@ -3204,6 +3489,87 @@ class EwmAgent:
             if isinstance(out, dict) and out.get("ok"):
                 self.summary.kb_writes += 1
         except Exception:  # noqa: BLE001 - note write is advisory; never crash the loop
+            pass
+
+    # -- CROSS-RUN COVERAGE PERSISTENCE (Run-20) ---------------------------------------------------
+
+    def _kb_client(self) -> Any:
+        """The underlying KbClient behind the WriteGate (``self.kb.client``), or None when offline."""
+
+        return getattr(self.kb, "client", None) if self.kb is not None else None
+
+    def _resume_coverage(self, frame: dict[str, Any]) -> None:
+        """RESUME the swept frontier from a prior run's persisted coverage note (Run-20).
+
+        Recalls ``game <id> coverage state`` via :func:`kb_protocol.read_coverage_state`, seeds the
+        visited-cell set + fired-probe dedup set + plateau counter from it, and records
+        ``coverage_resumed_pct`` (fraction of the board already swept). Budgets never compound: the next
+        run never re-sweeps persisted ground. A KB miss/outage degrades gracefully to a fresh sweep."""
+
+        if not self.config.coverage_persistence:
+            return
+        client = self._kb_client()
+        if client is None:
+            return
+        try:
+            from .kb_protocol import read_coverage_state
+
+            state = read_coverage_state(client, self.config.game_id)
+        except Exception:  # noqa: BLE001 - a KB outage must never block gameplay
+            state = None
+        if not state:
+            return
+        self._coverage_cells |= set(state.get("visited") or set())
+        self._fired_probes |= set(state.get("probes") or set())
+        board = self._board_cell_count or self._board_cells(frame) or state.get("board") or 0
+        if not self._board_cell_count and board:
+            self._board_cell_count = board
+        self.summary.coverage_resumed_pct = (
+            round(len(self._coverage_cells) / board, 4) if board else 0.0
+        )
+
+    def _persist_coverage(self) -> None:
+        """Persist this run's swept ground as the game-scoped coverage note (Run-20).
+
+        Encodes the visited cells + fired probes + plateau via :func:`kb_protocol.encode_coverage_state`
+        and writes the chunked coverage note (superseding the prior one so ground ACCUMULATES across
+        runs rather than forking). Best-effort: a KB outage or a WriteGate without the coverage writer
+        is swallowed so end-of-run persistence never crashes a completed run."""
+
+        if not self.config.coverage_persistence or self.kb is None:
+            return
+        writer = getattr(self.kb, "write_coverage_state", None)
+        if not callable(writer):
+            return
+        try:
+            from .kb_protocol import encode_coverage_state, read_coverage_state
+
+            body = encode_coverage_state(
+                self._coverage_cells,
+                self._fired_probes,
+                board_cells=self._board_cell_count,
+                coverage_plateau=self._coverage_plateau,
+            )
+            # Supersede the prior coverage note (if any) so the accumulated ground replaces it in-place.
+            prior = None
+            client = self._kb_client()
+            if client is not None:
+                try:
+                    from .kb_protocol import _search_full_content, _is_game_scoped, _is_chunk_note, _tokens
+
+                    q = " ".join(["game", *_tokens(self.config.game_id), "coverage", "state"])
+                    hits = _search_full_content(client, q, k=20)
+                    for h in hits:
+                        if _is_game_scoped(h, self.config.game_id) and not _is_chunk_note(h):
+                            prior = h.get("key") or h.get("id")
+                            break
+                except Exception:  # noqa: BLE001
+                    prior = None
+            out = writer(self.config.game_id, body, supersedes=prior)
+            if isinstance(out, dict) and out.get("ok"):
+                self.summary.coverage_persisted = True
+                self.summary.kb_writes += 1
+        except Exception:  # noqa: BLE001 - persistence is advisory; never crash a completed run
             pass
 
     def _finalize_telemetry(self) -> None:
