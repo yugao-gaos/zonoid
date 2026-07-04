@@ -420,6 +420,38 @@
       "reflect_skipped": 3,
       "level_boundary_captured": false,
       "note": "First launch crashed 17 min in on an uncaught LLM-timeout in REPAIR (fixed: _decide degrades on LlmError); relaunch ran to full budget. Frontier exploration + fast path engaged live; no level boundary observed, is_win never re-derived, no level clear."
+    },
+    "ewm_warmstart_run17_orient_retry_llm_free_executor": {
+      "agent": "EwmAgent warm-start (Run 17, ORIENT retry on daemon timeouts + LLM-free exploration executor)",
+      "source": "out/ewm-ls20-ewm-warmstart6.json",
+      "model": "qwen-coding:latest (35B, ollama, vision)",
+      "harness": "ewm driver --game ls20 --vision --graph on",
+      "vision": true,
+      "levels_completed": 0,
+      "actions_taken": 20,
+      "actions_per_level_completed": null,
+      "won": false,
+      "program_adopted": true,
+      "orient_adopted": true,
+      "orient_revalidation": {
+        "probes": 4,
+        "pass_rate": 1.0,
+        "adopted_as": "whole"
+      },
+      "orient_kb_attempts": 3,
+      "live_pass_rate": 1.0,
+      "suite_size": 9,
+      "synthesis_attempts": 0,
+      "repair_attempts": 6,
+      "stop_reason": "budget",
+      "scorecard_url": "https://arcprize.org/scorecards/d343df25-bcd3-4aa4-a483-0aeb985a8ed2",
+      "coverage_pct": 0.0398,
+      "actions_per_minute": 0.68,
+      "llm_calls_per_action": 2.0,
+      "frontier_batches": 2,
+      "reflect_skipped": 3,
+      "level_boundary_captured": false,
+      "note": "ORIENT retry delivered: 2 daemon-timeout retries then whole adoption (orient_kb_attempts=3), synthesis_attempts 1 -> 0 \u2014 the run-16 wasted synthesis cycle is gone. But the reclaimed budget went to 6 failed REPAIR decides off 3 transient divergences (18/18 repair extract failures across runs 15-17), so llm_calls_per_action stayed 2.0 (target <0.2) and the LLM-free exploration executor sustained only 2 frontier batches. No boundary, no level clear. Next lever: stop re-entering REPAIR on transient divergences while the recalled program's live pass-rate is 1.0."
     }
   },
   "delta": {
@@ -430,5 +462,5 @@
   },
   "verdict": "TRUTHFUL FOUR-ARM FAILED A/B. All four arms completed 0 of 7 ls20 levels. Arm 4 (qwen-coding, both roles, vision on, FIXED probe-first harness) is the first arm where the world-model machinery behaved fully honestly end-to-end: probe seeding banked 4 real transitions before any synthesis, SYNTHESIZE engaged 4 times against a non-empty suite that grew to 80 transitions, and every candidate program failed validate() -- so the harness refused adoption and fell back to reactive play (76 reactive turns), exactly as designed. Contrast with arm 3, where the pre-fix harness adopted a program against zero evidence and then watched it miss all 80 transitions. Net: the fix converted 'confidently wrong world model' into 'no world model, honest fallback' -- same level score, better epistemics. The remaining bottleneck is unchanged and now cleanly isolated: neither local 35B-class model can yet author a Python program that reproduces real ls20 dynamics, whether validated before (arm 4) or after (arm 3) adoption. Telemetry caveats recorded on arm 4: live_pass_rate=1.0 is the vacuous empty-window default (no adopted program to score), and divergences=76 counts reactive turns, not expect-mismatches.",
   "pair_recommendation": "For the Kaggle two-local-model pair: use qwen-coding:latest as the SYNTHESIS model and qwen35b-arc:latest as the GAMEPLAY (+vision) model. Rationale, stated with its evidential limits: qwen-coding is the only model observed emitting candidate programs under the fixed harness's real validation gate (4 attempts, parseable fenced programs, no thinking-drain with reasoning_effort:none), making it the better-evidenced synthesis half even though none of its candidates validated yet; qwen35b-arc showed the sharper multimodal grounding in sanity checks (named the exact changed cell+color on the composite, where qwen-coding was off-by-one on a 3x3), making it the better-evidenced gameplay/vision half. CAVEAT: no arm has run qwen35b-arc on the fixed harness, and no arm has cleared a level, so this recommendation ranks failure modes rather than successes; a qwen35b-arc-synthesis arm on the fixed harness would be the decisive missing data point.",
-  "total_arms": 10
+  "total_arms": 11
 }
