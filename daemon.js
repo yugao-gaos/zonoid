@@ -2004,6 +2004,7 @@ function makeResolver() {
   const memo = {}; // "ws|key" -> status
   const inEdges = {}; // ws -> Map(targetKey -> edge[]) — inbound-edge index, built once per build
   const unjIncident = {}; // ws -> Set(nodeKey) incident to any unverified context edge, built once
+  const blockingSets = {}; // ws -> Set("from\0to") of blocking edges, built once per build
 
   function loadWs(ws) {
     if (!agg[ws]) {
@@ -2024,19 +2025,23 @@ function makeResolver() {
       // O(tasks × edges) scan judgingState does without an index. Build the incidence Set once here so
       // both effective() and the outer projection loop share the O(1) membership test.
       unjIncident[ws] = judge.unverifiedIncidentSet(ov[ws]);
+      // PERF: depRefs()'s isReversePairedJudgeBlockingEdge probe called hasBlockingEdge per task =
+      // another O(tasks × edges) scan (measured ~16% of build). Prebuild the blocking-edge set once.
+      blockingSets[ws] = overlayStore.blockingEdgeSet(ov[ws]);
     }
-    return { tasks: agg[ws], overlay: ov[ws], inbound: inEdges[ws], unverifiedIncident: unjIncident[ws] };
+    return { tasks: agg[ws], overlay: ov[ws], inbound: inEdges[ws], unverifiedIncident: unjIncident[ws], blockingSet: blockingSets[ws] };
   }
 
   // Dependency refs for a task: native (same ws) + inbound overlay edges (from may be ghost).
   function depRefs(ws, key) {
-    const { tasks, overlay, inbound } = loadWs(ws);
+    const { tasks, overlay, inbound, blockingSet } = loadWs(ws);
+    const revOpts = { tasks, blockingSet };   // O(1) reverse-judge blocking check via the prebuilt set
     const t = tasks[key];
     const local = t ? t.deps
-      .filter((k) => !overlayStore.isReversePairedJudgeBlockingEdge(overlay, k, key, { tasks }))
+      .filter((k) => !overlayStore.isReversePairedJudgeBlockingEdge(overlay, k, key, revOpts))
       .map((k) => ({ ws, key: k, kind: 'blocking' })) : [];
     const edges = (inbound.get(key) || [])
-      .filter((e) => e.kind === 'context' || !overlayStore.isReversePairedJudgeBlockingEdge(overlay, e.from, e.to, { tasks }))
+      .filter((e) => e.kind === 'context' || !overlayStore.isReversePairedJudgeBlockingEdge(overlay, e.from, e.to, revOpts))
       // Weight is a relevance MULTIPLIER for context edges: a weight-0 edge contributes ZERO and is
       // EXCLUDED from the context_deps payload (DAG-tier injection + structural rerank), not merely
       // deprioritized. This is how unjudged autowire edges (seeded at weight 0) stay retrieval-
