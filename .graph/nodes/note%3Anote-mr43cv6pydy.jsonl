@@ -57,3 +57,4 @@
 {"evt":"edge_removed","from":"note:note-mr43cv6pydy","to":"codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T22:03:01.837Z"}
 {"evt":"edge_added","from":"note:note-mr43cv6pydy","to":"codex/ewm-goal-discovery-exploration-fast-path-run-sixteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T23:41:56.040Z","weight":0,"by":"autowire","judged":false,"score":0.415,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr43cv6pydy","to":"codex/ewm-goal-discovery-exploration-fast-path-run-sixteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T23:45:59.906Z"}
+{"evt":"edge_added","from":"note:note-mr43cv6pydy","to":"codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen","kind":"context","actor":"overlay-sync","ts":"2026-07-04T01:03:51.139Z","weight":0,"by":"autowire","judged":false,"score":0.509,"origin":"autowire-semantic"}

@@ -16,3 +16,4 @@
 {"evt":"edge_removed","from":"note:note-mr5b375dvnh","to":"note:note-mr57q7mvytm","kind":"context","actor":"overlay-sync","ts":"2026-07-03T20:50:13.426Z"}
 {"evt":"edge_added","from":"note:note-mr5b375dvnh","to":"codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T21:08:39.249Z","weight":0,"by":"autowire","judged":false,"score":0.445,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr5b375dvnh","to":"note:note-mqq2xj787yq","kind":"context","actor":"overlay-sync","ts":"2026-07-03T23:10:49.326Z"}
+{"evt":"edge_added","from":"note:note-mr5b375dvnh","to":"codex/ewm-orient-retry-llm-free-exploration-executor-run-seventeen","kind":"context","actor":"overlay-sync","ts":"2026-07-04T01:03:51.139Z","weight":0,"by":"autowire","judged":false,"score":0.482,"origin":"autowire-semantic"}
