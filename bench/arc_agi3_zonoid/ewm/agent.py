@@ -856,6 +856,13 @@ class EwmAgent:
         # so a given non-movement action is tried at most once against each distinct object class per
         # run. object_hash is None for the "no adjacent object" (probe in place) fallback context.
         self._fired_probes: set[tuple[str, Any]] = set()
+        # BUMP re-probe guard (Run-25 fix): PER-RUN dedup for contact bumps only. Created fresh here every
+        # run and NEVER persisted/loaded, so a fresh game instance re-probes each distinct object class once
+        # even when the persisted coverage note already carries that object's bump key. object_hashes are
+        # translation-invariant, so routing bump dedup through the persisted _fired_probes permanently
+        # suppressed bumps across runs (we have never observed a bump effect); this set governs bump SKIP
+        # within a single run instead.
+        self._bump_attempted: set[Any] = set()
         # Movement-coverage plateau counter: consecutive frontier batches that added NO new coverage
         # cell. The movement frontier is EXHAUSTED once this reaches `coverage_plateau_exhaust` — the
         # honest signal that the reachable region is fully swept even though explore_frontier still
@@ -3586,17 +3593,18 @@ class EwmAgent:
                 self.summary.bump_skip_reason = "no bump contexts (no distinct adjacent object class)"
             picked = None
             for ctx in contexts:
-                if (self._BUMP_MARKER, ctx[0]) not in self._fired_probes:
+                if ctx[0] not in self._bump_attempted:
                     picked = ctx
                     break
             if picked is None:
                 if contexts:
-                    self.summary.bump_skip_reason = "all bump contexts already deduped (persisted probes)"
-                break  # every distinct object class already bumped (persisted dedup)
+                    self.summary.bump_skip_reason = "all bump contexts already deduped (this run)"
+                break  # every distinct object class already bumped THIS run (per-run dedup)
             obj_hash, approach, bump_dir, _cost = picked
-            # Record the dedup key up front so a SKIP (no bump action / unreachable) does not spin on the
-            # same object every pass; it is a fired-probe record whether or not the bump lands.
-            self._fired_probes.add((self._BUMP_MARKER, obj_hash))
+            # Record the PER-RUN dedup key up front so a SKIP (no bump action / unreachable) does not spin on
+            # the same object every pass; it is an in-run attempt record whether or not the bump lands. This
+            # is deliberately NOT the persisted _fired_probes set — bump discovery is per-run (Run-25 fix).
+            self._bump_attempted.add(obj_hash)
             # Resolve which valid action drives the player in the bump direction (empirically, off the
             # model). No such action (the model can't move that way) -> skip this object class.
             dir_map = self._movement_direction_map(cur_frame)
@@ -3760,7 +3768,16 @@ class EwmAgent:
         if not state:
             return
         self._coverage_cells |= set(state.get("visited") or set())
-        self._fired_probes |= set(state.get("probes") or set())
+        # Load persisted NON-bump probes (coverage cells + non-movement interaction probes) but EXCLUDE any
+        # legacy _BUMP_MARKER-tagged entries: bump discovery is PER-RUN (Run-25 fix), so a prior run's bump
+        # intent must never gate this run's bumps. object_hashes are translation-invariant, so persisted bump
+        # keys match ls20 objects across runs and would permanently suppress bumps. Bump dedup lives in the
+        # per-run self._bump_attempted set instead.
+        persisted = set(state.get("probes") or set())
+        self._fired_probes |= {
+            key for key in persisted
+            if not (isinstance(key, tuple) and len(key) == 2 and key[0] == self._BUMP_MARKER)
+        }
         board = self._board_cell_count or self._board_cells(frame) or state.get("board") or 0
         if not self._board_cell_count and board:
             self._board_cell_count = board
