@@ -9,3 +9,6 @@
 {"evt":"note_superseded","id":"note-mr5y9i24316","supersededBy":"note-mr5yada5usg","validTo":"2026-07-04T05:57:34.781Z","ts":"2026-07-04T05:57:34.781Z","actor":"supersede"}
 {"evt":"edge_removed","from":"note:note-mr5y9i24316","to":"note:note-mqgwh4xhfa0","kind":"context","actor":"overlay-sync","ts":"2026-07-04T06:02:13.599Z"}
 {"evt":"edge_removed","from":"note:note-mr5y9i24316","to":"note:note-mr5i8jmlosb","kind":"context","actor":"overlay-sync","ts":"2026-07-04T06:05:31.081Z"}
+{"evt":"edge_added","from":"note:note-mr5y9i24316","to":"codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one","kind":"blocking","actor":"overlay-sync","ts":"2026-07-04T06:29:11.256Z","judged":true,"origin":"asserted"}
+{"evt":"edge_removed","from":"note:note-mr5y9i24316","to":"codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one","kind":"context","actor":"overlay-sync","ts":"2026-07-04T06:29:11.256Z"}
+{"evt":"edge_removed","from":"note:note-mr5y9i24316","to":"note:note-mr5njd22m3l","kind":"context","actor":"overlay-sync","ts":"2026-07-04T06:29:27.579Z"}
