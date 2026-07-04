@@ -158,6 +158,9 @@ class FakeKb:
     def write_level_solution(self, *args, **kw):
         return self._write("level_solution", *args)
 
+    def write_goal_evidence(self, *args, **kw):
+        return self._write("goal_evidence", *args)
+
     def write_failed_repair(self, *args, **kw):
         return self._write("failed_repair", *args)
 
@@ -2446,6 +2449,206 @@ class GraphSynthesisTests(unittest.TestCase):
         ag, _ = self._seeded_agent(llm)
         self.assertFalse(ag._synthesize_graph({"grid": _grid("2.3"), "level": 1, "step": 0}))
         self.assertIsNone(ag.program)
+
+
+class GoalDiscoveryAndFastPathTests(unittest.TestCase):
+    """Run-16: GOAL DISCOVERY (frontier + level-boundary capture + is_win re-derive) and the
+    MODEL-TRUSTED FAST PATH (skip reflect while passing, restore on mismatch)."""
+
+    def _agent(self, **cfg):
+        from bench.arc_agi3_zonoid.ewm.world_model import WorldModelProgram
+
+        env = ToyEnv(_grid("2.3"), budget=50)
+        llm = FakeLlm([])
+        agent_mod.EwmAgent._vision_available = staticmethod(lambda: False)
+        base = dict(game_id="toy", max_turns=20, min_probe_transitions=1)
+        base.update(cfg)
+        ag = EwmAgent(env, llm, kb=FakeKb(), vision_enabled=False, config=AgentConfig(**base))
+        ag.program = WorldModelProgram.load(TOY_GAME_SOURCE)
+        return ag
+
+    # -- level-boundary capture + is_win re-derivation ---------------------------------------------
+
+    def _level_transition_result(self, after_grid, level=2, score=1):
+        return {
+            "current_frame": {"grid": after_grid, "level": level, "step": 3, "score": score},
+            "action_result": {"score": score, "done": False},
+            "executed": ["RIGHT", "RIGHT"],
+            "stop_reason": "level_transition",
+            "done": False,
+        }
+
+    def test_boundary_capture_writes_goal_note_and_rederives_is_win(self) -> None:
+        ag = self._agent()
+        before = {"grid": _grid("2.3"), "level": 1, "step": 0, "score": 0}
+        result = self._level_transition_result(_grid("2..3"))
+        ag._ingest_result(before, ["RIGHT", "RIGHT"], result)
+        self.assertTrue(ag.summary.level_boundary_captured)
+        self.assertTrue(ag.summary.goal_note_written)
+        self.assertTrue(ag.summary.is_win_rederived)
+        self.assertIsNotNone(ag._goal_predicate)
+        # A goal-evidence note was recorded (game-scoped, standalone-token title).
+        kinds = [k for (k, _args) in ag.kb.writes]
+        self.assertIn("goal_evidence", kinds)
+
+    def test_rederived_is_win_lets_planner_target_the_goal(self) -> None:
+        # Before capture, the program's is_win never fires until the avatar sits ON the goal, so a
+        # plan exists only because is_win is real here — assert the re-derived predicate is a valid
+        # goal-contact test: the captured player position satisfies it.
+        ag = self._agent()
+        before = {"grid": _grid("2.3"), "level": 1, "step": 0, "score": 0}
+        # Player at (0,0) immediately preceded the boundary -> that becomes the goal-contact cell.
+        ag._ingest_result(before, ["RIGHT"], self._level_transition_result(_grid("2..3")))
+        pred = ag._goal_predicate
+        assert pred is not None
+        state_at_goalcell = ag.program.init_state(_grid("2.3"))  # avatar at (0,0)
+        self.assertTrue(pred(state_at_goalcell))
+        # A state where the avatar is elsewhere is NOT a win.
+        state_elsewhere = ag.program.init_state(_grid(".23"))  # avatar at (0,1)
+        self.assertFalse(pred(state_elsewhere))
+
+    def test_boundary_captured_only_once_note_written(self) -> None:
+        ag = self._agent()
+        before = {"grid": _grid("2.3"), "level": 1, "step": 0, "score": 0}
+        ag._ingest_result(before, ["RIGHT"], self._level_transition_result(_grid("2..3")))
+        ag.kb.writes.clear()
+        # A second boundary must NOT write another goal-evidence note (first-boundary only).
+        ag._ingest_result(before, ["RIGHT"], self._level_transition_result(_grid("2...3"), level=3, score=2))
+        kinds = [k for (k, _args) in ag.kb.writes]
+        self.assertNotIn("goal_evidence", kinds)
+
+    def test_score_jump_counts_as_boundary(self) -> None:
+        ag = self._agent()
+        before = {"grid": _grid("2.3"), "level": 1, "step": 0, "score": 0}
+        # No level_transition stop reason, but score jumped 0 -> 1: still a boundary.
+        result = {
+            "current_frame": {"grid": _grid("2..3"), "level": 1, "step": 2, "score": 1},
+            "action_result": {"score": 1, "done": False},
+            "executed": ["RIGHT"],
+            "stop_reason": "completed",
+            "done": False,
+        }
+        ag._ingest_result(before, ["RIGHT"], result)
+        self.assertTrue(ag.summary.level_boundary_captured)
+
+    # -- model-trusted fast path -------------------------------------------------------------------
+
+    def test_fast_path_skips_reflect_while_trusted(self) -> None:
+        ag = self._agent(fast_path_trust_window=2)
+        before = {"grid": _grid("2.3"), "level": 1, "step": 0, "score": 0}
+        # Feed passing single-step transitions the toy program predicts correctly (RIGHT: (0,0)->(0,1)).
+        good = {
+            "current_frame": {"grid": _grid(".23"), "level": 1, "step": 1, "score": 0},
+            "action_result": {"score": 0, "done": False},
+            "executed": ["RIGHT"],
+            "stop_reason": "completed",
+            "done": False,
+        }
+        calls_before = ag.summary.reflect_calls
+        ag._ingest_result({"grid": _grid("2.3"), "level": 1}, ["RIGHT"], good)
+        ag._ingest_result({"grid": _grid("2.3"), "level": 1}, ["RIGHT"], good)
+        # Not yet trusted for the first two (window not full at ingest time); once trusted, the next
+        # passing transition skips the reflect call.
+        skipped_before = ag.summary.reflect_skipped
+        ag._ingest_result({"grid": _grid("2.3"), "level": 1}, ["RIGHT"], good)
+        self.assertTrue(ag._model_trusted)
+        self.assertGreater(ag.summary.reflect_skipped, skipped_before)
+
+    def test_fast_path_restores_reflect_on_mismatch(self) -> None:
+        ag = self._agent(fast_path_trust_window=2)
+        good = {
+            "current_frame": {"grid": _grid(".23"), "level": 1, "step": 1, "score": 0},
+            "action_result": {"score": 0, "done": False},
+            "executed": ["RIGHT"],
+            "stop_reason": "completed",
+            "done": False,
+        }
+        for _ in range(3):
+            ag._ingest_result({"grid": _grid("2.3"), "level": 1}, ["RIGHT"], good)
+        self.assertTrue(ag._model_trusted)
+        # A mispredicted transition: the toy program says RIGHT->(0,1) but the env reports the avatar
+        # did NOT move. That live miss must drop trust and restore reflect cadence.
+        bad = {
+            "current_frame": {"grid": _grid("2.3"), "level": 1, "step": 1, "score": 0},
+            "action_result": {"score": 0, "done": False},
+            "executed": ["RIGHT"],
+            "stop_reason": "completed",
+            "done": False,
+        }
+        reflect_before = ag.summary.reflect_calls
+        ag._ingest_result({"grid": _grid("2.3"), "level": 1}, ["RIGHT"], bad)
+        self.assertFalse(ag._model_trusted)
+        # Trust dropped, so this ingest ran the reflect LLM call (not skipped).
+        self.assertGreater(ag.summary.reflect_calls, reflect_before)
+
+    def test_fast_path_disabled_never_trusts(self) -> None:
+        ag = self._agent(fast_path=False, fast_path_trust_window=2)
+        good = {
+            "current_frame": {"grid": _grid(".23"), "level": 1, "step": 1, "score": 0},
+            "action_result": {"score": 0, "done": False},
+            "executed": ["RIGHT"],
+            "stop_reason": "completed",
+            "done": False,
+        }
+        for _ in range(4):
+            ag._ingest_result({"grid": _grid("2.3"), "level": 1}, ["RIGHT"], good)
+        self.assertFalse(ag._model_trusted)
+        self.assertEqual(ag.summary.reflect_skipped, 0)
+
+    # -- goal-discovery readiness gate -------------------------------------------------------------
+
+    def test_goal_discovery_ready_requires_live_confidence(self) -> None:
+        ag = self._agent(goal_discovery_min_live_samples=3, goal_discovery_min_live_rate=0.9)
+        # No live samples yet.
+        self.assertFalse(ag._goal_discovery_ready())
+        ag._live_results.extend([True, True, True])
+        self.assertTrue(ag._goal_discovery_ready())
+        # A miss drops the rate below the floor.
+        ag._live_results.append(False)
+        ag._live_results.append(False)
+        self.assertFalse(ag._goal_discovery_ready())
+
+    def test_decide_llm_error_degrades_instead_of_crashing(self) -> None:
+        # Run-16 live crash: a timed-out decide call raised LlmError and killed the whole run.
+        # _decide must catch it and return "" (callers treat that as an unusable response).
+        from bench.arc_agi3_zonoid.ewm.llm_client import LlmError
+
+        class _Boom:
+            def chat(self, *a, **k):
+                raise LlmError("chat completion failed: TimeoutError('timed out')")
+
+        ag = self._agent()
+        ag.llm = _Boom()
+        out = ag._decide([{"role": "user", "content": "hi"}])
+        self.assertEqual(out, "")
+
+    def test_telemetry_fields_present_after_run(self) -> None:
+        env = ToyEnv(_grid("2.3"), budget=50)
+        llm = _script_reflect_only()
+        agent_mod.EwmAgent._vision_available = staticmethod(lambda: False)
+        ag = EwmAgent(
+            env, llm, kb=None, vision_enabled=False,
+            config=AgentConfig(game_id="toy", max_turns=6, min_probe_transitions=1),
+        )
+        out = ag.run()
+        for key in ("coverage_pct", "actions_per_minute", "llm_calls_per_action",
+                    "frontier_batches", "fast_path_batches", "reflect_skipped",
+                    "level_boundary_captured", "goal_note_written", "is_win_rederived"):
+            self.assertIn(key, out)
+
+
+def _script_reflect_only() -> FakeLlm:
+    """A FakeLlm that always returns a benign reflect (no program authoring) — for loop-drive tests
+    where the program is not needed (the toy env just gets reactive/probe play)."""
+
+    class _R(FakeLlm):
+        def chat(self, messages, max_tokens=1024, temperature=0.0):
+            self.received.append({"messages": messages})
+            self.calls += 1
+            return {"content": '{"prediction_ok": true, "note": "ok"}', "finish_reason": None,
+                    "raw": ""}
+
+    return _R([])
 
 
 if __name__ == "__main__":
