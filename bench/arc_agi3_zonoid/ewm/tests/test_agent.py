@@ -3522,6 +3522,81 @@ class BumpProbeTests(unittest.TestCase):
         # Every object class already recorded as bumped -> no new bump fires (persisted dedup holds).
         self.assertEqual(ag.summary.bumps_probed, before)
 
+    def test_plateau_one_hands_off_to_bumps_within_short_budget(self):
+        # Run-21: coverage_plateau_exhaust default is 1, so a SINGLE no-new-coverage frontier batch
+        # exhausts the movement frontier and hands off to bump discovery. Prove the handoff fires
+        # within a tight budget (the Run-17..20 pathology was the budget draining before the 2-batch
+        # plateau ever tripped). The env starts the avatar boxed against the block so its first real
+        # translation batch immediately re-treads / stalls, then bumps clear the level.
+        env = PushBlockEnv()
+        # A tight action budget: with plateau=2 the frontier would still be re-sweeping when this runs
+        # out; plateau=1 must reach the bump handoff and clear the level inside it.
+        ag = self._trusted_agent(env, PUSHBLOCK_MODEL_SOURCE, max_turns=12)
+        self.assertEqual(ag.config.coverage_plateau_exhaust, 1)
+        out = ag.run()
+        self.assertGreaterEqual(out["bumps_probed"], 1)
+        self.assertGreaterEqual(out["bumps_found"], 1)
+        self.assertTrue(out["level_boundary_captured"])
+
+    def test_frontier_fully_covered_true_when_batch_is_resumed_ground(self):
+        # Run-21 bump-first gate: a frontier batch whose predicted player cells are ALL already in
+        # _coverage_cells is pure re-sweep of resumed ground -> _frontier_fully_covered is True.
+        env = PushBlockEnv()
+        ag = self._trusted_agent(env, PUSHBLOCK_MODEL_SOURCE)
+        frame = env.observe()
+        from bench.arc_agi3_zonoid.ewm.planner import explore_frontier
+
+        frontier = explore_frontier(
+            ag.program, ag._frame_grid(frame),
+            max_depth=min(ag.config.frontier_max_depth, ag.config.plan_max_depth),
+            max_nodes=ag.config.plan_max_nodes,
+        )
+        self.assertIsNotNone(frontier)
+        self.assertTrue(frontier.actions)
+        # Fresh coverage: the batch opens NEW ground -> not fully covered.
+        self.assertFalse(ag._frontier_fully_covered(frame, frontier))
+        # Now seed coverage with exactly the player cells the batch would visit (level-keyed) -> the
+        # batch is a pure re-sweep and the gate reports fully covered.
+        level = frame.get("level")
+        prev = ag._frame_grid(frame)
+        for grid in frontier.predicted_grids:
+            for r, (brow, arow) in enumerate(zip(prev, grid)):
+                for c, (b, a) in enumerate(zip(brow, arow)):
+                    if b != a:
+                        ag._coverage_cells.add((level, r, c))
+            prev = grid
+        self.assertTrue(ag._frontier_fully_covered(frame, frontier))
+
+    def test_bump_first_trips_plateau_on_resumed_coverage(self):
+        # Run-21: with resumed coverage (coverage_resumed_pct > 0) covering the frontier region, the
+        # FIRST frontier batch is skipped in favour of bump discovery — the loop hands off immediately
+        # instead of re-sweeping. Assert a bump fires without first burning a redundant frontier batch.
+        env = PushBlockEnv()
+        ag = self._trusted_agent(env, PUSHBLOCK_MODEL_SOURCE, max_turns=12)
+        frame = env.observe()
+        from bench.arc_agi3_zonoid.ewm.planner import explore_frontier
+
+        frontier = explore_frontier(
+            ag.program, ag._frame_grid(frame),
+            max_depth=min(ag.config.frontier_max_depth, ag.config.plan_max_depth),
+            max_nodes=ag.config.plan_max_nodes,
+        )
+        # Simulate a resume that already swept the whole frontier region.
+        ag.summary.coverage_resumed_pct = 0.5
+        level = frame.get("level")
+        prev = ag._frame_grid(frame)
+        for grid in frontier.predicted_grids:
+            for r, (brow, arow) in enumerate(zip(prev, grid)):
+                for c, (b, a) in enumerate(zip(brow, arow)):
+                    if b != a:
+                        ag._coverage_cells.add((level, r, c))
+            prev = grid
+        self.assertEqual(ag.summary.frontier_batches, 0)
+        ag._frontier_execute(frame)
+        # Bump-first: no redundant frontier batch was recorded before the discovery handoff.
+        self.assertEqual(ag.summary.frontier_batches, 0)
+        self.assertGreaterEqual(ag.summary.bumps_probed, 1)
+
 
 class _CoverageKbClient:
     """KbClient stand-in for coverage resume: returns a native full-body coverage note for the index

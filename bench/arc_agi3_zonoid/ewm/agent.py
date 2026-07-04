@@ -354,7 +354,10 @@ class AgentConfig:
     # Consecutive frontier batches that add NO new coverage before the movement frontier is declared
     # exhausted (the Run-18 signal: explore_frontier keeps returning redundant plans that re-visit
     # already-covered ground). Small so discovery engages promptly instead of burning the budget.
-    coverage_plateau_exhaust: int = 2
+    # Run-21: 2 -> 1. Runs 17-20 pegged the whole budget on frontier re-sweeps and never handed off to
+    # bump/interaction discovery (the 80-action budget never reaches a 2-batch plateau). A single
+    # no-new-coverage batch is already the honest exhaustion signal — trip on the first one.
+    coverage_plateau_exhaust: int = 1
     # Per-turn cap on interaction probes fired before yielding control back to run() (a budget guard so
     # a large object/action product can't monopolise a turn). One probe == one movement-plan + one
     # non-movement action.
@@ -2928,6 +2931,22 @@ class EwmAgent:
             )
         except Exception:  # noqa: BLE001 - a broken program must not crash the loop
             frontier = None
+        # BUMP-FIRST (Run-21): when a prior run's coverage was RESUMED, the frontier explorer's next
+        # batch can be pure re-sweep — every cell it would visit is already in _coverage_cells. Running
+        # that batch wastes an env step AND advances the plateau by only one, compounding the Run-17..20
+        # pathology where the budget drains on known ground before discovery ever engages. If the whole
+        # predicted batch is already-covered ground, trip the plateau NOW so we hand off to bump/
+        # interaction discovery immediately instead of re-sweeping. Only fires when coverage was resumed
+        # (a fresh run legitimately sweeps its first batch onto empty coverage).
+        if (
+            self.summary.coverage_resumed_pct > 0.0
+            and frontier is not None
+            and frontier.actions
+            and self._frontier_fully_covered(frame, frontier)
+        ):
+            self._coverage_plateau = max(
+                self._coverage_plateau, max(1, self.config.coverage_plateau_exhaust)
+            )
         # MOVEMENT FRONTIER EXHAUSTED when no action moves the player at all (explore_frontier returned
         # None) OR the reachable region has been fully swept — the Run-18 pathology, where the explorer
         # keeps returning redundant plans that re-visit already-covered ground (coverage plateaus) yet
@@ -2962,6 +2981,38 @@ class EwmAgent:
         else:
             self._coverage_plateau += 1
         return result, diverged
+
+    def _frontier_fully_covered(
+        self, frame: dict[str, Any], frontier: PlanResult
+    ) -> bool:
+        """True iff EVERY player cell the frontier batch would visit is already in ``_coverage_cells``.
+
+        Bump-first gate (Run-21): the player cell at each predicted step is inferred model-agnostically
+        as the cells that DIFFER from the prior grid (same inference as :meth:`_update_coverage`), keyed
+        by (level, r, c). If the frontier predicts at least one player cell and ALL of them are already
+        covered, the batch is a pure re-sweep of resumed ground — the caller trips the plateau so the
+        loop hands off to bump/interaction discovery instead of re-walking known cells. Conservative: an
+        empty prediction, a shape mismatch, or any single uncovered cell returns False (do NOT skip a
+        batch that might open new ground)."""
+
+        grids = list(frontier.predicted_grids or [])
+        if not grids:
+            return False
+        level = frame.get("level")
+        prev = self._frame_grid(frame)
+        seen_any = False
+        for grid in grids:
+            if _grid_shape(prev) != _grid_shape(grid):
+                # A shape change is a level/boundary event, never pure re-sweep — bail conservatively.
+                return False
+            for r, (brow, arow) in enumerate(zip(prev, grid)):
+                for c, (b, a) in enumerate(zip(brow, arow)):
+                    if b != a:
+                        seen_any = True
+                        if (level, r, c) not in self._coverage_cells:
+                            return False
+            prev = grid
+        return seen_any
 
     @staticmethod
     def _cap_plan(plan_result: PlanResult, cap: int) -> PlanResult:
