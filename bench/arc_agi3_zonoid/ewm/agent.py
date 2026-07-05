@@ -295,6 +295,23 @@ class AgentConfig:
     divergence_tolerance: bool = True
     repair_trigger_pass_rate: float = 0.85
     repair_sanity_cap: int = 2
+    # HEALTHY-MODEL REPAIR SUPPRESSION (Run-28). Run 27 evidence: a WHOLE recalled program that
+    # finished the game at live_pass_rate 1.0 still fired 6 REPAIRs (mostly ~60-120s qwen timeouts),
+    # so only 13 actions ran in the 1500s budget and the LLM-free exploration phase never got any of
+    # it. Root cause: `_handle_divergence` gated repair on `_live_pass_rate()` computed over the
+    # window that ALREADY INCLUDES the current failing transition (it is appended in
+    # `_record_transition` before the divergence handler runs). Early in a game, before the window
+    # fills with passes, a single isolated transient drops the small-window rate below
+    # `repair_trigger_pass_rate` and repair fires even though the model is healthy. The fix measures
+    # health over the PRIOR window (excluding the failing tail) — the same "was the model healthy
+    # JUST BEFORE this divergence" test `_try_tolerate_transient` already uses — and, when it holds,
+    # suppresses repair and routes straight to the LLM-free exploration/reactive path.
+    repair_suppress_when_healthy: bool = True
+    # LLM-TIMEOUT BACKOFF (Run-28). A timed-out decide/repair call burns the FULL client timeout
+    # (~60-120s) for nothing. After this many CONSECUTIVE timed-out decide calls, stop repairing for
+    # the rest of the game and fall to the LLM-free exploration/reactive path — do not keep paying the
+    # timeout. 0 disables the backoff.
+    repair_timeout_backoff: int = 2
     # Partial adoption (Run-9 fix): stop demanding a perfectly-passing program before the planner
     # gets ANY model. When synthesis produces no fully-passing program, the BEST candidate whose
     # full-suite pass_rate >= min_partial_adopt_rate is adopted with its persistently-wrong cells
@@ -680,6 +697,16 @@ class RunSummary:
     transients_tolerated: int = 0
     mask_auto_extensions: int = 0
     repair_skips: int = 0
+    # HEALTHY-MODEL REPAIR SUPPRESSION + LLM-TIMEOUT BACKOFF telemetry (Run-28).
+    # `repair_suppressed_healthy` = divergences where the PRIOR window (excluding the failing tail)
+    # still held >= repair_trigger_pass_rate, so repair was suppressed and the loop went straight to
+    # the LLM-free exploration/reactive path (the Run-27 storm this closes). `llm_timeouts` = decide
+    # calls that failed on a client timeout (each burns the full ~60-120s). `repair_timeout_backoff_tripped`
+    # = the run stopped repairing for the rest of the game after `repair_timeout_backoff` consecutive
+    # timed-out decide calls.
+    repair_suppressed_healthy: int = 0
+    llm_timeouts: int = 0
+    repair_timeout_backoff_tripped: bool = False
     # INTERACTION DISCOVERY telemetry (Run-19). `interactions_probed` = untried (action, context)
     # pairs actually fired (non-movement action with the player adjacent to a distinct object class);
     # `interactions_found` = probes whose real result changed cells BEYOND the known auto-changing
@@ -759,6 +786,9 @@ class RunSummary:
             "transients_tolerated": self.transients_tolerated,
             "mask_auto_extensions": self.mask_auto_extensions,
             "repair_skips": self.repair_skips,
+            "repair_suppressed_healthy": self.repair_suppressed_healthy,
+            "llm_timeouts": self.llm_timeouts,
+            "repair_timeout_backoff_tripped": self.repair_timeout_backoff_tripped,
             "interactions_probed": self.interactions_probed,
             "interactions_found": self.interactions_found,
             "bumps_probed": self.bumps_probed,
@@ -824,6 +854,12 @@ class EwmAgent:
         # Repair engagement + live pass-rate floor bookkeeping.
         self._repairs_this_game = 0
         self._repairs_this_divergence = 0
+        # LLM-TIMEOUT BACKOFF (Run-28): consecutive timed-out decide calls, and the latch that stops
+        # repair for the rest of the game once `repair_timeout_backoff` consecutive timeouts fire. A
+        # non-timeout LlmError or a successful decide resets the consecutive counter; the latch, once
+        # set, stays set (a run that has proven the endpoint is timing out should not keep paying it).
+        self._consecutive_llm_timeouts = 0
+        self._repair_backoff_tripped = False
         # DIVERGENCE TOLERANCE runtime sanity cap (Run-18): per divergence SIGNATURE, the count of
         # consecutive REPAIR candidates that failed extract/compile; once a signature reaches
         # config.repair_sanity_cap it is halted (added to _repair_halted_signatures) and no further
@@ -1218,8 +1254,38 @@ class EwmAgent:
             # first live attempt died 17 minutes in when one REPAIR decide hit the client timeout and
             # the LlmError propagated uncaught through _handle_divergence -> run().
             print(f"[ewm] decide LLM call failed (degrading): {exc!r}", file=sys.stderr)
+            # LLM-TIMEOUT BACKOFF (Run-28): a timeout burns the FULL client timeout for nothing.
+            # Track consecutive timeouts; a non-timeout error resets the streak. Once the streak
+            # reaches config.repair_timeout_backoff, latch the backoff so _handle_divergence stops
+            # entering REPAIR for the rest of the game and falls to the LLM-free path.
+            if self._is_timeout_error(exc):
+                self.summary.llm_timeouts += 1
+                self._consecutive_llm_timeouts += 1
+                backoff = max(0, self.config.repair_timeout_backoff)
+                if backoff and self._consecutive_llm_timeouts >= backoff:
+                    if not self._repair_backoff_tripped:
+                        self._repair_backoff_tripped = True
+                        self.summary.repair_timeout_backoff_tripped = True
+            else:
+                self._consecutive_llm_timeouts = 0
             return ""
+        self._consecutive_llm_timeouts = 0
         return str(resp.get("content", "")) if isinstance(resp, dict) else str(resp)
+
+    @staticmethod
+    def _is_timeout_error(exc: LlmError) -> bool:
+        """True iff an ``LlmError`` originates from a client TIMEOUT (vs any other transport failure).
+
+        ``LlmClient.chat`` wraps the underlying exception both as ``__cause__`` (``raise ... from exc``)
+        and textually in the message (``chat completion failed: TimeoutError(...)``). We check the
+        cause chain first (authoritative) and fall back to the message text so a ``FakeLlm`` that
+        raises ``LlmError("... timed out ...")`` in a test is classified without a real socket."""
+
+        cause = exc.__cause__ or exc.__context__
+        if isinstance(cause, TimeoutError):
+            return True
+        text = f"{exc!r}".lower()
+        return "timeout" in text or "timed out" in text
 
     def _synth_client(self) -> Any:
         """The model for SYNTHESIZE/REPAIR decide calls: ``config.synth_llm`` or the main llm."""
@@ -4055,6 +4121,8 @@ class EwmAgent:
             "interaction_discovery": cfg.interaction_discovery,
             "exploration_executor": cfg.exploration_executor,
             "graph_synthesis": cfg.graph_synthesis,
+            "repair_suppress_when_healthy": cfg.repair_suppress_when_healthy,
+            "repair_timeout_backoff": cfg.repair_timeout_backoff,
             "player_colors": sorted(self._player_color_set()),
         }
 
@@ -4158,6 +4226,23 @@ class EwmAgent:
         self._repairs_this_divergence = 0
         return True
 
+    def _prior_window_healthy(self) -> bool:
+        """True iff the live window EXCLUDING the current (failing) tail shows a healthy model — i.e.
+        there is prior scored evidence and its pass-rate holds >= ``repair_trigger_pass_rate`` (Run-28).
+
+        This is the "was the model healthy JUST BEFORE this divergence" test. It excludes the failing
+        tail so a single isolated transient on a small/partly-filled window does not itself pull the
+        rate under the threshold and fire repair on a model that is actually working (the Run-27 storm:
+        a whole recalled program finished at live_pass_rate 1.0 yet fired 6 repairs). Distinct from
+        _try_tolerate_transient's identical prior test in that it applies to WHOLE programs too — it
+        gates the repair-vs-explore routing, not the mask-extension tolerance."""
+
+        prior = list(self._live_results)[:-1] if self._live_results else []
+        if not prior:
+            return False
+        prior_rate = sum(1 for ok in prior if ok) / len(prior)
+        return prior_rate >= self.config.repair_trigger_pass_rate
+
     def _handle_divergence(self, frame: dict[str, Any], image_url: str | None) -> None:
         """On an expect-mismatch: first try to TOLERATE it as a transient confined to the program's
         known-unmodelable set (auto-extend the mask, no trust drop, no repair). Otherwise GATE repair
@@ -4171,14 +4256,42 @@ class EwmAgent:
             self._failure_cycles = 0
             return
 
-        # (2) REPAIR GATING: while the rolling window still holds, an isolated transient does NOT
+        unrepaired_partial = (
+            isinstance(self.program, MaskedProgram) and not self._partial_repaired
+        )
+
+        # (2) HEALTHY-MODEL REPAIR SUPPRESSION (Run-28): route an isolated transient on a model that
+        # was healthy JUST BEFORE this divergence straight to the LLM-free exploration/reactive path,
+        # never into REPAIR. The Run-27 storm was `window_holds` below measuring the pass-rate over a
+        # window that ALREADY includes the current failing tail — early, before the window fills, a
+        # single transient drags the small-window rate under repair_trigger_pass_rate and repair fires
+        # on a model that finishes at 1.0. Measure health over the PRIOR window (excluding the failing
+        # tail), the same test _try_tolerate_transient already uses. Never applies to an un-live-repaired
+        # partial (its divergence comes from the authoritative unwrapped inner expect — the Run-10 hole).
+        if (
+            self.config.repair_suppress_when_healthy
+            and self.config.divergence_tolerance
+            and not unrepaired_partial
+            and self._prior_window_healthy()
+        ):
+            self.summary.repair_suppressed_healthy += 1
+            self._repairs_this_divergence = 0
+            self._failure_cycles = 0
+            return
+
+        # (3) LLM-TIMEOUT BACKOFF (Run-28): once the endpoint has timed out on `repair_timeout_backoff`
+        # consecutive decide calls, a repair decide would just burn another full client timeout. Stop
+        # repairing for the rest of the game and fall to the LLM-free exploration/reactive path.
+        if self._repair_backoff_tripped:
+            self._repairs_this_divergence = 0
+            self._failure_cycles = 0
+            return
+
+        # (4) REPAIR GATING: while the rolling window still holds, an isolated transient does NOT
         # trigger repair — the model is working, so do not interrupt it. The live window scores the
         # ACTIVE program; for a partial adoption that wrapper renders UNKNOWN over its mask, so the
         # window understates a real inner defect (the Run-10 hole). An un-live-repaired partial's
         # divergence came from the UNWRAPPED inner ``expect``, so it is authoritative — never gate it.
-        unrepaired_partial = (
-            isinstance(self.program, MaskedProgram) and not self._partial_repaired
-        )
         window_holds = (
             self.config.divergence_tolerance
             and not unrepaired_partial
