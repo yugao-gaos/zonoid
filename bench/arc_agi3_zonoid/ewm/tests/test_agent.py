@@ -3033,6 +3033,158 @@ class _DeviatingCorridorEnv(_CorridorEnv):
         return None
 
 
+class RepairBudgetGuardTests(unittest.TestCase):
+    """Run-28: a HEALTHY recalled model must spend budget on LLM-free exploration, not repair.
+
+    Root cause reproduced: `_handle_divergence` gated repair on `_live_pass_rate()` measured over a
+    window that ALREADY INCLUDED the current failing transition, so an ISOLATED transient on a model
+    that was healthy just before it (final live_pass_rate 1.0 in run 27) fired a slow qwen REPAIR.
+    The fix suppresses repair when the PRIOR window (excluding the failing tail) is healthy, and a
+    consecutive-timeout backoff stops paying the full client timeout after the endpoint stalls."""
+
+    def setUp(self):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _whole_mover_agent(self, **cfg):
+        # A WHOLE (+5) mover adopted as the active program — exactly the run-27 shape (`adopted_as`
+        # "whole"), NOT a MaskedProgram, so tolerance never applies and the healthy gate is the only
+        # thing between an isolated transient and REPAIR.
+        from bench.arc_agi3_zonoid.ewm.world_model import WorldModelProgram
+
+        cols = 20
+        env = _WallMoverEnv(cols=cols, truth_mag=5, wall_col=8, budget=60)
+        base = dict(game_id="ls20", max_turns=1, min_probe_transitions=1)
+        base.update(cfg)
+        ag = EwmAgent(env, FakeLlm([]), kb=FakeKb(), vision_enabled=False, config=AgentConfig(**base))
+        ag.program = WorldModelProgram.load(_mover_source(5))
+        # A diverging transition in the suite: the truth stayed put at a wall, but the +5 mover
+        # predicts a move — so `_repair` (if reached) would validate() False, and `_last_divergence_cells`
+        # is non-empty. This is the failing tail.
+        ag.suite.append(_mover_grid(cols, 3), "RIGHT", _mover_grid(cols, 3))
+        return ag
+
+    def test_healthy_window_transient_suppresses_repair_and_no_llm(self):
+        # (a) An adopted WHOLE program + a HEALTHY prior window + a single transient divergence must
+        # NOT trigger REPAIR — it routes straight past the repair block. On run-27 behaviour this
+        # fired a repair (repair_attempts>0); the guard makes it a suppression instead.
+        ag = self._whole_mover_agent()
+        # Prime a proven-healthy window, then the failing tail (the current divergence).
+        ag._live_results.extend([True, True, True, True])
+        ag._live_results.append(False)  # the divergent tail _handle_divergence sees
+        self.assertTrue(ag._prior_window_healthy())
+
+        decide_before = ag.summary.decide_calls
+        ag._handle_divergence({"grid": _mover_grid(20, 3), "level": 1}, None)
+
+        self.assertEqual(ag.summary.repair_attempts, 0,
+                         "a transient on a proven-healthy whole model must NOT enter REPAIR")
+        self.assertEqual(ag.summary.repair_suppressed_healthy, 1)
+        self.assertEqual(ag.summary.decide_calls, decide_before,
+                         "healthy suppression must make ZERO decide (LLM) calls")
+        self.assertIsNotNone(ag.program, "the healthy model must NOT be dropped")
+
+    def test_persistent_defect_still_repairs_when_prior_window_degrades(self):
+        # The guard is transient-only: once the PRIOR window (excluding the failing tail) has itself
+        # degraded below repair_trigger_pass_rate, the divergence is a persistent defect and REPAIR
+        # must still engage (the Run-13 wall-mover shape — never mask a real defect away).
+        ag = self._whole_mover_agent(max_repair_attempts=1, max_repairs_per_game=99,
+                                     max_repairs_per_divergence=99, min_live_pass_rate=0.0)
+        # A window whose prior (excluding the tail) is mostly misses: not healthy -> repair engages.
+        ag._live_results.extend([False, False, False, False])
+        ag._live_results.append(False)
+        self.assertFalse(ag._prior_window_healthy())
+        ag._handle_divergence({"grid": _mover_grid(20, 3), "level": 1}, None)
+        self.assertGreater(ag.summary.repair_attempts, 0,
+                           "a persistent defect (prior window degraded) must still REPAIR")
+        self.assertEqual(ag.summary.repair_suppressed_healthy, 0)
+
+    def test_consecutive_llm_timeouts_trip_backoff_and_skip_repair(self):
+        # (b) Two consecutive client TIMEOUTS trip the backoff latch; a subsequent divergence on an
+        # un-healthy window must then FALL to the LLM-free path (no further repair decide) instead of
+        # paying another full timeout.
+        from bench.arc_agi3_zonoid.ewm.llm_client import LlmError
+
+        class _Timeout:
+            def chat(self, *a, **k):
+                raise LlmError("chat completion failed: TimeoutError('timed out')")
+
+        ag = self._whole_mover_agent(repair_timeout_backoff=2, max_repair_attempts=1,
+                                     max_repairs_per_game=99, max_repairs_per_divergence=99,
+                                     min_live_pass_rate=0.0)
+        ag.llm = _Timeout()
+        # Two timed-out decide calls trip the latch.
+        self.assertEqual(ag._decide([{"role": "user", "content": "x"}]), "")
+        self.assertFalse(ag._repair_backoff_tripped)
+        self.assertEqual(ag._decide([{"role": "user", "content": "x"}]), "")
+        self.assertTrue(ag._repair_backoff_tripped)
+        self.assertEqual(ag.summary.llm_timeouts, 2)
+        self.assertTrue(ag.summary.repair_timeout_backoff_tripped)
+
+        # A divergence on a DEGRADED window would normally repair; with the latch tripped it does not.
+        ag._live_results.extend([False, False, False, False])
+        ag._live_results.append(False)
+        self.assertFalse(ag._prior_window_healthy())
+        ag._handle_divergence({"grid": _mover_grid(20, 3), "level": 1}, None)
+        self.assertEqual(ag.summary.repair_attempts, 0,
+                         "with the timeout backoff tripped, no further REPAIR decide is paid")
+
+    def test_non_timeout_error_resets_consecutive_streak(self):
+        # A non-timeout transport error must NOT count toward the timeout streak (only genuine
+        # timeouts burn the full client timeout the backoff is guarding against).
+        from bench.arc_agi3_zonoid.ewm.llm_client import LlmError
+
+        class _Flaky:
+            def __init__(self):
+                self.n = 0
+
+            def chat(self, *a, **k):
+                self.n += 1
+                if self.n == 2:
+                    raise LlmError("chat completion failed: URLError('connection refused')")
+                raise LlmError("chat completion failed: TimeoutError('timed out')")
+
+        ag = self._whole_mover_agent(repair_timeout_backoff=2)
+        ag.llm = _Flaky()
+        ag._decide([{"role": "user", "content": "x"}])   # timeout -> streak 1
+        ag._decide([{"role": "user", "content": "x"}])   # non-timeout -> streak reset to 0
+        self.assertFalse(ag._repair_backoff_tripped)
+        ag._decide([{"role": "user", "content": "x"}])   # timeout -> streak 1 (not 2)
+        self.assertFalse(ag._repair_backoff_tripped,
+                         "an interleaved non-timeout error must reset the consecutive streak")
+        self.assertEqual(ag.summary.llm_timeouts, 2)
+
+    def test_healthy_path_reaches_frontier_batch_in_tight_budget(self):
+        # (c) With a trusted model and a tight scripted budget, the healthy path reaches at least one
+        # LLM-FREE frontier/contact batch (the CPU exploration phase) with ZERO decide calls — the
+        # budget the run-27 repair storm consumed.
+        from bench.arc_agi3_zonoid.ewm.world_model import WorldModelProgram
+
+        env = _CorridorEnv(boundary_after=None, budget=8)
+        base = dict(
+            game_id="toy", max_turns=20, min_probe_transitions=1,
+            fast_path_trust_window=2, fast_path_batch_cap=2, frontier_max_depth=2,
+            goal_discovery_min_live_samples=2, goal_discovery_min_live_rate=0.9,
+            max_frontier_batches_per_turn=8, bump_probes=False,
+        )
+        ag = EwmAgent(env, FakeLlm([]), kb=FakeKb(), vision_enabled=False, config=AgentConfig(**base))
+        ag.program = WorldModelProgram.load(TOY_GAME_SOURCE)
+        ag._live_results.extend([True, True, True])
+        ag._refresh_model_trust()
+        self.assertTrue(ag._goal_discovery_ready())
+        decide_before = ag.summary.decide_calls
+        result, diverged, last_frame = ag._explore_frontier_loop({"grid": env._grid(), "level": 1})
+        self.assertGreaterEqual(ag.summary.frontier_batches, 1,
+                                "the healthy path must reach at least one LLM-free frontier batch")
+        self.assertEqual(ag.summary.decide_calls, decide_before,
+                         "exploration must be LLM-FREE (zero decide calls)")
+        self.assertFalse(diverged)
+
+
 # Movement-only model for the switch-door game: the avatar (2) translates on background (0); walls
 # (1), the switch (4), the door (5), and the goal (3) are impassable statics. SPACE is a legal action
 # the model predicts as a NO-OP (it is not a translation) — exactly the interaction the model cannot
