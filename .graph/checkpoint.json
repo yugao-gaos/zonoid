@@ -243529,7 +243529,7 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "failed",
+      "status": "canceled",
       "summary": "Run-22: made contact bump probing a first-class exploration budget quota (bump_quota_fraction=0.4, exploration_min_bump_actions=24) interleaved from action 1 via _explore_batch/_bump_quota_due; plateau/exhaustion handoff kept as bonus. Driver --max-actions forwards cleanly. Full ewm suite 359 passed + driver --smoke green. Committed 0079169fe.",
       "category": null,
       "tags": [],
@@ -243553,8 +243553,8 @@
       "assignee": "worker-ewm-quota",
       "timestamps": {
         "firstSeen": "2026-07-04T11:12:07.293Z",
-        "lastChanged": "2026-07-04T11:37:18.880Z",
-        "lastStatus": "failed"
+        "lastChanged": "2026-07-04T12:56:46.681Z",
+        "lastStatus": "canceled"
       },
       "metrics": null,
       "measurements": null,
@@ -243631,6 +243631,166 @@
         "firstSeen": "2026-07-04T11:12:53.327Z",
         "lastChanged": "2026-07-04T12:34:12.796Z",
         "lastStatus": "tested"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "note:note-mr6bu1tyaaa|note:note-mr6ce97il7j": {
+      "id": "note:note-mr6bu1tyaaa|note:note-mr6ce97il7j",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": null,
+      "assignee": null,
+      "timestamps": null,
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "note:note-mr6ffokceev|note:note-mr6gb88wvb8": {
+      "id": "note:note-mr6ffokceev|note:note-mr6gb88wvb8",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": null,
+      "assignee": null,
+      "timestamps": null,
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-live-config-wiring-trace-quota-persistence-run-twenty-three": {
+      "id": "codex/ewm-live-config-wiring-trace-quota-persistence-run-twenty-three",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM live config wiring trace quota persistence run twenty three",
+        "description": "Run 22 (healthy daemon, note writes 0.00s, 160/160 actions, ORIENT native first-try, live 1.0) STILL shows bumps_probed=0 and coverage_persisted=false — the bump-quota and coverage-persistence mechanisms are merged and test-proven but silent live for the 2nd-3rd consecutive run. This is a live-config wiring gap (same class as run 12's kb=None): TRACE the config end-to-end in bench/arc_agi3_zonoid/ewm/ — driver.live_run -> build_live_session -> AgentConfig construction -> _explore_frontier_loop/_explore_batch quota gate -> coverage persist-at-end path — and find where bump_quota_fraction/exploration_min_bump_actions/coverage persistence drop out or are gated off in the live path (suspects: live_run builds AgentConfig explicitly omitting new fields; quota gate requires an interaction-discovery mode flag that live path never sets; coverage persist runs after summary print or is guarded on a kb flag the live path leaves None; also check why summary shows divergences=24/repair_attempts=6 against a 1.0 window — telemetry mislabeled?). FIX minimally, ADD a config echo to the run summary (the effective AgentConfig knobs) so silent-drop can never hide again, and add a regression test that builds the LIVE config path (not a bespoke test config) and asserts the quota+persistence knobs survive. Full suite + --smoke green. Then LIVE RUN 23: standard command with --max-actions 160 (--graph on, 1500s), foreground bounded wait; report config echo, bumps probed/found + effects, coverage persisted/resumed, boundary?, LEVELS_COMPLETED, scorecard; write out/ewm-ls20-ewm-warmstart11.json + append arm. Commit code + artifacts.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-04T12:54:51.253Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-04T12:54:51.253Z",
+        "lastChanged": "2026-07-04T13:58:49.041Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-model-quantum-interaction-discovery-stride-agnostic-run-twenty-seven": {
+      "id": "codex/ewm-model-quantum-interaction-discovery-stride-agnostic-run-twenty-seven",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "failed",
+      "summary": "Made bump/contact discovery stride-agnostic by deriving movement geometry from the adopted world-model program instead of hardcoding unit-step adjacency. Full ewm suite (374) + smoke green.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM model quantum interaction discovery stride agnostic run twenty seven",
+        "description": "CODE-ONLY (dispatcher runs the live game). Run 26 finding (note:note-mr6p3nheta6): bump discovery is geometrically impossible for ls20 because it hardcodes UNIT-STEP adjacency (plan player onto a distance-1 empty cell next to an object, then step in), but ls20's player moves in strides of ±5, so it can only occupy a sparse lattice and never lands adjacent -> _plan_to_cell None -> every object 'unreachable' -> bumps_probed=0. FIX must be GAME-AGNOSTIC and runtime-legal (local model + CPU only, works on any unseen game — NO frontier model, no hardcoded stride). In bench/arc_agi3_zonoid/ewm/ (agent.py + planner.py seams, +tests): (1) Derive the player's MOVEMENT REACHABILITY from the ADOPTED world-model program (run program.step forward over legal_actions to enumerate reachable player positions / the reachable-state lattice) instead of assuming distance-1 planning; if no program is adopted, fall back to empirically-observed move deltas from the transition suite. (2) Redefine interaction/contact probing generally: enumerate actions whose MODEL-PREDICTED result brings the player ONTO or THROUGH (path crosses) a distinct object class — 'contact' defined by the game's own movement geometry, not adjacency. For a stride-N mover, a contact probe is a move whose destination lands on/crosses an object cell; for a unit mover it reduces to the old adjacency. Plan to the lattice-reachable cell whose next move enters the object. (3) Keep watching every transition for a level/score boundary — this covers positional wins (a stride landing on a goal cell fires the boundary) AND contact wins. Telemetry: movement_stride (inferred), reachable_cells, contact_probes_probed/found, effect per object class. (4) Tests: a stride-2 toy game (player moves 2 cells/action) where the win is a contact/positional target only reachable by a stride-aware probe — the mechanism must fire probes>0 and reach the target (unit-step adjacency code returns 0 here — regression guard); plus the existing unit-step toy still works. Full ewm suite + --smoke green. Commit on the attempt branch; DO NOT run the live ARC game.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-04T19:10:27.585Z"
+      },
+      "assignee": "worker-ewm-quantum",
+      "timestamps": {
+        "firstSeen": "2026-07-04T19:10:27.585Z",
+        "lastChanged": "2026-07-04T19:25:36.773Z",
+        "lastStatus": "failed"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-per-run-bump-dedup-unblock-persisted-suppression-fix": {
+      "id": "codex/ewm-per-run-bump-dedup-unblock-persisted-suppression-fix",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM per run bump dedup unblock persisted suppression fix",
+        "description": "CODE-ONLY fix (no live run — dispatcher runs the game). Run 25 (ARC healthy, player_colors=[9,12] correctly resolved, bump quota now fires: bump_due_batches=21) still probed ZERO bumps — bump_skip_reason=\"all bump contexts already deduped (persisted probes)\". Root cause in bench/arc_agi3_zonoid/ewm/agent.py: (a) the bump dedup key (_BUMP_MARKER, obj_hash) is added to _fired_probes UP FRONT at ~line 3599 before the bump executes (\"whether or not the bump lands\"), and (b) _fired_probes is loaded from a PERSISTED cross-run coverage note at ~line 3763 (self._fired_probes |= state probes). Object hashes are translation-invariant so ls20's objects match across runs; any prior run (or crashed run) that recorded intent permanently suppresses bumps in ALL future runs. FIX: make BUMP-probe discovery PER-RUN — do NOT let persisted cross-run probes suppress bump execution. Concretely: keep a separate in-run bump-attempt guard (added up-front to avoid spinning on the same object within a run, reset each run) and do NOT load persisted _BUMP_MARKER entries into the set that gates whether a bump executes (still fine to persist/load NON-bump coverage + non-movement interaction probes). Net effect: every fresh game instance re-probes each distinct object class once. Add a regression test: with a persisted probe state that already contains all current object bump keys, a fresh run STILL fires bumps (bumps_probed>0) — this test would have caught run 25. Also verify the summary bump telemetry (bump_due_batches/bump_empty_batches/bumps_probed) stays coherent. Full ewm suite + --smoke green. Commit on the attempt branch; DO NOT run the live game.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-04T18:04:30.427Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-04T18:04:30.427Z",
+        "lastChanged": "2026-07-04T18:11:17.129Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -276585,49 +276745,11 @@
     },
     {
       "from": "note:note-mr43rk1dmy0",
-      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
-      "kind": "context",
-      "weight": 0.5,
-      "by": "judge",
-      "judged": true,
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "note:note-mr43rk1dmy0",
-      "to": "codex/ewm-agent-loop-land-completed-attempt-branch",
-      "kind": "context",
-      "weight": 0.5,
-      "by": "judge",
-      "judged": true,
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "note:note-mr43rk1dmy0",
-      "to": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
-      "kind": "context",
-      "weight": 0.426,
-      "by": "judge",
-      "judged": true,
-      "score": 0.426,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr43rk1dmy0",
       "to": "note:note-mqvr2wl8lre",
       "kind": "blocking",
       "by": "judge",
       "judged": true,
       "score": 0.634,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr43rk1dmy0",
-      "to": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
-      "kind": "context",
-      "weight": 0.481,
-      "by": "judge",
-      "judged": true,
-      "score": 0.481,
       "origin": "autowire-semantic"
     },
     {
@@ -277242,16 +277364,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.604,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr43rk1dmy0",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/8",
-      "kind": "context",
-      "weight": 0.305,
-      "by": "judge",
-      "judged": true,
-      "score": 0.305,
       "origin": "autowire-semantic"
     },
     {
@@ -279524,6 +279636,106 @@
       "origin": "subconscious-assignment"
     },
     {
+      "from": "knowledge:source_chunk:note-mr6bu1tyaaa#note-evidence:chunk-1",
+      "to": "note:note-mr6bu1tyaaa",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_doc:note-mr6bu1tyaaa",
+      "to": "knowledge:source_section:note-mr6bu1tyaaa#note-evidence",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr6bu1tyaaa#note-evidence",
+      "to": "knowledge:source_chunk:note-mr6bu1tyaaa#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "note:note-mr6bu1tyaaa",
+      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr6bu1tyaaa",
+      "to": "knowledge:source_section:note-mr6bu1tyaaa#note-evidence",
+      "kind": "context",
+      "weight": 0.858,
+      "by": "judge",
+      "judged": true,
+      "score": 0.858,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6bu1tyaaa",
+      "to": "knowledge:source_chunk:note-mr6bu1tyaaa#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.858,
+      "by": "judge",
+      "judged": true,
+      "score": 0.858,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6bu1tyaaa",
+      "to": "knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.727,
+      "by": "judge",
+      "judged": true,
+      "score": 0.727,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6ce97il7j",
+      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr6ce97il7j",
+      "to": "knowledge:source_chunk:note-mr6bu1tyaaa#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.859,
+      "by": "judge",
+      "judged": true,
+      "score": 0.859,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6ce97il7j",
+      "to": "knowledge:source_section:note-mr6bu1tyaaa#note-evidence",
+      "kind": "context",
+      "weight": 0.859,
+      "by": "judge",
+      "judged": true,
+      "score": 0.859,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6ce97il7j",
+      "to": "note:note-mr6bu1tyaaa",
+      "kind": "context",
+      "weight": 0.803,
+      "by": "judge",
+      "judged": true,
+      "score": 0.803,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
       "to": "note:note-mqqqrlczyc2",
       "kind": "context",
@@ -279614,14 +279826,6 @@
       "origin": "note-source-cluster"
     },
     {
-      "from": "knowledge:source_chunk:note-mr6bu1tyaaa#note-evidence:chunk-1",
-      "to": "note:note-mr6bu1tyaaa",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
-    },
-    {
       "from": "knowledge:source_doc:note-mqqnit1ph68",
       "to": "note:note-mqqnit1ph68",
       "kind": "context",
@@ -279636,14 +279840,6 @@
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
-    },
-    {
-      "from": "knowledge:source_doc:note-mr6bu1tyaaa",
-      "to": "knowledge:source_section:note-mr6bu1tyaaa#note-evidence",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
     },
     {
       "from": "knowledge:source_section:note-mqsi4rz0p98#note-evidence",
@@ -279676,14 +279872,6 @@
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
-    },
-    {
-      "from": "knowledge:source_section:note-mr6bu1tyaaa#note-evidence",
-      "to": "knowledge:source_chunk:note-mr6bu1tyaaa#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 1,
-      "origin": "note-source-cluster",
-      "judged": true
     },
     {
       "from": "knowledge:source_section:section-claude-md-1-orchestrator-dashboard-e5ce5288fe",
@@ -279900,6 +280088,22 @@
     {
       "from": "note:note-mq75a823",
       "to": "note:note-mq75a81n",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mq75a82d",
+      "to": "note:note-mq75a823",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mq75a82d",
+      "to": "note:note-mq75a828",
       "kind": "context",
       "weight": 0.6,
       "by": "judge",
@@ -284866,6 +285070,15 @@
       "judged": true
     },
     {
+      "from": "note:note-mqqqrlczyc2",
+      "to": "codex/ewm-per-run-bump-dedup-unblock-persisted-suppression-fix",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.506,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqqt68limis",
       "to": "note:note-mqquqci425x",
       "kind": "context",
@@ -285383,12 +285596,75 @@
       "origin": "subconscious-agentic-search"
     },
     {
+      "from": "note:note-mr43rk1dmy0",
+      "to": "codex/ewm-live-config-wiring-trace-quota-persistence-run-twenty-three",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.52,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr45u2lycou",
+      "to": "codex/ewm-live-config-wiring-trace-quota-persistence-run-twenty-three",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.489,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr46y3pjbt8",
+      "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mr48a5ra7bz",
+      "to": "codex/ewm-model-quantum-interaction-discovery-stride-agnostic-run-twenty-seven",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.436,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr4dujpkkos",
+      "to": "codex/ewm-live-config-wiring-trace-quota-persistence-run-twenty-three",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.427,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr4dujpkkos",
+      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
+      "kind": "context",
+      "weight": 0.431,
+      "by": "judge",
+      "judged": true,
+      "score": 0.431,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mr534gig0ek",
       "to": "codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen",
       "kind": "context",
       "weight": 1,
       "judged": true,
       "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5b375dvnh",
+      "to": "codex/ewm-live-config-wiring-trace-quota-persistence-run-twenty-three",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.412,
+      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mr5c2remh4y",
@@ -285449,99 +285725,164 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr6bu1tyaaa",
-      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
+      "from": "note:note-mr5y9o2i9wy",
+      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
+      "kind": "context",
+      "weight": 0.43,
+      "by": "judge",
+      "judged": true,
+      "score": 0.43,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5y9o2i9wy",
+      "to": "codex/ewm-per-run-bump-dedup-unblock-persisted-suppression-fix",
+      "kind": "context",
+      "weight": 0.448,
+      "by": "judge",
+      "judged": true,
+      "score": 0.448,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6e6fkxyxj",
+      "to": "codex/ewm-live-config-wiring-trace-quota-persistence-run-twenty-three",
       "kind": "context",
       "weight": 1,
       "judged": true,
       "origin": "asserted"
     },
     {
-      "from": "note:note-mr6bu1tyaaa",
-      "to": "knowledge:source_section:note-mr6bu1tyaaa#note-evidence",
+      "from": "note:note-mr6e6fkxyxj",
+      "to": "note:note-mr5y9o2i9wy",
       "kind": "context",
-      "weight": 0.858,
+      "weight": 0.642,
       "by": "judge",
       "judged": true,
-      "score": 0.858,
+      "score": 0.642,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr6bu1tyaaa",
-      "to": "knowledge:source_chunk:note-mr6bu1tyaaa#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.858,
-      "by": "judge",
-      "judged": true,
-      "score": 0.858,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr6bu1tyaaa",
-      "to": "knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 0.727,
-      "by": "judge",
-      "judged": true,
-      "score": 0.727,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr6ce97il7j",
-      "to": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
+      "from": "note:note-mr6ffokceev",
+      "to": "codex/ewm-live-config-wiring-trace-quota-persistence-run-twenty-three",
       "kind": "context",
       "weight": 1,
       "judged": true,
       "origin": "asserted"
     },
     {
-      "from": "note:note-mr6ce97il7j",
-      "to": "knowledge:source_chunk:note-mr6bu1tyaaa#note-evidence:chunk-1",
+      "from": "note:note-mr6ffokceev",
+      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.859,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr6ce97il7j",
-      "to": "knowledge:source_section:note-mr6bu1tyaaa#note-evidence",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.859,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr6ce97il7j",
-      "to": "note:note-mr6bu1tyaaa",
-      "kind": "context",
-      "weight": 0.803,
+      "weight": 0.443,
       "by": "judge",
       "judged": true,
-      "score": 0.803,
+      "score": 0.443,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr6ce97il7j",
-      "to": "note:note-mqgztj9lza0",
+      "from": "note:note-mr6ffokceev",
+      "to": "codex/ewm-per-run-bump-dedup-unblock-persisted-suppression-fix",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.734,
+      "weight": 0.482,
+      "by": "judge",
+      "judged": true,
+      "score": 0.482,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr6ce97il7j",
-      "to": "knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-2",
+      "from": "note:note-mr6gb88wvb8",
+      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.733,
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr6httweaeo",
+      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
+      "kind": "context",
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true,
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "note:note-mr6httweaeo",
+      "to": "codex/ewm-agent-loop-land-completed-attempt-branch",
+      "kind": "context",
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true,
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "note:note-mr6httweaeo",
+      "to": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
+      "kind": "context",
+      "weight": 0.426,
+      "by": "judge",
+      "judged": true,
+      "score": 0.426,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6httweaeo",
+      "to": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
+      "kind": "context",
+      "weight": 0.481,
+      "by": "judge",
+      "judged": true,
+      "score": 0.481,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6httweaeo",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/8",
+      "kind": "context",
+      "weight": 0.305,
+      "by": "judge",
+      "judged": true,
+      "score": 0.305,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6r3yco9dm",
+      "to": "codex/ewm-model-quantum-interaction-discovery-stride-agnostic-run-twenty-seven",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "subconscious-assignment",
+      "by": "judge"
+    },
+    {
+      "from": "note:note-mr6r3yco9dm",
+      "to": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.673,
+      "by": "judge",
+      "judged": true,
+      "score": 0.673,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6r3yco9dm",
+      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.673,
+      "by": "judge",
+      "judged": true,
+      "score": 0.673,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6r3yco9dm",
+      "to": "note:note-mr5hu8iwax0",
+      "kind": "context",
+      "weight": 0.659,
+      "by": "judge",
+      "judged": true,
+      "score": 0.659,
       "origin": "autowire-semantic"
     },
     {
@@ -285660,6 +286001,106 @@
       "kind": "context",
       "weight": 0.252,
       "judged": true
+    },
+    {
+      "from": "codex/daemon-cpu-hot-loop-write-path-starvation-investigation-fix",
+      "to": "codex/ewm-live-config-wiring-trace-quota-persistence-run-twenty-three",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-bump-quota-interleave-action-budget-raise",
+      "to": "codex/ewm-live-config-wiring-trace-quota-persistence-run-twenty-three",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-bump-quota-interleave-action-budget-raise",
+      "to": "codex/ewm-live-config-wiring-trace-quota-persistence-run-twenty-three",
+      "kind": "supersede"
+    },
+    {
+      "from": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.694,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
+      "to": "codex/ewm-plateau-gate-bump-first-healthy-daemon-run-twenty-one",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.586,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
+      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.525,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
+      "to": "codex/ewm-per-run-bump-dedup-unblock-persisted-suppression-fix",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-live-config-wiring-trace-quota-persistence-run-twenty-three",
+      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-model-quantum-interaction-discovery-stride-agnostic-run-twenty-seven",
+      "to": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
+      "kind": "context",
+      "weight": 0.389,
+      "by": "judge",
+      "judged": true,
+      "score": 0.389,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-per-run-bump-dedup-unblock-persisted-suppression-fix",
+      "to": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
+      "kind": "context",
+      "weight": 0.497,
+      "by": "judge",
+      "judged": true,
+      "score": 0.497,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-per-run-bump-dedup-unblock-persisted-suppression-fix",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.577,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-per-run-bump-dedup-unblock-persisted-suppression-fix",
+      "to": "codex/ewm-live-config-wiring-trace-quota-persistence-run-twenty-three",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.512,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-per-run-bump-dedup-unblock-persisted-suppression-fix",
+      "to": "codex/ewm-model-quantum-interaction-discovery-stride-agnostic-run-twenty-seven",
+      "kind": "context",
+      "origin": "subconscious-assignment"
     },
     {
       "from": "codex/fix-consolidate-universal-skills-kickback",
@@ -285826,5 +286267,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-07-04T12:34:51.439Z"
+  "compacted_at": "2026-07-05T01:37:44.754Z"
 }
