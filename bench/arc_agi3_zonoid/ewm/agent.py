@@ -3879,6 +3879,20 @@ class EwmAgent:
                 last = (result, diverged)
                 cur_frame = self._observe()
                 if diverged or cur_frame.get("done") or self._out_of_budget(cur_frame):
+                    # APPROACH-WALK ABORT (Run-25 live): the walk TOWARD the object ended the batch
+                    # before any bump fired — a non-None return with bumps_probed unchanged and no
+                    # skip reason was the run-25 silent shape (bump_empty_batches=2,
+                    # bump_skip_reason=null). Record WHY, and un-poison the per-run dedup: it should
+                    # only hold objects whose bump actually FIRED or was structurally skipped, so the
+                    # next due batch can retry this never-bumped object.
+                    cause = (
+                        "diverged" if diverged
+                        else "done" if cur_frame.get("done") else "out of budget"
+                    )
+                    self.summary.bump_skip_reason = (
+                        f"approach walk aborted before bump ({cause})"
+                    )
+                    self._bump_attempted.discard(obj_hash)
                     return last
             # Fire the bump into the object, repeated, diffing each for a contact effect.
             last = self._fire_bump(cur_frame, bump_action, bump_dir, obj_hash)

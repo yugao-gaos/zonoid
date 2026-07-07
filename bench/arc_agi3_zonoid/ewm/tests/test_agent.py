@@ -4159,6 +4159,35 @@ class PlayerColorInferenceTests(unittest.TestCase):
         self.assertIsNotNone(ag.summary.bump_skip_reason)
         self.assertIn("no player cell", ag.summary.bump_skip_reason)
 
+    def test_approach_walk_divergence_records_skip_and_unpoisons_dedup(self):
+        # Run-25 LIVE finding: the approach walk toward the picked object DIVERGED before its bump
+        # ever fired, and _bump_discovery returned a non-None last — so the caller saw a "probed"
+        # batch while bumps_probed stayed 0, bump_skip_reason stayed null, AND the never-bumped
+        # object stayed poisoned in _bump_attempted (run-25 shape: bump_due_batches=2,
+        # bump_empty_batches=2, bumps_probed=0, bump_skip_reason=null). The abort must record WHY
+        # and discard the object so the next due batch can retry it.
+        env = _Ls20ColoredQuotaEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE)
+        contexts = ag._bump_contexts(env._grid())
+        self.assertGreaterEqual(len(contexts), 1)
+
+        class _WalkPlan:
+            actions = ["UP"]
+
+        ag._plan_to_cell = lambda frame, target: _WalkPlan()
+        ag._execute = lambda mv, frame: ({}, True)  # the approach walk diverges immediately
+        before = ag.summary.bumps_probed
+        result = ag._bump_discovery(env.observe())
+        # The caller still sees the executed walk (non-None), but NOT silently anymore.
+        self.assertIsNotNone(result)
+        self.assertEqual(ag.summary.bumps_probed, before)  # no bump actually fired
+        self.assertIsNotNone(ag.summary.bump_skip_reason)
+        self.assertIn("approach walk", ag.summary.bump_skip_reason)
+        self.assertIn("diverged", ag.summary.bump_skip_reason)
+        # The un-bumped object was un-poisoned: per-run dedup only holds objects whose bump FIRED
+        # or was structurally skipped, so the aborted pass leaves the guard empty.
+        self.assertEqual(ag._bump_attempted, set())
+
 
 # ---------------------------------------------------------------------------------------------------
 # Run-27 STRIDE-AGNOSTIC CONTACT DISCOVERY
