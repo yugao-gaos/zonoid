@@ -15,3 +15,5 @@
 {"evt":"edge_promoted","from":"note:note-mrba8l4hora","to":"codex/bump-approach-walk-tolerate-one-benign-divergence-with-a-single-re-plan-retry","kind":"context","actor":"overlay-sync","ts":"2026-07-07T23:32:39.463Z","weight":0.537,"by":"judge","judged":true,"score":0.537,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mrba8l4hora","to":"note:note-mrb91dj34xw","kind":"context","actor":"overlay-sync","ts":"2026-07-07T23:32:39.463Z"}
 {"evt":"edge_removed","from":"note:note-mrba8l4hora","to":"note:note-mr5y9o2i9wy","kind":"context","actor":"overlay-sync","ts":"2026-07-07T23:35:38.862Z"}
+{"evt":"edge_removed","from":"note:note-mrba8l4hora","to":"note:note-mr5njd22m3l","kind":"context","actor":"overlay-sync","ts":"2026-07-07T23:50:26.532Z"}
+{"evt":"edge_promoted","from":"note:note-mrba8l4hora","to":"note:note-mr5xad0sam6","kind":"context","actor":"overlay-sync","ts":"2026-07-07T23:50:48.428Z","weight":0.705,"by":"judge","judged":true,"score":0.705,"origin":"autowire-semantic"}
