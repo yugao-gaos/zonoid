@@ -13,3 +13,4 @@
 {"evt":"edge_added","from":"note:note-mrb91dj34xw","to":"codex/ewm-per-run-bump-dedup-unblock-persisted-suppression-fix","kind":"context","actor":"overlay-sync","ts":"2026-07-07T22:57:59.299Z","weight":0.482,"by":"judge","judged":true,"score":0.482,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mrb91dj34xw","to":"note:note-mr6ffokceev","kind":"context","actor":"overlay-sync","ts":"2026-07-07T22:57:59.299Z"}
 {"evt":"note_supersedes","id":"note-mrb91dj34xw","supersedes":"note-mr6ffokceev","ts":"2026-07-07T22:57:21.855Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mrb91dj34xw","to":"note:note-mr6gb88wvb8","kind":"context","actor":"overlay-sync","ts":"2026-07-07T22:58:51.967Z"}
