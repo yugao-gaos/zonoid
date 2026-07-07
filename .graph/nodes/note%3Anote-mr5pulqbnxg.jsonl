@@ -13,3 +13,4 @@
 {"evt":"edge_promoted","from":"note:note-mr5pulqbnxg","to":"note:note-mr5optj7omb","kind":"context","actor":"overlay-sync","ts":"2026-07-04T03:21:43.586Z","weight":0.658,"by":"judge","judged":true,"score":0.658,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr5pulqbnxg","to":"note:note-mr5njd22m3l","kind":"blocking","actor":"overlay-sync","ts":"2026-07-04T03:46:32.818Z","by":"judge","judged":true,"score":0.749,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr5pulqbnxg","to":"note:note-mr5njd22m3l","kind":"context","actor":"overlay-sync","ts":"2026-07-04T03:46:32.818Z"}
+{"evt":"edge_added","from":"note:note-mr5pulqbnxg","to":"codex/bump-approach-walk-tolerate-one-benign-divergence-with-a-single-re-plan-retry","kind":"context","actor":"overlay-sync","ts":"2026-07-07T23:31:11.895Z","weight":0,"by":"autowire","judged":false,"score":0.527,"origin":"autowire-semantic"}
