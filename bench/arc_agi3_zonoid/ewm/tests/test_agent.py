@@ -4166,6 +4166,9 @@ class PlayerColorInferenceTests(unittest.TestCase):
         # object stayed poisoned in _bump_attempted (run-25 shape: bump_due_batches=2,
         # bump_empty_batches=2, bumps_probed=0, bump_skip_reason=null). The abort must record WHY
         # and discard the object so the next due batch can retry it.
+        # Run-26 update: a SINGLE benign divergence no longer aborts — it gets one re-plan retry.
+        # This stub diverges on EVERY walk, so the retry ALSO diverges and the run-25 guarantee
+        # (silence never returns: reason recorded, dedup un-poisoned) must still hold on the abort.
         env = _Ls20ColoredQuotaEnv()
         ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE)
         contexts = ag._bump_contexts(env._grid())
@@ -4175,7 +4178,7 @@ class PlayerColorInferenceTests(unittest.TestCase):
             actions = ["UP"]
 
         ag._plan_to_cell = lambda frame, target: _WalkPlan()
-        ag._execute = lambda mv, frame: ({}, True)  # the approach walk diverges immediately
+        ag._execute = lambda mv, frame: ({}, True)  # every approach walk diverges immediately
         before = ag.summary.bumps_probed
         result = ag._bump_discovery(env.observe())
         # The caller still sees the executed walk (non-None), but NOT silently anymore.
@@ -4184,8 +4187,61 @@ class PlayerColorInferenceTests(unittest.TestCase):
         self.assertIsNotNone(ag.summary.bump_skip_reason)
         self.assertIn("approach walk", ag.summary.bump_skip_reason)
         self.assertIn("diverged", ag.summary.bump_skip_reason)
+        # The retry DID engage once (first divergence was benign) before the second one aborted.
+        self.assertEqual(ag.summary.approach_retries, 1)
         # The un-bumped object was un-poisoned: per-run dedup only holds objects whose bump FIRED
         # or was structurally skipped, so the aborted pass leaves the guard empty.
+        self.assertEqual(ag._bump_attempted, set())
+
+    def test_approach_walk_single_divergence_retries_and_bump_fires(self):
+        # Run-26 LIVE finding: the adopted program mispredicts planned approach movement (6/6 repairs
+        # failed to fix movement semantics), so requiring a divergence-free walk meant bumps NEVER
+        # fired. One benign divergence (episode live, budget left) now gets a single re-plan retry
+        # from the player's actual position — and the bump then fires as normal.
+        env = _Ls20ColoredQuotaEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE,
+                                 max_interaction_probes_per_turn=1)
+
+        class _WalkPlan:
+            actions = ["UP"]
+
+        walks = {"n": 0}
+
+        def _execute(mv, frame):
+            walks["n"] += 1
+            return ({}, walks["n"] == 1)  # first walk diverges; the retry walk lands clean
+
+        ag._plan_to_cell = lambda frame, target: _WalkPlan()
+        ag._execute = _execute
+        before = ag.summary.bumps_probed
+        result = ag._bump_discovery(env.observe())
+        self.assertIsNotNone(result)
+        self.assertGreater(ag.summary.bumps_probed, before)  # _fire_bump ran after the retry
+        self.assertIsNone(ag.summary.bump_skip_reason)  # a bump fired: no skip reason left behind
+        self.assertEqual(ag.summary.approach_retries, 1)
+
+    def test_approach_walk_divergence_with_done_frame_aborts_without_retry(self):
+        # Run-26 boundary: the retry is only for a BENIGN divergence. A divergence whose re-observed
+        # frame is already done (level/game over) must take the run-25 abort immediately — burning a
+        # retry walk on a finished episode would fire actions into a dead frame.
+        env = _Ls20ColoredQuotaEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE)
+
+        class _WalkPlan:
+            actions = ["UP"]
+
+        done_frame = dict(env.observe())
+        done_frame["done"] = True
+        ag._plan_to_cell = lambda frame, target: _WalkPlan()
+        ag._execute = lambda mv, frame: ({}, True)  # the approach walk diverges immediately
+        ag._observe = lambda: done_frame  # ...and the re-observed frame is already done
+        before = ag.summary.bumps_probed
+        result = ag._bump_discovery(env.observe())
+        self.assertIsNotNone(result)
+        self.assertEqual(ag.summary.bumps_probed, before)  # no bump fired
+        self.assertEqual(ag.summary.approach_retries, 0)  # NO retry engaged
+        self.assertIsNotNone(ag.summary.bump_skip_reason)
+        self.assertIn("approach walk", ag.summary.bump_skip_reason)
         self.assertEqual(ag._bump_attempted, set())
 
 

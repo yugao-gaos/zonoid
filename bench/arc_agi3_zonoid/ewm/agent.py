@@ -746,6 +746,12 @@ class RunSummary:
     bump_empty_batches: int = 0      # of those, batches where _bump_discovery fired nothing (None)
     bump_skip_reason: str | None = None  # last reason a due bump fired nothing (None once a bump fires)
     player_colors: list[int] | None = None  # inferred player color set (echoed for the config echo)
+    # BENIGN-DIVERGENCE RETRY (Run-26). The adopted program mispredicts planned approach movement, so
+    # a single walk divergence is the COMMON live shape — requiring a divergence-free approach walk
+    # meant bumps NEVER fired (run-26: bump_skip_reason="approach walk aborted before bump (diverged)"
+    # on both due batches, bumps_probed=0). `approach_retries` counts the single re-plan retries taken
+    # after a benign (live, in-budget) approach-walk divergence.
+    approach_retries: int = 0
     # CONFIG ECHO (Run-23). The EFFECTIVE knob values that actually reached the agent, so a dropped
     # config field (the Run-22 live-silent hypothesis) is visible in the summary FOREVER rather than
     # inferred from a zero counter. Populated by `_finalize_telemetry` from the live config.
@@ -803,6 +809,7 @@ class RunSummary:
             "bump_empty_batches": self.bump_empty_batches,
             "bump_skip_reason": self.bump_skip_reason,
             "player_colors": list(self.player_colors) if self.player_colors else None,
+            "approach_retries": self.approach_retries,
             "config_echo": dict(self.config_echo) if self.config_echo else None,
         }
 
@@ -3878,6 +3885,35 @@ class EwmAgent:
                 result, diverged = self._execute(mv, cur_frame)
                 last = (result, diverged)
                 cur_frame = self._observe()
+                # BENIGN-DIVERGENCE RETRY (Run-26 live): the adopted program mispredicts planned
+                # approach movement, so a SINGLE walk divergence is the common live shape — aborting
+                # on it meant bumps NEVER fired (run-26: both due batches ended with
+                # bump_skip_reason="approach walk aborted before bump (diverged)", bumps_probed=0).
+                # When the ONLY problem is the mispredict (episode live, budget left): re-plan ONCE
+                # to the same approach cell from the player's ACTUAL position and walk that. An empty
+                # retry plan means the player already reached/passed the approach cell — success. A
+                # retry that ALSO diverges (or done/out-of-budget at any point) takes the abort below.
+                if (
+                    diverged
+                    and not cur_frame.get("done")
+                    and not self._out_of_budget(cur_frame)
+                ):
+                    self.summary.approach_retries += 1
+                    retry_mv = self._plan_to_cell(cur_frame, approach)
+                    if retry_mv is None:
+                        # Same convention as the pre-walk unreachable skip above, hit from the retry
+                        # re-plan; un-poison the dedup so a later due batch can retry this object.
+                        self.summary.bump_skip_reason = (
+                            "bump approach cell unreachable (after divergence re-plan)"
+                        )
+                        self._bump_attempted.discard(obj_hash)
+                        continue
+                    if retry_mv.actions:
+                        result, diverged = self._execute(retry_mv, cur_frame)
+                        last = (result, diverged)
+                        cur_frame = self._observe()
+                    else:
+                        diverged = False  # already on/past the approach cell: the retry succeeded
                 if diverged or cur_frame.get("done") or self._out_of_budget(cur_frame):
                     # APPROACH-WALK ABORT (Run-25 live): the walk TOWARD the object ended the batch
                     # before any bump fired — a non-None return with bumps_probed unchanged and no
