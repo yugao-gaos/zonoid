@@ -18,3 +18,6 @@
 {"evt":"edge_promoted","from":"note:note-mrbiski0h0b","to":"note:note-mrbisqhhmaa","kind":"context","actor":"overlay-sync","ts":"2026-07-08T04:33:05.871Z","weight":0.451,"by":"judge","judged":true,"score":0.451,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mrbiski0h0b","to":"note:note-mr5hv93mr99","kind":"context","actor":"overlay-sync","ts":"2026-07-08T04:37:25.335Z"}
 {"evt":"edge_removed","from":"note:note-mrbiski0h0b","to":"note:note-mr5hvc643og","kind":"context","actor":"overlay-sync","ts":"2026-07-08T05:52:33.375Z"}
+{"evt":"note_superseded","id":"note-mrbiski0h0b","supersededBy":"note-mrbnujv5aqy","validTo":"2026-07-08T05:51:57.713Z","ts":"2026-07-08T05:51:57.713Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mrbiski0h0b","to":"codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four","kind":"context","actor":"overlay-sync","ts":"2026-07-08T05:55:23.883Z"}
+{"evt":"edge_removed","from":"note:note-mrbiski0h0b","to":"note:note-mrbisqhhmaa","kind":"context","actor":"overlay-sync","ts":"2026-07-08T05:55:23.883Z"}

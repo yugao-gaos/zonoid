@@ -6,3 +6,6 @@
 {"evt":"edge_added","from":"note:note-mrbnujv5aqy","to":"knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-3","kind":"context","actor":"overlay-sync","ts":"2026-07-08T05:51:59.461Z","weight":0,"by":"autowire","judged":false,"score":0.418,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mrbnujv5aqy","to":"knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-07-08T05:52:23.707Z","weight":0.418,"by":"judge","judged":true,"score":0.418,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mrbnujv5aqy","to":"note:note-mrbiski0h0b","kind":"context","actor":"overlay-sync","ts":"2026-07-08T05:53:33.937Z"}
+{"evt":"note_supersedes","id":"note-mrbnujv5aqy","supersedes":"note-mrbiski0h0b","ts":"2026-07-08T05:51:57.713Z","actor":"supersede"}
+{"evt":"edge_added","from":"note:note-mrbnujv5aqy","to":"codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four","kind":"context","actor":"overlay-sync","ts":"2026-07-08T05:55:23.883Z","weight":1,"judged":true,"origin":"asserted"}
+{"evt":"edge_added","from":"note:note-mrbnujv5aqy","to":"note:note-mrbisqhhmaa","kind":"context","actor":"overlay-sync","ts":"2026-07-08T05:55:23.883Z","weight":0.451,"by":"judge","judged":true,"score":0.451,"origin":"autowire-semantic"}
