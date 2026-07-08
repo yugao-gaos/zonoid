@@ -42,3 +42,4 @@
 {"evt":"edge_removed","from":"note:note-mqgwh4xhfa0","to":"note:note-mqeapqae6jf","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqgwh4xhfa0","to":"note:note-mqgsb1mcnid","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_added","from":"note:note-mqgwh4xhfa0","to":"codex/hoist-min-bump-guarantee-into-main-turn-loop-so-contact-probing-is-not-luck-gate","kind":"context","actor":"overlay-sync","ts":"2026-07-08T04:36:16.382Z","weight":0,"by":"autowire","judged":false,"score":0.394,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqgwh4xhfa0","to":"codex/hoist-min-bump-guarantee-into-main-turn-loop-so-contact-probing-is-not-luck-gate","kind":"context","actor":"overlay-sync","ts":"2026-07-08T05:38:17.406Z"}
