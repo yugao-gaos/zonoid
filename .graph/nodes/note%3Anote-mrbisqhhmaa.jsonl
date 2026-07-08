@@ -11,3 +11,4 @@
 {"evt":"edge_removed","from":"note:note-mrbisqhhmaa","to":"note:note-mr5hv5vv7wl","kind":"context","actor":"overlay-sync","ts":"2026-07-08T03:32:04.153Z"}
 {"evt":"edge_promoted","from":"note:note-mrbisqhhmaa","to":"note:note-mrbiski0h0b","kind":"context","actor":"overlay-sync","ts":"2026-07-08T03:32:41.637Z","weight":0.787,"by":"judge","judged":true,"score":0.787,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mrbisqhhmaa","to":"note:note-mr5huxkklmo","kind":"context","actor":"overlay-sync","ts":"2026-07-08T03:53:08.803Z"}
+{"evt":"edge_removed","from":"note:note-mrbisqhhmaa","to":"note:note-mr5hv93mr99","kind":"context","actor":"overlay-sync","ts":"2026-07-08T03:58:43.064Z"}
