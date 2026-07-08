@@ -307,11 +307,24 @@ class KbClient:
     "no memory" instead of crashing it.
     """
 
-    def __init__(self, daemon_url: str, workspace: str, task_key: str, timeout_s: int = 20) -> None:
+    def __init__(
+        self,
+        daemon_url: str,
+        workspace: str,
+        task_key: str,
+        timeout_s: int = 20,
+        synthetic_task_key: bool = False,
+    ) -> None:
         self.daemon_url = daemon_url.rstrip("/")
         self.workspace = workspace
         self.task_key = task_key
         self.timeout_s = timeout_s
+        # Run-30: a SYNTHETIC task key (e.g. the driver's "ewm-live-<game>" fallback) is not a real
+        # graph task, and the daemon's POST /overlay/note phantom-node guard 404s any wires_to that
+        # names an unknown task — which silently dropped run 30's five first-ever live interaction
+        # discoveries. When the key is synthetic, note writes OMIT wires_to entirely (the key is kept
+        # for search-param tagging/logging only); provenance wiring is reserved for real task keys.
+        self.synthetic_task_key = synthetic_task_key
         # Retryable-outage signal: set True when the LAST search/note-get failed on a network
         # error (timeout / connection refused), cleared to False on any successful call. ORIENT
         # reads this to distinguish a daemon TIMEOUT (retryable — the program may still be there)
@@ -400,8 +413,11 @@ class KbClient:
             "title": title,
             "summary": summary,
             "category": category,
-            "wires_to": [self.task_key],
         }
+        # Only a REAL graph task key is wired: the daemon 404s wires_to naming an unknown task
+        # (phantom-node guard), so a synthetic key must not send the field at all (see __init__).
+        if not self.synthetic_task_key:
+            body["wires_to"] = [self.task_key]
         if supersedes:
             body["supersedes"] = supersedes
 
