@@ -3,7 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "d070c9d8-a489-4a61-80e2-f4d17353b274",
   "branch": "orch/attempt/codex-hoist-min-bump-guarantee-into-main-turn-loop-so-contact-probing-is-not-luck-gate",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-07-08T04:36:05.610Z",
-  "lease_until": "2026-07-08T05:36:05.610Z"
+  "lease_until": "2026-07-08T05:36:05.610Z",
+  "completed_at": "2026-07-08T04:49:45.593Z"
 }
