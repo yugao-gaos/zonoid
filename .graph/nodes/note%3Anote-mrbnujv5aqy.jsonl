@@ -9,3 +9,5 @@
 {"evt":"note_supersedes","id":"note-mrbnujv5aqy","supersedes":"note-mrbiski0h0b","ts":"2026-07-08T05:51:57.713Z","actor":"supersede"}
 {"evt":"edge_added","from":"note:note-mrbnujv5aqy","to":"codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four","kind":"context","actor":"overlay-sync","ts":"2026-07-08T05:55:23.883Z","weight":1,"judged":true,"origin":"asserted"}
 {"evt":"edge_added","from":"note:note-mrbnujv5aqy","to":"note:note-mrbisqhhmaa","kind":"context","actor":"overlay-sync","ts":"2026-07-08T05:55:23.883Z","weight":0.451,"by":"judge","judged":true,"score":0.451,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mrbnujv5aqy","to":"note:note-mrbnuu7vb49","kind":"context","actor":"overlay-sync","ts":"2026-07-08T05:55:48.033Z","weight":0.451,"by":"judge","judged":true,"score":0.451,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mrbnujv5aqy","to":"note:note-mrbisqhhmaa","kind":"context","actor":"overlay-sync","ts":"2026-07-08T05:55:48.033Z"}
