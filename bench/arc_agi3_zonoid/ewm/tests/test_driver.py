@@ -299,6 +299,39 @@ class GraphFlagTests(unittest.TestCase):
         self.assertEqual(graph.daemon_url, "http://localhost:8787")
 
 
+class BuildKbGateTaskKeyTests(unittest.TestCase):
+    """Run-30: only a real ZONOID_TASK_KEY wires note writes into the graph — the "ewm-live-<game>"
+    fallback is a synthetic key the daemon's phantom-node guard 404s, so the client must be marked
+    synthetic (wires_to omitted) whenever the env var is unset."""
+
+    def test_fallback_key_marks_client_synthetic(self):
+        import os
+
+        prev = os.environ.pop("ZONOID_TASK_KEY", None)
+        try:
+            gate = driver_mod._build_kb_gate("ls20")
+        finally:
+            if prev is not None:
+                os.environ["ZONOID_TASK_KEY"] = prev
+        self.assertEqual(gate.client.task_key, "ewm-live-ls20")
+        self.assertTrue(gate.client.synthetic_task_key)
+
+    def test_env_key_keeps_wiring(self):
+        import os
+
+        prev = os.environ.get("ZONOID_TASK_KEY")
+        os.environ["ZONOID_TASK_KEY"] = "codex/some-real-task"
+        try:
+            gate = driver_mod._build_kb_gate("ls20")
+        finally:
+            if prev is None:
+                os.environ.pop("ZONOID_TASK_KEY", None)
+            else:
+                os.environ["ZONOID_TASK_KEY"] = prev
+        self.assertEqual(gate.client.task_key, "codex/some-real-task")
+        self.assertFalse(gate.client.synthetic_task_key)
+
+
 class LiveConfigWiringTests(unittest.TestCase):
     """Run-23 regression: the config knobs (bump quota + coverage persistence) must survive the REAL
     live_run AgentConfig constructor to the agent — NOT a bespoke test config.

@@ -592,12 +592,25 @@ def _build_kb_gate(game: str) -> Any:
 
     daemon_url = os.environ.get("ZONOID_DAEMON_URL", "http://localhost:8787")
     workspace = "/Users/imyu/Desktop/zonoid"
-    task_key = os.environ.get("ZONOID_TASK_KEY", f"ewm-live-{game}")
+    # Run-30: only a real user-supplied ZONOID_TASK_KEY may be wired into note writes. The
+    # "ewm-live-<game>" fallback is not a graph task, and the daemon's phantom-node guard 404s any
+    # wires_to naming it — which dropped run 30's five first-ever live interaction discoveries. The
+    # synthetic key is kept for search-param tagging/logging; the client just omits wires_to.
+    env_task_key = os.environ.get("ZONOID_TASK_KEY")
+    task_key = env_task_key or f"ewm-live-{game}"
     # 60s (vs the 20s unit default): a live daemon under concurrent drains can take >20s to answer an
     # ORIENT /search or the native /note/get, and a timeout there silently drops the warm-start
     # program (the search error is swallowed to []). The generous budget keeps ORIENT's native
     # full-body read from timing out under load; a real outage still degrades to no-memory.
-    return WriteGate(KbClient(daemon_url, workspace, task_key, timeout_s=60))
+    return WriteGate(
+        KbClient(
+            daemon_url,
+            workspace,
+            task_key,
+            timeout_s=60,
+            synthetic_task_key=env_task_key is None,
+        )
+    )
 
 
 def live_run(

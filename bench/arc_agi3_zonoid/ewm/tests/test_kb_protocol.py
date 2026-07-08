@@ -110,6 +110,50 @@ class KbClientNoteTest(unittest.TestCase):
         self.assertEqual(body["category"], "arc-agi-3")
         self.assertNotIn("supersedes", body)
 
+    def test_note_synthetic_task_key_omits_wires_to(self) -> None:
+        # Run-30: a synthetic key (the driver's "ewm-live-<game>" fallback) is not a real graph
+        # task, and the daemon's phantom-node guard 404s any wires_to naming an unknown task — the
+        # bug that dropped run 30's five first-ever live interaction discoveries. The field must be
+        # ABSENT from the POST body (not empty, not null).
+        rec = _Recorder({"ok": True, "id": "note-1"})
+        client = KbClient(
+            "http://localhost:8787",
+            WORKSPACE,
+            "ewm-live-ls20",
+            timeout_s=7,
+            synthetic_task_key=True,
+        )
+        with mock.patch.object(kb_protocol.request, "urlopen", rec):
+            out = client.note("game ls20 interaction 6", "some prose")
+        self.assertEqual(out, {"ok": True, "id": "note-1"})
+        body = json.loads(rec.calls[0]["body"])
+        self.assertNotIn("wires_to", body)
+        self.assertEqual(body["workspace"], WORKSPACE)
+        self.assertEqual(body["title"], "game ls20 interaction 6")
+        self.assertEqual(body["category"], "arc-agi-3")
+
+    def test_coverage_write_synthetic_client_sends_no_wires_to(self) -> None:
+        # The Run-30 rule holds for EVERY write path funneled through KbClient.note — the coverage
+        # chunk+index writes included: no POST body carries wires_to on a synthetic client.
+        rec = _Recorder({"ok": True, "id": "note-1"})
+        client = KbClient(
+            "http://localhost:8787",
+            WORKSPACE,
+            "ewm-live-ls20",
+            timeout_s=7,
+            synthetic_task_key=True,
+        )
+        gate = WriteGate(client)
+        body = kb_protocol.encode_coverage_state(
+            {(1, 2, 3)}, {("<bump>", "obj1")}, board_cells=9
+        )
+        with mock.patch.object(kb_protocol.request, "urlopen", rec):
+            out = gate.write_coverage_state("ls20", body)
+        self.assertTrue(out["ok"])
+        self.assertGreaterEqual(len(rec.calls), 2)  # chunk note(s) + index note
+        for call in rec.calls:
+            self.assertNotIn("wires_to", json.loads(call["body"]))
+
     def test_note_supersedes_passthrough(self) -> None:
         rec = _Recorder({"ok": True})
         with mock.patch.object(kb_protocol.request, "urlopen", rec):
