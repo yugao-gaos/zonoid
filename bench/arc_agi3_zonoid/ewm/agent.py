@@ -746,11 +746,12 @@ class RunSummary:
     bump_empty_batches: int = 0      # of those, batches where _bump_discovery fired nothing (None)
     bump_skip_reason: str | None = None  # last reason a due bump fired nothing (None once a bump fires)
     player_colors: list[int] | None = None  # inferred player color set (echoed for the config echo)
-    # BENIGN-DIVERGENCE RETRY (Run-26). The adopted program mispredicts planned approach movement, so
-    # a single walk divergence is the COMMON live shape — requiring a divergence-free approach walk
-    # meant bumps NEVER fired (run-26: bump_skip_reason="approach walk aborted before bump (diverged)"
-    # on both due batches, bumps_probed=0). `approach_retries` counts the single re-plan retries taken
-    # after a benign (live, in-budget) approach-walk divergence.
+    # EMPIRICAL APPROACH WALK (Run-27). The adopted program systematically mispredicts the player
+    # mover, so ANY expect-gated approach walk aborts — the Run-26 single re-plan retry engaged and
+    # ALSO diverged (run-27: bump_skip_reason="approach walk aborted before bump (diverged)" on both
+    # due batches, bumps_probed=0). Approach walks are now per-step empirical (act ONE action with no
+    # expect grids, observe, re-plan from the REAL frame); `approach_retries` counts the re-plans
+    # taken during those walks (every plan beyond a walk's first).
     approach_retries: int = 0
     # CONFIG ECHO (Run-23). The EFFECTIVE knob values that actually reached the agent, so a dropped
     # config field (the Run-22 live-silent hypothesis) is visible in the summary FOREVER rather than
@@ -3881,55 +3882,40 @@ class EwmAgent:
             if mv is None:
                 self.summary.bump_skip_reason = "bump approach cell unreachable"
                 continue
-            if mv.actions:
-                result, diverged = self._execute(mv, cur_frame)
-                last = (result, diverged)
-                cur_frame = self._observe()
-                # BENIGN-DIVERGENCE RETRY (Run-26 live): the adopted program mispredicts planned
-                # approach movement, so a SINGLE walk divergence is the common live shape — aborting
-                # on it meant bumps NEVER fired (run-26: both due batches ended with
-                # bump_skip_reason="approach walk aborted before bump (diverged)", bumps_probed=0).
-                # When the ONLY problem is the mispredict (episode live, budget left): re-plan ONCE
-                # to the same approach cell from the player's ACTUAL position and walk that. An empty
-                # retry plan means the player already reached/passed the approach cell — success. A
-                # retry that ALSO diverges (or done/out-of-budget at any point) takes the abort below.
-                if (
-                    diverged
-                    and not cur_frame.get("done")
-                    and not self._out_of_budget(cur_frame)
-                ):
-                    self.summary.approach_retries += 1
-                    retry_mv = self._plan_to_cell(cur_frame, approach)
-                    if retry_mv is None:
-                        # Same convention as the pre-walk unreachable skip above, hit from the retry
-                        # re-plan; un-poison the dedup so a later due batch can retry this object.
-                        self.summary.bump_skip_reason = (
-                            "bump approach cell unreachable (after divergence re-plan)"
-                        )
-                        self._bump_attempted.discard(obj_hash)
-                        continue
-                    if retry_mv.actions:
-                        result, diverged = self._execute(retry_mv, cur_frame)
-                        last = (result, diverged)
-                        cur_frame = self._observe()
-                    else:
-                        diverged = False  # already on/past the approach cell: the retry succeeded
-                if diverged or cur_frame.get("done") or self._out_of_budget(cur_frame):
-                    # APPROACH-WALK ABORT (Run-25 live): the walk TOWARD the object ended the batch
-                    # before any bump fired — a non-None return with bumps_probed unchanged and no
-                    # skip reason was the run-25 silent shape (bump_empty_batches=2,
-                    # bump_skip_reason=null). Record WHY, and un-poison the per-run dedup: it should
-                    # only hold objects whose bump actually FIRED or was structurally skipped, so the
-                    # next due batch can retry this never-bumped object.
-                    cause = (
-                        "diverged" if diverged
-                        else "done" if cur_frame.get("done") else "out of budget"
-                    )
-                    self.summary.bump_skip_reason = (
-                        f"approach walk aborted before bump ({cause})"
-                    )
-                    self._bump_attempted.discard(obj_hash)
-                    return last
+            # EMPIRICAL APPROACH WALK (Run-27 live): the adopted program systematically mispredicts
+            # the player mover, so the old expect-gated walk (_execute, plus the Run-26 single
+            # re-plan retry) aborted EVERY approach — retry included (run-27: both due batches ended
+            # bump_skip_reason="approach walk aborted before bump (diverged)", bumps_probed=0).
+            # Contact discovery is empirical probing and must not require a movement-accurate model:
+            # walk per-step with NO expect grids, exactly the _fire_bump act convention, re-planning
+            # each step from the OBSERVED frame. The pre-check plan above only catches model-
+            # unreachable targets early and sizes the step cap (2*len+2 leaves room for correction).
+            walked_frame, outcome = self._empirical_walk(
+                cur_frame, approach, max_steps=2 * len(mv.actions) + 2
+            )
+            if outcome == "unreachable":
+                # A mid-walk re-plan found no path from where the player REALLY is; un-poison the
+                # dedup so a later due batch can retry this never-bumped object.
+                self.summary.bump_skip_reason = "bump approach cell unreachable (empirical walk)"
+                self._bump_attempted.discard(obj_hash)
+                continue
+            if outcome != "arrived":
+                # APPROACH-WALK ABORT (Run-25 live, Run-27 outcomes): the walk TOWARD the object
+                # ended the batch before any bump fired — silence here (bumps_probed unchanged, no
+                # skip reason) was the run-25 shape. Record WHY, and un-poison the per-run dedup: it
+                # should only hold objects whose bump actually FIRED or was structurally skipped, so
+                # the next due batch can retry this never-bumped object. `last` may still be None —
+                # the caller treats None as fall-through to the frontier, which is correct.
+                cause = (
+                    "step cap" if outcome == "step cap"
+                    else "done" if walked_frame.get("done") else "out of budget"
+                )
+                self.summary.bump_skip_reason = (
+                    f"approach walk aborted before bump ({cause})"
+                )
+                self._bump_attempted.discard(obj_hash)
+                return last
+            cur_frame = walked_frame
             # Fire the bump into the object, repeated, diffing each for a contact effect.
             last = self._fire_bump(cur_frame, bump_action, bump_dir, obj_hash)
             fired += 1
@@ -3937,6 +3923,41 @@ class EwmAgent:
             if cur_frame.get("done") or self._out_of_budget(cur_frame):
                 return last
         return last
+
+    def _empirical_walk(
+        self, frame: dict[str, Any], target_cell: tuple[int, int], max_steps: int
+    ) -> tuple[dict[str, Any], str]:
+        """Walk the player onto ``target_cell`` EMPIRICALLY: plan, act ONE step, observe, re-plan.
+
+        No expect grids are passed (same act convention as :meth:`_fire_bump`), so a mispredicting
+        model can never abort the walk — each step's REAL transition is ingested (it still reaches
+        the suite and the repair path via :meth:`_ingest_result`) and the next step is planned from
+        the OBSERVED frame, converging by correction rather than by prediction. Returns the last
+        observed ``(frame, outcome)`` where outcome is one of: ``"arrived"`` (a plan came back
+        empty — the player is on target), ``"unreachable"`` (no plan from the current frame),
+        ``"stopped"`` (done or out of budget mid-walk), ``"step cap"`` (``max_steps`` steps executed
+        without arriving — a never-converging chase). Every re-plan beyond a walk's first counts in
+        ``summary.approach_retries``."""
+
+        cur = frame
+        steps = 0
+        while True:
+            plan_result = self._plan_to_cell(cur, target_cell)
+            if steps:
+                self.summary.approach_retries += 1
+            if plan_result is None:
+                return cur, "unreachable"
+            if not plan_result.actions:
+                return cur, "arrived"
+            if steps >= max_steps:
+                return cur, "step cap"
+            action = plan_result.actions[0]
+            result = self._act([action])
+            self._ingest_result(cur, [action], result)
+            cur = self._observe()
+            steps += 1
+            if cur.get("done") or self._out_of_budget(cur):
+                return cur, "stopped"
 
     def _fire_bump(
         self,
