@@ -245255,6 +245255,44 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static": {
+      "id": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Per-color observed mover detection: color 12 moves, color 9 is static",
+        "description": "Run 29 (out/ewm-runs/ls20-1783473239) was byte-identical to run 28 — _observed_delta_map returned EMPTY and fell back to the model. Offline analysis of the run-29 suite (47 transitions) proves why: the union-of-player-colors rigid-translation check finds 0 rigid moves / 13 non-rigid, because player_colors=[9,12] is OVER-BROAD — color 9 is 45 STATIC cells board-wide (decoration/HUD, bbox rows 11-60, never moves) while color 12 is the TRUE mover, a 2x5 block making perfect stride-5 rigid translations: ACTION1=(-5,0), ACTION2=(+5,0), ACTION3=(0,-5) (measured from real transitions). Worse: _player_position returns the FIRST player-colored cell in row order — a static color-9 cell at ~row 11 — so every walk/plan starts from a position that never moves; no steering could ever converge. FIX in bench/arc_agi3_zonoid/ewm/agent.py: (1) _observed_delta_map: detect rigid translations PER COLOR (for each color in _player_color_set() separately: same cell count before/after AND uniform nonzero offset), not over the color-set union; record action -> delta from the moving color(s). (2) New _observed_mover_colors() (cached alongside): the subset of player colors with at least one observed rigid move in the suite (ls20: {12}). (3) _player_color_set becomes observed-first: when _observed_mover_colors() is non-empty return frozenset of it (the empirically PROVEN mover), else the existing program-based inference unchanged — _player_position, _bump_contexts, _reachable_player_cells, summary echoes all inherit the true mover through this seam (summary.player_colors will then truthfully echo [12]). Verify cache-invalidation coherence: the observed set must refresh with suite growth (key on len(self.suite)) and not be stale-pinned to a program identity. (4) Check _bump_player_cells and _update_coverage consumers of _player_color_set for correctness under the narrowed set — narrowing to the true mover must not break their semantics (static color-9 cells never change, so excluding them from player-cell masks is safe); adjust comments where the Run-23 {9,12} assumption is stated. (5) Tests (existing fixtures): (a) suite where color A translates rigidly and color B is static -> per-color detection yields deltas + mover colors {A}; union-based detection would have failed (regression for run-29 shape); (b) _player_color_set returns observed mover when available, program-inference fallback on empty suite (existing tests unchanged); (c) _player_position tracks the MOVING block, not the static color; (d) end-to-end: empirical walk steered from the true mover position converges -> _fire_bump fires, bumps_probed increments. All existing tests must pass. Scope: agent.py + tests. Do NOT change _execute, repair, _fire_bump, EXECUTE-mode planning.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-08T01:41:45.838Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-08T01:41:45.839Z",
+        "lastChanged": "2026-07-08T01:54:46.408Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -281551,6 +281589,527 @@
       "origin": "subconscious-assignment"
     },
     {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-3",
+      "to": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
+      "kind": "context",
+      "weight": 0.364,
+      "by": "judge",
+      "judged": true,
+      "score": 0.364,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1",
+      "to": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
+      "kind": "context",
+      "weight": 0.468,
+      "by": "judge",
+      "judged": true,
+      "score": 0.468,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-1",
+      "to": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.333,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-4",
+      "to": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.435,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-6",
+      "to": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
+      "kind": "context",
+      "weight": 0.35,
+      "by": "judge",
+      "judged": true,
+      "score": 0.35,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-4",
+      "to": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
+      "kind": "context",
+      "weight": 0.435,
+      "by": "judge",
+      "judged": true,
+      "score": 0.435,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-6",
+      "to": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
+      "kind": "context",
+      "weight": 0.35,
+      "by": "judge",
+      "judged": true,
+      "score": 0.35,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5hu8iwax0",
+      "to": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
+      "kind": "context",
+      "weight": 0.364,
+      "by": "judge",
+      "judged": true,
+      "score": 0.364,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5hv5vv7wl",
+      "to": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.346,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5r0rqzbmh",
+      "to": "codex/bump-approach-walk-tolerate-one-benign-divergence-with-a-single-re-plan-retry",
+      "kind": "context",
+      "weight": 0.512,
+      "by": "judge",
+      "judged": true,
+      "score": 0.512,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5xad0sam6",
+      "to": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.466,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5y9o2i9wy",
+      "to": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
+      "kind": "context",
+      "weight": 0.434,
+      "by": "judge",
+      "judged": true,
+      "score": 0.434,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6r3yco9dm",
+      "to": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.478,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr6r3yco9dm",
+      "to": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
+      "kind": "context",
+      "weight": 0.579,
+      "by": "judge",
+      "judged": true,
+      "score": 0.579,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrb6r5b722v",
+      "to": "note:note-mr51e6x60dd",
+      "kind": "context",
+      "weight": 0.72,
+      "by": "judge",
+      "judged": true,
+      "score": 0.72,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrb6r5b722v",
+      "to": "note:note-mr45ykxy4rf",
+      "kind": "context",
+      "weight": 0.7,
+      "by": "judge",
+      "judged": true,
+      "score": 0.7,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrba8l4hora",
+      "to": "codex/bump-approach-walk-tolerate-one-benign-divergence-with-a-single-re-plan-retry",
+      "kind": "context",
+      "weight": 0.537,
+      "by": "judge",
+      "judged": true,
+      "score": 0.537,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrba8l4hora",
+      "to": "note:note-mr5xad0sam6",
+      "kind": "context",
+      "weight": 0.705,
+      "by": "judge",
+      "judged": true,
+      "score": 0.705,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrba8l4hora",
+      "to": "note:note-mr6httweaeo",
+      "kind": "context",
+      "weight": 0.776,
+      "by": "judge",
+      "judged": true,
+      "score": 0.776,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrba8l4hora",
+      "to": "codex/fix-silent-bump-approach-early-return-in-_bump_discovery-run-25-live-finding",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrba8l4hora",
+      "to": "codex/ewm-live-config-wiring-trace-quota-persistence-run-twenty-three",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrba8l4hora",
+      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
+      "kind": "context",
+      "weight": 0.443,
+      "by": "judge",
+      "judged": true,
+      "score": 0.443,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrba8l4hora",
+      "to": "codex/ewm-per-run-bump-dedup-unblock-persisted-suppression-fix",
+      "kind": "context",
+      "weight": 0.482,
+      "by": "judge",
+      "judged": true,
+      "score": 0.482,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrba8l4hora",
+      "to": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
+      "kind": "context",
+      "weight": 0.512,
+      "by": "judge",
+      "judged": true,
+      "score": 0.512,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrba8l4hora",
+      "to": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
+      "kind": "context",
+      "weight": 0.509,
+      "by": "judge",
+      "judged": true,
+      "score": 0.509,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrba8l4hora",
+      "to": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.373,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbbihyqker",
+      "to": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrbbihyqker",
+      "to": "note:note-mrba8l4hora",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.815,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbbihyqker",
+      "to": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
+      "kind": "context",
+      "weight": 0.451,
+      "by": "judge",
+      "judged": true,
+      "score": 0.451,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbcz8822dq",
+      "to": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrbcz8822dq",
+      "to": "note:note-mrbbihyqker",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.721,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbdu1p780p",
+      "to": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrbdu1p780p",
+      "to": "note:note-mr6r3yco9dm",
+      "kind": "context",
+      "weight": 0.688,
+      "by": "judge",
+      "judged": true,
+      "score": 0.688,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbeygoar8j",
+      "to": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrbeygoar8j",
+      "to": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.742,
+      "by": "judge",
+      "judged": true,
+      "score": 0.742,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbeygoar8j",
+      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.742,
+      "by": "judge",
+      "judged": true,
+      "score": 0.742,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbeygoar8j",
+      "to": "note:note-mr5i8jmlosb",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.726,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbeygoar8j",
+      "to": "note:note-mr6r3yco9dm",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.711,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/bump-approach-walk-tolerate-one-benign-divergence-with-a-single-re-plan-retry",
+      "to": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.421,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/bump-approach-walk-tolerate-one-benign-divergence-with-a-single-re-plan-retry",
+      "to": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/bump-approach-walk-tolerate-one-benign-divergence-with-a-single-re-plan-retry",
+      "to": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
+      "kind": "supersede"
+    },
+    {
+      "from": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
+      "to": "codex/fix-silent-bump-approach-early-return-in-_bump_discovery-run-25-live-finding",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.402,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
+      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.393,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
+      "to": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
+      "to": "codex/ewm-model-quantum-interaction-discovery-stride-agnostic-run-twenty-seven",
+      "kind": "context",
+      "weight": 0.364,
+      "by": "judge",
+      "judged": true,
+      "score": 0.364,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
+      "to": "knowledge:source_section:note-mr5c2remh4y#note-evidence",
+      "kind": "context",
+      "weight": 0.333,
+      "by": "judge",
+      "judged": true,
+      "score": 0.333,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
+      "to": "knowledge:source_section:note-mr5c37uw1tw#note-evidence",
+      "kind": "context",
+      "weight": 0.333,
+      "by": "judge",
+      "judged": true,
+      "score": 0.333,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
+      "to": "knowledge:source_section:note-mr5c8xcs7uo#note-evidence",
+      "kind": "context",
+      "weight": 0.333,
+      "by": "judge",
+      "judged": true,
+      "score": 0.333,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
+      "to": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
+      "to": "codex/fix-silent-bump-approach-early-return-in-_bump_discovery-run-25-live-finding",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/ewm-per-run-bump-dedup-unblock-persisted-suppression-fix",
+      "to": "codex/fix-silent-bump-approach-early-return-in-_bump_discovery-run-25-live-finding",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-silent-bump-approach-early-return-in-_bump_discovery-run-25-live-finding",
+      "to": "codex/bump-approach-walk-tolerate-one-benign-divergence-with-a-single-re-plan-retry",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
+      "to": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
+      "kind": "context",
+      "weight": 0.468,
+      "by": "judge",
+      "judged": true,
+      "score": 0.468,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
+      "to": "knowledge:source_section:note-mr5c2remh4y#note-evidence",
+      "kind": "context",
+      "weight": 0.391,
+      "by": "judge",
+      "judged": true,
+      "score": 0.391,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
+      "to": "knowledge:source_section:note-mr5c37uw1tw#note-evidence",
+      "kind": "context",
+      "weight": 0.391,
+      "by": "judge",
+      "judged": true,
+      "score": 0.391,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
+      "to": "knowledge:source_section:note-mr5c8xcs7uo#note-evidence",
+      "kind": "context",
+      "weight": 0.391,
+      "by": "judge",
+      "judged": true,
+      "score": 0.391,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
+      "to": "knowledge:source_section:note-mr5d6cvqife#note-evidence",
+      "kind": "context",
+      "weight": 0.391,
+      "by": "judge",
+      "judged": true,
+      "score": 0.391,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
       "to": "note:note-mqqqrlczyc2",
       "kind": "context",
@@ -281617,16 +282176,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-3",
-      "to": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
-      "kind": "context",
-      "weight": 0.364,
-      "by": "judge",
-      "judged": true,
-      "score": 0.364,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-1",
       "to": "note:note-mqsi4rz0p98",
       "kind": "context",
@@ -281649,65 +282198,6 @@
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1",
-      "to": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.468,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-1",
-      "to": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.333,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-4",
-      "to": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.435,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-6",
-      "to": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
-      "kind": "context",
-      "weight": 0.35,
-      "by": "judge",
-      "judged": true,
-      "score": 0.35,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-4",
-      "to": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.435,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-6",
-      "to": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
-      "kind": "context",
-      "weight": 0.35,
-      "by": "judge",
-      "judged": true,
-      "score": 0.35,
-      "origin": "autowire-semantic"
     },
     {
       "from": "knowledge:source_doc:note-mqqnit1ph68",
@@ -287481,16 +287971,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr5hu8iwax0",
-      "to": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.364,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mr5huxkklmo",
       "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
       "kind": "context",
@@ -287498,16 +287978,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.822,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5hv5vv7wl",
-      "to": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.346,
       "origin": "autowire-semantic"
     },
     {
@@ -287519,16 +287989,6 @@
       "origin": "asserted"
     },
     {
-      "from": "note:note-mr5i8jmlosb",
-      "to": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.378,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mr5lqjqbaai",
       "to": "note:note-mqi4uvwuwo8",
       "kind": "context",
@@ -287536,16 +287996,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.62,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5r0rqzbmh",
-      "to": "codex/bump-approach-walk-tolerate-one-benign-divergence-with-a-single-re-plan-retry",
-      "kind": "context",
-      "weight": 0.512,
-      "by": "judge",
-      "judged": true,
-      "score": 0.512,
       "origin": "autowire-semantic"
     },
     {
@@ -287569,277 +288019,12 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr5xad0sam6",
-      "to": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.466,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5y9o2i9wy",
-      "to": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
-      "kind": "context",
-      "weight": 0.434,
-      "by": "judge",
-      "judged": true,
-      "score": 0.434,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr6r3yco9dm",
-      "to": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.478,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr6r3yco9dm",
-      "to": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
-      "kind": "context",
-      "weight": 0.579,
-      "by": "judge",
-      "judged": true,
-      "score": 0.579,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrb6r5b722v",
-      "to": "note:note-mr51e6x60dd",
-      "kind": "context",
-      "weight": 0.72,
-      "by": "judge",
-      "judged": true,
-      "score": 0.72,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrb6r5b722v",
-      "to": "note:note-mr45ykxy4rf",
-      "kind": "context",
-      "weight": 0.7,
-      "by": "judge",
-      "judged": true,
-      "score": 0.7,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrba8l4hora",
-      "to": "codex/bump-approach-walk-tolerate-one-benign-divergence-with-a-single-re-plan-retry",
-      "kind": "context",
-      "weight": 0.537,
-      "judged": true,
-      "origin": "autowire-semantic",
-      "by": "judge",
-      "score": 0.537
-    },
-    {
-      "from": "note:note-mrba8l4hora",
-      "to": "note:note-mr5xad0sam6",
-      "kind": "context",
-      "weight": 0.705,
-      "by": "judge",
-      "judged": true,
-      "score": 0.705,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrba8l4hora",
-      "to": "note:note-mr6httweaeo",
-      "kind": "context",
-      "weight": 0.776,
-      "by": "judge",
-      "judged": true,
-      "score": 0.776,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrba8l4hora",
-      "to": "codex/fix-silent-bump-approach-early-return-in-_bump_discovery-run-25-live-finding",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrba8l4hora",
-      "to": "codex/ewm-live-config-wiring-trace-quota-persistence-run-twenty-three",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrba8l4hora",
-      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
-      "kind": "context",
-      "weight": 0.443,
-      "by": "judge",
-      "judged": true,
-      "score": 0.443,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrba8l4hora",
-      "to": "codex/ewm-per-run-bump-dedup-unblock-persisted-suppression-fix",
-      "kind": "context",
-      "weight": 0.482,
-      "by": "judge",
-      "judged": true,
-      "score": 0.482,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrba8l4hora",
-      "to": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
-      "kind": "context",
-      "weight": 0.512,
-      "by": "judge",
-      "judged": true,
-      "score": 0.512,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrba8l4hora",
-      "to": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
-      "kind": "context",
-      "weight": 0.509,
-      "by": "judge",
-      "judged": true,
-      "score": 0.509,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrba8l4hora",
-      "to": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.373,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrbbihyqker",
-      "to": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrbbihyqker",
-      "to": "note:note-mrba8l4hora",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.815,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrbbihyqker",
-      "to": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
-      "kind": "context",
-      "weight": 0.451,
-      "by": "judge",
-      "judged": true,
-      "score": 0.451,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrbcz8822dq",
-      "to": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrbcz8822dq",
-      "to": "note:note-mrbbihyqker",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.721,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrbdu1p780p",
-      "to": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrbdu1p780p",
-      "to": "note:note-mr6r3yco9dm",
-      "kind": "context",
-      "weight": 0.688,
-      "by": "judge",
-      "judged": true,
-      "score": 0.688,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrbeygoar8j",
-      "to": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrbeygoar8j",
-      "to": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 0.742,
-      "by": "judge",
-      "judged": true,
-      "score": 0.742,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrbeygoar8j",
-      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.742,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrbeygoar8j",
-      "to": "note:note-mr5i8jmlosb",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.726,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mrbeygoar8j",
       "to": "note:note-mr5hu8iwax0",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
       "score": 0.72,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrbeygoar8j",
-      "to": "note:note-mr6r3yco9dm",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.711,
       "origin": "autowire-semantic"
     },
     {
@@ -287960,108 +288145,6 @@
       "judged": true
     },
     {
-      "from": "codex/bump-approach-walk-tolerate-one-benign-divergence-with-a-single-re-plan-retry",
-      "to": "codex/ewm-divergence-tolerance-policy-uninterrupted-sweep-run-eighteen",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.421,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/bump-approach-walk-tolerate-one-benign-divergence-with-a-single-re-plan-retry",
-      "to": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
-      "kind": "context",
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/bump-approach-walk-tolerate-one-benign-divergence-with-a-single-re-plan-retry",
-      "to": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
-      "kind": "supersede"
-    },
-    {
-      "from": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
-      "to": "codex/fix-silent-bump-approach-early-return-in-_bump_discovery-run-25-live-finding",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.402,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
-      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.393,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
-      "to": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
-      "kind": "context",
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
-      "to": "codex/ewm-model-quantum-interaction-discovery-stride-agnostic-run-twenty-seven",
-      "kind": "context",
-      "weight": 0.364,
-      "by": "judge",
-      "judged": true,
-      "score": 0.364,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
-      "to": "knowledge:source_section:note-mr5c2remh4y#note-evidence",
-      "kind": "context",
-      "weight": 0.333,
-      "by": "judge",
-      "judged": true,
-      "score": 0.333,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
-      "to": "knowledge:source_section:note-mr5c37uw1tw#note-evidence",
-      "kind": "context",
-      "weight": 0.333,
-      "by": "judge",
-      "judged": true,
-      "score": 0.333,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
-      "to": "knowledge:source_section:note-mr5c8xcs7uo#note-evidence",
-      "kind": "context",
-      "weight": 0.333,
-      "by": "judge",
-      "judged": true,
-      "score": 0.333,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
-      "to": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
-      "kind": "context",
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
-      "to": "codex/fix-silent-bump-approach-early-return-in-_bump_discovery-run-25-live-finding",
-      "kind": "context",
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/ewm-per-run-bump-dedup-unblock-persisted-suppression-fix",
-      "to": "codex/fix-silent-bump-approach-early-return-in-_bump_discovery-run-25-live-finding",
-      "kind": "context",
-      "origin": "asserted"
-    },
-    {
       "from": "codex/fix-consolidate-universal-skills-kickback",
       "to": "codex/consolidate-universal-skills-judge",
       "kind": "context",
@@ -288141,12 +288224,6 @@
       "origin": "blocking-dep-seed"
     },
     {
-      "from": "codex/fix-silent-bump-approach-early-return-in-_bump_discovery-run-25-live-finding",
-      "to": "codex/bump-approach-walk-tolerate-one-benign-divergence-with-a-single-re-plan-retry",
-      "kind": "context",
-      "origin": "asserted"
-    },
-    {
       "from": "codex/fix-stale-tested-verdict-requeue",
       "to": "codex/fix-stale-tested-verdict-requeue-judge",
       "kind": "context",
@@ -288159,56 +288236,6 @@
       "weight": 0.95,
       "judged": true,
       "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
-      "to": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.468,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
-      "to": "knowledge:source_section:note-mr5c2remh4y#note-evidence",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.391,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
-      "to": "knowledge:source_section:note-mr5c37uw1tw#note-evidence",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.391,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
-      "to": "knowledge:source_section:note-mr5c8xcs7uo#note-evidence",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.391,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
-      "to": "knowledge:source_section:note-mr5d6cvqife#note-evidence",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.391,
-      "origin": "autowire-semantic"
     },
     {
       "from": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/8",
@@ -288282,5 +288309,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-07-08T01:43:26.583Z"
+  "compacted_at": "2026-07-08T02:03:25.092Z"
 }
