@@ -4740,6 +4740,148 @@ class EmpiricalMovementGeometryTests(unittest.TestCase):
         self.assertEqual(ag._observed_delta_map(), {"RIGHT": (0, 1)})
 
 
+# ---------------------------------------------------------------------------------------------------
+# Run-29 PER-COLOR OBSERVED MOVER DETECTION (color 12 moves; color 9 is static decoration)
+# ---------------------------------------------------------------------------------------------------
+
+
+class _Ls20StaticDecorEnv(_Stride2ColoredQuotaEnv):
+    """The stride-2 ls20-colored env plus a SOLID static color-9 decoration cell that never moves —
+    the run-29 live shape in miniature (color 12 is the true mover; color 9 is static
+    decoration/HUD). Solid like every block, so it is also a legitimate bump target once the player
+    set narrows to the mover."""
+
+    def __init__(self, budget: int = 200) -> None:
+        super().__init__(budget)
+        self._blocks[(2, 0)] = 9  # static color-9 decoration: solid, never moves
+
+
+class PerColorMoverDetectionTests(unittest.TestCase):
+    """Run-29: rigid-translation detection is PER COLOR and the player color set narrows
+    observed-first to the color(s) that ACTUALLY move. Run 29 live proved the run-23 program
+    inference is over-broad on ls20 ({9,12}): offline analysis of the 47-transition suite shows
+    color 12 is the TRUE mover (a 2x5 block making perfect stride-5 rigid translations) while
+    color 9 is 45 STATIC decoration cells that never move. The run-28 UNION rigidity check
+    therefore measured ZERO moves (run 29 byte-identical to run 28), and _player_position planned
+    every walk from a static color-9 cell."""
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _trusted_agent(self, env, source, **cfg):
+        from bench.arc_agi3_zonoid.ewm.world_model import WorldModelProgram
+
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        base = dict(
+            game_id="run29", max_turns=40, min_probe_transitions=1,
+            fast_path_trust_window=2, goal_discovery_min_live_samples=2,
+            goal_discovery_min_live_rate=0.9, max_frontier_batches_per_turn=8,
+            max_interaction_probes_per_turn=6, coverage_persistence=False,
+        )
+        base.update(cfg)
+        ag = EwmAgent(env, FakeLlm([]), kb=FakeKb(max_writes_per_turn=8),
+                      vision_enabled=False, config=AgentConfig(**base))
+        ag.program = WorldModelProgram.load(source)
+        ag._live_results.extend([True, True, True])
+        # Pin the PROGRAM-inferred candidate set to the over-broad run-23 live result {9,12}:
+        # color 9 is static decoration, color 12 the true mover.
+        ag._player_colors = frozenset({9, 12})
+        ag._player_colors_for = ag.program
+        ag._refresh_model_trust()
+        return ag
+
+    @staticmethod
+    def _seed_decorated_move(ag, rows, cols, action, src, dst, decor=((11, 0), (11, 5))):
+        """One observed single-step transition: the color-12 player translates src->dst while
+        static color-9 decoration cells sit UNMOVED in both grids (the run-29 live shape)."""
+
+        def grid(cell):
+            g = [[0] * cols for _ in range(rows)]
+            for (r, c) in decor:
+                g[r][c] = 9
+            g[cell[0]][cell[1]] = 12
+            return g
+
+        ag.suite.append(grid(src), action, grid(dst))
+
+    def test_per_color_detection_finds_mover_the_union_check_missed(self):
+        # (a) THE run-29 regression: color 12 translates rigidly while the (larger) static color-9
+        # decoration never moves. The old UNION rigidity check merged static+moving cells, found
+        # the union non-rigid, and measured NOTHING; the per-color detection measures the mover
+        # AND reports which color moved.
+        env = _Ls20ColoredQuotaEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE)
+        self._seed_decorated_move(ag, 12, 12, "RIGHT", (0, 0), (0, 5))
+        self._seed_decorated_move(ag, 12, 12, "RIGHT", (0, 5), (0, 10))
+        self._seed_decorated_move(ag, 12, 12, "LEFT", (0, 10), (0, 5))
+        # Fixture sanity: the UNION of {9,12} cells does NOT translate rigidly on these grids —
+        # exactly why the old union-based check measured zero moves (so this test fails without
+        # the per-color fix, which would return {} here).
+        before, after = ag.suite[0].before_grid, ag.suite[0].after_grid
+        union_b = {(r, c) for r, row in enumerate(before) for c, v in enumerate(row) if v in (9, 12)}
+        union_a = {(r, c) for r, row in enumerate(after) for c, v in enumerate(row) if v in (9, 12)}
+        (br, bc), (ar, ac) = min(union_b), min(union_a)
+        shifted = {(r + ar - br, c + ac - bc) for (r, c) in union_b}
+        self.assertNotEqual(shifted, union_a)  # union is non-rigid: the old check discards this move
+        self.assertEqual(ag._observed_delta_map(), {"RIGHT": (0, 5), "LEFT": (0, -5)})
+        self.assertEqual(ag._observed_mover_colors(), frozenset({12}))
+
+    def test_player_color_set_narrows_observed_first_and_refreshes(self):
+        # (b) Observed-first with program fallback AND cache coherence: the empty-suite call
+        # returns the program-inferred {9,12} (the fallback path unchanged), and that early result
+        # must NOT pin — the moment a real color-12 move lands in the suite the set narrows to the
+        # true mover {12} (the observed branch is keyed on suite length, not program identity).
+        env = _Ls20ColoredQuotaEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE)
+        self.assertEqual(ag._player_color_set(), frozenset({9, 12}))  # empty suite: program path
+        self._seed_decorated_move(ag, 12, 12, "RIGHT", (0, 0), (0, 5))
+        self.assertEqual(ag._player_color_set(), frozenset({12}))  # narrowed, not pinned
+
+    def test_player_position_tracks_the_moving_color_not_static_decoration(self):
+        # (c) The point of the fix: a static color-9 cell earlier in row order must not be
+        # reported as the player once moves are observed — walks then plan from the REAL mover
+        # instead of a position that never moves.
+        env = _Ls20ColoredQuotaEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE)
+        grid = [[0] * 12 for _ in range(12)]
+        grid[0][1] = 9    # static decoration, FIRST in row order
+        grid[5][5] = 12   # the true mover
+        # Empty suite: the {9,12} fallback finds the static cell first (the run-29 live pathology).
+        self.assertEqual(ag._player_position(grid), (0, 1))
+        self._seed_decorated_move(ag, 12, 12, "RIGHT", (0, 0), (0, 5))
+        self.assertEqual(ag._player_position(grid), (5, 5))  # a MOVING-color cell, not the 9
+
+    def test_end_to_end_bump_fires_steered_from_true_mover(self):
+        # (d) End-to-end on the run-29 shape: stride-2 env, mispredicting unit model, static
+        # color-9 decoration on the board AND in the observed grids. Per-color deltas steer the
+        # empirical walk from the TRUE mover position -> "arrived" -> _fire_bump fires and
+        # bumps_probed increments. Without the per-color fix the observed map is empty (union
+        # non-rigid), so the walk would chase the wrong model into its step cap with no bump.
+        env = _Ls20StaticDecorEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE,
+                                 max_interaction_probes_per_turn=1)
+        for action, src, dst in (
+            ("RIGHT", (0, 0), (0, 2)), ("LEFT", (0, 2), (0, 0)),
+            ("DOWN", (0, 0), (2, 0)), ("UP", (2, 0), (0, 0)),
+        ):
+            self._seed_decorated_move(ag, 3, 12, action, src, dst, decor=((1, 11),))
+        self.assertEqual(ag._observed_mover_colors(), frozenset({12}))  # decoration never vetoes
+
+        class _Plan:
+            actions = ["UP", "UP"]
+
+        # The model's plan is only the reachability pre-check / step-cap sizer, never the steering.
+        ag._plan_to_cell = lambda frame, target: _Plan()
+        before = ag.summary.bumps_probed
+        result = ag._bump_discovery(env.observe())
+        self.assertIsNotNone(result)
+        self.assertGreater(ag.summary.bumps_probed, before)  # arrived -> _fire_bump ran
+        self.assertIsNone(ag.summary.bump_skip_reason)  # a bump fired: no skip reason left behind
+        self.assertEqual(ag.summary.player_colors, [12])  # the echo truthfully reports the mover
+
+
 class _CoverageKbClient:
     """KbClient stand-in for coverage resume: returns a native full-body coverage note for the index
     hit so read_coverage_state's preferred (native) path recovers it in one call."""
