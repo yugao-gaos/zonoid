@@ -54,3 +54,4 @@
 {"evt":"edge_promoted","from":"note:note-mqgs5b1nrec","to":"note:note-mqfrinuou39","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","weight":0.621,"by":"judge","judged":true,"score":0.621,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqgs5b1nrec","to":"note:note-mqfmkwytf2n","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_added","from":"note:note-mqgs5b1nrec","to":"codex/kb-note-client-omit-wires_to-on-synthetic-task-key-instead-of-404ing-on-phantom-","kind":"context","actor":"overlay-sync","ts":"2026-07-08T02:31:40.995Z","weight":0,"by":"autowire","judged":false,"score":0.523,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqgs5b1nrec","to":"codex/kb-note-client-omit-wires_to-on-synthetic-task-key-instead-of-404ing-on-phantom-","kind":"context","actor":"overlay-sync","ts":"2026-07-08T03:10:24.396Z"}
