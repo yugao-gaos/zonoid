@@ -39,7 +39,7 @@ import os
 import re
 import sys
 import time
-from collections import deque
+from collections import Counter, deque
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -950,6 +950,21 @@ class EwmAgent:
         # can change the mover) invalidates it. None until first derived.
         self._player_deltas: dict[tuple[int, int], Any] | None = None
         self._player_deltas_for: Any = None
+        # OBSERVED delta map (Run-28): per-action player translations measured from REAL suite
+        # transitions, never the model. Run 26 proved the adopted ls20 program systematically
+        # mispredicts the 5-stride mover and run 28 proved the empirical walk chased into its step
+        # cap because every geometry consumer above still steered by MODEL physics. When this map is
+        # non-empty it takes precedence over the model BFS in _player_delta_map. Cache keyed on
+        # suite length (so it refreshes as transitions accrue) plus program identity (the player
+        # color set the measurement scans for is program-derived). None until first derived.
+        self._observed_deltas: dict[Any, tuple[int, int]] | None = None
+        self._observed_deltas_key: tuple[int, Any] | None = None
+        # Parallel single-step flags for the suite (Run-28): _observed_delta_map must measure only
+        # SINGLE-action transitions — a multi-action batch is recorded as ONE grid-in/grid-out
+        # transition, so its player delta is a COMPOUND of several moves (three stride-2 steps read
+        # as a bogus stride-6 action). Indices missing from this list (transitions seeded directly
+        # into the suite by tests/tools) are treated as single-step.
+        self._suite_single_step: list[bool] = []
         # Fast-path trust flag: True while the last window of live predictions all passed. Toggling it
         # off restores full decide/reflect cadence + normal batch sizes on the very next turn.
         self._model_trusted = False
@@ -1455,6 +1470,11 @@ class EwmAgent:
         # correct model, so those are excluded from the live window.
         if self.program is not None and single_step:
             self._live_results.append(self._predicts_transition(before_grid, action, after))
+        # Keep the single-step flag list aligned with the suite even when transitions were seeded
+        # into it directly (tests/tools): missing indices count as single-step (Run-28).
+        while len(self._suite_single_step) < len(self.suite):
+            self._suite_single_step.append(True)
+        self._suite_single_step.append(bool(single_step))
         self.suite.append(before_grid, action, after)
         self.summary.transitions += 1
         self._refresh_model_trust()
@@ -3441,13 +3461,102 @@ class EwmAgent:
 
         return self._player_delta_map(frame)
 
-    def _player_delta_map(self, frame: dict[str, Any]) -> dict[tuple[int, int], Any]:
-        """Per-action axis-aligned player deltas at TRUE magnitude, cached per adopted program.
+    def _observed_delta_map(self) -> dict[Any, tuple[int, int]]:
+        """Per-action player deltas measured from OBSERVED suite transitions — the REAL movement
+        geometry, never the model's (Run-28).
 
-        Shallow-BFS over the model to gather a few reachable states, then for each state record the
-        ``(dr, dc)`` each valid action moves the player by (any axis-aligned translation, whatever the
-        stride). This is the movement-geometry primitive both stride inference and contact probing key
-        off. Empty when no program is adopted or no action demonstrates a move."""
+        Run 26 proved the adopted ls20 program systematically mispredicts the 5-stride mover, and
+        run 28 proved the empirical walk executes fine but chases into its step cap because it
+        steers by MODEL physics. The suite meanwhile holds real ``(before_grid, action,
+        after_grid)`` transitions including real moves — so measure the geometry there: for each
+        transition where the player-colored block (``_player_color_set``) TRANSLATED rigidly by a
+        single axis-aligned ``(dr, dc) != (0, 0)`` (same cell count, same shape, uniform offset),
+        record ``action -> delta``; each action maps to its MOST-COMMON observed delta
+        (deterministic tie-break by delta). Actions never observed to move are omitted, so an empty
+        map means "no real move measured yet" and callers fall back to the model path. Defensive:
+        transitions with a shape mismatch (level boundaries) or zero player cells are skipped, and
+        only SINGLE-step transitions are measured (a multi-action batch is one grid-in/grid-out
+        record whose delta compounds several moves — see ``_suite_single_step``).
+        Cached keyed on suite length (refreshes as transitions accrue) + program identity (the
+        player color set scanned for is program-derived)."""
+
+        key = (len(self.suite), self.program)
+        if self._observed_deltas is not None and self._observed_deltas_key == key:
+            return self._observed_deltas
+        colors = self._player_color_set()
+        counts: dict[Any, Counter] = {}
+        flags = self._suite_single_step
+        for idx, transition in enumerate(self.suite):
+            if idx < len(flags) and not flags[idx]:
+                # A multi-action batch (or level-crossing) transition: its player delta is a
+                # COMPOUND of several moves, not one action's translation — never measure it.
+                continue
+            before, after = transition.before_grid, transition.after_grid
+            if _grid_shape(before) != _grid_shape(after):
+                continue  # a level boundary, not a translation
+            b_cells = {
+                (r, c) for r, row in enumerate(before) for c, v in enumerate(row) if v in colors
+            }
+            a_cells = {
+                (r, c) for r, row in enumerate(after) for c, v in enumerate(row) if v in colors
+            }
+            if not b_cells or len(b_cells) != len(a_cells):
+                continue  # zero/ambiguous player block: nothing rigid to measure
+            # min() of a rigidly-translated cell set is the translated min, so the offset between
+            # the two mins IS the candidate delta; the set equality below verifies rigidity.
+            (br, bc), (ar, ac) = min(b_cells), min(a_cells)
+            dr, dc = ar - br, ac - bc
+            if (dr == 0) == (dc == 0):
+                continue  # no move, or diagonal (not modeled by the contact geometry)
+            if {(r + dr, c + dc) for (r, c) in b_cells} != a_cells:
+                continue  # not a uniform translation of the whole player block
+            try:
+                counts.setdefault(transition.action, Counter())[(dr, dc)] += 1
+            except TypeError:  # noqa: PERF203 - unhashable action payload: skip defensively
+                continue
+        out = {
+            action: max(counter.items(), key=lambda kv: (kv[1], kv[0]))[0]
+            for action, counter in counts.items()
+        }
+        self._observed_deltas = out
+        self._observed_deltas_key = key
+        return out
+
+    def _player_delta_map(self, frame: dict[str, Any]) -> dict[tuple[int, int], Any]:
+        """Per-action axis-aligned player deltas at TRUE magnitude — OBSERVED-first (Run-28), with
+        the model BFS (:meth:`_model_delta_map`) filling only the actions no real move has measured.
+
+        Run 28's step-cap chase was every geometry consumer steering by a model that systematically
+        mispredicts the ls20 mover, so an action WITH observed data contributes its OBSERVED delta
+        and its (empirically wrong) model delta is dropped. Actions with no observed measurement yet
+        keep their model delta — a half-measured map (only DOWN observed so far) must not blind the
+        walk to the other directions; each wrong model delta self-corrects the first time its action
+        is seen to really move. Deterministic: sorted key order, first (str-sorted) action wins a
+        shared delta. Reduces to the pure model map on an empty suite, and to pure observed geometry
+        once every moving action has been measured."""
+
+        observed = self._observed_delta_map()
+        model = self._model_delta_map(frame)
+        if not observed:
+            return model
+        merged: dict[tuple[int, int], Any] = {}
+        for action in sorted(observed, key=str):  # deterministic when actions share a delta
+            merged.setdefault(observed[action], action)
+        observed_actions = {str(action) for action in observed}
+        for delta, action in model.items():
+            if str(action) in observed_actions:
+                continue  # empirically superseded: the observed delta replaced this action's
+            merged.setdefault(delta, action)
+        # Sorted key order so consumers that iterate deltas (tie-breaks in _bump_contexts) stay
+        # deterministic across runs.
+        return {delta: merged[delta] for delta in sorted(merged)}
+
+    def _model_delta_map(self, frame: dict[str, Any]) -> dict[tuple[int, int], Any]:
+        """The MODEL's per-action deltas, cached per adopted program: shallow-BFS over the model to
+        gather a few reachable states, then for each state record the ``(dr, dc)`` each valid action
+        moves the player by (any axis-aligned translation, whatever the stride). Empty when no
+        program is adopted or no action demonstrates a move. Callers want
+        :meth:`_player_delta_map`, which overlays OBSERVED geometry on this (Run-28)."""
 
         program = self.program
         if (
@@ -3542,6 +3651,34 @@ class EwmAgent:
         a LATTICE cell (one the player can actually occupy), never an arbitrary distance-1 approach cell
         the sparse mover can never stand on."""
 
+        # EMPIRICAL-FIRST (Run-28): when real moves have been observed, generate the lattice by
+        # stepping the observed-first merged deltas (:meth:`_player_delta_map`) from the player's
+        # REAL position across in-bounds cells — no passability filtering (the empirical walk
+        # verifies arrival, so an over-approximate lattice costs at most a skipped approach), and
+        # crucially no model BFS over states: the ls20 model mispredicts the mover, so a
+        # model-derived lattice misplaces every approach cell. Same node budget as the model path
+        # below, which remains the empty-suite fallback.
+        if self._observed_delta_map():
+            grid = self._frame_grid(frame)
+            rows = len(grid)
+            cols = len(grid[0]) if rows else 0
+            cells: set[tuple[int, int]] = set()
+            p0 = self._player_position(grid) if rows else None
+            if p0 is not None:
+                deltas = sorted(self._player_delta_map(frame))
+                cells.add(p0)
+                queue: deque[tuple[int, int]] = deque([p0])
+                expanded = 0
+                while queue and expanded < self.config.plan_max_nodes:
+                    r, c = queue.popleft()
+                    expanded += 1
+                    for dr, dc in deltas:
+                        nr, nc = r + dr, c + dc
+                        if 0 <= nr < rows and 0 <= nc < cols and (nr, nc) not in cells:
+                            cells.add((nr, nc))
+                            queue.append((nr, nc))
+            self.summary.reachable_cell_count = len(cells)
+            return cells
         program = self.program
         if program is None:
             return set()
@@ -3927,35 +4064,76 @@ class EwmAgent:
     def _empirical_walk(
         self, frame: dict[str, Any], target_cell: tuple[int, int], max_steps: int
     ) -> tuple[dict[str, Any], str]:
-        """Walk the player onto ``target_cell`` EMPIRICALLY: plan, act ONE step, observe, re-plan.
+        """Walk the player onto ``target_cell`` EMPIRICALLY: steer, act ONE step, observe, re-steer.
 
         No expect grids are passed (same act convention as :meth:`_fire_bump`), so a mispredicting
         model can never abort the walk — each step's REAL transition is ingested (it still reaches
-        the suite and the repair path via :meth:`_ingest_result`) and the next step is planned from
+        the suite and the repair path via :meth:`_ingest_result`) and the next step is chosen from
         the OBSERVED frame, converging by correction rather than by prediction. Returns the last
-        observed ``(frame, outcome)`` where outcome is one of: ``"arrived"`` (a plan came back
-        empty — the player is on target), ``"unreachable"`` (no plan from the current frame),
-        ``"stopped"`` (done or out of budget mid-walk), ``"step cap"`` (``max_steps`` steps executed
-        without arriving — a never-converging chase). Every re-plan beyond a walk's first counts in
-        ``summary.approach_retries``."""
+        observed ``(frame, outcome)`` where outcome is one of: ``"arrived"`` (the player is on
+        target), ``"unreachable"`` (no plan / no player from the current frame), ``"stopped"``
+        (done or out of budget mid-walk), ``"step cap"`` (``max_steps`` steps executed without
+        arriving — a never-converging chase). Every re-plan beyond a walk's first counts in
+        ``summary.approach_retries``.
+
+        STEERING IS EMPIRICAL-FIRST (Run-28): run 28 live proved the walk executes fine but chases
+        into the step cap when it steers by :meth:`_plan_to_cell` (a BFS over the MODEL — the ls20
+        program systematically mispredicts the mover). While :meth:`_observed_delta_map` is
+        non-empty each step is picked GREEDILY over the observed-first merged delta map
+        (:meth:`_player_delta_map`): the action whose delta most reduces L1 distance to the target,
+        tie-broken by sorted action name. Two memos keep the greedy walk from grinding or cycling
+        on obstacles the deltas alone cannot see: an action observed to no-op from the current cell
+        (blocked) is ranked behind every other candidate, and among equally-close candidates the
+        destination visited fewer times THIS walk wins (a tabu tie-break — without it the walk
+        oscillates between the two cells flanking a wall). Neither memo filters an action out
+        entirely, so a fully-boxed walk still steps and terminates via the step cap rather than
+        spinning. The model-plan stepping below survives only as the empty-map fallback."""
 
         cur = frame
         steps = 0
+        # (cell, action) pairs observed to no-op THIS walk — the empirical blocked-move memo.
+        blocked: set[tuple[tuple[int, int], str]] = set()
+        # How often each cell was stood on THIS walk — the anti-cycling tabu penalty.
+        visits: Counter = Counter()
         while True:
-            plan_result = self._plan_to_cell(cur, target_cell)
             if steps:
                 self.summary.approach_retries += 1
-            if plan_result is None:
-                return cur, "unreachable"
-            if not plan_result.actions:
-                return cur, "arrived"
-            if steps >= max_steps:
-                return cur, "step cap"
-            action = plan_result.actions[0]
+            observed = self._observed_delta_map()  # refreshed as walk steps ingest transitions
+            if observed:
+                grid = self._frame_grid(cur)
+                pos = self._player_position(grid)
+                if pos == target_cell:
+                    return cur, "arrived"
+                if pos is None:
+                    return cur, "unreachable"
+                if steps >= max_steps:
+                    return cur, "step cap"
+                visits[pos] += 1
+                dmap = self._player_delta_map(cur)  # observed-first, model fills unobserved actions
+
+                def _rank(item: tuple[tuple[int, int], Any]) -> tuple[bool, int, int, str]:
+                    (dr, dc), action = item
+                    dest = (pos[0] + dr, pos[1] + dc)
+                    dist = abs(dest[0] - target_cell[0]) + abs(dest[1] - target_cell[1])
+                    return ((pos, str(action)) in blocked, dist, visits[dest], str(action))
+
+                _delta, action = min(dmap.items(), key=_rank)  # str(action) is the deterministic tie-break
+            else:
+                plan_result = self._plan_to_cell(cur, target_cell)
+                if plan_result is None:
+                    return cur, "unreachable"
+                if not plan_result.actions:
+                    return cur, "arrived"
+                if steps >= max_steps:
+                    return cur, "step cap"
+                pos = None
+                action = plan_result.actions[0]
             result = self._act([action])
             self._ingest_result(cur, [action], result)
             cur = self._observe()
             steps += 1
+            if pos is not None and self._player_position(self._frame_grid(cur)) == pos:
+                blocked.add((pos, str(action)))  # the move no-oped from that cell: deprioritize it there
             if cur.get("done") or self._out_of_budget(cur):
                 return cur, "stopped"
 
