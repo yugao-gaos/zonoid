@@ -4023,6 +4023,112 @@ class BumpQuotaInterleaveTests(unittest.TestCase):
         self.assertEqual(ag.summary.bumps_probed, before)
 
 
+class MinBumpHoistTests(unittest.TestCase):
+    """Run-32: the MIN-BUMP GUARANTEE is hoisted into the MAIN turn loop. Runs 31-32 fired ZERO bumps
+    (bump_due_batches=0 despite 76 and 102 actions) because exploration only ran when a plan came back
+    empty AND _goal_discovery_ready() held — a window ~97%-reactive runs never open. While the
+    exploration_min_bump_actions floor is unmet, a reactive/RECOVER turn is spent on ONE exploration
+    batch instead (with a 3-consecutive-empty-batch anti-spin standdown)."""
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _hoist_agent(self, env, **cfg):
+        # Like BumpQuotaInterleaveTests._trusted_agent but WITHOUT trust/live-sample seeding: the
+        # agent is deliberately NOT goal-discovery-ready, so pre-Run-32 the exploration entry point
+        # (and therefore any bump) would never fire.
+        from bench.arc_agi3_zonoid.ewm.world_model import WorldModelProgram
+
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        base = dict(
+            game_id="hoist", max_turns=6, min_probe_transitions=1,
+            goal_discovery_min_live_samples=3, goal_discovery_min_live_rate=0.7,
+            max_interaction_probes_per_turn=6, coverage_persistence=False,
+            bump_probe_repeats=1,
+        )
+        base.update(cfg)
+        ag = EwmAgent(env, FakeLlm([]), kb=FakeKb(max_writes_per_turn=8),
+                      vision_enabled=False, config=AgentConfig(**base))
+        ag.program = WorldModelProgram.load(QUOTA_MODEL_SOURCE)
+        return ag
+
+    def test_hoist_fires_bumps_without_goal_discovery_window(self):
+        # THE run-31/32 regression shape: program adopted, a NON-EMPTY plan available (so the
+        # plan-empty exploration gate never opens), goal discovery NOT ready (zero live samples),
+        # and every turn reactive (RECOVER). Pre-fix this run fires zero bumps; the hoist must spend
+        # those reactive turns on exploration batches and increment bumps_probed.
+        env = _QuotaMultiBlockEnv(budget=40)
+        ag = self._hoist_agent(env, exploration_min_bump_actions=4, max_turns=4)
+        # A goal-contact predicate the planner can reach -> _plan is NON-EMPTY, so the old
+        # plan-empty + goal-discovery-ready window can never be the exploration entry point here.
+        ag._goal_predicate = lambda state: state.get("avatar") == (0, 3)
+        plan_result = ag._plan(env.observe())
+        self.assertTrue(plan_result is not None and plan_result.actions,
+                        "the plan must be NON-EMPTY for the regression shape")
+        self.assertFalse(ag._goal_discovery_ready())
+        self.assertEqual(ag.summary.bumps_probed, 0)
+        ag._failure_cycles = ag.config.reactive_after_failures  # the ~97%-reactive shape (RECOVER)
+        ag.run()
+        self.assertGreaterEqual(
+            ag.summary.hoisted_bump_batches, 1,
+            "a reactive turn under the min-bump floor must be spent on a hoisted exploration batch",
+        )
+        self.assertGreaterEqual(
+            ag.summary.bumps_probed, 1,
+            "the hoisted batch must actually fire contact bumps (run-31/32: bumps stuck at 0)",
+        )
+
+    def test_no_hoist_once_min_bump_floor_met(self):
+        # bumps_probed >= exploration_min_bump_actions -> the guarantee is honored; reactive turns
+        # stay reactive (the ratio quota inside the exploration path governs from here).
+        env = _QuotaMultiBlockEnv(budget=30)
+        ag = self._hoist_agent(env, exploration_min_bump_actions=4, max_turns=3)
+        ag.summary.bumps_probed = 4  # floor already met
+        ag._failure_cycles = ag.config.reactive_after_failures
+        ag.run()
+        self.assertEqual(ag.summary.hoisted_bump_batches, 0)
+
+    def test_anti_spin_guard_stands_down_after_three_empty_batches(self):
+        # Three consecutive hoisted batches that fire NO bump trip the standdown: the next turn does
+        # not hoist. ANY fired bump re-arms the guard.
+        env = _QuotaMultiBlockEnv(budget=200)
+        ag = self._hoist_agent(env, exploration_min_bump_actions=8)
+        # Dedup every block class so each hoisted batch fires nothing (falls through to frontier).
+        for (obj_hash, _approach, _direction, _cost) in ag._bump_contexts(env._grid()):
+            ag._bump_attempted.add(obj_hash)
+        for _ in range(3):
+            self.assertIsNotNone(ag._hoist_bump_batch(env.observe()))
+        self.assertEqual(ag.summary.bumps_probed, 0)
+        self.assertEqual(ag.summary.hoisted_bump_batches, 3)
+        # Guard tripped: the next turn must NOT hoist (the normal reactive path runs instead).
+        self.assertIsNone(ag._hoist_bump_batch(env.observe()))
+        self.assertEqual(ag.summary.hoisted_bump_batches, 3)
+        # A fired bump (e.g. from the goal-discovery exploration path) re-arms the hoist.
+        ag.summary.bumps_probed += 1
+        self.assertIsNotNone(ag._hoist_bump_batch(env.observe()))
+        self.assertEqual(ag.summary.hoisted_bump_batches, 4)
+
+    def test_done_or_out_of_budget_never_hoists(self):
+        # A done frame or an exhausted budget must never be spent on a hoisted batch.
+        env = _QuotaMultiBlockEnv(budget=40)
+        ag = self._hoist_agent(env, exploration_min_bump_actions=4)
+        done_frame = dict(env.observe())
+        done_frame["done"] = True
+        self.assertIsNone(ag._hoist_bump_batch(done_frame))
+        broke_frame = dict(env.observe())
+        broke_frame["remaining_actions"] = 0
+        self.assertIsNone(ag._hoist_bump_batch(broke_frame))
+        self.assertEqual(ag.summary.hoisted_bump_batches, 0)
+        # And end-to-end: a run that opens out of budget stops before any hoist.
+        env2 = _QuotaMultiBlockEnv(budget=0)
+        ag2 = self._hoist_agent(env2, exploration_min_bump_actions=4, max_turns=3)
+        ag2._failure_cycles = ag2.config.reactive_after_failures
+        ag2.run()
+        self.assertEqual(ag2.summary.hoisted_bump_batches, 0)
+
+
 # ls20-COLORED variants (Run-23): the LIVE player renders as color 12, NOT the toy avatar color 2.
 # The Run-17..22 live silent-drop was that _player_position hardcoded color 2, so on the live board it
 # returned None, _bump_contexts was empty, and the bump quota fired 0 bumps SILENTLY while every
