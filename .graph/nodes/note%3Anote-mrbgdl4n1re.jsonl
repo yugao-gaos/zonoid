@@ -6,3 +6,4 @@
 {"evt":"edge_added","from":"note:note-mrbgdl4n1re","to":"note:note-mqh0gwz1mxc","kind":"context","actor":"overlay-sync","ts":"2026-07-08T02:22:50.054Z","weight":0,"by":"autowire","judged":false,"score":0.421,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mrbgdl4n1re","to":"codex/probe-subconscious-assignment-main-live","kind":"context","actor":"overlay-sync","ts":"2026-07-08T02:22:59.586Z"}
 {"evt":"edge_removed","from":"note:note-mrbgdl4n1re","to":"note:note-mr5y9ed7evz","kind":"context","actor":"overlay-sync","ts":"2026-07-08T02:36:14.585Z"}
+{"evt":"edge_removed","from":"note:note-mrbgdl4n1re","to":"note:note-mqh0gwz1mxc","kind":"context","actor":"overlay-sync","ts":"2026-07-08T02:59:39.425Z"}
