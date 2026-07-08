@@ -717,6 +717,8 @@ def live_run(
             "bump_empty_batches": summary.get("bump_empty_batches", 0),
             "bump_skip_reason": summary.get("bump_skip_reason"),
             "player_colors": summary.get("player_colors"),
+            # Run-27 EMPIRICAL APPROACH WALK telemetry: re-plans taken during per-step approach walks.
+            "approach_retries": summary.get("approach_retries", 0),
             "config_echo": summary.get("config_echo"),
         }
     finally:
