@@ -4544,6 +4544,202 @@ class StrideAgnosticContactTests(unittest.TestCase):
         self.assertTrue(all(max(abs(dr), abs(dc)) == 1 for (dr, dc) in dirs))
 
 
+# ---------------------------------------------------------------------------------------------------
+# Run-28 EMPIRICAL MOVEMENT GEOMETRY (observed delta map feeds stride/lattice and walk steering)
+# ---------------------------------------------------------------------------------------------------
+
+
+class _Stride2ColoredQuotaEnv(_Ls20ColoredQuotaEnv):
+    """The ls20-colored quota env whose avatar REALLY moves TWO cells per action (blocks/edges
+    solid) while the paired model (LS20_COLORED_QUOTA_MODEL_SOURCE) stays a UNIT mover — a genuinely
+    stride-mispredicting model, the run-26/28 live shape (the adopted ls20 program mispredicts the
+    5-stride mover on every step)."""
+
+    def _apply_one(self, action: str) -> None:
+        dr, dc = DELTAS[str(action)]
+        ar, ac = self._avatar
+        nr, nc = ar + dr * 2, ac + dc * 2  # STRIDE 2 (the model believes 1)
+        if not (0 <= nr < self._rows and 0 <= nc < self._cols):
+            return
+        if (nr, nc) in self._blocks:
+            return  # blocks are solid to the avatar (a bump is a pure no-op)
+        self._avatar = (nr, nc)
+
+
+class _FrozenColoredQuotaEnv(_Ls20ColoredQuotaEnv):
+    """The ls20-colored quota env whose avatar NEVER moves — every action is a blocked no-op, so an
+    observed delta map that says "this action moves" is contradicted by the live board (the Run-28
+    walk must terminate via its step cap, not spin)."""
+
+    def _apply_one(self, action: str) -> None:
+        return  # frozen: the env no-ops every move
+
+
+class EmpiricalMovementGeometryTests(unittest.TestCase):
+    """Run-28: movement geometry is measured from OBSERVED suite transitions, not the model. Run 26
+    proved the adopted ls20 program systematically mispredicts the 5-stride mover; run 28 proved the
+    empirical walk executes fine but chases into its step cap because _plan_to_cell/_player_delta_map
+    steer by MODEL physics. The observed delta map now overrides the model per action, feeds the
+    stride/lattice, and steers the bump walk greedily."""
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _trusted_agent(self, env, source, **cfg):
+        from bench.arc_agi3_zonoid.ewm.world_model import WorldModelProgram
+
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        base = dict(
+            game_id="run28", max_turns=40, min_probe_transitions=1,
+            fast_path_trust_window=2, goal_discovery_min_live_samples=2,
+            goal_discovery_min_live_rate=0.9, max_frontier_batches_per_turn=8,
+            max_interaction_probes_per_turn=6, coverage_persistence=False,
+        )
+        base.update(cfg)
+        ag = EwmAgent(env, FakeLlm([]), kb=FakeKb(max_writes_per_turn=8),
+                      vision_enabled=False, config=AgentConfig(**base))
+        ag.program = WorldModelProgram.load(source)
+        ag._live_results.extend([True, True, True])
+        ag._refresh_model_trust()
+        return ag
+
+    @staticmethod
+    def _seed_move(ag, rows, cols, action, src, dst):
+        """Append one synthetic OBSERVED transition where the color-12 player translated src->dst."""
+
+        def grid(cell):
+            g = [[0] * cols for _ in range(rows)]
+            g[cell[0]][cell[1]] = 12
+            return g
+
+        ag.suite.append(grid(src), action, grid(dst))
+
+    def test_observed_delta_map_measures_stride5_moves(self):
+        # (a) The suite holds real stride-5 translations of the color-12 player: the observed map
+        # returns action -> (dr, dc) at TRUE magnitude, picking the MOST-COMMON delta per action (one
+        # noisy unit-looking sample must not displace two stride-5 observations).
+        env = _Ls20ColoredQuotaEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE)
+        self._seed_move(ag, 12, 12, "RIGHT", (0, 0), (0, 5))
+        self._seed_move(ag, 12, 12, "RIGHT", (0, 5), (0, 10))
+        self._seed_move(ag, 12, 12, "RIGHT", (3, 0), (3, 1))  # noisy odd one out
+        self._seed_move(ag, 12, 12, "LEFT", (0, 10), (0, 5))
+        self.assertEqual(
+            ag._observed_delta_map(), {"RIGHT": (0, 5), "LEFT": (0, -5)}
+        )
+
+    def test_player_delta_map_prefers_observed_over_wrong_model(self):
+        # (a) The model is a UNIT mover, so its per-action deltas are empirically WRONG for the
+        # observed stride-5 actions: those actions contribute their OBSERVED deltas and their unit
+        # model deltas are dropped; actions with no observation yet keep the model's (so a
+        # half-measured map never blinds the walk to a direction).
+        env = _Ls20ColoredQuotaEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE)
+        self._seed_move(ag, 12, 12, "RIGHT", (0, 0), (0, 5))
+        self._seed_move(ag, 12, 12, "LEFT", (0, 10), (0, 5))
+        deltas = ag._player_delta_map(env.observe())
+        self.assertEqual(deltas.get((0, 5)), "RIGHT")
+        self.assertEqual(deltas.get((0, -5)), "LEFT")
+        self.assertNotIn((0, 1), deltas)   # the model's wrong RIGHT delta was superseded
+        self.assertNotIn((0, -1), deltas)  # the model's wrong LEFT delta was superseded
+        self.assertEqual(deltas.get((-1, 0)), "UP")  # unobserved actions keep the model fallback
+        self.assertEqual(deltas.get((1, 0)), "DOWN")
+
+    def test_observed_geometry_feeds_stride_and_lattice(self):
+        # (a) With every moving action measured at stride 5, stride inference and the reachable
+        # lattice are pure OBSERVED geometry: a sparse 5-spacing lattice from the player's REAL
+        # position, no model BFS (whose unit physics would produce a dense wrong lattice).
+        env = _Ls20ColoredQuotaEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE)
+        for action, src, dst in (
+            ("RIGHT", (0, 0), (0, 5)), ("LEFT", (0, 10), (0, 5)),
+            ("DOWN", (0, 0), (5, 0)), ("UP", (10, 0), (5, 0)),
+        ):
+            self._seed_move(ag, 12, 12, action, src, dst)
+        self.assertEqual(ag._movement_stride(env.observe()), 5)
+        # On the live 3x12 board only the horizontal stride-5 deltas stay in bounds from (0, 0).
+        self.assertEqual(
+            ag._reachable_player_cells(env.observe()), {(0, 0), (0, 5), (0, 10)}
+        )
+
+    def test_empirical_walk_converges_where_model_steering_never_would(self):
+        # (b) THE run-28 live shape: the env mover is stride-2 while the model is a unit mover, and
+        # model-plan steering (stubbed to the same never-converging chase run 28 recorded) would hit
+        # the step cap. With observed stride-2 deltas in the suite the walk steers empirically,
+        # arrives, and the bump FIRES.
+        env = _Stride2ColoredQuotaEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE,
+                                 max_interaction_probes_per_turn=1)
+        for action, src, dst in (
+            ("RIGHT", (0, 0), (0, 2)), ("LEFT", (0, 2), (0, 0)),
+            ("DOWN", (0, 0), (2, 0)), ("UP", (2, 0), (0, 0)),
+        ):
+            self._seed_move(ag, 3, 12, action, src, dst)
+
+        class _Plan:
+            actions = ["UP", "UP"]
+
+        # The model's plan never converges (run-28 live: approach_retries=10, then STEP CAP). Only
+        # the pre-check reads it now — for reachability and step-cap sizing — never for steering.
+        ag._plan_to_cell = lambda frame, target: _Plan()
+        before = ag.summary.bumps_probed
+        result = ag._bump_discovery(env.observe())
+        self.assertIsNotNone(result)
+        self.assertGreater(ag.summary.bumps_probed, before)  # arrived -> _fire_bump ran
+        self.assertIsNone(ag.summary.bump_skip_reason)  # a bump fired: no skip reason left behind
+        self.assertGreater(ag.summary.approach_retries, 0)  # the per-step re-picks were counted
+
+    def test_empty_suite_falls_back_to_model_geometry(self):
+        # (c) No observed transitions: the observed map is empty and every geometry consumer keeps
+        # the model path unchanged (unit deltas, stride 1).
+        env = _Ls20ColoredQuotaEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE)
+        self.assertEqual(ag._observed_delta_map(), {})
+        deltas = ag._player_delta_map(env.observe())
+        self.assertEqual(deltas.get((0, 1)), "RIGHT")
+        self.assertEqual(ag._movement_stride(env.observe()), 1)
+
+    def test_blocked_observed_move_hits_step_cap_and_unpoisons(self):
+        # (d) The observed map says the actions move, but the live env no-ops EVERY move (blocked):
+        # the walk must terminate via its step cap with the abort reason recorded and the per-run
+        # dedup un-poisoned, exactly like every other approach-walk abort.
+        env = _FrozenColoredQuotaEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE)
+        for action, src, dst in (
+            ("RIGHT", (0, 0), (0, 1)), ("LEFT", (0, 1), (0, 0)),
+            ("DOWN", (0, 0), (1, 0)), ("UP", (1, 0), (0, 0)),
+        ):
+            self._seed_move(ag, 3, 12, action, src, dst)
+        before = ag.summary.bumps_probed
+        result = ag._bump_discovery(env.observe())
+        self.assertIsNone(result)  # no bump fired: None falls through to the frontier
+        self.assertEqual(ag.summary.bumps_probed, before)
+        self.assertIsNotNone(ag.summary.bump_skip_reason)
+        self.assertIn("approach walk aborted before bump", ag.summary.bump_skip_reason)
+        self.assertIn("step cap", ag.summary.bump_skip_reason)
+        self.assertEqual(ag._bump_attempted, set())
+
+    def test_batched_transitions_never_pollute_observed_deltas(self):
+        # A multi-action batch is recorded as ONE grid-in/grid-out transition, so its player delta
+        # COMPOUNDS several moves (three stride-2 steps would read as a bogus stride-6 action). Only
+        # single-step transitions are measured.
+        env = _Ls20ColoredQuotaEnv()
+        ag = self._trusted_agent(env, LS20_COLORED_QUOTA_MODEL_SOURCE)
+        # A real single-step observation, recorded through the agent's own bookkeeping...
+        ag._record_transition(
+            {"grid": [[12] + [0] * 11, [0] * 12, [0] * 12]}, "RIGHT",
+            [[0, 12] + [0] * 10, [0] * 12, [0] * 12], single_step=True,
+        )
+        # ...then a 3-action batch recorded as one compound transition (delta (0, 3)).
+        ag._record_transition(
+            {"grid": [[0, 12] + [0] * 10, [0] * 12, [0] * 12]}, "RIGHT",
+            [[0, 0, 0, 0, 12] + [0] * 7, [0] * 12, [0] * 12], single_step=False,
+        )
+        self.assertEqual(ag._observed_delta_map(), {"RIGHT": (0, 1)})
+
+
 class _CoverageKbClient:
     """KbClient stand-in for coverage resume: returns a native full-body coverage note for the index
     hit so read_coverage_state's preferred (native) path recovers it in one call."""
