@@ -23,3 +23,4 @@
 {"evt":"edge_removed","from":"knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-3","to":"codex/workflow-label-learner-fold-plan","kind":"context","actor":"overlay-sync","ts":"2026-07-01T03:18:00.999Z"}
 {"evt":"edge_removed","from":"knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-3","to":"codex/review-merge-judge-lane-items","kind":"context","actor":"overlay-sync","ts":"2026-07-01T04:48:50.328Z"}
 {"evt":"edge_removed","from":"knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-3","to":"codex/judge-decision-lane-followups-stale-holds","kind":"context","actor":"overlay-sync","ts":"2026-07-01T06:42:37.894Z"}
+{"evt":"edge_added","from":"knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-3","to":"codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating","kind":"context","actor":"overlay-sync","ts":"2026-07-08T00:06:55.085Z","weight":0,"by":"autowire","judged":false,"score":0.364,"origin":"autowire-semantic"}

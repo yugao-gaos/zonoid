@@ -17,3 +17,4 @@
 {"evt":"edge_removed","from":"note:note-mrba8l4hora","to":"note:note-mr5y9o2i9wy","kind":"context","actor":"overlay-sync","ts":"2026-07-07T23:35:38.862Z"}
 {"evt":"edge_removed","from":"note:note-mrba8l4hora","to":"note:note-mr5njd22m3l","kind":"context","actor":"overlay-sync","ts":"2026-07-07T23:50:26.532Z"}
 {"evt":"edge_promoted","from":"note:note-mrba8l4hora","to":"note:note-mr5xad0sam6","kind":"context","actor":"overlay-sync","ts":"2026-07-07T23:50:48.428Z","weight":0.705,"by":"judge","judged":true,"score":0.705,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mrba8l4hora","to":"codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating","kind":"context","actor":"overlay-sync","ts":"2026-07-08T00:06:55.085Z","weight":0,"by":"autowire","judged":false,"score":0.512,"origin":"autowire-semantic"}
