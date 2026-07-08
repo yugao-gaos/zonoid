@@ -746,6 +746,12 @@ class RunSummary:
     bump_empty_batches: int = 0      # of those, batches where _bump_discovery fired nothing (None)
     bump_skip_reason: str | None = None  # last reason a due bump fired nothing (None once a bump fires)
     player_colors: list[int] | None = None  # inferred player color set (echoed for the config echo)
+    # MIN-BUMP HOIST telemetry (Run-32). Runs 31-32 fired ZERO bumps (bump_due_batches=0 despite 76
+    # and 102 actions) because exploration only ran when a plan came back empty AND goal discovery was
+    # ready — a window ~97%-reactive runs never open (run 30 hit it once: bumps_probed=8, found=5).
+    # `hoisted_bump_batches` = exploration batches run directly from the main turn loop IN PLACE of a
+    # reactive/RECOVER turn to honor the `exploration_min_bump_actions` floor.
+    hoisted_bump_batches: int = 0
     # EMPIRICAL APPROACH WALK (Run-27). The adopted program systematically mispredicts the player
     # mover, so ANY expect-gated approach walk aborts — the Run-26 single re-plan retry engaged and
     # ALSO diverged (run-27: bump_skip_reason="approach walk aborted before bump (diverged)" on both
@@ -810,6 +816,7 @@ class RunSummary:
             "bump_empty_batches": self.bump_empty_batches,
             "bump_skip_reason": self.bump_skip_reason,
             "player_colors": list(self.player_colors) if self.player_colors else None,
+            "hoisted_bump_batches": self.hoisted_bump_batches,
             "approach_retries": self.approach_retries,
             "config_echo": dict(self.config_echo) if self.config_echo else None,
         }
@@ -934,6 +941,12 @@ class EwmAgent:
         # batches (movement). Paired with `summary.bumps_probed` (contact-bump actions), it drives the
         # running quota ratio that decides whether the NEXT exploration batch is frontier or bump.
         self._explore_frontier_actions = 0
+        # MIN-BUMP HOIST anti-spin guard (Run-32): consecutive hoisted batches that fired NO new bump,
+        # plus the bumps_probed watermark used to re-arm the hoist the moment ANY bump fires (hoisted
+        # or not). At 3 consecutive empty hoisted batches the hoist stands down and the normal
+        # reactive path runs, so an env with nothing left to bump cannot spin on exploration forever.
+        self._hoist_empty_streak = 0
+        self._hoist_bumps_seen = 0
         # PLAYER COLOR SET (Run-23): the color(s) the ACTIVE program's player unit renders as, inferred
         # model-agnostically from the program (the cells that MOVE when the program steps ARE the player)
         # and cached. `_player_position`/`_bump_player_cells` key off `_player_color_set`, not a
@@ -2988,6 +3001,21 @@ class EwmAgent:
             self.summary.modes.append(mode)
 
             if mode == "RECOVER":
+                # MIN-BUMP HOIST (Run-32): while the exploration_min_bump_actions floor is unmet,
+                # spend this reactive turn on ONE exploration batch instead — runs 31-32 fired zero
+                # bumps because ~97% of turns landed here and the plan-empty + goal-discovery-ready
+                # exploration window below never opened (see _hoist_bump_batch).
+                hoisted = self._hoist_bump_batch(frame)
+                if hoisted is not None:
+                    result, diverged = hoisted
+                    if self._result_done(result):
+                        self.summary.won = True
+                        self.summary.stop_reason = "won"
+                        break
+                    if diverged:
+                        self._handle_divergence(frame, decide_image)
+                    prev_frame = frame
+                    continue
                 result = self._reactive_turn(frame, decide_image)
                 if self._result_done(result):
                     self.summary.won = True
@@ -3077,6 +3105,26 @@ class EwmAgent:
                 # in the suite) + the recalled source reach the model — the evidence that lets it add
                 # the missing wall/collision blocking. Reactive fallback only if there is nothing to
                 # repair (no program, or the model held).
+                #
+                # MIN-BUMP HOIST (Run-32): before burning this turn on a blind reactive probe, honor
+                # the min-bump floor with ONE exploration batch — INDEPENDENT of _goal_discovery_ready
+                # (runs 31-32: that gate never opened, so contact probing was luck-gated to zero).
+                hoisted = self._hoist_bump_batch(frame)
+                if hoisted is not None:
+                    result, diverged = hoisted
+                    if self._result_done(result):
+                        self.summary.won = True
+                        self.summary.stop_reason = "won"
+                        break
+                    if diverged:
+                        self._handle_divergence(frame, decide_image)
+                    elif self._live_diverged():
+                        # Same live-divergence REPAIR engagement as the reactive fallback below
+                        # (Run-14): an empirical bump batch carries no expect grids, so a
+                        # mispredicting program only surfaces through the observed-transition check.
+                        self._handle_divergence(frame, decide_image)
+                    prev_frame = frame
+                    continue
                 reactive = self._reactive_turn(frame, decide_image)
                 if self._result_done(reactive):
                     self.summary.won = True
@@ -3244,6 +3292,52 @@ class EwmAgent:
         if total <= 0:
             return True  # nothing executed yet: seed the interleave with a bump batch
         return (bumps / total) < self.config.bump_quota_fraction
+
+    def _hoist_bump_batch(
+        self, frame: dict[str, Any]
+    ) -> tuple[dict[str, Any], bool] | None:
+        """MIN-BUMP HOIST (Run-32): run ONE exploration batch from the MAIN turn loop, in place of a
+        reactive/RECOVER turn, while the ``exploration_min_bump_actions`` floor is unmet. Returns the
+        batch's ``(result, diverged)``, or None when the hoist is not due this turn.
+
+        Run-32 evidence (runs 30-32): exploration previously ran ONLY when a plan came back empty AND
+        :meth:`_goal_discovery_ready` held — the model mispredicts movement on nearly every planned
+        action, so ~97% of turns are reactive and that window almost never opens (run 30 hit it once:
+        bumps_probed=8, bumps_found=5; runs 31-32 never did: bump_due_batches=0 despite 76 and 102
+        actions), leaving the Run-22 MIN-BUMP GUARANTEE vacuous. Hoisting the floor into :meth:`run`
+        makes contact probing turn-driven, not luck-gated. The hoist is INDEPENDENT of
+        _goal_discovery_ready; :meth:`_explore_batch` still dispatches bump-vs-frontier via
+        :meth:`_bump_quota_due` (due below the floor), preserving every bump dedup/skip-reason
+        semantic unchanged.
+
+        ANTI-SPIN GUARD: 3 consecutive hoisted batches that fire no new bump stand the hoist down
+        (the normal reactive path runs) until ANY bump fires, so an env with nothing left to bump
+        cannot spend every reactive turn re-entering exploration."""
+
+        # Re-arm on ANY bump fired since the last check — a bump from the goal-discovery exploration
+        # path also clears the standdown.
+        if self.summary.bumps_probed > self._hoist_bumps_seen:
+            self._hoist_empty_streak = 0
+        self._hoist_bumps_seen = self.summary.bumps_probed
+        if self.program is None:
+            return None
+        if self.summary.bumps_probed >= max(0, self.config.exploration_min_bump_actions):
+            return None  # floor met: the ratio quota inside exploration governs from here
+        if not self._bump_quota_due():
+            return None  # bump probing disabled (bump_probes off / quota fraction <= 0)
+        if frame.get("done") or self._out_of_budget(frame):
+            return None
+        if self._hoist_empty_streak >= 3:
+            return None  # anti-spin standdown: wait for a bump to fire before hoisting again
+        self.summary.hoisted_bump_batches += 1
+        before = self.summary.bumps_probed
+        result, diverged = self._explore_batch(frame)
+        if self.summary.bumps_probed > before:
+            self._hoist_empty_streak = 0
+        else:
+            self._hoist_empty_streak += 1
+        self._hoist_bumps_seen = self.summary.bumps_probed
+        return result, diverged
 
     def _frontier_execute(self, frame: dict[str, Any]) -> tuple[dict[str, Any], bool]:
         """Plan and run one FRONTIER EXPLORATION batch: the action prefix that visits the most NEW

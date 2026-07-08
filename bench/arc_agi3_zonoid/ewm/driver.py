@@ -723,6 +723,9 @@ def live_run(
             # Run-20 BUMP PROBES + CROSS-RUN COVERAGE PERSISTENCE telemetry.
             "bumps_probed": summary.get("bumps_probed", 0),
             "bumps_found": summary.get("bumps_found", 0),
+            # Run-32 MIN-BUMP HOIST telemetry: exploration batches run from the main turn loop in
+            # place of a reactive/RECOVER turn to honor the min-bump floor.
+            "hoisted_bump_batches": summary.get("hoisted_bump_batches", 0),
             "coverage_resumed_pct": summary.get("coverage_resumed_pct", 0.0),
             "coverage_persisted": summary.get("coverage_persisted", False),
             # Run-23 SILENT-DROP DIAGNOSTICS + CONFIG ECHO: make a dropped field / no-op bump visible.
