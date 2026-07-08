@@ -3,8 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "d070c9d8-a489-4a61-80e2-f4d17353b274",
   "branch": "orch/attempt/codex-empirical-movement-geometry-observed-delta-map-feeds-stride-lattice-and-walk-ste",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-07-08T00:47:49.398Z",
   "lease_until": "2026-07-08T01:47:49.398Z",
-  "completed_at": "2026-07-08T01:11:57.437Z"
+  "completed_at": "2026-07-08T01:12:18.129Z"
 }
