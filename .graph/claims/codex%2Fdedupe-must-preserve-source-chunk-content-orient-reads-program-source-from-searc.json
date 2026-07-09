@@ -3,8 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "d070c9d8-a489-4a61-80e2-f4d17353b274",
   "branch": "orch/attempt/codex-dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-07-09T13:27:52.000Z",
   "lease_until": "2026-07-09T14:27:52.000Z",
-  "completed_at": "2026-07-09T13:46:36.087Z"
+  "completed_at": "2026-07-09T13:46:51.920Z"
 }
