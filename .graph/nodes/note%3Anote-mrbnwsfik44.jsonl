@@ -10,3 +10,4 @@
 {"evt":"edge_removed","from":"note:note-mrbnwsfik44","to":"note:note-mrbeygoar8j","kind":"context","actor":"overlay-sync","ts":"2026-07-08T06:44:37.780Z"}
 {"evt":"edge_removed","from":"note:note-mrbnwsfik44","to":"note:note-mr6httweaeo","kind":"context","actor":"overlay-sync","ts":"2026-07-08T06:55:53.582Z"}
 {"evt":"edge_added","from":"note:note-mrbnwsfik44","to":"codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche","kind":"context","actor":"overlay-sync","ts":"2026-07-09T14:52:32.824Z","weight":0,"by":"autowire","judged":false,"score":0.521,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mrbnwsfik44","to":"codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche","kind":"context","actor":"overlay-sync","ts":"2026-07-09T14:54:03.689Z","weight":0.521,"by":"judge","judged":true,"score":0.521,"origin":"autowire-semantic"}
