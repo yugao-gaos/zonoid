@@ -89,3 +89,6 @@
 {"evt":"edge_removed","from":"note:note-mqjotmlck7u","to":"note:note-mqflqx78zk2","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_added","from":"note:note-mqjotmlck7u","to":"codex/fix-silent-bump-approach-early-return-in-_bump_discovery-run-25-live-finding","kind":"context","actor":"overlay-sync","ts":"2026-07-07T23:01:19.031Z","weight":0,"by":"autowire","judged":false,"score":0.414,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqjotmlck7u","to":"codex/fix-silent-bump-approach-early-return-in-_bump_discovery-run-25-live-finding","kind":"context","actor":"overlay-sync","ts":"2026-07-07T23:23:34.847Z"}
+{"evt":"note_superseded","id":"note-mqjotmlck7u","supersededBy":"note-mrdghicnc6j","validTo":"2026-07-09T12:01:24.263Z","ts":"2026-07-09T12:01:24.263Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mqjotmlck7u","to":"followup/investigate-search-arm-0-notes-not-appea-o05d","kind":"context","actor":"overlay-sync","ts":"2026-07-09T12:16:07.897Z"}
+{"evt":"edge_removed","from":"note:note-mqjotmlck7u","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-07-09T12:16:07.897Z"}
