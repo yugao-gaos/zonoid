@@ -16,3 +16,4 @@
 {"evt":"edge_removed","from":"note:note-mrdgxaku2cv","to":"note:note-mrbivetaj8p","kind":"context","actor":"overlay-sync","ts":"2026-07-09T12:39:18.643Z"}
 {"evt":"edge_removed","from":"note:note-mrdgxaku2cv","to":"note:note-mr5efmyx6hw","kind":"context","actor":"overlay-sync","ts":"2026-07-09T12:39:24.156Z"}
 {"evt":"edge_removed","from":"note:note-mrdgxaku2cv","to":"note:note-mqflwx2dys0","kind":"context","actor":"overlay-sync","ts":"2026-07-09T12:48:08.476Z"}
+{"evt":"edge_promoted","from":"note:note-mrdgxaku2cv","to":"codex/kbclient-omits-task_key-on-read-searches-when-synthetic-so-corroboration-gate-st","kind":"context","actor":"overlay-sync","ts":"2026-07-09T12:56:03.461Z","weight":0.697,"by":"judge","judged":true,"score":0.697,"origin":"autowire-semantic"}
