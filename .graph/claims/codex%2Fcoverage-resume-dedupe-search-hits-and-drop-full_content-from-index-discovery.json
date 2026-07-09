@@ -3,7 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "d070c9d8-a489-4a61-80e2-f4d17353b274",
   "branch": "orch/attempt/codex-coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-07-09T12:01:32.582Z",
-  "lease_until": "2026-07-09T13:01:32.582Z"
+  "lease_until": "2026-07-09T13:01:32.582Z",
+  "completed_at": "2026-07-09T12:14:37.382Z"
 }
