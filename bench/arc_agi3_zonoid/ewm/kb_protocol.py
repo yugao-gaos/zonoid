@@ -516,8 +516,10 @@ def _is_game_scoped(note: dict[str, Any], game_id: str) -> bool:
 
 # Chunk markers a full_content /search hit key can carry (Run-35, verified live): a transcript-chunk
 # suffix (`<base>#k3`) or a source-cluster chunk suffix (`...:chunk-3`). Stripping them recovers the
-# note-level identity so a dozen chunk copies of ONE note dedupe to one hit.
-_HIT_CHUNK_MARKER_RE = re.compile(r"(?:#k\d+|:chunk-\d+)$")
+# note-level identity so a dozen chunk copies of ONE note dedupe to one hit. The captured index is
+# the chunk's position, used to order duplicate chunk payloads when merging them (chunks are
+# contiguous slices of one body, so marker order IS document order).
+_HIT_CHUNK_MARKER_RE = re.compile(r"(?:#k(\d+)|:chunk-(\d+))$")
 # A `knowledge:source_*` cluster-artifact key embeds its parent note id as a `note-<id>` token (the
 # daemon's long-note splitter builds artifact ids from the note's bare id — lib/note-source-cluster.js).
 _HIT_NOTE_ID_RE = re.compile(r"(note-[0-9a-z]+)")
@@ -541,20 +543,89 @@ def _hit_note_identity(hit: dict[str, Any]) -> str:
     return "title:" + str(hit.get("title", ""))
 
 
-def _dedupe_hits(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Collapse chunk-level duplicate hits of one note to its FIRST (best-ranked) hit, preserving
-    first-occurrence rank order (Run-35: with ``full_content`` the daemon returns CHUNK-level hits,
-    so one long note's dozen chunk copies could eat the whole top-k)."""
+def _hit_chunk_index(hit: dict[str, Any]) -> int | None:
+    """The chunk position a hit's key carries (``#k3`` / ``:chunk-3``), or ``None`` for a plain key."""
 
-    seen: set[str] = set()
-    out: list[dict[str, Any]] = []
+    for field in ("key", "id", "note_key"):
+        value = hit.get(field)
+        if isinstance(value, str) and value.strip():
+            m = _HIT_CHUNK_MARKER_RE.search(value.strip())
+            if m:
+                return int(m.group(1) or m.group(2))
+            return None
+    return None
+
+
+def _merge_hit_group(group: list[dict[str, Any]]) -> dict[str, Any]:
+    """Collapse ONE note's duplicate chunk-level hits into a single CONTENT-PRESERVING hit.
+
+    Cycle-8's dedupe kept only the first-ranked duplicate, which broke ORIENT in run 36: the
+    survivor could be a stub ``knowledge:source_*`` artifact (or a parent hit with only a clipped
+    summary) while the program source lived in the CONTENT of the collapsed source-chunk copies.
+    The merged survivor:
+
+    * bases on the first duplicate carrying a REAL note key — never a ``knowledge:`` artifact when
+      a real key is present — so downstream index/artifact classification (``_is_cluster_artifact``)
+      still recognizes the note; and
+    * exposes the group's fullest content: the ordered concatenation of the distinct chunk-marker
+      payloads when that is the richer body (source-cluster chunks are exact contiguous slices of
+      one note body, so marker-order concatenation reconstructs it), else the largest single
+      content among the duplicates.
+    """
+
+    if len(group) == 1:
+        return group[0]
+    base = next(
+        (
+            h
+            for h in group
+            if not str(h.get("key") or h.get("id") or "").startswith("knowledge:")
+        ),
+        group[0],
+    )
+
+    def _content(hit: dict[str, Any]) -> str:
+        value = hit.get("content")
+        return value if isinstance(value, str) and value.strip() else ""
+
+    # Ordered distinct chunk payloads (marker order == document order for contiguous slices).
+    marked: list[tuple[int, str]] = []
+    seen_text: set[str] = set()
+    for h in group:
+        text = _content(h)
+        idx = _hit_chunk_index(h)
+        if not text or idx is None or text in seen_text:
+            continue
+        seen_text.add(text)
+        marked.append((idx, text))
+    marked.sort(key=lambda pair: pair[0])
+    joined = "".join(text for _, text in marked)
+    best_single = max((_content(h) for h in group), key=len, default="")
+    merged = joined if len(joined) > len(best_single) else best_single
+    if not merged or merged == _content(base):
+        return base
+    out = dict(base)
+    out["content"] = merged
+    return out
+
+
+def _dedupe_hits(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse chunk-level duplicate hits of one note to a single hit at the note's FIRST
+    (best-ranked) position, preserving first-occurrence rank order (Run-35: with ``full_content``
+    the daemon returns CHUNK-level hits, so one long note's dozen chunk copies could eat the whole
+    top-k). The collapse is CONTENT-PRESERVING (:func:`_merge_hit_group`): the survivor carries the
+    group's fullest body so a consumer that reads program source off hit content (ORIENT) still
+    sees it — run 36 broke because the plain first-hit dedupe kept only a clipped stub."""
+
+    order: list[str] = []
+    groups: dict[str, list[dict[str, Any]]] = {}
     for hit in hits:
         ident = _hit_note_identity(hit)
-        if ident in seen:
-            continue
-        seen.add(ident)
-        out.append(hit)
-    return out
+        if ident not in groups:
+            groups[ident] = []
+            order.append(ident)
+        groups[ident].append(hit)
+    return [_merge_hit_group(groups[ident]) for ident in order]
 
 
 def _search_full_content(client: Any, q: str, k: int) -> list[dict[str, Any]]:
@@ -694,7 +765,18 @@ def search_for_mode(
             # Prefer a note whose body actually carries the chunk-count field (a real chunked index)
             # over any bare same-title note left over from an older single-note write.
             chunked = [h for h in index_hits if _INDEX_CHUNKS_RE.search(_note_text(h) + " " + str(h.get("content", "")))]
-            return chunked or index_hits or scoped
+            preferred = chunked or index_hits
+            if preferred:
+                # Run-36 regression: the preferred index hit can come back GUTTED — the daemon's
+                # source-cluster rewrite replaces a code-like index body with a stub, dropping the
+                # `chunk count:` tail AND any inline source (verified live: the ls20 index note's
+                # full body is a 595-char stub). Returning ONLY the index then shadows the scoped
+                # sibling hits whose parent notes still carry the full program (the native
+                # get_note_full path runs 33-35 adopted through). Keep the preferred hits FIRST but
+                # append the remaining scoped hits so the agent's per-hit resolver can fall through.
+                rest = [h for h in scoped if h not in preferred]
+                return preferred + rest
+            return scoped
         # An EMPTY program search that FAILED on a daemon timeout (Run-17) is NOT a new game: it is a
         # retryable outage, and the stored program may still be there. Return [] WITHOUT running the
         # hypothesis-menu search (which would issue a second client call and CLEAR last_search_failed,

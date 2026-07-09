@@ -924,6 +924,171 @@ class SearchHitDedupeTest(unittest.TestCase):
         self.assertEqual(len(out), 2)
 
 
+class ContentPreservingDedupeTest(unittest.TestCase):
+    """Run-36 regression: the cycle-8 dedupe kept only the FIRST duplicate hit, so a note whose
+    program source lived in the CONTENT of its source-chunk copies collapsed to a parent hit
+    carrying only a clipped summary — ORIENT then saw "no source in hit" and the whole run went
+    reactive. The collapse must be CONTENT-PRESERVING: one hit per note, carrying the group's
+    fullest body."""
+
+    def _program_note(self):
+        source = (
+            "def step(state, action):\n"
+            "    # translate the linked unit unless a wall blocks it\n"
+            "    return state, []\n"
+            + "".join(f"# filler line {i}\n" for i in range(20))
+        )
+        body = f"prose retrieval key for the ls20 program\n\nprogram source:\n{source}"
+        return source, body
+
+    def test_source_chunk_contents_survive_collapse(self) -> None:
+        # Parent hit carries only a CLIPPED body; the full body lives across two source-cluster
+        # chunk copies (exact contiguous slices). Post-collapse, an ORIENT-shaped consumer reading
+        # the survivor's content must still recover the FULL program source.
+        source, body = self._program_note()
+        cut = 60
+        hits = [
+            {
+                "key": "note:note-prog",
+                "title": "game ls20 world model program",
+                "summary": body[:200],
+                "content": body[:cut],  # clipped — no full source here
+            },
+            {
+                "key": "knowledge:source_chunk:note-prog:chunk-1",
+                "title": "game ls20 world model program evidence",
+                "content": body[:cut],
+            },
+            {
+                "key": "knowledge:source_chunk:note-prog:chunk-2",
+                "title": "game ls20 world model program evidence",
+                "content": body[cut:],
+            },
+        ]
+        out = kb_protocol._search_full_content(_StaticSearchClient(hits), "q", k=20)
+        self.assertEqual(len(out), 1)  # still ONE hit per note (the cycle-8 flood guarantee)
+        survivor = out[0]
+        # Survivor keeps the REAL note key so index/artifact classification still recognizes it.
+        self.assertEqual(survivor["key"], "note:note-prog")
+        # ORIENT-shaped consumer: pull source out of the hit body via the `program source:` marker.
+        merged = survivor["content"]
+        idx = merged.lower().find("program source:")
+        self.assertNotEqual(idx, -1)
+        extracted = merged[idx + len("program source:"):].strip()
+        self.assertEqual(extracted, source.strip())  # FULL source, not a clipped prefix
+
+    def test_chunk_payloads_join_in_marker_order_not_rank_order(self) -> None:
+        # The daemon returns chunk copies in RELEVANCE order; the merge must reassemble them in
+        # chunk-marker order (document order) or the source is scrambled.
+        source, body = self._program_note()
+        cut = 60
+        hits = [
+            {
+                "key": "knowledge:source_chunk:note-prog:chunk-2",
+                "title": "game ls20 world model program evidence",
+                "content": body[cut:],
+            },
+            {
+                "key": "note:note-prog",
+                "title": "game ls20 world model program",
+                "summary": body[:200],
+            },
+            {
+                "key": "knowledge:source_chunk:note-prog:chunk-1",
+                "title": "game ls20 world model program evidence",
+                "content": body[:cut],
+            },
+        ]
+        out = kb_protocol._search_full_content(_StaticSearchClient(hits), "q", k=20)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["key"], "note:note-prog")
+        self.assertEqual(out[0]["content"], body)
+
+    def test_stub_artifact_never_shadows_richer_parent_content(self) -> None:
+        # A zero-content `knowledge:source_doc` artifact ranking ABOVE its parent note must not
+        # become the survivor: the parent's real key and content win regardless of rank.
+        hits = [
+            {
+                "key": "knowledge:source_doc:note-idx",
+                "title": "game ls20 world model program evidence",
+                "summary": "[Long raw evidence preserved as structured source chunks.]",
+            },
+            {
+                "key": "note:note-idx",
+                "title": "game ls20 world model program",
+                "summary": "prose",
+                "content": "prose\n\nchunk count: 9\nsource length: 8000",
+            },
+        ]
+        out = kb_protocol._search_full_content(_StaticSearchClient(hits), "q", k=20)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["key"], "note:note-idx")
+        self.assertIn("chunk count: 9", out[0]["content"])
+
+    def test_single_hit_groups_returned_unchanged(self) -> None:
+        hits = [{"key": "note:note-a", "title": "alpha", "content": "body"}]
+        out = kb_protocol._search_full_content(_StaticSearchClient(hits), "q", k=20)
+        self.assertIs(out[0], hits[0])  # no copy when there is nothing to merge
+
+
+class OrientGuttedIndexFallthroughTest(unittest.TestCase):
+    """Run-36 regression, second half: the daemon's source-cluster rewrite GUTS a code-like index
+    body to a stub (verified live: the ls20 index note's full body is a 595-char stub with no
+    `chunk count:` and no source). ORIENT's index preference must not then SHADOW the scoped
+    sibling hits whose parent notes still carry the program — it returns the index FIRST but keeps
+    the siblings behind it for the agent's per-hit resolver to fall through to."""
+
+    def test_gutted_index_keeps_scoped_siblings_behind_it(self) -> None:
+        hits = [
+            {
+                "key": "note:note-idx",
+                "title": "game ls20 world model program",
+                "summary": "stub",
+                "content": "prose\n\n[Long raw evidence preserved as structured source chunks.]",
+            },
+            {
+                "key": "knowledge:source_doc:note-old1",
+                "title": "game ls20 world model program evidence",
+                "summary": "[Long raw evidence preserved as structured source chunks.]",
+            },
+            {
+                "key": "knowledge:source_doc:note-old2",
+                "title": "game ls20 world model program evidence",
+                "summary": "[Long raw evidence preserved as structured source chunks.]",
+            },
+        ]
+        out = kb_protocol.search_for_mode(
+            "ORIENT", "ls20", client=_StaticSearchClient(hits)
+        )
+        # Pre-fix this returned ONLY the gutted index hit — the artifacts whose parents carry the
+        # full program (the native get_note_full path runs 33-35 adopted through) were discarded.
+        self.assertEqual(
+            [h["key"] for h in out],
+            ["note:note-idx", "knowledge:source_doc:note-old1", "knowledge:source_doc:note-old2"],
+        )
+
+    def test_chunked_index_still_preferred_and_first(self) -> None:
+        # A REAL chunked index (body carries `chunk count:`) still wins the front of the list.
+        hits = [
+            {
+                "key": "knowledge:source_doc:note-old1",
+                "title": "game ls20 world model program evidence",
+                "summary": "stub",
+            },
+            {
+                "key": "note:note-idx",
+                "title": "game ls20 world model program",
+                "summary": "prose",
+                "content": "prose\n\nchunk count: 9\nsource length: 8000",
+            },
+        ]
+        out = kb_protocol.search_for_mode(
+            "ORIENT", "ls20", client=_StaticSearchClient(hits)
+        )
+        self.assertEqual(out[0]["key"], "note:note-idx")
+        self.assertIn("chunk count: 9", out[0]["content"])
+
+
 class _FloodedDaemonClient:
     """Reproduces the Run-33..35 live daemon behavior that froze coverage resume:
 
