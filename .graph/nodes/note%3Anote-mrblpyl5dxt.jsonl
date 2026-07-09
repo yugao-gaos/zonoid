@@ -33,3 +33,5 @@
 {"evt":"edge_removed","from":"note:note-mrblpyl5dxt","to":"note:note-mrdkdsktrr8","kind":"context","actor":"overlay-sync","ts":"2026-07-09T13:55:20.138Z"}
 {"evt":"edge_removed","from":"note:note-mrblpyl5dxt","to":"note:note-mrblq3lm3cl","kind":"context","actor":"overlay-sync","ts":"2026-07-09T13:55:45.994Z"}
 {"evt":"note_supersedes","id":"note-mrblpyl5dxt","supersedes":"note-mrdkdwa7zif","ts":"2026-07-08T04:52:24.281Z","actor":"supersede"}
+{"evt":"note_superseded","id":"note-mrblpyl5dxt","supersededBy":"note-mrdnizjtsd8","validTo":"2026-07-09T15:18:30.521Z","ts":"2026-07-09T15:18:30.521Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mrblpyl5dxt","to":"note:note-mrbge90hlsx","kind":"context","actor":"overlay-sync","ts":"2026-07-09T15:22:33.610Z"}
