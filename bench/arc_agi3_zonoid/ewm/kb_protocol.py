@@ -322,8 +322,10 @@ class KbClient:
         # Run-30: a SYNTHETIC task key (e.g. the driver's "ewm-live-<game>" fallback) is not a real
         # graph task, and the daemon's POST /overlay/note phantom-node guard 404s any wires_to that
         # names an unknown task — which silently dropped run 30's five first-ever live interaction
-        # discoveries. When the key is synthetic, note writes OMIT wires_to entirely (the key is kept
-        # for search-param tagging/logging only); provenance wiring is reserved for real task keys.
+        # discoveries. When the key is synthetic, note writes OMIT wires_to entirely, and (Run-35b)
+        # searches OMIT the task_key param — the daemon corroboration gate prunes uncorroborated
+        # note hits on task_key-scoped reads, and a synthetic key can never corroborate. The key is
+        # kept for logging only; provenance wiring is reserved for real task keys.
         self.synthetic_task_key = synthetic_task_key
         # Retryable-outage signal: set True when the LAST search/note-get failed on a network
         # error (timeout / connection refused), cleared to False on any successful call. ORIENT
@@ -345,11 +347,17 @@ class KbClient:
 
         params = {
             "workspace": self.workspace,
-            "task_key": self.task_key,
             "q": q,
             "k": k,
             "gated": "true" if gated else "false",
         }
+        # Run-35b: a SYNTHETIC key omits task_key on reads too — the daemon corroboration gate
+        # (lib/search/memory-search.js:841, CORROBORATION_MIN=2) prunes uncorroborated note hits
+        # whenever /search carries task_key, and a synthetic key can never corroborate its notes,
+        # so sending it made every EWM note read silently empty live. Real graph task keys keep
+        # sending it (tiered retrieval for genuine tasks is intended).
+        if not self.synthetic_task_key:
+            params["task_key"] = self.task_key
         if full_content:
             params["full_content"] = "1"
         query = parse.urlencode(params)

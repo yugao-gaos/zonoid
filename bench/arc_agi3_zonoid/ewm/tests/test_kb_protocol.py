@@ -73,6 +73,32 @@ class KbClientSearchTest(unittest.TestCase):
         self.assertEqual(q["k"], ["1"])
         self.assertEqual(q["gated"], ["false"])
 
+    def test_search_synthetic_task_key_omits_param(self) -> None:
+        # Run-35b: the daemon corroboration gate (memory-search.js:841, CORROBORATION_MIN=2)
+        # prunes uncorroborated note hits on task_key-scoped searches; a synthetic key can never
+        # corroborate its notes, so the synthetic client must send NO task_key param at all.
+        rec = _Recorder([])
+        client = KbClient(
+            "http://localhost:8787",
+            WORKSPACE,
+            "ewm-live-ls20",
+            timeout_s=7,
+            synthetic_task_key=True,
+        )
+        with mock.patch.object(kb_protocol.request, "urlopen", rec):
+            client.search("game ls20 world model program", k=1)
+        q = _query(rec.calls[0]["url"])
+        self.assertNotIn("task_key", q)
+        self.assertEqual(q["workspace"], [WORKSPACE])
+
+    def test_search_real_task_key_still_sent(self) -> None:
+        # Run-35b guard: a REAL graph task key keeps sending task_key unchanged — tiered
+        # retrieval for genuine graph tasks is intended.
+        rec = _Recorder([])
+        with mock.patch.object(kb_protocol.request, "urlopen", rec):
+            _client().search("q", k=4)
+        self.assertEqual(_query(rec.calls[0]["url"])["task_key"], [TASK_KEY])
+
     def test_search_gated_true(self) -> None:
         rec = _Recorder([])
         with mock.patch.object(kb_protocol.request, "urlopen", rec):
