@@ -7,3 +7,5 @@
 {"evt":"edge_removed","from":"note:note-mrde6f1x6nt","to":"note:note-mrblqc30je8","kind":"context","actor":"overlay-sync","ts":"2026-07-09T11:00:48.626Z"}
 {"evt":"note_supersedes","id":"note-mrde6f1x6nt","supersedes":"note-mrblpvmw797","ts":"2026-07-09T10:56:47.541Z","actor":"supersede"}
 {"evt":"edge_removed","from":"note:note-mrde6f1x6nt","to":"note:note-mrblpvmw797","kind":"context","actor":"overlay-sync","ts":"2026-07-09T11:01:14.400Z"}
+{"evt":"edge_removed","from":"note:note-mrde6f1x6nt","to":"note:note-mrblq1z8yd5","kind":"context","actor":"overlay-sync","ts":"2026-07-09T11:14:22.777Z"}
+{"evt":"edge_removed","from":"note:note-mrde6f1x6nt","to":"note:note-mrblq3lm3cl","kind":"context","actor":"overlay-sync","ts":"2026-07-09T11:14:24.068Z"}
