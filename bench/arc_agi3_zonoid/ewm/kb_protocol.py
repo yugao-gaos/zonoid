@@ -506,14 +506,60 @@ def _is_game_scoped(note: dict[str, Any], game_id: str) -> bool:
     return gid in " ".join(_tokens(note.get("title", "")))
 
 
+# Chunk markers a full_content /search hit key can carry (Run-35, verified live): a transcript-chunk
+# suffix (`<base>#k3`) or a source-cluster chunk suffix (`...:chunk-3`). Stripping them recovers the
+# note-level identity so a dozen chunk copies of ONE note dedupe to one hit.
+_HIT_CHUNK_MARKER_RE = re.compile(r"(?:#k\d+|:chunk-\d+)$")
+# A `knowledge:source_*` cluster-artifact key embeds its parent note id as a `note-<id>` token (the
+# daemon's long-note splitter builds artifact ids from the note's bare id — lib/note-source-cluster.js).
+_HIT_NOTE_ID_RE = re.compile(r"(note-[0-9a-z]+)")
+
+
+def _hit_note_identity(hit: dict[str, Any]) -> str:
+    """Note-level identity of a /search hit, for chunk-hit dedupe (Run-35).
+
+    Key or id with any trailing chunk marker stripped; a ``knowledge:`` cluster-artifact key resolves
+    to its embedded parent ``note-<id>``; a hit with no key at all falls back to its title."""
+
+    for field in ("key", "id", "note_key"):
+        value = hit.get(field)
+        if isinstance(value, str) and value.strip():
+            raw = _HIT_CHUNK_MARKER_RE.sub("", value.strip())
+            if raw.startswith("knowledge:"):
+                m = _HIT_NOTE_ID_RE.search(raw)
+                if m:
+                    return f"note:{m.group(1)}"
+            return raw
+    return "title:" + str(hit.get("title", ""))
+
+
+def _dedupe_hits(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse chunk-level duplicate hits of one note to its FIRST (best-ranked) hit, preserving
+    first-occurrence rank order (Run-35: with ``full_content`` the daemon returns CHUNK-level hits,
+    so one long note's dozen chunk copies could eat the whole top-k)."""
+
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for hit in hits:
+        ident = _hit_note_identity(hit)
+        if ident in seen:
+            continue
+        seen.add(ident)
+        out.append(hit)
+    return out
+
+
 def _search_full_content(client: Any, q: str, k: int) -> list[dict[str, Any]]:
     """``client.search(q, k, full_content=True)``, degrading gracefully for a client whose ``search``
-    predates the ``full_content`` kwarg (older fakes/adapters) by retrying without it."""
+    predates the ``full_content`` kwarg (older fakes/adapters) by retrying without it. Hits are
+    DEDUPED to note level (Run-35): the full_content path returns chunk-level hits, and without the
+    collapse a couple of long notes' chunk copies can crowd every other note out of the top-k."""
 
     try:
-        return client.search(q, k=k, gated=False, full_content=True)
+        hits = client.search(q, k=k, gated=False, full_content=True)
     except TypeError:
-        return client.search(q, k=k, gated=False)
+        hits = client.search(q, k=k, gated=False)
+    return _dedupe_hits(hits)
 
 
 def _is_chunk_note(note: dict[str, Any]) -> bool:
@@ -623,6 +669,10 @@ def search_for_mode(
         # program, every chunk note outscores the index note on this exact query — so the index note
         # can sit well past rank 8. A small k would return only system notes + chunks and miss the
         # index entirely. 20 comfortably clears the system-note + chunk band.
+        # Run-35: this stays on the full_content path — unlike coverage discovery, the hit `content`
+        # IS consumed downstream (the chunk-count preference below, and the agent's legacy
+        # inline/chunk resolvers read the index body straight off the hit). The helper's note-level
+        # DEDUPE keeps a couple of long notes' chunk copies from eating the whole pool.
         hits = _search_full_content(client, q, k=20)
         scoped = [h for h in hits if _is_game_scoped(h, game_id)]
         if scoped:
@@ -688,8 +738,16 @@ def read_coverage_state(client: Any, game_id: str) -> dict[str, Any] | None:
     FRESH sweep. Never raises on a KB outage (the client swallows network errors)."""
 
     q = " ".join(_dedupe(["game", *_tokens(game_id), "coverage", "state"]))
+    # Run-35: index DISCOVERY uses a PLAIN title-level search, NOT full_content. With full_content
+    # the daemon returns CHUNK-level hits, and the 5 always-injected system notes plus near-duplicate
+    # chunk copies of a couple of old long notes ate every one of the 20 slots (verified live, runs
+    # 33-35), so the index note never surfaced, resume silently returned None, and three straight
+    # runs re-swept the same ground (coverage frozen at 0.1301). The plain search ranks at the NOTE
+    # level — where the index actually places — and the full body is fetched natively afterwards
+    # (get_note_full), so chunk content in the discovery response was never used. The chunk-title
+    # FALLBACK fetches below keep full_content: there the response `content` IS the chunk body.
     try:
-        hits = _search_full_content(client, q, k=20)
+        hits = client.search(q, k=20, gated=False)
     except Exception:  # noqa: BLE001 - a KB outage degrades to a fresh sweep
         return None
     scoped = [h for h in hits if _is_game_scoped(h, game_id)]

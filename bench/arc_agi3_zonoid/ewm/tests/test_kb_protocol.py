@@ -833,5 +833,147 @@ class CoverageStateRoundTripTest(unittest.TestCase):
         self.assertIsNone(out)  # no coverage note -> fresh sweep
 
 
+class _StaticSearchClient:
+    """Fake client whose ``search`` replays a canned hit list (for dedupe-shape tests)."""
+
+    def __init__(self, hits) -> None:
+        self.hits = hits
+
+    def search(self, q, k, gated=False, full_content=False):  # noqa: ANN001
+        return self.hits[:k]
+
+
+class SearchHitDedupeTest(unittest.TestCase):
+    """Run-35: with ``full_content`` the daemon returns CHUNK-level hits, so one long note can occupy
+    a dozen top-k slots. ``_search_full_content`` must collapse those copies to the note's FIRST
+    (best-ranked) hit, preserving rank order."""
+
+    def test_same_key_duplicates_dropped_order_preserved(self) -> None:
+        hits = [
+            {"key": "note:note-a", "title": "alpha"},
+            {"key": "note:note-b", "title": "beta"},
+            {"key": "note:note-a", "title": "alpha"},
+            {"key": "note:note-c", "title": "gamma"},
+            {"key": "note:note-b", "title": "beta"},
+        ]
+        out = kb_protocol._search_full_content(_StaticSearchClient(hits), "q", k=20)
+        self.assertEqual([h["key"] for h in out], ["note:note-a", "note:note-b", "note:note-c"])
+
+    def test_chunk_suffix_copies_collapse_to_first_hit(self) -> None:
+        # Live daemon shape (runs 33-35): one knowledge item returns a hit per chunk, keys differing
+        # only by the trailing #kN chunk marker; cluster artifacts differ by a :chunk-N marker.
+        hits = [
+            {"key": "6b04b7a6/22#k1", "title": "note judge verdict alpha"},
+            {"key": "6b04b7a6/22#k7", "title": "note judge verdict alpha"},
+            {"key": "knowledge:source_chunk:note-xyz#note-evidence:chunk-1", "title": "prog evidence chunk 1"},
+            {"key": "knowledge:source_chunk:note-xyz#note-evidence:chunk-2", "title": "prog evidence chunk 2"},
+            {"key": "note:note-cov", "title": "game ls20 coverage state"},
+        ]
+        out = kb_protocol._search_full_content(_StaticSearchClient(hits), "q", k=20)
+        self.assertEqual(
+            [h["key"] for h in out],
+            [
+                "6b04b7a6/22#k1",
+                "knowledge:source_chunk:note-xyz#note-evidence:chunk-1",
+                "note:note-cov",
+            ],
+        )
+
+    def test_title_fallback_when_no_key(self) -> None:
+        hits = [
+            {"title": "same note"},
+            {"title": "same note"},
+            {"title": "other note"},
+        ]
+        out = kb_protocol._search_full_content(_StaticSearchClient(hits), "q", k=20)
+        self.assertEqual([h["title"] for h in out], ["same note", "other note"])
+
+    def test_distinct_notes_never_collapsed(self) -> None:
+        # Real chunk NOTES (separate notes titled "chunk n of N") have distinct keys — never merged.
+        hits = [
+            {"key": "note:note-1", "title": "game ls20 coverage chunk 1 of 2"},
+            {"key": "note:note-2", "title": "game ls20 coverage chunk 2 of 2"},
+        ]
+        out = kb_protocol._search_full_content(_StaticSearchClient(hits), "q", k=20)
+        self.assertEqual(len(out), 2)
+
+
+class _FloodedDaemonClient:
+    """Reproduces the Run-33..35 live daemon behavior that froze coverage resume:
+
+    * ``full_content=True`` search returns CHUNK-level hits — 5 always-injected system notes plus
+      near-duplicate chunk copies of two old long notes — eating ALL k slots; the coverage index
+      note never surfaces.
+    * PLAIN search (no full_content) ranks at the TITLE level, where the coverage index note places
+      inside top-k (observed live: rank [5]).
+    * ``get_note_full`` serves the index note's full body natively.
+    """
+
+    def __init__(self, game_id: str, full_body: str) -> None:
+        self.full_body = full_body
+        self.index_key = "note:note-cov"
+        sys_notes = [
+            {"key": f"note:note-sys{i}", "title": f"workspace anchor {i}", "summary": "anchor", "tier": "system"}
+            for i in range(5)
+        ]
+        flood = [
+            {"key": f"6b04b7a6/22#k{i}", "title": "note judge verdict alpha", "summary": "chunk", "content": "chunk text"}
+            for i in range(1, 11)
+        ] + [
+            {"key": f"4b12fe1f/12#k{i}", "title": "note judge verdict beta", "summary": "chunk", "content": "chunk text"}
+            for i in range(1, 10)
+        ]
+        # 5 system + 19 chunk copies = 24 candidates; a k=20 fetch never reaches the index note.
+        self.full_hits = sys_notes + flood
+        length = len(full_body.encode("utf-8"))
+        index_summary = (
+            "coverage state index\n"
+            "chunk count: 1\n"
+            f"source length: {length}\n\n"
+            "coverage stored in chunk notes titled 'game ls20 coverage chunk 1 of 1' .. "
+            "'game ls20 coverage chunk 1 of 1'."
+        )[:200]
+        self.plain_hits = sys_notes + [
+            {"key": self.index_key, "title": f"game {game_id} coverage state", "summary": index_summary},
+        ]
+        self.full_calls = 0
+        self.plain_calls = 0
+
+    def search(self, q, k, gated=False, full_content=False):  # noqa: ANN001
+        if full_content:
+            self.full_calls += 1
+            return self.full_hits[:k]
+        self.plain_calls += 1
+        return self.plain_hits[:k]
+
+    def get_note_full(self, key):  # noqa: ANN001
+        if key == self.index_key:
+            return {"ok": True, "key": key, "full_body": self.full_body}
+        return {"ok": False, "error": "http 404"}
+
+
+class CoverageResumeChunkFloodRegressionTest(unittest.TestCase):
+    """Run-35 regression: index DISCOVERY through a full_content search let 5 system notes + 19
+    duplicate chunk copies eat every slot, so resume silently returned None and three straight runs
+    cloned each other (coverage frozen at 0.1301). Discovery must use the PLAIN title-level search —
+    where the index note actually ranks — and fetch the body natively afterwards."""
+
+    def test_resume_resolves_despite_full_content_chunk_flood(self) -> None:
+        visited = {(1, 0, c) for c in range(5)}
+        probes = {("SPACE", "objA")}
+        body = kb_protocol.encode_coverage_state(visited, probes, board_cells=100)
+        client = _FloodedDaemonClient("ls20", body)
+
+        out = kb_protocol.read_coverage_state(client, "ls20")
+
+        self.assertIsNotNone(out)  # pre-fix: full_content flood -> None -> fresh sweep
+        self.assertEqual(out["visited"], visited)
+        self.assertEqual(out["probes"], probes)
+        self.assertEqual(out["board"], 100)
+        # Discovery went through the plain title-level search, not the floodable full_content path.
+        self.assertGreaterEqual(client.plain_calls, 1)
+        self.assertEqual(client.full_calls, 0)
+
+
 if __name__ == "__main__":
     unittest.main()
