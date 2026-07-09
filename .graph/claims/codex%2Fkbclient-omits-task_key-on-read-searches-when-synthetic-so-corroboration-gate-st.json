@@ -3,8 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "d070c9d8-a489-4a61-80e2-f4d17353b274",
   "branch": "orch/attempt/codex-kbclient-omits-task_key-on-read-searches-when-synthetic-so-corroboration-gate-st",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-07-09T12:17:42.213Z",
   "lease_until": "2026-07-09T13:17:42.213Z",
-  "completed_at": "2026-07-09T12:21:16.286Z"
+  "completed_at": "2026-07-09T12:21:54.766Z"
 }
