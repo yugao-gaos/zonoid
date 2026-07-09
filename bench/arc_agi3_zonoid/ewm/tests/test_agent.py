@@ -4022,6 +4022,38 @@ class BumpQuotaInterleaveTests(unittest.TestCase):
         ag._explore_batch(env.observe())
         self.assertEqual(ag.summary.bumps_probed, before)
 
+    def test_fired_bump_records_durable_object_identity(self):
+        # Run-38 GAP-1 wiring: a FIRED bump must record its translation-invariant object_hash in
+        # _fired_bump_objects (the set _persist_coverage writes as <bump> probe tokens). Run-37
+        # fired 12 bumps yet the persisted note carried probes=[] — nothing wired the identities in.
+        env = _QuotaMultiBlockEnv()
+        ag = self._trusted_agent(env, QUOTA_MODEL_SOURCE, exploration_min_bump_actions=24)
+        self.assertEqual(ag._fired_bump_objects, set())
+        ag._explore_batch(env.observe())
+        self.assertGreaterEqual(ag.summary.bumps_probed, 1)
+        self.assertGreaterEqual(len(ag._fired_bump_objects), 1)
+        # The recorded identity is the same durable key bump dedup uses (an attempted object hash).
+        self.assertTrue(ag._fired_bump_objects <= ag._bump_attempted)
+
+    def test_bump_contexts_order_resumed_probed_objects_last(self):
+        # Run-38 GAP-1 resume side: objects a PRIOR run already bump-probed rank LAST in
+        # _bump_contexts — untried objects first — but stay bumpable (prefer-not-exclude).
+        env = _QuotaMultiBlockEnv()
+        ag = self._trusted_agent(env, QUOTA_MODEL_SOURCE)
+        contexts = ag._bump_contexts(env._grid())
+        self.assertGreaterEqual(len(contexts), 2)
+        cheapest = contexts[0][0]
+        ag._resumed_bump_probes.add(cheapest)
+        reordered = ag._bump_contexts(env._grid())
+        # Still present (the board can change — a resumed-probed object is never excluded)...
+        self.assertIn(cheapest, [c[0] for c in reordered])
+        # ...but ranked last, behind every untried object.
+        self.assertEqual(reordered[-1][0], cheapest)
+        self.assertNotIn(cheapest, [c[0] for c in reordered[:-1]])
+        # Untried objects keep their cheapest-first order among themselves.
+        untried_costs = [c[3] for c in reordered[:-1]]
+        self.assertEqual(untried_costs, sorted(untried_costs))
+
 
 class MinBumpHoistTests(unittest.TestCase):
     """Run-32: the MIN-BUMP GUARANTEE is hoisted into the MAIN turn loop. Runs 31-32 fired ZERO bumps
@@ -4080,19 +4112,62 @@ class MinBumpHoistTests(unittest.TestCase):
             "the hoisted batch must actually fire contact bumps (run-31/32: bumps stuck at 0)",
         )
 
-    def test_no_hoist_once_min_bump_floor_met(self):
-        # bumps_probed >= exploration_min_bump_actions -> the guarantee is honored; reactive turns
-        # stay reactive (the ratio quota inside the exploration path governs from here).
+    def test_no_bump_hoist_once_min_bump_floor_met_frontier_continues(self):
+        # bumps_probed >= exploration_min_bump_actions -> the bump guarantee is honored, so no BUMP
+        # hoist fires. Run-38: the hoist does NOT stand down — it continues as FRONTIER batches so
+        # coverage keeps growing (run-37: coverage froze at 13.01% with frontier_batches=0 because
+        # hoisting stopped entirely at the floor).
         env = _QuotaMultiBlockEnv(budget=30)
         ag = self._hoist_agent(env, exploration_min_bump_actions=4, max_turns=3)
         ag.summary.bumps_probed = 4  # floor already met
         ag._failure_cycles = ag.config.reactive_after_failures
         ag.run()
         self.assertEqual(ag.summary.hoisted_bump_batches, 0)
+        self.assertGreaterEqual(ag.summary.hoisted_frontier_batches, 1)
+
+    def test_hoist_transitions_to_frontier_once_floor_met(self):
+        # Run-38 GAP-2 unit shape: floor met -> the hoisted batch is dispatched through
+        # _explore_batch, whose quota (ratio 4/4 >= 0.4 -> not due) falls through to
+        # _frontier_execute. The hoist counts a FRONTIER batch, not a bump batch.
+        env = _QuotaMultiBlockEnv(budget=60)
+        ag = self._hoist_agent(env, exploration_min_bump_actions=4)
+        ag.summary.bumps_probed = 4  # floor met, no frontier actions yet -> quota not due
+        self.assertIsNotNone(ag._hoist_bump_batch(env.observe()))
+        self.assertEqual(ag.summary.hoisted_bump_batches, 0)
+        self.assertEqual(ag.summary.hoisted_frontier_batches, 1)
+        self.assertEqual(ag.summary.frontier_batches, 1)
+
+    def test_frontier_anti_spin_stands_down_after_three_zero_growth_batches(self):
+        # Run-38: 3 consecutive hoisted FRONTIER batches with ZERO coverage growth stand the
+        # frontier hoist down (mirror of the bump anti-spin); ANY coverage growth re-arms it.
+        env = _QuotaMultiBlockEnv(budget=400)
+        ag = self._hoist_agent(env, exploration_min_bump_actions=0, bump_quota_fraction=0.0)
+        # Pre-cover the whole level-1 board so no frontier batch can grow coverage.
+        grid = env._grid()
+        for r in range(len(grid)):
+            for c in range(len(grid[0])):
+                ag._coverage_cells.add((1, r, c))
+        # Dedup every block class: the plateaued frontier's interaction-discovery handoff would
+        # otherwise fire bumps, which count as progress (a batch that fires a bump must not advance
+        # the frontier standdown) and would legitimately defer the guard.
+        for (obj_hash, _approach, _direction, _cost) in ag._bump_contexts(grid):
+            ag._bump_attempted.add(obj_hash)
+        for _ in range(3):
+            self.assertIsNotNone(ag._hoist_bump_batch(env.observe()))
+        self.assertEqual(ag.summary.hoisted_frontier_batches, 3)
+        self.assertEqual(ag.summary.hoisted_bump_batches, 0)
+        # Guard tripped: the next turn must NOT hoist (the normal reactive path runs instead).
+        self.assertIsNone(ag._hoist_bump_batch(env.observe()))
+        self.assertEqual(ag.summary.hoisted_frontier_batches, 3)
+        # ANY coverage growth (a planned/reactive batch reached new ground) re-arms the hoist.
+        ag._coverage_cells.add((2, 0, 0))
+        self.assertIsNotNone(ag._hoist_bump_batch(env.observe()))
+        self.assertEqual(ag.summary.hoisted_frontier_batches, 4)
 
     def test_anti_spin_guard_stands_down_after_three_empty_batches(self):
-        # Three consecutive hoisted batches that fire NO bump trip the standdown: the next turn does
-        # not hoist. ANY fired bump re-arms the guard.
+        # Three consecutive hoisted batches that fire NO bump trip the BUMP standdown. Run-38: bump
+        # exhaustion no longer stops hoisting entirely — the hoist TRANSITIONS to FRONTIER batches
+        # (coverage growth). ANY fired bump re-arms the bump phase.
         env = _QuotaMultiBlockEnv(budget=200)
         ag = self._hoist_agent(env, exploration_min_bump_actions=8)
         # Dedup every block class so each hoisted batch fires nothing (falls through to frontier).
@@ -4102,10 +4177,12 @@ class MinBumpHoistTests(unittest.TestCase):
             self.assertIsNotNone(ag._hoist_bump_batch(env.observe()))
         self.assertEqual(ag.summary.bumps_probed, 0)
         self.assertEqual(ag.summary.hoisted_bump_batches, 3)
-        # Guard tripped: the next turn must NOT hoist (the normal reactive path runs instead).
-        self.assertIsNone(ag._hoist_bump_batch(env.observe()))
+        # Bump guard tripped: the next hoist is a FRONTIER batch, not a bump batch (Run-38 — the
+        # pre-fix behavior returned None here and coverage froze).
+        self.assertIsNotNone(ag._hoist_bump_batch(env.observe()))
         self.assertEqual(ag.summary.hoisted_bump_batches, 3)
-        # A fired bump (e.g. from the goal-discovery exploration path) re-arms the hoist.
+        self.assertEqual(ag.summary.hoisted_frontier_batches, 1)
+        # A fired bump (e.g. from the goal-discovery exploration path) re-arms the BUMP phase.
         ag.summary.bumps_probed += 1
         self.assertIsNotNone(ag._hoist_bump_batch(env.observe()))
         self.assertEqual(ag.summary.hoisted_bump_batches, 4)
@@ -4121,12 +4198,18 @@ class MinBumpHoistTests(unittest.TestCase):
         broke_frame["remaining_actions"] = 0
         self.assertIsNone(ag._hoist_bump_batch(broke_frame))
         self.assertEqual(ag.summary.hoisted_bump_batches, 0)
+        # The FRONTIER phase (Run-38, floor met) is gated identically: done/budget frames never hoist.
+        ag3 = self._hoist_agent(env, exploration_min_bump_actions=0)
+        self.assertIsNone(ag3._hoist_bump_batch(done_frame))
+        self.assertIsNone(ag3._hoist_bump_batch(broke_frame))
+        self.assertEqual(ag3.summary.hoisted_frontier_batches, 0)
         # And end-to-end: a run that opens out of budget stops before any hoist.
         env2 = _QuotaMultiBlockEnv(budget=0)
         ag2 = self._hoist_agent(env2, exploration_min_bump_actions=4, max_turns=3)
         ag2._failure_cycles = ag2.config.reactive_after_failures
         ag2.run()
         self.assertEqual(ag2.summary.hoisted_bump_batches, 0)
+        self.assertEqual(ag2.summary.hoisted_frontier_batches, 0)
 
 
 # ls20-COLORED variants (Run-23): the LIVE player renders as color 12, NOT the toy avatar color 2.
@@ -5088,6 +5171,40 @@ class CrossRunCoveragePersistenceTests(unittest.TestCase):
         ag._resume_coverage(env.observe())
         self.assertEqual(ag._coverage_cells, set())
         self.assertEqual(ag.summary.coverage_resumed_pct, 0.0)
+
+    def test_fired_bumps_persist_resume_and_compound_across_runs(self):
+        # Run-37 regression shape: the live coverage note round-tripped visited=533 cells but
+        # probes=[] despite 12 fired bumps, so runs 33/34/37 each re-bumped the SAME 12 objects.
+        # Run-38: fired bump identities persist as <bump> tokens, RESUME into the cross-run
+        # ordering set (NOT _fired_probes — Run-25 semantics intact), and COMPOUND on re-persist.
+        from bench.arc_agi3_zonoid.ewm import kb_protocol
+
+        # RUN A: a bump fired this run (recorded by _fire_bump into _fired_bump_objects).
+        env = PushBlockEnv()
+        kb = FakeKb(max_writes_per_turn=8)
+        ag = self._agent(env, kb)
+        ag._board_cell_count = 3
+        ag._coverage_cells = {(1, 0, 0)}
+        ag._fired_bump_objects = {"objA"}
+        ag._persist_coverage()
+        body = [args for (kind, args) in kb.writes if kind == "coverage_state"][0][1]
+        decoded = kb_protocol.decode_coverage_state(body)
+        self.assertIn(("<bump>", "objA"), decoded["probes"])  # encode -> write -> decode
+
+        # RUN B resumes: the bump key seeds the cross-run ORDERING set, never the per-run gates.
+        kb2 = _CoverageKb("push", body)
+        ag2 = self._agent(PushBlockEnv(), kb2)
+        ag2._board_cell_count = 3
+        ag2._resume_coverage(env.observe())
+        self.assertIn("objA", ag2._resumed_bump_probes)
+        self.assertNotIn(("<bump>", "objA"), ag2._fired_probes)  # Run-25: bumps not gated
+        self.assertNotIn("objA", ag2._bump_attempted)  # per-run dedup untouched
+
+        # RUN B fires NO new bump, yet its re-persist still carries run A's probe (compounding).
+        ag2._persist_coverage()
+        cov2 = [args for (kind, args) in kb2.writes if kind == "coverage_state"]
+        decoded2 = kb_protocol.decode_coverage_state(cov2[-1][1])
+        self.assertIn(("<bump>", "objA"), decoded2["probes"])
 
     def test_resumed_cells_are_not_re_persisted_as_new(self):
         # Round-trip invariant: resume then persist must not LOSE the resumed ground (it accumulates).

@@ -724,8 +724,11 @@ def live_run(
             "bumps_probed": summary.get("bumps_probed", 0),
             "bumps_found": summary.get("bumps_found", 0),
             # Run-32 MIN-BUMP HOIST telemetry: exploration batches run from the main turn loop in
-            # place of a reactive/RECOVER turn to honor the min-bump floor.
+            # place of a reactive/RECOVER turn to honor the min-bump floor. Run-38 extends the hoist
+            # past the bump phase: hoisted_frontier_batches counts the FRONTIER batches hoisted once
+            # the bump floor is met/exhausted (coverage growth, not luck-gated).
             "hoisted_bump_batches": summary.get("hoisted_bump_batches", 0),
+            "hoisted_frontier_batches": summary.get("hoisted_frontier_batches", 0),
             "coverage_resumed_pct": summary.get("coverage_resumed_pct", 0.0),
             "coverage_persisted": summary.get("coverage_persisted", False),
             # Run-23 SILENT-DROP DIAGNOSTICS + CONFIG ECHO: make a dropped field / no-op bump visible.

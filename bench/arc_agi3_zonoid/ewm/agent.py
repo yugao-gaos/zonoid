@@ -752,6 +752,12 @@ class RunSummary:
     # `hoisted_bump_batches` = exploration batches run directly from the main turn loop IN PLACE of a
     # reactive/RECOVER turn to honor the `exploration_min_bump_actions` floor.
     hoisted_bump_batches: int = 0
+    # FRONTIER HOIST telemetry (Run-38). Run-37 froze coverage at 13.01%: the Run-32 hoist only fired
+    # while the min-bump floor was unmet, so once bumps were satisfied every hoist-eligible turn fell
+    # back to reactive and the frontier never ran (frontier_batches=0). `hoisted_frontier_batches` =
+    # exploration batches hoisted from the main turn loop AFTER the bump phase (floor met or bump
+    # discovery exhausted) to keep growing coverage, with a 3-zero-growth-batch anti-spin standdown.
+    hoisted_frontier_batches: int = 0
     # EMPIRICAL APPROACH WALK (Run-27). The adopted program systematically mispredicts the player
     # mover, so ANY expect-gated approach walk aborts — the Run-26 single re-plan retry engaged and
     # ALSO diverged (run-27: bump_skip_reason="approach walk aborted before bump (diverged)" on both
@@ -817,6 +823,7 @@ class RunSummary:
             "bump_skip_reason": self.bump_skip_reason,
             "player_colors": list(self.player_colors) if self.player_colors else None,
             "hoisted_bump_batches": self.hoisted_bump_batches,
+            "hoisted_frontier_batches": self.hoisted_frontier_batches,
             "approach_retries": self.approach_retries,
             "config_echo": dict(self.config_echo) if self.config_echo else None,
         }
@@ -932,6 +939,18 @@ class EwmAgent:
         # suppressed bumps across runs (we have never observed a bump effect); this set governs bump SKIP
         # within a single run instead.
         self._bump_attempted: set[Any] = set()
+        # CROSS-RUN BUMP COMPOUNDING (Run-38): run-37 proved the persisted coverage note round-trips
+        # with probes=[] — nothing ever wired fired bumps into _fired_probes after the Run-25 split,
+        # so runs 33/34/37 each re-bumped the SAME 12 objects. `_fired_bump_objects` collects the
+        # object_hash of every bump that actually FIRED this run (recorded in _fire_bump — the durable,
+        # translation-invariant identity bump dedup keys on); _persist_coverage writes them as
+        # (<bump>, object_hash) probe tokens. `_resumed_bump_probes` holds the object_hashes recalled
+        # from prior runs' persisted probes. It is ADVISORY ORDERING context only (prefer-not-exclude):
+        # _bump_contexts ranks resumed-probed objects LAST so untried objects go first, but they stay
+        # bumpable when nothing new remains (the board can change) and NEVER feed _bump_attempted —
+        # the Run-25 per-run dedup semantics are intact.
+        self._fired_bump_objects: set[Any] = set()
+        self._resumed_bump_probes: set[Any] = set()
         # Movement-coverage plateau counter: consecutive frontier batches that added NO new coverage
         # cell. The movement frontier is EXHAUSTED once this reaches `coverage_plateau_exhaust` — the
         # honest signal that the reachable region is fully swept even though explore_frontier still
@@ -947,6 +966,13 @@ class EwmAgent:
         # reactive path runs, so an env with nothing left to bump cannot spin on exploration forever.
         self._hoist_empty_streak = 0
         self._hoist_bumps_seen = 0
+        # FRONTIER HOIST anti-spin guard (Run-38), mirroring the bump guard above: consecutive hoisted
+        # frontier batches that grew NO coverage, plus the coverage-cell watermark used to re-arm the
+        # frontier hoist the moment ANY batch grows coverage (hoisted or not). At 3 consecutive
+        # zero-growth hoisted frontier batches the frontier hoist stands down and the normal reactive
+        # path runs, so a fully-swept board cannot spend every reactive turn re-entering exploration.
+        self._frontier_hoist_empty_streak = 0
+        self._hoist_coverage_seen = 0
         # PLAYER COLOR SET (Run-23): the color(s) the ACTIVE program's player unit renders as, inferred
         # model-agnostically from the program (the cells that MOVE when the program steps ARE the player)
         # and cached. `_player_position`/`_bump_player_cells` key off `_player_color_set`, not a
@@ -3296,9 +3322,12 @@ class EwmAgent:
     def _hoist_bump_batch(
         self, frame: dict[str, Any]
     ) -> tuple[dict[str, Any], bool] | None:
-        """MIN-BUMP HOIST (Run-32): run ONE exploration batch from the MAIN turn loop, in place of a
-        reactive/RECOVER turn, while the ``exploration_min_bump_actions`` floor is unmet. Returns the
-        batch's ``(result, diverged)``, or None when the hoist is not due this turn.
+        """EXPLORATION HOIST (Run-32 bumps, Run-38 frontier): run ONE exploration batch from the MAIN
+        turn loop, in place of a reactive/RECOVER turn — a BUMP-phase batch while the
+        ``exploration_min_bump_actions`` floor is unmet, then FRONTIER batches once the bump phase is
+        satisfied or exhausted. Returns the batch's ``(result, diverged)``, or None when the hoist is
+        not due this turn (no program, done/over-budget frame, or the active phase's anti-spin
+        standdown).
 
         Run-32 evidence (runs 30-32): exploration previously ran ONLY when a plan came back empty AND
         :meth:`_goal_discovery_ready` held — the model mispredicts movement on nearly every planned
@@ -3310,33 +3339,63 @@ class EwmAgent:
         :meth:`_bump_quota_due` (due below the floor), preserving every bump dedup/skip-reason
         semantic unchanged.
 
-        ANTI-SPIN GUARD: 3 consecutive hoisted batches that fire no new bump stand the hoist down
-        (the normal reactive path runs) until ANY bump fires, so an env with nothing left to bump
-        cannot spend every reactive turn re-entering exploration."""
+        ANTI-SPIN GUARD: 3 consecutive hoisted batches that fire no new bump stand the BUMP hoist down
+        until ANY bump fires, so an env with nothing left to bump cannot spend every reactive turn
+        re-entering bump discovery.
+
+        FRONTIER HOIST (Run-38): once the bump phase is SATISFIED (the floor is met) or EXHAUSTED
+        (the bump anti-spin stood down — nothing left to bump), hoisted turns CONTINUE as FRONTIER
+        batches instead of standing down entirely. Run-37 evidence: coverage froze at 13.01% with
+        frontier_batches=0 because the hoist only fired below the min-bump floor and the plan-empty +
+        goal-discovery-ready exploration window never opened — the same luck-gate Run-32 closed for
+        bumps, re-opened for the frontier. The dispatch still goes through :meth:`_explore_batch`
+        (which falls through to :meth:`_frontier_execute` when the bump quota is not due), preserving
+        every quota/dedup/skip-reason semantic. A mirrored anti-spin guard stands the frontier hoist
+        down after 3 consecutive hoisted batches with zero coverage growth, re-armed by ANY coverage
+        growth."""
 
         # Re-arm on ANY bump fired since the last check — a bump from the goal-discovery exploration
         # path also clears the standdown.
         if self.summary.bumps_probed > self._hoist_bumps_seen:
             self._hoist_empty_streak = 0
         self._hoist_bumps_seen = self.summary.bumps_probed
+        # Re-arm the frontier hoist on ANY coverage growth since the last check (same watermark shape).
+        if len(self._coverage_cells) > self._hoist_coverage_seen:
+            self._frontier_hoist_empty_streak = 0
+        self._hoist_coverage_seen = len(self._coverage_cells)
         if self.program is None:
             return None
-        if self.summary.bumps_probed >= max(0, self.config.exploration_min_bump_actions):
-            return None  # floor met: the ratio quota inside exploration governs from here
-        if not self._bump_quota_due():
-            return None  # bump probing disabled (bump_probes off / quota fraction <= 0)
         if frame.get("done") or self._out_of_budget(frame):
             return None
-        if self._hoist_empty_streak >= 3:
-            return None  # anti-spin standdown: wait for a bump to fire before hoisting again
-        self.summary.hoisted_bump_batches += 1
-        before = self.summary.bumps_probed
+        bump_phase = (
+            self.summary.bumps_probed < max(0, self.config.exploration_min_bump_actions)
+            and self._bump_quota_due()  # False when bump probing is disabled
+            and self._hoist_empty_streak < 3  # bump anti-spin standdown -> bump phase exhausted
+        )
+        if bump_phase:
+            self.summary.hoisted_bump_batches += 1
+            before = self.summary.bumps_probed
+            result, diverged = self._explore_batch(frame)
+            if self.summary.bumps_probed > before:
+                self._hoist_empty_streak = 0
+            else:
+                self._hoist_empty_streak += 1
+            self._hoist_bumps_seen = self.summary.bumps_probed
+            return result, diverged
+        # FRONTIER phase: the bump floor is met / exhausted / disabled — keep hoisting to grow coverage.
+        if self._frontier_hoist_empty_streak >= 3:
+            return None  # anti-spin standdown: wait for coverage growth before hoisting again
+        self.summary.hoisted_frontier_batches += 1
+        before_cov = len(self._coverage_cells)
+        before_bumps = self.summary.bumps_probed
         result, diverged = self._explore_batch(frame)
-        if self.summary.bumps_probed > before:
-            self._hoist_empty_streak = 0
-        else:
-            self._hoist_empty_streak += 1
-        self._hoist_bumps_seen = self.summary.bumps_probed
+        if len(self._coverage_cells) > before_cov:
+            self._frontier_hoist_empty_streak = 0
+        elif self.summary.bumps_probed == before_bumps:
+            # Zero growth AND no bump fired: a genuinely empty batch. (A batch the ratio quota spent
+            # on bumps is progress, not frontier spin — it must not advance the frontier standdown.)
+            self._frontier_hoist_empty_streak += 1
+        self._hoist_coverage_seen = len(self._coverage_cells)
         return result, diverged
 
     def _frontier_execute(self, frame: dict[str, Any]) -> tuple[dict[str, Any], bool]:
@@ -3983,7 +4042,11 @@ class EwmAgent:
             (obj_hash, approach, bump, cost)
             for obj_hash, (cost, approach, bump) in contexts.items()
         ]
-        out.sort(key=lambda item: item[3])
+        # CROSS-RUN ORDERING (Run-38): objects a PRIOR run already bump-probed (persisted probes,
+        # resumed into _resumed_bump_probes) rank LAST — untried objects go first so compounding runs
+        # spend their bump budget on new ground. Prefer-not-exclude: a resumed-probed object is still
+        # bumpable when nothing new remains (the board can change); within each group, cheapest first.
+        out.sort(key=lambda item: (item[0] in self._resumed_bump_probes, item[3]))
         return out
 
     @staticmethod
@@ -4336,6 +4399,10 @@ class EwmAgent:
         # destination lands on / whose swept path crosses the object), independent of how many env
         # repeats it takes. bumps_* count fired env actions; contact_probes_* count probes.
         self.summary.contact_probes_probed += 1
+        # CROSS-RUN BUMP COMPOUNDING (Run-38): a bump FIRING is the durable event — record its
+        # translation-invariant object identity so _persist_coverage writes it as a (<bump>, hash)
+        # probe token and the NEXT run's _bump_contexts ranks this object last (probed, not excluded).
+        self._fired_bump_objects.add(obj_hash)
         for _ in range(repeats):
             self.summary.bumps_probed += 1
             before_grid = self._frame_grid(cur)
@@ -4455,15 +4522,20 @@ class EwmAgent:
             return
         self._coverage_cells |= set(state.get("visited") or set())
         # Load persisted NON-bump probes (coverage cells + non-movement interaction probes) but EXCLUDE any
-        # legacy _BUMP_MARKER-tagged entries: bump discovery is PER-RUN (Run-25 fix), so a prior run's bump
-        # intent must never gate this run's bumps. object_hashes are translation-invariant, so persisted bump
-        # keys match ls20 objects across runs and would permanently suppress bumps. Bump dedup lives in the
-        # per-run self._bump_attempted set instead.
+        # _BUMP_MARKER-tagged entries from _fired_probes: bump discovery is PER-RUN (Run-25 fix), so a prior
+        # run's bump intent must never gate this run's bumps. object_hashes are translation-invariant, so
+        # persisted bump keys match ls20 objects across runs and would permanently suppress bumps. Bump
+        # dedup lives in the per-run self._bump_attempted set instead. Persisted bump keys DO seed
+        # _resumed_bump_probes (Run-38): a cross-run ORDERING hint only — _bump_contexts ranks these
+        # already-probed objects last so a compounding run tries new objects first, without ever
+        # excluding a resumed object from re-probing.
         persisted = set(state.get("probes") or set())
-        self._fired_probes |= {
+        bump_keys = {
             key for key in persisted
-            if not (isinstance(key, tuple) and len(key) == 2 and key[0] == self._BUMP_MARKER)
+            if isinstance(key, tuple) and len(key) == 2 and key[0] == self._BUMP_MARKER
         }
+        self._fired_probes |= persisted - bump_keys
+        self._resumed_bump_probes |= {obj_hash for (_marker, obj_hash) in bump_keys}
         board = self._board_cell_count or self._board_cells(frame) or state.get("board") or 0
         if not self._board_cell_count and board:
             self._board_cell_count = board
@@ -4487,9 +4559,18 @@ class EwmAgent:
         try:
             from .kb_protocol import encode_coverage_state, read_coverage_state
 
+            # CROSS-RUN BUMP COMPOUNDING (Run-38): the persisted probes are the non-movement
+            # interaction probes PLUS every bump that fired — this run's (_fired_bump_objects) union
+            # the resumed prior-run set, so bump provenance ACCUMULATES across runs (run-37 shape:
+            # probes=[] on the live note despite 12 bumps fired, so every run re-bumped the same
+            # 12 objects first).
+            probes = self._fired_probes | {
+                (self._BUMP_MARKER, obj_hash)
+                for obj_hash in (self._fired_bump_objects | self._resumed_bump_probes)
+            }
             body = encode_coverage_state(
                 self._coverage_cells,
-                self._fired_probes,
+                probes,
                 board_cells=self._board_cell_count,
                 coverage_plateau=self._coverage_plateau,
             )
