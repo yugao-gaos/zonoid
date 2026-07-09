@@ -716,6 +716,94 @@ class DaemonGraphTests(unittest.TestCase):
         self.assertEqual(note["body"]["title"], "T")
         self.assertIn("workspace", note["body"])              # daemon requires workspace on /overlay/note
 
+    def test_note_omits_empty_wires_to(self):
+        # Synthetic-safety principle (Run-30): never send an EMPTY wires_to param.
+        import bench.arc_agi3_zonoid.ewm.synth_graph as sg
+
+        orig = sg.request.urlopen
+        bodies = []
+        try:
+            def cap(req, timeout=None):
+                bodies.append(json.loads(req.data.decode("utf-8")))
+                return _FakeResp({"ok": True})
+
+            sg.request.urlopen = cap
+            graph = DaemonGraph("http://x", "/ws", agent_id="a", session_id="s")
+            graph.note("T", "S", [])
+            graph.note("T2", "S2", [""])  # falsy keys are dropped, not sent
+        finally:
+            sg.request.urlopen = orig
+        self.assertEqual(len(bodies), 2)
+        self.assertNotIn("wires_to", bodies[0])
+        self.assertNotIn("wires_to", bodies[1])
+
+    def test_note_404_retries_once_without_wires_to(self):
+        """Run-36: the daemon's phantom-node guard 404s /overlay/note when wires_to names a task it
+        never adopted (file-drop adoption is best-effort), losing the note. note() must retry once
+        WITHOUT wires_to so the note body survives."""
+
+        import bench.arc_agi3_zonoid.ewm.synth_graph as sg
+        from urllib import error as urlerr
+
+        orig = sg.request.urlopen
+        bodies = []
+        try:
+            def cap(req, timeout=None):
+                body = json.loads(req.data.decode("utf-8"))
+                bodies.append(body)
+                if "wires_to" in body:
+                    raise urlerr.HTTPError(req.full_url, 404, "not found", {}, None)
+                return _FakeResp({"ok": True})
+
+            sg.request.urlopen = cap
+            graph = DaemonGraph("http://x", "/ws", agent_id="a", session_id="s")
+            graph.note("game x analyze", "mechanics", ["local/synth-1"])
+        finally:
+            sg.request.urlopen = orig
+        self.assertEqual(len(bodies), 2)
+        self.assertEqual(bodies[0]["wires_to"], ["local/synth-1"])  # first try keeps provenance
+        self.assertNotIn("wires_to", bodies[1])                     # retry drops ONLY the wiring
+        self.assertEqual(bodies[1]["title"], "game x analyze")
+        self.assertEqual(bodies[1]["summary"], "mechanics")
+        self.assertEqual(bodies[1]["workspace"], "/ws")
+
+    def test_note_outage_does_not_retry(self):
+        # A non-404 failure (real outage) is NOT the phantom-node guard: no blind retry.
+        import bench.arc_agi3_zonoid.ewm.synth_graph as sg
+        from urllib import error as urlerr
+
+        orig = sg.request.urlopen
+        calls = []
+        try:
+            def boom(req, timeout=None):
+                calls.append(1)
+                raise urlerr.URLError("connection refused")
+
+            sg.request.urlopen = boom
+            graph = DaemonGraph("http://x", "/ws", agent_id="a", session_id="s")
+            graph.note("T", "S", ["local/synth-1"])
+        finally:
+            sg.request.urlopen = orig
+        self.assertEqual(len(calls), 1)
+
+    def test_note_success_posts_once_with_wires_to(self):
+        import bench.arc_agi3_zonoid.ewm.synth_graph as sg
+
+        orig = sg.request.urlopen
+        bodies = []
+        try:
+            def cap(req, timeout=None):
+                bodies.append(json.loads(req.data.decode("utf-8")))
+                return _FakeResp({"ok": True})
+
+            sg.request.urlopen = cap
+            graph = DaemonGraph("http://x", "/ws", agent_id="a", session_id="s")
+            graph.note("T", "S", ["local/synth-1"])
+        finally:
+            sg.request.urlopen = orig
+        self.assertEqual(len(bodies), 1)
+        self.assertEqual(bodies[0]["wires_to"], ["local/synth-1"])
+
     def test_graph_ops_counters_track_live_vs_degraded(self):
         """graph_ops_ok / graph_ops_failed let a run report whether graph mode was actually live."""
 

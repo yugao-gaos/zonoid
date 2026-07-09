@@ -189,6 +189,10 @@ class DaemonGraph:
         # 404'd and silently degraded to no-graph".
         self.graph_ops_ok = 0
         self.graph_ops_failed = 0
+        # HTTP status of the last FAILED POST (None after a success, or a failure with no status
+        # such as a connection refusal). Lets note() distinguish the daemon's phantom-node 404 (a
+        # wires_to naming a task the daemon never adopted) from a real outage.
+        self.last_post_error_code: int | None = None
 
     # -- HTTP primitives ---------------------------------------------------------------------------
 
@@ -202,9 +206,11 @@ class DaemonGraph:
             with request.urlopen(req, timeout=self.timeout_s) as resp:
                 out = json.loads(resp.read().decode("utf-8"))
             self.graph_ops_ok += 1
+            self.last_post_error_code = None
             return out
         except (error.URLError, TimeoutError, ValueError, OSError) as exc:  # noqa: BLE001
             self.graph_ops_failed += 1
+            self.last_post_error_code = getattr(exc, "code", None)
             logger.warning("daemon POST %s failed: %r", path, exc)
             return None
 
@@ -335,16 +341,25 @@ class DaemonGraph:
         return None
 
     def note(self, title: str, summary: str, wires_to: list[str]) -> None:
-        self._post(
-            self.endpoints.note,
-            {
-                "workspace": self.workspace,
-                "title": title,
-                "summary": summary,
-                "category": "arc-agi-3",
-                "wires_to": list(wires_to),
-            },
-        )
+        body: dict[str, Any] = {
+            "workspace": self.workspace,
+            "title": title,
+            "summary": summary,
+            "category": "arc-agi-3",
+        }
+        # Same synthetic-safety principle as KbClient (Run-30): never send an EMPTY wires_to — the
+        # field is provenance wiring, and an empty list is a param the daemon does not need.
+        wired = [w for w in wires_to if w]
+        if wired:
+            body["wires_to"] = wired
+        resp = self._post(self.endpoints.note, body)
+        if resp is None and "wires_to" in body and self.last_post_error_code == 404:
+            # Run-36: the daemon's phantom-node guard 404s /overlay/note when wires_to names a task
+            # it never adopted (file-drop adoption is best-effort, so a minted synth task key is not
+            # guaranteed to exist daemon-side) — and the 404 LOSES the note body. Degrade gracefully:
+            # retry once WITHOUT wires_to. Provenance wiring is best-effort; note durability is not.
+            body.pop("wires_to")
+            self._post(self.endpoints.note, body)
         return None
 
 
