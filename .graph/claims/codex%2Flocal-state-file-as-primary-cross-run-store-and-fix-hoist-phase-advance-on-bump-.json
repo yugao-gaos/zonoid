@@ -3,8 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "d070c9d8-a489-4a61-80e2-f4d17353b274",
   "branch": "orch/attempt/codex-local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-07-10T15:59:57.369Z",
   "lease_until": "2026-07-10T16:59:57.369Z",
-  "completed_at": "2026-07-10T16:29:23.375Z"
+  "completed_at": "2026-07-10T16:29:56.900Z"
 }
