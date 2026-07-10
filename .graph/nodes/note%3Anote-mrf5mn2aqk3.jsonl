@@ -8,3 +8,5 @@
 {"evt":"note_supersedes","id":"note-mrf5mn2aqk3","supersedes":"note-mrblqaerbh3","ts":"2026-07-10T16:33:00.226Z","actor":"supersede"}
 {"evt":"edge_removed","from":"note:note-mrf5mn2aqk3","to":"note:note-mrblqaerbh3","kind":"context","actor":"overlay-sync","ts":"2026-07-10T16:39:11.797Z"}
 {"evt":"edge_removed","from":"note:note-mrf5mn2aqk3","to":"note:note-mrf5mg6o7fl","kind":"context","actor":"overlay-sync","ts":"2026-07-10T16:56:01.887Z"}
+{"evt":"edge_removed","from":"note:note-mrf5mn2aqk3","to":"note:note-mrf5meeimci","kind":"context","actor":"overlay-sync","ts":"2026-07-10T18:12:03.660Z"}
+{"evt":"edge_removed","from":"note:note-mrf5mn2aqk3","to":"note:note-mrblq3lm3cl","kind":"context","actor":"overlay-sync","ts":"2026-07-10T18:12:07.750Z"}
