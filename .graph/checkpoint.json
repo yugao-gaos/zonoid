@@ -1546,7 +1546,7 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
+      "status": "canceled",
       "summary": "Run-22: contact bump probing is now a first-class exploration budget quota (bump_quota_fraction=0.4, exploration_min_bump_actions=24) interleaved from action 1 via _explore_batch/_bump_quota_due; plateau/exhaustion handoff kept as bonus. Driver --max-actions forwards cleanly. Full ewm suite 359 passed + driver --smoke green. Committed 0079169fe.",
       "category": null,
       "tags": [],
@@ -246605,6 +246605,250 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "note:note-mqjotmlck7u|note:note-mrdghicnc6j": {
+      "id": "note:note-mqjotmlck7u|note:note-mrdghicnc6j",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": null,
+      "assignee": null,
+      "timestamps": null,
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "note:note-mr5b375dvnh|note:note-mrdgxaku2cv": {
+      "id": "note:note-mr5b375dvnh|note:note-mrdgxaku2cv",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": null,
+      "assignee": null,
+      "timestamps": null,
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "note:note-mrbnujv5aqy|note:note-mrdmia4g7uw|note:note-mrdn533smky|note:note-mrdn58yvbl4|note:note-mrdpnnp8qpk|note:note-mrdpnp6b2pv": {
+      "id": "note:note-mrbnujv5aqy|note:note-mrdmia4g7uw|note:note-mrdn533smky|note:note-mrdn58yvbl4|note:note-mrdpnnp8qpk|note:note-mrdpnp6b2pv",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": null,
+      "assignee": null,
+      "timestamps": null,
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "note:note-mrbq3z5gb0i|note:note-mrdpsp01pr3": {
+      "id": "note:note-mrbq3z5gb0i|note:note-mrdpsp01pr3",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": null,
+      "assignee": null,
+      "timestamps": null,
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery": {
+      "id": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Coverage resume: dedupe search hits and drop full_content from index discovery",
+        "description": "Runs 33-35 never resume coverage (coverage_resumed_pct=0.0, runs clone themselves at 13.01%) despite the index note 'game ls20 coverage state' existing and ranking [5] in a plain title-level /search. Diagnosed offline: kb_protocol.recall_coverage_state (~line 681) discovers the index via _search_full_content(client, q, k=20) i.e. client.search(..., full_content=True) — and with full_content the daemon returns CHUNK-level hits where 19 of the 20 slots are near-duplicate chunk copies of two old JSON-titled judge-verdict notes ('note {\"winner\":...}' x12 and x7) plus 5 always-injected system notes; the coverage index never surfaces, _is_game_scoped filters everything, resume returns None silently. FIX in bench/arc_agi3_zonoid/ewm/kb_protocol.py: (1) _search_full_content: dedupe returned hits by note identity (key or id, falling back to title) preserving rank order, BEFORE returning. (2) recall_coverage_state index-DISCOVERY step: search WITHOUT full_content (plain client.search(q, k=20, gated=False)) — the index full body is already fetched natively via client.get_note_full afterwards, so chunk-level content in the discovery search is unnecessary; keep _search_full_content (now deduped) for the chunk-title fallback fetches. (3) Audit the OTHER recall paths in kb_protocol that use _search_full_content for index/note discovery (interaction recall, program ORIENT recall wire through similar helpers — read them; apply the same discovery-without-full_content + dedupe treatment where they resolve an index/named note then fetch body separately; do NOT restructure paths that genuinely need chunk content in the search response). (4) Tests (existing kb_protocol test fakes): (a) regression replicating the flood — fake search returns 19 duplicate chunk hits of 2 notes ahead of the coverage index when full_content=True, plain search returns the index in top-k -> recall_coverage_state resolves and decodes (assert it FAILS pre-fix); (b) dedupe preserves first-occurrence order and drops same-key duplicates; (c) existing recall tests unchanged. All tests pass: python3 -m pytest bench/arc_agi3_zonoid/ewm/tests -q. Scope: kb_protocol.py + tests. Do NOT touch daemon/routes (the search-side dup flood is a separate daemon concern, out of scope).",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-09T12:00:11.866Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-09T12:00:11.866Z",
+        "lastChanged": "2026-07-09T12:15:13.265Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc": {
+      "id": "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Dedupe must preserve source chunk content ORIENT reads program source from search hits",
+        "description": "Run 36 regression from cycle-8 (task codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery): ORIENT now fails with orient_diagnosis \"no source in hit\" (program_adopted=False, agent spent the run reactive). Mechanism (verified offline against live daemon): the ls20 program is stored as 9 separate chunk NOTES plus an index note whose get_note_full body is only ~595 chars (an index stub — NOT a reassembled program; the daemon only reassembles source-CLUSTERED notes, and this program is chunked at the kb_protocol layer instead). ORIENT therefore historically extracted program source from the CONTENT of knowledge:source_chunk:* hits returned by _search_full_content — and cycle-8's dedupe resolves those artifact keys to their parent note and collapses them to ONE hit whose content is the short clipped summary -> no source anywhere -> \"no source in hit\". Run 35 (pre-merge) adopted fine. FIX in bench/arc_agi3_zonoid/ewm/kb_protocol.py _search_full_content dedupe: make the collapse CONTENT-PRESERVING — when multiple hits resolve to the same note identity, keep the hit with the LARGEST content payload (or merge: parent hit metadata + concatenated distinct chunk contents in stable chunk order if ORIENT needs multiple chunks from one parent — READ the ORIENT resolver in agent.py (search \"no source in hit\" / the ORIENT program recall + legacy inline/chunk resolvers) FIRST to learn exactly what shape it consumes, then choose the minimal preserving strategy). Distinct chunk NOTES (different note keys, e.g. 'game ls20 program chunk n of 9') must remain distinct hits as they already do. The coverage-resume path (plain-search discovery + get_note_full) must keep working — do not regress cycle-8's regression test. SECONDARY AUDIT (same task, small): run 36 stderr has 9x 'daemon POST /overlay/note failed: HTTPError 404' DESPITE the synthetic wires_to omission — find which write path still 404s (check supersedes with a stale/unknown key, or a write bypassing KbClient.note) and fix with the same synthetic-safety rule. (The /task/context and /overlay/status 404s are graph-integration calls with the synthetic key hitting correct unknown-task guards — OUT of scope, ignore.) Tests: (a) regression: fake search returns parent-with-clipped-summary + source-chunk hits carrying the real source; deduped result must still expose the full source to the ORIENT-shape consumer (assert fails pre-fix); (b) cycle-8 flood regression stays green; (c) all existing tests pass. VERIFY OFFLINE against the live daemon before completing (the task worktree can run: python3 -c with KbClient against http://localhost:8787 replicating the ORIENT recall — the diagnosis commands are in the task notes); include the offline result in your task_result summary. Scope: kb_protocol.py + tests (agent.py READ-only unless the resolver itself must change — if so, keep it surgical).",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-09T13:26:21.135Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-09T13:26:21.135Z",
+        "lastChanged": "2026-07-09T13:46:53.520Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/kbclient-omits-task_key-on-read-searches-when-synthetic-so-corroboration-gate-st": {
+      "id": "codex/kbclient-omits-task_key-on-read-searches-when-synthetic-so-corroboration-gate-st",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "KbClient omits task_key on read searches when synthetic so corroboration gate stops hiding EWM notes",
+        "description": "Cycle-8's live verification (task codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery, note note-mrdgxaku2cv) found the final resume blocker: lib/search/memory-search.js:841-848 removes every note-kind hit with <2 recall-journal observations (isCorroborated, CORROBORATION_MIN=2) whenever GET /search carries a task_key. bench/arc_agi3_zonoid/ewm/kb_protocol.py KbClient.search (~line 337-354) sends params[\"task_key\"]=self.task_key on EVERY search, and the EWM synthetic key ('ewm-live-<game>') never resolves outcomes, so EWM-written notes can never corroborate — coverage resume, ORIENT program recall, and all EWM note reads are silently gated out live (verified: identical curls differing only by task_key — coverage index rank 5 without, zero note hits with). FIX (dispatcher decision: client-side, symmetric with the merged synthetic_task_key wires_to omission; do NOT touch memory-search.js): in KbClient.search, when self.synthetic_task_key is true, OMIT the task_key param from the GET /search query entirely. Real task keys keep sending it unchanged (tiered/gated retrieval for genuine graph tasks is intended behavior). Audit any other KbClient read paths that pass task_key (search variants, get_note_full, /task/context reads) and apply the same rule where a synthetic key would trip server-side gating; leave write paths as merged. Tests (test_kb_protocol.py fakes record request params): (a) synthetic client search -> query has NO task_key param; (b) real-key client -> task_key present unchanged; (c) existing search/recall tests pass. Annotate Run-35b with the corroboration-gate one-liner. Scope: kb_protocol.py + tests only.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-09T12:16:42.405Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-09T12:16:42.405Z",
+        "lastChanged": "2026-07-09T12:21:56.469Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche": {
+      "id": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Make runs compound: persist fired bump probes cross run and hoist frontier batches after min bumps",
+        "description": "Run 37 (out/ewm-runs/ls20-1783604994, scorecard 92109abf) is the first run with ALL infrastructure green simultaneously (coverage_resumed_pct=0.1301, orient adopted whole native, 12/12 bumps, 176 actions, 0 stderr errors) — and it isolates the two remaining strategy gaps that stop runs from compounding: (1) BUMPS REPEAT: recall_coverage_state returns probes: [] (0) — the fired-probe identities are NOT persisted/resumed, so each run re-bumps the same 12 objects (bumps_probed=12 with identical effects in runs 33/34/37). Investigate the coverage-state codec (kb_protocol encode/decode ~line 164-230: 'coverage state v1' carries visited + probes) and the agent side: what feeds the probes field on WRITE (likely the persisted _fired_probes set vs the per-run _bump_attempted — Run-25 note says bump dedup is deliberately per-run, but the PERSISTED probe record should still be written for cross-run novelty) and what consumes it on RESUME (seed cross-run dedup so _bump_contexts prefers objects NOT in the resumed probe set — order untried objects first rather than hard-excluding, so a changed board still gets probed). (2) COVERAGE FROZEN AT 13.01%: frontier exploration only runs on the goal-discovery-gated path (plan-empty + trusted), which almost never opens; the Run-32 hoist guarantees only BUMP batches. Extend the hoist in agent.py run(): after the min-bump guarantee is satisfied (bumps_probed >= exploration_min_bump_actions) OR bump discovery reports nothing left to bump, hoisted turns run a FRONTIER batch instead (via the same _explore_batch dispatch — read it: it already falls through to _frontier_execute when the quota is not due; the change is to keep hoisting past the bump phase with a coverage-growth guard: if the last 3 hoisted frontier batches grew coverage_pct by 0, stand down like the existing bump anti-spin). Keep counters: extend hoisted_bump_batches or add hoisted_frontier_batches (echo in driver.py). Tests: (a) probes written -> encoded -> decoded -> resumed and _bump_contexts orders untried objects first (regression: run-37 shape where resumed probes are empty); (b) hoist transitions bump->frontier after min satisfied; (c) frontier anti-spin stands down after 3 zero-growth batches; (d) all existing tests pass (python3 -m pytest bench/arc_agi3_zonoid/ewm/tests -q). OFFLINE VERIFICATION before completing: encode+write a coverage state with probes against the live daemon (workspace /Users/imyu/Desktop/zonoid, KbClient synthetic), then recall it and show probes round-trip non-empty; include in task_result. Scope: agent.py, kb_protocol.py, driver.py echo, tests.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-09T14:51:17.081Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-09T14:51:17.081Z",
+        "lastChanged": "2026-07-09T15:15:36.907Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -280527,14 +280771,6 @@
       "origin": "asserted"
     },
     {
-      "from": "note:note-mr5b375dvnh",
-      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
       "from": "note:note-mr5bebfkw0t",
       "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
       "kind": "context",
@@ -281461,14 +281697,6 @@
       "judged": true,
       "score": 0.758,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr5b375dvnh",
-      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
     },
     {
       "from": "note:note-mr5b375dvnh",
@@ -282829,16 +283057,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr5b375dvnh",
-      "to": "codex/ewm-repair-budget-guard-reach-exploration-run-twenty-eight",
-      "kind": "context",
-      "weight": 0.439,
-      "by": "judge",
-      "judged": true,
-      "score": 0.439,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mr7oqxjf153",
       "to": "codex/ewm-repair-budget-guard-reach-exploration-run-twenty-eight",
       "kind": "context",
@@ -283333,6 +283551,187 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqo9t7g6u75",
+      "to": "codex/kb-note-client-omit-wires_to-on-synthetic-task-key-instead-of-404ing-on-phantom-",
+      "kind": "context",
+      "weight": 0.47,
+      "by": "judge",
+      "judged": true,
+      "score": 0.47,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp5ddqsm9u",
+      "to": "codex/kb-note-client-omit-wires_to-on-synthetic-task-key-instead-of-404ing-on-phantom-",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.505,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5xad0sam6",
+      "to": "codex/hoist-min-bump-guarantee-into-main-turn-loop-so-contact-probing-is-not-luck-gate",
+      "kind": "context",
+      "weight": 0.485,
+      "by": "judge",
+      "judged": true,
+      "score": 0.485,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbbihyqker",
+      "to": "codex/hoist-min-bump-guarantee-into-main-turn-loop-so-contact-probing-is-not-luck-gate",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.435,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbge90hlsx",
+      "to": "note:note-mrbcz8822dq",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.752,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbge90hlsx",
+      "to": "note:note-mr6httweaeo",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.748,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbnujv5aqy",
+      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.418,
+      "by": "judge",
+      "judged": true,
+      "score": 0.418,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbnujv5aqy",
+      "to": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.418,
+      "by": "judge",
+      "judged": true,
+      "score": 0.418,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbnujv5aqy",
+      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrbnujv5aqy",
+      "to": "note:note-mrbnuu7vb49",
+      "kind": "context",
+      "weight": 0.451,
+      "by": "judge",
+      "judged": true,
+      "score": 0.451,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbnuu7vb49",
+      "to": "note:note-mrbnujv5aqy",
+      "kind": "context",
+      "weight": 0.787,
+      "by": "judge",
+      "judged": true,
+      "score": 0.787,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbnuu7vb49",
+      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrbnwsfik44",
+      "to": "note:note-mrbge90hlsx",
+      "kind": "context",
+      "weight": 0.773,
+      "by": "judge",
+      "judged": true,
+      "score": 0.773,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbq3z5gb0i",
+      "to": "note:note-mrbnwsfik44",
+      "kind": "context",
+      "weight": 0.775,
+      "by": "judge",
+      "judged": true,
+      "score": 0.775,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/hoist-min-bump-guarantee-into-main-turn-loop-so-contact-probing-is-not-luck-gate",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.434,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/hoist-min-bump-guarantee-into-main-turn-loop-so-contact-probing-is-not-luck-gate",
+      "to": "codex/fix-silent-bump-approach-early-return-in-_bump_discovery-run-25-live-finding",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.422,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/kb-note-client-omit-wires_to-on-synthetic-task-key-instead-of-404ing-on-phantom-",
+      "to": "codex/fix-graph-dispatch-invariants",
+      "kind": "context",
+      "weight": 0.483,
+      "by": "judge",
+      "judged": true,
+      "score": 0.483,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/kb-note-client-omit-wires_to-on-synthetic-task-key-instead-of-404ing-on-phantom-",
+      "to": "codex/judge-subconscious-anchor-real-task-filter",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.394,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
+      "to": "codex/kb-note-client-omit-wires_to-on-synthetic-task-key-instead-of-404ing-on-phantom-",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
+      "to": "codex/hoist-min-bump-guarantee-into-main-turn-loop-so-contact-probing-is-not-luck-gate",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
       "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
       "to": "note:note-mqqqrlczyc2",
       "kind": "context",
@@ -283381,6 +283780,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-2",
+      "to": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
+      "kind": "context",
+      "weight": 0.372,
+      "by": "judge",
+      "judged": true,
+      "score": 0.372,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "knowledge:source_chunk:note-mqqpqf49a5m#note-evidence:chunk-3",
       "to": "note:note-mqqt68limis",
       "kind": "context",
@@ -283396,6 +283805,16 @@
       "by": "judge",
       "judged": true,
       "score": 0.483,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
+      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "kind": "context",
+      "weight": 0.392,
+      "by": "judge",
+      "judged": true,
+      "score": 0.392,
       "origin": "autowire-semantic"
     },
     {
@@ -286062,6 +286481,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqjh4kuu1o3",
+      "to": "codex/kbclient-omits-task_key-on-read-searches-when-synthetic-so-corroboration-gate-st",
+      "kind": "context",
+      "weight": 0.486,
+      "by": "judge",
+      "judged": true,
+      "score": 0.486,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqjh7j03b4f",
       "to": "fix/enforce-task-key",
       "kind": "context",
@@ -286189,26 +286618,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.605,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqjotmlck7u",
-      "to": "followup/investigate-search-arm-0-notes-not-appea-o05d",
-      "kind": "context",
-      "weight": 0.814,
-      "by": "judge",
-      "judged": true,
-      "score": 0.814,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqjotmlck7u",
-      "to": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
-      "kind": "context",
-      "weight": 0.699,
-      "by": "judge",
-      "judged": true,
-      "score": 0.699,
       "origin": "autowire-semantic"
     },
     {
@@ -286435,16 +286844,6 @@
       "weight": 0.6,
       "by": "judge",
       "judged": true
-    },
-    {
-      "from": "note:note-mqo9t7g6u75",
-      "to": "codex/kb-note-client-omit-wires_to-on-synthetic-task-key-instead-of-404ing-on-phantom-",
-      "kind": "context",
-      "weight": 0.47,
-      "by": "judge",
-      "judged": true,
-      "score": 0.47,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqonvqqre1d",
@@ -286901,6 +287300,14 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqp57xd336z",
+      "to": "note:note-mqp57q6latn",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
       "from": "note:note-mqp585nxj80",
       "to": "note:note-mqp57jlmzn1",
       "kind": "context",
@@ -287176,15 +287583,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.904,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp5ddqsm9u",
-      "to": "codex/kb-note-client-omit-wires_to-on-synthetic-task-key-instead-of-404ing-on-phantom-",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.505,
       "origin": "autowire-semantic"
     },
     {
@@ -288158,6 +288556,14 @@
     {
       "from": "note:note-mqpna41fj59",
       "to": "note:note-mqpz36sv7ns",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqpni1fwt9t",
+      "to": "note:note-mqpv6qx0gzv",
       "kind": "context",
       "weight": 0.6,
       "by": "judge",
@@ -289211,6 +289617,15 @@
       "origin": "asserted"
     },
     {
+      "from": "note:note-mr5bebfkw0t",
+      "to": "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.427,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mr5c2remh4y",
       "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4",
       "kind": "context",
@@ -289270,88 +289685,41 @@
     },
     {
       "from": "note:note-mr5xad0sam6",
-      "to": "codex/hoist-min-bump-guarantee-into-main-turn-loop-so-contact-probing-is-not-luck-gate",
+      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
       "kind": "context",
-      "weight": 0.485,
+      "weight": 0.612,
       "by": "judge",
       "judged": true,
-      "score": 0.485,
+      "score": 0.612,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mrbbihyqker",
-      "to": "codex/hoist-min-bump-guarantee-into-main-turn-loop-so-contact-probing-is-not-luck-gate",
-      "kind": "blocking",
+      "from": "note:note-mr5y9o2i9wy",
+      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "kind": "context",
+      "weight": 0.533,
       "by": "judge",
       "judged": true,
-      "score": 0.435,
+      "score": 0.533,
       "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mrbge90hlsx",
-      "to": "note:note-mrbcz8822dq",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.752,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrbge90hlsx",
-      "to": "note:note-mr6httweaeo",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.748,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrblpyl5dxt",
-      "to": "note:note-mrbge90hlsx",
+      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
       "kind": "context",
-      "weight": 0.49,
+      "weight": 0.462,
       "by": "judge",
       "judged": true,
-      "score": 0.49,
+      "score": 0.462,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mrbnujv5aqy",
-      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
+      "from": "note:note-mrbivetaj8p",
+      "to": "note:note-mrdgxaku2cv",
       "kind": "context",
-      "weight": 0.418,
+      "weight": 0.6,
       "by": "judge",
-      "judged": true,
-      "score": 0.418,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrbnujv5aqy",
-      "to": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.418,
-      "by": "judge",
-      "judged": true,
-      "score": 0.418,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrbnujv5aqy",
-      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrbnujv5aqy",
-      "to": "note:note-mrbnuu7vb49",
-      "kind": "context",
-      "weight": 0.451,
-      "by": "judge",
-      "judged": true,
-      "score": 0.451,
-      "origin": "autowire-semantic"
+      "judged": true
     },
     {
       "from": "note:note-mrbnujv5aqy",
@@ -289365,40 +289733,218 @@
     },
     {
       "from": "note:note-mrbnuu7vb49",
-      "to": "note:note-mrbnujv5aqy",
+      "to": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
       "kind": "context",
-      "weight": 0.787,
+      "weight": 0.413,
       "by": "judge",
       "judged": true,
-      "score": 0.787,
+      "score": 0.413,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mrbnuu7vb49",
-      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
+      "from": "note:note-mrbnwsfik44",
+      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "kind": "context",
+      "weight": 0.521,
+      "by": "judge",
+      "judged": true,
+      "score": 0.521,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdghicnc6j",
+      "to": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
       "kind": "context",
       "weight": 1,
       "judged": true,
       "origin": "asserted"
     },
     {
-      "from": "note:note-mrbnwsfik44",
-      "to": "note:note-mrbge90hlsx",
+      "from": "note:note-mrdghicnc6j",
+      "to": "followup/investigate-search-arm-0-notes-not-appea-o05d",
       "kind": "context",
-      "weight": 0.773,
+      "weight": 0.814,
       "by": "judge",
       "judged": true,
-      "score": 0.773,
+      "score": 0.814,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mrbq3z5gb0i",
-      "to": "note:note-mrbnwsfik44",
+      "from": "note:note-mrdghicnc6j",
+      "to": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
       "kind": "context",
-      "weight": 0.775,
+      "weight": 0.699,
       "by": "judge",
       "judged": true,
-      "score": 0.775,
+      "score": 0.699,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdghicnc6j",
+      "to": "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.438,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdgxaku2cv",
+      "to": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrdgxaku2cv",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrdgxaku2cv",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrdgxaku2cv",
+      "to": "codex/ewm-repair-budget-guard-reach-exploration-run-twenty-eight",
+      "kind": "context",
+      "weight": 0.439,
+      "by": "judge",
+      "judged": true,
+      "score": 0.439,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdgxaku2cv",
+      "to": "codex/kbclient-omits-task_key-on-read-searches-when-synthetic-so-corroboration-gate-st",
+      "kind": "context",
+      "weight": 0.697,
+      "by": "judge",
+      "judged": true,
+      "score": 0.697,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdjfb7dhgw",
+      "to": "note:note-mrbnujv5aqy",
+      "kind": "context",
+      "weight": 0.798,
+      "by": "judge",
+      "judged": true,
+      "score": 0.798,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdk6x496hg",
+      "to": "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrdmigcubf3",
+      "to": "note:note-mrbnujv5aqy",
+      "kind": "context",
+      "weight": 0.798,
+      "by": "judge",
+      "judged": true,
+      "score": 0.798,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdmigcubf3",
+      "to": "note:note-mrdmia4g7uw",
+      "kind": "context",
+      "weight": 0.798,
+      "by": "judge",
+      "judged": true,
+      "score": 0.798,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdn533smky",
+      "to": "note:note-mrdmigcubf3",
+      "kind": "context",
+      "weight": 0.59,
+      "by": "judge",
+      "judged": true,
+      "score": 0.59,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdn533smky",
+      "to": "note:note-mrbnujv5aqy",
+      "kind": "context",
+      "weight": 0.671,
+      "by": "judge",
+      "judged": true,
+      "score": 0.671,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdn533smky",
+      "to": "note:note-mrdmia4g7uw",
+      "kind": "context",
+      "weight": 0.671,
+      "by": "judge",
+      "judged": true,
+      "score": 0.671,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdn58yvbl4",
+      "to": "note:note-mrdn533smky",
+      "kind": "context",
+      "weight": 0.792,
+      "by": "judge",
+      "judged": true,
+      "score": 0.792,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdnbbv37s1",
+      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrdnizjtsd8",
+      "to": "note:note-mrbge90hlsx",
+      "kind": "context",
+      "weight": 0.49,
+      "by": "judge",
+      "judged": true,
+      "score": 0.49,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdpnp6b2pv",
+      "to": "note:note-mrdpnnp8qpk",
+      "kind": "context",
+      "weight": 0.796,
+      "by": "judge",
+      "judged": true,
+      "score": 0.796,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdpsp01pr3",
+      "to": "note:note-mrbq3z5gb0i",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.721,
       "origin": "autowire-semantic"
     },
     {
@@ -289519,6 +290065,38 @@
       "judged": true
     },
     {
+      "from": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
+      "to": "codex/kbclient-omits-task_key-on-read-searches-when-synthetic-so-corroboration-gate-st",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
+      "to": "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
+      "to": "knowledge:source_section:note-mqqmixayq8m#note-evidence",
+      "kind": "context",
+      "weight": 0.432,
+      "by": "judge",
+      "judged": true,
+      "score": 0.432,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
+      "to": "knowledge:source_doc:note-mqqmixayq8m",
+      "kind": "context",
+      "weight": 0.411,
+      "by": "judge",
+      "judged": true,
+      "score": 0.411,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "codex/fix-consolidate-universal-skills-kickback",
       "to": "codex/consolidate-universal-skills-judge",
       "kind": "context",
@@ -289613,52 +290191,59 @@
     },
     {
       "from": "codex/hoist-min-bump-guarantee-into-main-turn-loop-so-contact-probing-is-not-luck-gate",
+      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/kb-note-client-omit-wires_to-on-synthetic-task-key-instead-of-404ing-on-phantom-",
+      "to": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/kbclient-omits-task_key-on-read-searches-when-synthetic-so-corroboration-gate-st",
+      "to": "codex/fix-search-kb-recall-semantics",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.405,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "to": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
       "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
       "kind": "blocking",
       "by": "judge",
       "judged": true,
-      "score": 0.434,
+      "score": 0.616,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/hoist-min-bump-guarantee-into-main-turn-loop-so-contact-probing-is-not-luck-gate",
-      "to": "codex/fix-silent-bump-approach-early-return-in-_bump_discovery-run-25-live-finding",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.422,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/kb-note-client-omit-wires_to-on-synthetic-task-key-instead-of-404ing-on-phantom-",
-      "to": "codex/fix-graph-dispatch-invariants",
-      "kind": "context",
-      "weight": 0.483,
-      "by": "judge",
-      "judged": true,
-      "score": 0.483,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/kb-note-client-omit-wires_to-on-synthetic-task-key-instead-of-404ing-on-phantom-",
-      "to": "codex/judge-subconscious-anchor-real-task-filter",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.394,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
-      "to": "codex/kb-note-client-omit-wires_to-on-synthetic-task-key-instead-of-404ing-on-phantom-",
-      "kind": "context",
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static",
+      "from": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
       "to": "codex/hoist-min-bump-guarantee-into-main-turn-loop-so-contact-probing-is-not-luck-gate",
-      "kind": "context",
-      "origin": "asserted"
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.495,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.557,
+      "origin": "autowire-semantic"
     },
     {
       "from": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/8",
@@ -289732,5 +290317,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-07-08T12:29:50.283Z"
+  "compacted_at": "2026-07-10T10:55:27.901Z"
 }
