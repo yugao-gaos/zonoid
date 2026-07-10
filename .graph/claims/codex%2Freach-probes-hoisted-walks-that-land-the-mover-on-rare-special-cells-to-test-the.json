@@ -3,8 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "d070c9d8-a489-4a61-80e2-f4d17353b274",
   "branch": "orch/attempt/codex-reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-07-10T14:29:59.281Z",
   "lease_until": "2026-07-10T15:29:59.281Z",
-  "completed_at": "2026-07-10T14:53:57.062Z"
+  "completed_at": "2026-07-10T14:54:30.622Z"
 }
