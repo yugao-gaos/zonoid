@@ -8,3 +8,4 @@
 {"evt":"edge_removed","from":"note:note-mrf70dny7ox","to":"note:note-mrdn533smky","kind":"context","actor":"overlay-sync","ts":"2026-07-10T17:14:32.223Z"}
 {"evt":"edge_added","from":"note:note-mrf70dny7ox","to":"codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline","kind":"context","actor":"overlay-sync","ts":"2026-07-10T17:18:05.597Z","weight":0,"by":"autowire","judged":false,"score":0.379,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mrf70dny7ox","to":"codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline","kind":"context","actor":"overlay-sync","ts":"2026-07-10T18:15:29.072Z"}
+{"evt":"edge_promoted","from":"note:note-mrf70dny7ox","to":"note:note-mrf7063yh1v","kind":"context","actor":"overlay-sync","ts":"2026-07-10T18:15:51.932Z","weight":0.8,"by":"judge","judged":true,"score":0.8,"origin":"autowire-semantic"}
