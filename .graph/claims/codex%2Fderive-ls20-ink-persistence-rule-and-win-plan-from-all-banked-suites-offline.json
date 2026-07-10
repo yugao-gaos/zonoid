@@ -3,7 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "worker-ls20-game-model-session",
   "branch": "orch/attempt/codex-derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-07-10T17:17:56.848Z",
-  "lease_until": "2026-07-10T18:17:56.848Z"
+  "lease_until": "2026-07-10T18:17:56.848Z",
+  "completed_at": "2026-07-10T17:29:23.742Z"
 }
