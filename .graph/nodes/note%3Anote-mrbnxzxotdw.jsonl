@@ -33,3 +33,4 @@
 {"evt":"edge_removed","from":"note:note-mrbnxzxotdw","to":"note:note-mrblqds8b0d","kind":"context","actor":"overlay-sync","ts":"2026-07-09T15:23:28.740Z"}
 {"evt":"edge_removed","from":"note:note-mrbnxzxotdw","to":"note:note-mrbnz97r7au","kind":"context","actor":"overlay-sync","ts":"2026-07-09T15:45:54.876Z"}
 {"evt":"edge_removed","from":"note:note-mrbnxzxotdw","to":"note:note-mrblq3lm3cl","kind":"context","actor":"overlay-sync","ts":"2026-07-09T16:10:17.557Z"}
+{"evt":"note_superseded","id":"note-mrbnxzxotdw","supersededBy":"note-mrf27g4pmou","validTo":"2026-07-10T14:57:12.553Z","ts":"2026-07-10T14:57:12.553Z","actor":"supersede"}
