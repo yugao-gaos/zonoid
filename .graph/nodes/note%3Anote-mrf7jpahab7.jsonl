@@ -20,3 +20,4 @@
 {"evt":"edge_removed","from":"note:note-mrf7jpahab7","to":"note:note-mrf22r19495","kind":"context","actor":"overlay-sync","ts":"2026-07-10T18:34:48.577Z"}
 {"evt":"edge_removed","from":"note:note-mrf7jpahab7","to":"note:note-mrbq3z5gb0i","kind":"context","actor":"overlay-sync","ts":"2026-07-10T18:45:14.622Z"}
 {"evt":"edge_removed","from":"note:note-mrf7jpahab7","to":"note:note-mrbnwsfik44","kind":"context","actor":"overlay-sync","ts":"2026-07-10T18:45:25.803Z"}
+{"evt":"edge_removed","from":"note:note-mrf7jpahab7","to":"note:note-mr5i8jmlosb","kind":"context","actor":"overlay-sync","ts":"2026-07-10T18:54:25.159Z"}
