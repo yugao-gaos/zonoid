@@ -5225,6 +5225,117 @@ class CrossRunCoveragePersistenceTests(unittest.TestCase):
         self.assertEqual(decoded["visited"], {(1, 0, 0), (1, 0, 1), (1, 0, 2)})
 
 
+class LocalCoverageStateFileTests(unittest.TestCase):
+    """Run-40: the LOCAL FILE ``out/ewm-state/<game_id>-coverage.json`` (CWD-relative) is the
+    PRIMARY cross-run coverage store; the KB note is a best-effort observability write-through.
+    Three DISTINCT KB retrieval failure modes each broke the SAME coverage round-trip live (chunk
+    flood, corroboration gate, and the run-38 daemon source-cluster rewrite gutting the note) —
+    the agent's OWN state needs no retrieval stack. Every test runs in its own temp CWD (conftest),
+    so the file state is per-test."""
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _agent(self, env, kb, **cfg):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        base = dict(game_id="push", max_turns=6, min_probe_transitions=1, coverage_persistence=True)
+        base.update(cfg)
+        return EwmAgent(env, FakeLlm([]), kb=kb, vision_enabled=False, config=AgentConfig(**base))
+
+    @staticmethod
+    def _path():
+        import os
+
+        return os.path.join("out", "ewm-state", "push-coverage.json")
+
+    def test_local_file_round_trips_coverage_and_probe_tokens_without_kb(self):
+        import os
+
+        # PERSIST with NO KB AT ALL (kb=None): the local file alone is the store.
+        env = PushBlockEnv()
+        ag = self._agent(env, kb=None)
+        ag._board_cell_count = 3
+        ag._coverage_cells = {(1, 0, 0), (1, 0, 1)}
+        ag._fired_probes = {("SPACE", "objA")}
+        ag._fired_bump_objects = {"objB"}
+        ag._fired_reach_targets = {"tgtC"}
+        ag._coverage_plateau = 2
+        ag._persist_coverage()
+        self.assertTrue(ag.summary.coverage_persisted)  # the FILE write alone counts as persisted
+        self.assertEqual(ag.summary.kb_writes, 0)  # no KB was involved
+        self.assertTrue(os.path.exists(self._path()))
+        # Atomic write discipline: no temp file left behind next to the store.
+        leftovers = [f for f in os.listdir(os.path.dirname(self._path())) if ".tmp" in f]
+        self.assertEqual(leftovers, [])
+        # RESUME in a fresh agent, still with NO KB: the file restores the exact state — visited
+        # ground, the non-movement probe, and the bump/reach probe tokens.
+        ag2 = self._agent(PushBlockEnv(), kb=None)
+        ag2._board_cell_count = 3
+        ag2._resume_coverage(ag2.env.observe())
+        self.assertTrue({(1, 0, 0), (1, 0, 1)}.issubset(ag2._coverage_cells))
+        self.assertIn(("SPACE", "objA"), ag2._fired_probes)
+        # Bump/reach tokens land in the ADVISORY ordering sets, never the per-run gates
+        # (Run-25/Run-39 semantics, identical to the KB path).
+        self.assertIn("objB", ag2._resumed_bump_probes)
+        self.assertIn("tgtC", ag2._resumed_reach_probes)
+        self.assertNotIn(("<bump>", "objB"), ag2._fired_probes)
+        self.assertNotIn(("<reach>", "tgtC"), ag2._fired_probes)
+        self.assertNotIn("objB", ag2._bump_attempted)
+        self.assertNotIn("tgtC", ag2._reach_attempted)
+        self.assertGreater(ag2.summary.coverage_resumed_pct, 0.0)
+
+    def test_kb_fallback_only_when_file_missing(self):
+        from bench.arc_agi3_zonoid.ewm import kb_protocol
+
+        kb_body = kb_protocol.encode_coverage_state({(1, 0, 2)}, set(), board_cells=3)
+        # (i) NO file: the KB path recovers the persisted note (graceful fallback).
+        env = PushBlockEnv()
+        ag = self._agent(env, _CoverageKb("push", kb_body))
+        ag._board_cell_count = 3
+        ag._resume_coverage(env.observe())
+        self.assertIn((1, 0, 2), ag._coverage_cells)
+        # (ii) File PRESENT: the file wins — the KB note (holding DIFFERENT ground) is not used.
+        file_body = kb_protocol.encode_coverage_state({(1, 0, 0)}, set(), board_cells=3)
+        ag2 = self._agent(PushBlockEnv(), _CoverageKb("push", kb_body))
+        self.assertTrue(ag2._write_coverage_file(file_body))
+        ag2._board_cell_count = 3
+        ag2._resume_coverage(ag2.env.observe())
+        self.assertIn((1, 0, 0), ag2._coverage_cells)
+        self.assertNotIn((1, 0, 2), ag2._coverage_cells)
+
+    def test_corrupt_file_degrades_to_kb_then_fresh(self):
+        import os
+
+        from bench.arc_agi3_zonoid.ewm import kb_protocol
+
+        path = self._path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("{not json !!!")
+        # Corrupt file + a KB note -> degrade to the KB path (no crash, KB ground recovered).
+        body = kb_protocol.encode_coverage_state({(1, 0, 1)}, set(), board_cells=3)
+        env = PushBlockEnv()
+        ag = self._agent(env, _CoverageKb("push", body))
+        ag._board_cell_count = 3
+        ag._resume_coverage(env.observe())
+        self.assertIn((1, 0, 1), ag._coverage_cells)
+        # Corrupt file + NO KB -> a clean fresh sweep (no crash, nothing resumed).
+        ag2 = self._agent(PushBlockEnv(), kb=None)
+        ag2._board_cell_count = 3
+        ag2._resume_coverage(ag2.env.observe())
+        self.assertEqual(ag2._coverage_cells, set())
+        self.assertEqual(ag2.summary.coverage_resumed_pct, 0.0)
+        # A JSON envelope whose body is not coverage-shaped degrades the same way (no crash).
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write('{"version": 1, "body": 42}')
+        ag3 = self._agent(PushBlockEnv(), kb=None)
+        ag3._board_cell_count = 3
+        ag3._resume_coverage(ag3.env.observe())
+        self.assertEqual(ag3._coverage_cells, set())
+
+
 # ---------------------------------------------------------------------------------------------------
 # Run-39 REACH PROBES (hoisted walks that land the mover on rare special cells)
 # ---------------------------------------------------------------------------------------------------
@@ -5560,6 +5671,84 @@ class ReachProbeTests(unittest.TestCase):
             for (_h, cell) in reordered[:-1]
         ]
         self.assertEqual(costs, sorted(costs))
+
+    # -- Run-40: bump exhaustion under the min floor advances the phase (run-39 regression) --------
+
+    def _run39_agent(self, env, **cfg):
+        """THE run-39 live shape: 12 bumps fired earlier (all from goal-discovery batches, so the
+        hoist watermark is current), the min floor (24) is unmet, and bump discovery is EXHAUSTED
+        (every object class already attempted this run)."""
+
+        base = dict(exploration_min_bump_actions=24)
+        base.update(cfg)
+        ag = self._reach_agent(env, **base)
+        self._seed_unit_moves(ag)
+        ag.summary.bumps_probed = 12
+        ag._hoist_bumps_seen = 12  # watermark current: no stray re-arm inside the call under test
+        for (obj_hash, _approach, _direction, _cost) in ag._bump_contexts(env._grid()):
+            ag._bump_attempted.add(obj_hash)
+        return ag
+
+    def test_run39_bump_exhaustion_under_min_engages_reach(self):
+        # Run-39 regression: bumps_probed=12 < min(24) with nothing left to bump. Pre-fix the
+        # hoisted turn stayed in the bump phase and _explore_batch's empty-bump fall-through ran a
+        # FRONTIER batch, so reach NEVER engaged (run 39 live: reach_probes=0,
+        # hoisted_frontier_batches=0, while frontier_batches=2 ran INSIDE hoisted bump batches).
+        # Post-fix the exhausted bump batch SATISFIES the bump phase and the SAME hoisted turn
+        # advances to REACH while an untried rare target remains.
+        env = _ReachSpecialCellEnv()
+        ag = self._run39_agent(env)
+        out = ag._hoist_bump_batch(env.observe())
+        self.assertIsNotNone(out)
+        self.assertGreaterEqual(
+            ag.summary.reach_probes, 1,
+            "bump exhaustion under the min floor must advance the hoist to the REACH phase",
+        )
+        self.assertEqual(ag.summary.hoist_phase, "reach")
+        # The empty bump attempt stays visible (Run-23 guard) and its anti-spin still advances.
+        self.assertEqual(ag.summary.hoisted_bump_batches, 1)
+        self.assertEqual(ag.summary.bump_empty_batches, 1)
+        self.assertEqual(ag._hoist_empty_streak, 1)
+
+    def test_run39_reach_exhausted_falls_through_to_frontier(self):
+        # Same exhausted-bump shape, but every rare target was ALSO already attempted this run:
+        # the hoisted turn falls through to a FRONTIER batch (cycle-11 semantics), with the
+        # pre-fix attribution preserved (part of the bump batch — NOT a hoisted FRONTIER batch,
+        # so the frontier phase's own anti-spin bookkeeping stays untouched).
+        env = _ReachSpecialCellEnv()
+        ag = self._run39_agent(env)
+        for (target_hash, _cell) in ag._reach_targets(env._grid()):
+            ag._reach_attempted.add(target_hash)
+        out = ag._hoist_bump_batch(env.observe())
+        self.assertIsNotNone(out)
+        self.assertEqual(ag.summary.reach_probes, 0)
+        self.assertEqual(ag.summary.hoist_phase, "frontier")
+        self.assertGreaterEqual(ag.summary.frontier_batches, 1)
+        self.assertEqual(ag.summary.hoisted_frontier_batches, 0)
+
+    def test_hoist_phase_echoes_bump_and_stood_down(self):
+        # hoist_phase = the LAST phase that actually ran: "bump" when a bump fires, "stood_down"
+        # when a hoist-eligible turn finds every phase stood down — and it rides Summary.to_dict
+        # so the driver echo surfaces it.
+        env = _ReachSpecialCellEnv()
+        ag = self._reach_agent(
+            env, exploration_min_bump_actions=24, max_interaction_probes_per_turn=1,
+        )
+        self._seed_unit_moves(ag)
+        self.assertIsNone(ag.summary.hoist_phase)  # never hoisted yet
+        self.assertIn("hoist_phase", ag.summary.to_dict())
+        self.assertIsNotNone(ag._hoist_bump_batch(env.observe()))
+        self.assertEqual(ag.summary.hoist_phase, "bump")  # a bump fired: the bump phase ran
+        # Stand EVERY phase down (bump streak, reach streak, frontier streak all tripped, all
+        # watermarks current): the hoist returns None and records "stood_down".
+        ag._hoist_empty_streak = 3
+        ag._hoist_bumps_seen = ag.summary.bumps_probed
+        ag._reach_empty_streak = 3
+        ag._frontier_hoist_empty_streak = 3
+        ag._hoist_coverage_seen = len(ag._coverage_cells)
+        self.assertIsNone(ag._hoist_bump_batch(env.observe()))
+        self.assertEqual(ag.summary.hoist_phase, "stood_down")
+        self.assertEqual(ag.summary.to_dict()["hoist_phase"], "stood_down")
 
 
 def _script_reflect_only() -> FakeLlm:
