@@ -7,3 +7,4 @@
 {"evt":"edge_removed","from":"note:note-mrf27zcnxvi","to":"note:note-mrblq1z8yd5","kind":"context","actor":"overlay-sync","ts":"2026-07-10T14:59:09.816Z"}
 {"evt":"edge_added","from":"note:note-mrf27zcnxvi","to":"note:note-mrblq1z8yd5","kind":"context","actor":"overlay-sync","ts":"2026-07-10T15:02:39.818Z","weight":0,"by":"autowire","judged":false,"score":0.881,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mrf27zcnxvi","to":"note:note-mrf27snmfpq","kind":"context","actor":"overlay-sync","ts":"2026-07-10T15:02:39.818Z"}
+{"evt":"edge_removed","from":"note:note-mrf27zcnxvi","to":"note:note-mrf27u7wapu","kind":"context","actor":"overlay-sync","ts":"2026-07-10T15:03:05.473Z"}
