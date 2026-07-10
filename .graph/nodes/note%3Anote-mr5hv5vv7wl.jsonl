@@ -13,3 +13,4 @@
 {"evt":"edge_removed","from":"note:note-mr5hv5vv7wl","to":"note:note-mr5hv30dmnw","kind":"context","actor":"overlay-sync","ts":"2026-07-04T03:19:08.046Z"}
 {"evt":"edge_added","from":"note:note-mr5hv5vv7wl","to":"codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static","kind":"context","actor":"overlay-sync","ts":"2026-07-08T01:43:18.637Z","weight":0,"by":"autowire","judged":false,"score":0.346,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr5hv5vv7wl","to":"codex/per-color-observed-mover-detection-color-12-moves-color-9-is-static","kind":"context","actor":"overlay-sync","ts":"2026-07-08T02:10:03.845Z"}
+{"evt":"edge_added","from":"note:note-mr5hv5vv7wl","to":"codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the","kind":"context","actor":"overlay-sync","ts":"2026-07-10T14:53:59.770Z","weight":0,"by":"autowire","judged":false,"score":0.447,"origin":"autowire-semantic"}
