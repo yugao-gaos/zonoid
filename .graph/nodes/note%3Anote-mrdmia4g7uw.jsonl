@@ -16,3 +16,10 @@
 {"evt":"edge_removed","from":"note:note-mrdmia4g7uw","to":"note:note-mrbq3z5gb0i","kind":"context","actor":"overlay-sync","ts":"2026-07-09T16:22:12.071Z"}
 {"evt":"edge_removed","from":"note:note-mrdmia4g7uw","to":"note:note-mrbnujv5aqy","kind":"context","actor":"overlay-sync","ts":"2026-07-09T16:46:27.509Z"}
 {"evt":"edge_removed","from":"note:note-mrdmia4g7uw","to":"note:note-mrdn533smky","kind":"context","actor":"overlay-sync","ts":"2026-07-09T16:46:29.377Z"}
+{"evt":"note_supersedes","id":"note-mrdmia4g7uw","supersedes":"note-mrbnujv5aqy","ts":"2026-07-09T14:49:57.952Z","actor":"supersede"}
+{"evt":"edge_added","from":"note:note-mrdmia4g7uw","to":"knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-07-10T16:45:58.245Z","weight":0.418,"by":"judge","judged":true,"score":0.418,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mrdmia4g7uw","to":"knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-07-10T16:45:58.245Z","weight":0.418,"by":"judge","judged":true,"score":0.418,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mrdmia4g7uw","to":"codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four","kind":"context","actor":"overlay-sync","ts":"2026-07-10T16:45:58.245Z","weight":1,"judged":true,"origin":"asserted"}
+{"evt":"edge_added","from":"note:note-mrdmia4g7uw","to":"note:note-mrbnuu7vb49","kind":"context","actor":"overlay-sync","ts":"2026-07-10T16:45:58.245Z","weight":0.451,"by":"judge","judged":true,"score":0.451,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mrdmia4g7uw","to":"knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-3","kind":"context","actor":"overlay-sync","ts":"2026-07-10T16:45:58.245Z","weight":0.418,"by":"judge","judged":true,"score":0.418,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mrdmia4g7uw","to":"note:note-mrbq3z5gb0i","kind":"context","actor":"overlay-sync","ts":"2026-07-10T16:45:58.245Z","weight":0,"by":"autowire","judged":false,"score":0.453,"origin":"autowire-semantic"}

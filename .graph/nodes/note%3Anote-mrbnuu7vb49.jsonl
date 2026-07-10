@@ -20,3 +20,5 @@
 {"evt":"edge_removed","from":"note:note-mrbnuu7vb49","to":"note:note-mr5hu8iwax0","kind":"context","actor":"overlay-sync","ts":"2026-07-09T12:39:00.705Z"}
 {"evt":"edge_promoted","from":"note:note-mrbnuu7vb49","to":"codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery","kind":"context","actor":"overlay-sync","ts":"2026-07-09T12:53:03.936Z","weight":0.413,"by":"judge","judged":true,"score":0.413,"origin":"autowire-semantic"}
 {"evt":"note_superseded","id":"note-mrbnuu7vb49","supersededBy":"note-mrdjfb7dhgw","validTo":"2026-07-09T13:23:40.537Z","ts":"2026-07-09T13:23:40.537Z","actor":"supersede"}
+{"evt":"edge_added","from":"note:note-mrbnuu7vb49","to":"note:note-mrdmia4g7uw","kind":"context","actor":"overlay-sync","ts":"2026-07-10T16:45:58.245Z","weight":0.787,"by":"judge","judged":true,"score":0.787,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mrbnuu7vb49","to":"note:note-mrbnujv5aqy","kind":"context","actor":"overlay-sync","ts":"2026-07-10T16:45:58.245Z"}
