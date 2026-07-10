@@ -40,3 +40,4 @@
 {"evt":"edge_removed","from":"note:note-mrde6f1x6nt","to":"note:note-mrblq3lm3cl","kind":"context","actor":"overlay-sync","ts":"2026-07-10T16:37:36.306Z"}
 {"evt":"edge_removed","from":"note:note-mrde6f1x6nt","to":"note:note-mrblq1z8yd5","kind":"context","actor":"overlay-sync","ts":"2026-07-10T16:41:19.905Z"}
 {"evt":"edge_removed","from":"note:note-mrde6f1x6nt","to":"note:note-mrdnizjtsd8","kind":"context","actor":"overlay-sync","ts":"2026-07-10T16:41:54.008Z"}
+{"evt":"edge_removed","from":"note:note-mrde6f1x6nt","to":"note:note-mrf282yj9h4","kind":"context","actor":"overlay-sync","ts":"2026-07-10T18:09:38.474Z"}
