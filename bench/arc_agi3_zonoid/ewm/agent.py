@@ -778,6 +778,11 @@ class RunSummary:
     # cell on the OBSERVED frame — the navigate-to-target win hypothesis test.
     reach_probes: int = 0
     reach_arrived: int = 0
+    # HOIST PHASE echo (Run-40). The LAST hoist phase that actually RAN this run — "bump", "reach"
+    # or "frontier" — or "stood_down" when a hoist-eligible turn found every phase stood down. Run 39
+    # was undiagnosable from the counters alone (reach_probes=0 could be "no targets" OR "the phase
+    # never engaged"); this echo makes the dispatch visible. None until the hoist first decides.
+    hoist_phase: str | None = None
     # EMPIRICAL APPROACH WALK (Run-27). The adopted program systematically mispredicts the player
     # mover, so ANY expect-gated approach walk aborts — the Run-26 single re-plan retry engaged and
     # ALSO diverged (run-27: bump_skip_reason="approach walk aborted before bump (diverged)" on both
@@ -846,6 +851,7 @@ class RunSummary:
             "hoisted_frontier_batches": self.hoisted_frontier_batches,
             "reach_probes": self.reach_probes,
             "reach_arrived": self.reach_arrived,
+            "hoist_phase": self.hoist_phase,
             "approach_retries": self.approach_retries,
             "config_echo": dict(self.config_echo) if self.config_echo else None,
         }
@@ -3394,7 +3400,19 @@ class EwmAgent:
         (:meth:`_reach_discovery`) while untried targets remain; only when reach finds nothing to do
         (targets exhausted, or its own 3-empty-attempt standdown tripped) does the turn fall through
         to the frontier phase. Run 38 destroyed every color-8/color-11 object with no level, so the
-        remaining ls20 win hypothesis is navigate-to-target: occupy the rare color-0/color-1 cells."""
+        remaining ls20 win hypothesis is navigate-to-target: occupy the rare color-0/color-1 cells.
+
+        BUMP EXHAUSTION ADVANCES THE PHASE (Run-40): the bump phase dispatches
+        :meth:`_bump_discovery` DIRECTLY (mirroring :meth:`_explore_batch`'s bump half
+        counter-for-counter), not through :meth:`_explore_batch` — whose empty-bump fall-through
+        runs a FRONTIER batch and so BYPASSES the reach phase. Run 39 live: bumps_probed=12 <
+        min(24) kept every hoisted turn in the bump phase while bump discovery was exhausted, so
+        each one ended in that internal bump->frontier jump: reach_probes=0,
+        hoisted_frontier_batches=0, and the run's frontier_batches=2 ran INSIDE hoisted bump
+        batches. A due bump batch that finds NOTHING to bump while under the min floor SATISFIES
+        the bump phase: the SAME hoisted turn advances to REACH (while untried targets remain),
+        then to the frontier — each phase keeping its own anti-spin. ``summary.hoist_phase``
+        echoes the phase that actually ran ("bump"/"reach"/"frontier", or "stood_down")."""
 
         # Re-arm on ANY bump fired since the last check — a bump from the goal-discovery exploration
         # path also clears the standdown.
@@ -3414,25 +3432,56 @@ class EwmAgent:
             and self._bump_quota_due()  # False when bump probing is disabled
             and self._hoist_empty_streak < 3  # bump anti-spin standdown -> bump phase exhausted
         )
+        bump_exhausted_now = False
         if bump_phase:
             self.summary.hoisted_bump_batches += 1
+            # Direct bump dispatch (Run-40), mirroring _explore_batch's bump half exactly: the
+            # SILENT-DROP due/empty counters, and the plateau reset when a bump opens new ground.
+            # Routing through _explore_batch is what starved reach on run 39 — its empty-bump
+            # fall-through runs a frontier batch, skipping the reach phase between them.
+            self.summary.bump_due_batches += 1
             before = self.summary.bumps_probed
-            result, diverged = self._explore_batch(frame)
-            if self.summary.bumps_probed > before:
+            probed = self._bump_discovery(frame)
+            if probed is not None and self.summary.bumps_probed > before:
+                # A bump batch may open new ground: reset the plateau so the frontier re-sweeps.
+                self._coverage_plateau = 0
                 self._hoist_empty_streak = 0
-            else:
-                self._hoist_empty_streak += 1
+                self._hoist_bumps_seen = self.summary.bumps_probed
+                self.summary.hoist_phase = "bump"
+                return probed
+            # No bump fired: dedup/objects exhausted, or the approach walk aborted. The empty batch
+            # stays visible (Run-23 guard) and still advances the bump anti-spin streak (3 empties
+            # stand the bump phase down across turns, as before).
+            self.summary.bump_empty_batches += 1
+            self._hoist_empty_streak += 1
             self._hoist_bumps_seen = self.summary.bumps_probed
-            return result, diverged
+            if probed is not None:
+                # Env actions WERE executed (an approach walk ended the batch after an earlier
+                # fired bump): the turn is spent — return it as the bump batch it was.
+                self.summary.hoist_phase = "bump"
+                return probed
+            # EXHAUSTED (nothing to bump this turn): under the min floor this SATISFIES the bump
+            # phase — fall THROUGH to reach, then the frontier, in this SAME hoisted turn (Run-40;
+            # run 39 burned every hoisted turn here with reach_probes=0).
+            bump_exhausted_now = True
         # REACH phase (Run-39): bump floor met / exhausted / disabled — while untried rare special
         # cells remain (and the reach anti-spin has not stood the phase down), spend this hoisted
         # turn landing the mover on one. Falls through to the frontier when there is nothing to reach.
         reached = self._reach_discovery(frame)
         if reached is not None:
+            self.summary.hoist_phase = "reach"
             return reached
+        if bump_exhausted_now:
+            # Nothing to reach either: run the frontier batch the empty bump batch fell through to
+            # pre-Run-40, with the SAME attribution (part of the bump batch — NOT a hoisted
+            # FRONTIER batch, so the frontier phase's own anti-spin bookkeeping stays untouched).
+            self.summary.hoist_phase = "frontier"
+            return self._frontier_execute(frame)
         # FRONTIER phase: the bump floor is met / exhausted / disabled — keep hoisting to grow coverage.
         if self._frontier_hoist_empty_streak >= 3:
+            self.summary.hoist_phase = "stood_down"
             return None  # anti-spin standdown: wait for coverage growth before hoisting again
+        self.summary.hoist_phase = "frontier"
         self.summary.hoisted_frontier_batches += 1
         before_cov = len(self._coverage_cells)
         before_bumps = self.summary.bumps_probed
@@ -4745,25 +4794,74 @@ class EwmAgent:
 
         return getattr(self.kb, "client", None) if self.kb is not None else None
 
-    def _resume_coverage(self, frame: dict[str, Any]) -> None:
-        """RESUME the swept frontier from a prior run's persisted coverage note (Run-20).
+    # LOCAL COVERAGE-STATE FILE (Run-40): the PRIMARY cross-run store. Three DISTINCT KB retrieval
+    # failure modes have each broken the same coverage round-trip live (the chunk flood, the
+    # corroboration gate, and — run 38 — the daemon source-cluster rewrite gutting the note), and
+    # the agent's OWN state needs no retrieval stack. The file carries the codec body VERBATIM
+    # inside a tiny JSON envelope, so the file and KB paths round-trip the IDENTICAL state dict
+    # through the SAME codec (`encode_coverage_state`/`decode_coverage_state`). The KB note remains
+    # a best-effort write-through for observability only.
 
-        Recalls ``game <id> coverage state`` via :func:`kb_protocol.read_coverage_state`, seeds the
-        visited-cell set + fired-probe dedup set + plateau counter from it, and records
-        ``coverage_resumed_pct`` (fraction of the board already swept). Budgets never compound: the next
-        run never re-sweeps persisted ground. A KB miss/outage degrades gracefully to a fresh sweep."""
+    def _coverage_state_file(self) -> str:
+        """The game's local coverage-state file, relative to the CWD the driver runs from."""
+
+        return os.path.join("out", "ewm-state", f"{self.config.game_id}-coverage.json")
+
+    def _write_coverage_file(self, body: str) -> bool:
+        """ATOMIC local write (temp + rename) of the encoded coverage body. False on any failure."""
+
+        try:
+            path = self._coverage_state_file()
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            tmp = f"{path}.tmp.{os.getpid()}"
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump({"version": 1, "game_id": self.config.game_id, "body": body}, fh)
+            os.replace(tmp, path)  # atomic: a concurrent reader sees the old or new file, never half
+            return True
+        except Exception:  # noqa: BLE001 - persistence is advisory; never crash a completed run
+            return False
+
+    def _read_coverage_file(self) -> dict[str, Any] | None:
+        """Decode the local coverage-state file, or None when absent/unusable (degrade to the KB)."""
+
+        try:
+            with open(self._coverage_state_file(), encoding="utf-8") as fh:
+                data = json.load(fh)
+            body = data.get("body") if isinstance(data, dict) else None
+            if not isinstance(body, str):
+                return None
+            from .kb_protocol import decode_coverage_state
+
+            state = decode_coverage_state(body)
+            if not (state.get("visited") or state.get("probes") or state.get("board")):
+                return None  # no recoverable ground: treat as unusable -> KB fallback
+            return state
+        except Exception:  # noqa: BLE001 - a corrupt/foreign file must degrade, never crash
+            return None
+
+    def _resume_coverage(self, frame: dict[str, Any]) -> None:
+        """RESUME the swept frontier from a prior run's persisted coverage state (Run-20).
+
+        Run-40: reads the LOCAL STATE FILE first (the primary store); the KB path
+        (:func:`kb_protocol.read_coverage_state`) runs only when the file is absent or unusable.
+        Seeds the visited-cell set + fired-probe dedup set + plateau counter from the recovered
+        state and records ``coverage_resumed_pct`` (fraction of the board already swept). Budgets
+        never compound: the next run never re-sweeps persisted ground. A corrupt file degrades to
+        the KB, and a KB miss/outage degrades to a fresh sweep — never a crash."""
 
         if not self.config.coverage_persistence:
             return
-        client = self._kb_client()
-        if client is None:
-            return
-        try:
-            from .kb_protocol import read_coverage_state
+        state = self._read_coverage_file()
+        if state is None:
+            client = self._kb_client()
+            if client is None:
+                return
+            try:
+                from .kb_protocol import read_coverage_state
 
-            state = read_coverage_state(client, self.config.game_id)
-        except Exception:  # noqa: BLE001 - a KB outage must never block gameplay
-            state = None
+                state = read_coverage_state(client, self.config.game_id)
+            except Exception:  # noqa: BLE001 - a KB outage must never block gameplay
+                state = None
         if not state:
             return
         self._coverage_cells |= set(state.get("visited") or set())
@@ -4798,20 +4896,19 @@ class EwmAgent:
         )
 
     def _persist_coverage(self) -> None:
-        """Persist this run's swept ground as the game-scoped coverage note (Run-20).
+        """Persist this run's swept ground: the LOCAL STATE FILE first, then the KB note (Run-20/40).
 
         Encodes the visited cells + fired probes + plateau via :func:`kb_protocol.encode_coverage_state`
-        and writes the chunked coverage note (superseding the prior one so ground ACCUMULATES across
-        runs rather than forking). Best-effort: a KB outage or a WriteGate without the coverage writer
-        is swallowed so end-of-run persistence never crashes a completed run."""
+        and writes it to the local coverage-state file (Run-40: the PRIMARY store, atomic
+        temp+rename), then writes the chunked coverage note (superseding the prior one so ground
+        ACCUMULATES across runs rather than forking) as the best-effort observability write-through.
+        Best-effort throughout: a file/KB failure or a WriteGate without the coverage writer is
+        swallowed so end-of-run persistence never crashes a completed run."""
 
-        if not self.config.coverage_persistence or self.kb is None:
-            return
-        writer = getattr(self.kb, "write_coverage_state", None)
-        if not callable(writer):
+        if not self.config.coverage_persistence:
             return
         try:
-            from .kb_protocol import encode_coverage_state, read_coverage_state
+            from .kb_protocol import encode_coverage_state
 
             # CROSS-RUN BUMP COMPOUNDING (Run-38): the persisted probes are the non-movement
             # interaction probes PLUS every bump that fired — this run's (_fired_bump_objects) union
@@ -4833,6 +4930,18 @@ class EwmAgent:
                 board_cells=self._board_cell_count,
                 coverage_plateau=self._coverage_plateau,
             )
+        except Exception:  # noqa: BLE001 - persistence is advisory; never crash a completed run
+            return
+        # PRIMARY (Run-40): the local state file — the store _resume_coverage reads first.
+        if self._write_coverage_file(body):
+            self.summary.coverage_persisted = True
+        # BEST-EFFORT KB write-through (observability; the resume path no longer depends on it).
+        if self.kb is None:
+            return
+        writer = getattr(self.kb, "write_coverage_state", None)
+        if not callable(writer):
+            return
+        try:
             # Supersede the prior coverage note (if any) so the accumulated ground replaces it in-place.
             prior = None
             client = self._kb_client()

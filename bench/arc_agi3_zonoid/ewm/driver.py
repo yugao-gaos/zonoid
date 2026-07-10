@@ -522,7 +522,10 @@ def smoke_run() -> dict[str, Any]:
         kb=None,
         vision_enabled=False,
         config=AgentConfig(
-            game_id="scripted-toy", max_turns=40, artifacts_dir=artifacts_dir
+            game_id="scripted-toy", max_turns=40, artifacts_dir=artifacts_dir,
+            # Run-40: coverage persistence now has a KB-free LOCAL FILE store; keep the smoke run
+            # stateless across invocations (pre-Run-40, kb=None alone made persistence a no-op).
+            coverage_persistence=False,
         ),
     )
     summary = agent.run()
@@ -733,6 +736,9 @@ def live_run(
             # cells (reach_arrived = the footprint actually covered the target on the live frame).
             "reach_probes": summary.get("reach_probes", 0),
             "reach_arrived": summary.get("reach_arrived", 0),
+            # Run-40 HOIST PHASE echo: the last hoist phase that actually ran ("bump"/"reach"/
+            # "frontier"/"stood_down"), so reach_probes=0 is diagnosable (no targets vs never engaged).
+            "hoist_phase": summary.get("hoist_phase"),
             "coverage_resumed_pct": summary.get("coverage_resumed_pct", 0.0),
             "coverage_persisted": summary.get("coverage_persisted", False),
             # Run-23 SILENT-DROP DIAGNOSTICS + CONFIG ECHO: make a dropped field / no-op bump visible.

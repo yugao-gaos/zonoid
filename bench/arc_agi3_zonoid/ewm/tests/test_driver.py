@@ -393,6 +393,7 @@ class LiveConfigWiringTests(unittest.TestCase):
                     "bumps_probed": 0,
                     "bump_due_batches": 0,
                     "bump_empty_batches": 0,
+                    "hoist_phase": "reach",
                 }
 
         # live_run does `from .agent import EwmAgent` at call time, so patch the source module attribute.
@@ -429,6 +430,10 @@ class LiveConfigWiringTests(unittest.TestCase):
         # The driver must also forward the Run-23 diagnostics so a live drop is visible in the arm.
         for key in ("bump_due_batches", "bump_empty_batches", "bump_skip_reason", "player_colors"):
             self.assertIn(key, summary, f"driver dropped Run-23 diagnostic {key!r} from the summary")
+        # And the Run-40 hoist-phase echo (next to the hoisted counters), so reach_probes=0 is
+        # diagnosable live (no targets vs the phase never engaging — the run-39 ambiguity).
+        self.assertEqual(summary.get("hoist_phase"), "reach",
+                         "driver dropped the Run-40 hoist_phase echo from the summary")
 
 
 class ImportPurityTests(unittest.TestCase):
