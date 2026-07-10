@@ -4,3 +4,4 @@
 {"evt":"edge_added","from":"note:note-mrf5tfp1jxl","to":"note:note-mrblq1z8yd5","kind":"context","actor":"overlay-sync","ts":"2026-07-10T16:38:18.234Z","weight":0,"by":"autowire","judged":false,"score":0.879,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mrf5tfp1jxl","to":"note:note-mrf5meeimci","kind":"context","actor":"overlay-sync","ts":"2026-07-10T16:38:18.234Z","weight":0,"by":"autowire","judged":false,"score":0.879,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mrf5tfp1jxl","to":"note:note-mrbnz97r7au","kind":"context","actor":"overlay-sync","ts":"2026-07-10T16:38:18.234Z","weight":0,"by":"autowire","judged":false,"score":0.867,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mrf5tfp1jxl","to":"note:note-mrblq1z8yd5","kind":"context","actor":"overlay-sync","ts":"2026-07-10T16:39:55.986Z"}
