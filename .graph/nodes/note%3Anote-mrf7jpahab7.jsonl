@@ -16,3 +16,4 @@
 {"evt":"edge_promoted","from":"note:note-mrf7jpahab7","to":"codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline","kind":"context","actor":"overlay-sync","ts":"2026-07-10T18:04:49.438Z","weight":0.366,"by":"judge","judged":true,"score":0.366,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mrf7jpahab7","to":"note:note-mrf766rr6sn","kind":"context","actor":"overlay-sync","ts":"2026-07-10T18:04:49.438Z"}
 {"evt":"note_supersedes","id":"note-mrf7jpahab7","supersedes":"note-mrf766rr6sn","ts":"2026-07-10T17:26:42.377Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mrf7jpahab7","to":"note:note-mrbge90hlsx","kind":"context","actor":"overlay-sync","ts":"2026-07-10T18:16:20.934Z"}
