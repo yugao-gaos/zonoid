@@ -402,6 +402,20 @@ class AgentConfig:
     # a small ``--max-actions`` budget still gets its contact probes rather than spending everything on
     # frontier movement. Guaranteed floor; the ratio quota governs once the floor is met.
     exploration_min_bump_actions: int = 24
+    # REACH PROBES (Run-39). Run 38 destroyed EVERY color-8 and color-11 object and the engine still
+    # reported levels_completed=0 — contact alone is not the ls20 win. The remaining candidates are
+    # RARE SPECIAL CELLS (ls20: 3 color-0 cells + 2 color-1 cells forming a plus shape around
+    # (32, 21) inside the color-5 maze; the banked suite shows the mover footprint DID cover the
+    # on-lattice color-0 cell (31, 21) with no win, but the off-lattice row-32/33 cells were only
+    # ever swept OVER, never OCCUPIED at rest). A reach probe WALKS the mover onto such a cell to
+    # test the navigate-to-target win hypothesis. A segmented object class is a reach target only
+    # while its TOTAL cell count is <= reach_target_max_cells — rare by definition, so the big
+    # background/maze/wall classes never qualify. 0 disables reach probing.
+    reach_target_max_cells: int = 4
+    # Colors excluded from reach targeting even when their class is rare: the trail/ground colors
+    # the ls20 effect map established (9 = static decoration/trail, 3 = swept ground). Trail
+    # fragments segment into tiny components that would otherwise masquerade as rare special cells.
+    reach_exclude_colors: tuple[int, ...] = (9, 3)
     # CROSS-RUN COVERAGE PERSISTENCE (Run-20). At run end the agent persists the swept ground (visited
     # cells + fired probes + plateau) as a game-scoped KB note; on ORIENT it loads and RESUMES the
     # frontier so budgets never compound into a fresh re-sweep every run. Telemetry coverage_resumed_pct.
@@ -758,6 +772,12 @@ class RunSummary:
     # exploration batches hoisted from the main turn loop AFTER the bump phase (floor met or bump
     # discovery exhausted) to keep growing coverage, with a 3-zero-growth-batch anti-spin standdown.
     hoisted_frontier_batches: int = 0
+    # REACH PROBES telemetry (Run-39). `reach_probes` = executed reach attempts (an empirical walk
+    # toward a rare special cell, plus the one step INTO the target direction when the walk settles
+    # off-lattice); `reach_arrived` = attempts where the mover FOOTPRINT actually covered the target
+    # cell on the OBSERVED frame — the navigate-to-target win hypothesis test.
+    reach_probes: int = 0
+    reach_arrived: int = 0
     # EMPIRICAL APPROACH WALK (Run-27). The adopted program systematically mispredicts the player
     # mover, so ANY expect-gated approach walk aborts — the Run-26 single re-plan retry engaged and
     # ALSO diverged (run-27: bump_skip_reason="approach walk aborted before bump (diverged)" on both
@@ -824,6 +844,8 @@ class RunSummary:
             "player_colors": list(self.player_colors) if self.player_colors else None,
             "hoisted_bump_batches": self.hoisted_bump_batches,
             "hoisted_frontier_batches": self.hoisted_frontier_batches,
+            "reach_probes": self.reach_probes,
+            "reach_arrived": self.reach_arrived,
             "approach_retries": self.approach_retries,
             "config_echo": dict(self.config_echo) if self.config_echo else None,
         }
@@ -951,6 +973,19 @@ class EwmAgent:
         # the Run-25 per-run dedup semantics are intact.
         self._fired_bump_objects: set[Any] = set()
         self._resumed_bump_probes: set[Any] = set()
+        # REACH PROBES (Run-39) state, mirroring the bump sets above. `_reach_attempted` = PER-RUN
+        # dedup of target hashes whose reach attempt executed (never persisted, so a fresh run
+        # retries each rare target once). `_fired_reach_targets` = targets whose attempt actually
+        # executed this run — _persist_coverage writes them as (<reach>, target_hash) probe tokens.
+        # `_resumed_reach_probes` = target hashes recalled from prior runs' persisted tokens:
+        # ADVISORY ORDERING only (prefer-not-exclude) — _reach_targets ranks them LAST so
+        # compounding runs try new special cells first. `_reach_empty_streak` = consecutive reach
+        # attempts that neither ARRIVED nor changed any non-auto cell; at 3 the reach phase stands
+        # down for the REST OF THE RUN (no re-arm — a blocked mover cannot spin on reach walks).
+        self._reach_attempted: set[Any] = set()
+        self._fired_reach_targets: set[Any] = set()
+        self._resumed_reach_probes: set[Any] = set()
+        self._reach_empty_streak = 0
         # Movement-coverage plateau counter: consecutive frontier batches that added NO new coverage
         # cell. The movement frontier is EXHAUSTED once this reaches `coverage_plateau_exhaust` — the
         # honest signal that the reachable region is fully swept even though explore_frontier still
@@ -3352,7 +3387,14 @@ class EwmAgent:
         (which falls through to :meth:`_frontier_execute` when the bump quota is not due), preserving
         every quota/dedup/skip-reason semantic. A mirrored anti-spin guard stands the frontier hoist
         down after 3 consecutive hoisted batches with zero coverage growth, re-armed by ANY coverage
-        growth."""
+        growth.
+
+        REACH PHASE (Run-39): between the bump phase and the frontier — once the bump floor is
+        met/exhausted, hoisted turns first spend themselves LANDING the mover on rare special cells
+        (:meth:`_reach_discovery`) while untried targets remain; only when reach finds nothing to do
+        (targets exhausted, or its own 3-empty-attempt standdown tripped) does the turn fall through
+        to the frontier phase. Run 38 destroyed every color-8/color-11 object with no level, so the
+        remaining ls20 win hypothesis is navigate-to-target: occupy the rare color-0/color-1 cells."""
 
         # Re-arm on ANY bump fired since the last check — a bump from the goal-discovery exploration
         # path also clears the standdown.
@@ -3382,6 +3424,12 @@ class EwmAgent:
                 self._hoist_empty_streak += 1
             self._hoist_bumps_seen = self.summary.bumps_probed
             return result, diverged
+        # REACH phase (Run-39): bump floor met / exhausted / disabled — while untried rare special
+        # cells remain (and the reach anti-spin has not stood the phase down), spend this hoisted
+        # turn landing the mover on one. Falls through to the frontier when there is nothing to reach.
+        reached = self._reach_discovery(frame)
+        if reached is not None:
+            return reached
         # FRONTIER phase: the bump floor is met / exhausted / disabled — keep hoisting to grow coverage.
         if self._frontier_hoist_empty_streak >= 3:
             return None  # anti-spin standdown: wait for coverage growth before hoisting again
@@ -4454,6 +4502,204 @@ class EwmAgent:
                     cells.add((r, c))
         return cells
 
+    # REACH PROBES marker (Run-39): the persisted dedup token for a reach attempt against a rare
+    # special-cell class. Same opaque (marker, hash) pair shape as _BUMP_MARKER, so it rides the
+    # coverage codec unchanged and can never collide with a real action name in _fired_probes.
+    _REACH_MARKER = "<reach>"
+
+    def _reach_targets(
+        self, grid: list[list[int]]
+    ) -> list[tuple[Any, tuple[int, int]]]:
+        """REACH targets (Run-39): the rare special-cell classes worth landing the mover on, as an
+        ordered ``(target_hash, cell)`` list — one representative cell per distinct segmented class
+        (the same translation-invariant hashes :meth:`_bump_contexts` keys on).
+
+        A class qualifies while its TOTAL cell count across the grid is <=
+        ``config.reach_target_max_cells`` (ls20: the 3 color-0 + 2 color-1 special cells; never the
+        big maze/wall classes), EXCLUDING the mover's own colors (:meth:`_player_color_set`), the
+        trail/ground colors in ``config.reach_exclude_colors`` (the ls20 effect map: 9 trail,
+        3 ground — trail fragments segment into tiny components that would otherwise pass the
+        rarity bar), and the BACKGROUND class. Background is the DOMINANT color, never a hardcoded
+        color 0: the ls20 special cells ARE color 0 while the visual background is color 4, so the
+        ``color == 0`` skip _bump_contexts uses would exclude the very cells this probe tests.
+
+        Deterministic order: untried-before-resumed (targets a PRIOR run already reach-probed rank
+        LAST — prefer-not-exclude, the bump-ordering convention), then cheapest reach cost
+        (Manhattan distance from the player), then cell."""
+
+        max_cells = self.config.reach_target_max_cells
+        if max_cells <= 0:
+            return []
+        rows = len(grid)
+        cols = len(grid[0]) if rows else 0
+        if not rows or not cols:
+            return []
+        player = self._player_position(grid)
+        if player is None:
+            return []
+        player_colors = self._player_color_set()
+        excluded = set(self.config.reach_exclude_colors)
+        color_counts = Counter(v for row in grid for v in row)
+        # The background class is the DOMINANT color (deterministic tie-break: smaller color wins).
+        excluded.add(min(color_counts, key=lambda color: (-color_counts[color], color)))
+        class_cells: dict[Any, set[tuple[int, int]]] = {}
+        for obj_hash, cells in _object_components(grid):
+            sample = next(iter(cells))
+            color = grid[sample[0]][sample[1]]
+            if color in player_colors or color in excluded:
+                continue
+            class_cells.setdefault(obj_hash, set()).update(cells)
+        ranked: list[tuple[bool, int, tuple[int, int], Any]] = []
+        for obj_hash, cells in class_cells.items():
+            if len(cells) > max_cells:
+                continue  # not rare: the big background/maze/wall classes never qualify
+            cell = min(cells)  # deterministic representative cell for the class
+            cost = abs(cell[0] - player[0]) + abs(cell[1] - player[1])
+            ranked.append((obj_hash in self._resumed_reach_probes, cost, cell, obj_hash))
+        ranked.sort(key=lambda item: (item[0], item[1], item[2], str(item[3])))
+        return [(obj_hash, cell) for (_resumed, _cost, cell, obj_hash) in ranked]
+
+    def _footprint_covers(self, grid: list[list[int]], cell: tuple[int, int]) -> bool:
+        """True iff the mover FOOTPRINT occupies ``cell`` on ``grid`` — the reach arrival test.
+
+        The footprint is every player-colored cell (the ls20 mover is a 2x5 block), so coverage is
+        read off the OBSERVED frame, never via :meth:`_player_position` (the footprint's top-left,
+        which can never equal an off-anchor cell the block still covers — banked-suite evidence:
+        the mover covered the color-0 cell (31, 21) while anchored at lattice cell (30, 19))."""
+
+        r, c = cell
+        rows = len(grid)
+        cols = len(grid[0]) if rows else 0
+        if not (0 <= r < rows and 0 <= c < cols):
+            return False
+        return grid[r][c] in self._player_color_set()
+
+    def _step_into_action(
+        self, frame: dict[str, Any], target: tuple[int, int]
+    ) -> Any | None:
+        """The valid action that drives the mover ONE move INTO ``target`` from where it stands —
+        the off-lattice half of a reach attempt (the greedy walk settles on the nearest lattice
+        anchor; this fires the single step toward the target the lattice cannot express, the same
+        firing convention as a bump). Direction is measured from the FOOTPRINT cell nearest the
+        target; among the per-action deltas (:meth:`_player_delta_map`) the one pointing into the
+        LARGER axis gap wins, tie-broken by action name. None when no delta points at the target."""
+
+        grid = self._frame_grid(frame)
+        colors = self._player_color_set()
+        cells = [
+            (r, c) for r, row in enumerate(grid) for c, v in enumerate(row) if v in colors
+        ]
+        if not cells:
+            return None
+        near = min(
+            cells, key=lambda cell: (abs(cell[0] - target[0]) + abs(cell[1] - target[1]), cell)
+        )
+        gap_r, gap_c = target[0] - near[0], target[1] - near[1]
+        best: tuple[tuple[int, str], Any] | None = None
+        for (dr, dc), action in self._player_delta_map(frame).items():
+            if dr and gap_r * dr > 0:
+                score = abs(gap_r)
+            elif dc and gap_c * dc > 0:
+                score = abs(gap_c)
+            else:
+                continue  # this delta does not point INTO the target
+            key = (-score, str(action))
+            if best is None or key < best[0]:
+                best = (key, action)
+        return best[1] if best is not None else None
+
+    def _reach_discovery(
+        self, frame: dict[str, Any]
+    ) -> tuple[dict[str, Any], bool] | None:
+        """REACH PROBES (Run-39): land the mover ON a rare special cell to test the
+        navigate-to-target win hypothesis (run 38 destroyed every color-8/color-11 object and the
+        engine still reported levels_completed=0 — contact alone is not the ls20 win).
+
+        For each untried target from :meth:`_reach_targets` (per-run dedup by target hash):
+        :meth:`_empirical_walk` to the target cell ITSELF — greedy steering means an off-lattice
+        cell settles the walk on the nearest lattice anchor at the step cap — then check ARRIVAL as
+        footprint coverage on the OBSERVED frame (:meth:`_footprint_covers`). When the settled
+        footprint does NOT cover the target (off-lattice), fire ONE step INTO the target direction
+        with the bump-firing convention (:meth:`_act` + :meth:`_ingest_result`, no expect grids)
+        and re-observe. Every step's transition is ingested normally, so the driver's existing
+        level_transition/boundary detection IS the win signal — no new detection here.
+
+        ANTI-SPIN: 3 consecutive attempts that neither arrive nor change any non-auto cell stand
+        the reach phase down for the REST OF THE RUN (a boxed-in mover must not spend every hoisted
+        turn re-walking unreachable targets). Returns the LAST executed ``(result, diverged)``, or
+        None when there was nothing to reach (targets exhausted / standdown / no player)."""
+
+        if self._reach_empty_streak >= 3:
+            return None  # anti-spin standdown: reach is over for this run
+        cur_frame = frame
+        last: tuple[dict[str, Any], bool] | None = None
+        cap = max(1, self.config.max_interaction_probes_per_turn)
+        fired = 0
+        while fired < cap and self._reach_empty_streak < 3:
+            grid = self._frame_grid(cur_frame)
+            picked: tuple[Any, tuple[int, int]] | None = None
+            for target_hash, cell in self._reach_targets(grid):
+                if target_hash not in self._reach_attempted:
+                    picked = (target_hash, cell)
+                    break
+            if picked is None:
+                break  # every rare target already attempted this run
+            target_hash, target = picked
+            pos = self._player_position(grid)
+            if pos is None:
+                break  # no mover on the live grid: nothing to walk
+            self._reach_attempted.add(target_hash)
+            # Step cap sized off the REAL geometry (distance / stride), not a model plan — a rare
+            # special cell is typically a wall to the mispredicting model, so the bump precheck
+            # idiom (_plan_to_cell sizing) has no path to size by here.
+            stride = max(1, self._movement_stride(cur_frame))
+            dist = abs(pos[0] - target[0]) + abs(pos[1] - target[1])
+            attempt_before = grid
+            walked_frame, outcome = self._empirical_walk(
+                cur_frame, target, max_steps=2 * (dist // stride) + 4
+            )
+            if outcome == "unreachable":
+                # No path from where the player REALLY is; un-poison the dedup so a later hoisted
+                # turn can retry this never-walked target (the bump-abort convention).
+                self._reach_attempted.discard(target_hash)
+                break
+            if outcome == "stopped":
+                return last  # done / out of budget mid-walk
+            # The attempt EXECUTED (arrived, or settled at the step cap): count it and record the
+            # durable identity for cross-run persistence/ordering.
+            self.summary.reach_probes += 1
+            self._fired_reach_targets.add(target_hash)
+            cur_frame = walked_frame
+            result: dict[str, Any] = {}
+            diverged = False
+            arrived = self._footprint_covers(self._frame_grid(cur_frame), target)
+            if not arrived:
+                # Off-lattice settle: ONE step INTO the target direction, bump-firing convention.
+                action = self._step_into_action(cur_frame, target)
+                if action is not None:
+                    result = self._act([action])
+                    self._ingest_result(cur_frame, [action], result)
+                    diverged = self._stop_reason(result) == "expect_mismatch"
+                    cur_frame = self._observe()
+                    arrived = self._footprint_covers(self._frame_grid(cur_frame), target)
+            if arrived:
+                self.summary.reach_arrived += 1
+            last = (result, diverged)
+            # ANTI-SPIN bookkeeping: an attempt that neither arrived nor changed any non-auto cell
+            # (the mover never even moved) advances the standdown streak; any progress resets it.
+            changed = (
+                self._changed_cells(attempt_before, self._frame_grid(cur_frame))
+                - self._auto_changing_cells()
+            )
+            if arrived or changed:
+                self._reach_empty_streak = 0
+            else:
+                self._reach_empty_streak += 1
+            fired += 1
+            if cur_frame.get("done") or self._out_of_budget(cur_frame):
+                return last
+        return last
+
     def _record_interaction(
         self,
         frame: dict[str, Any],
@@ -4534,8 +4780,16 @@ class EwmAgent:
             key for key in persisted
             if isinstance(key, tuple) and len(key) == 2 and key[0] == self._BUMP_MARKER
         }
-        self._fired_probes |= persisted - bump_keys
+        # REACH tokens (Run-39) resume the same way bump tokens do: an ADVISORY ORDERING set only
+        # (_reach_targets ranks resumed targets last, prefer-not-exclude) — never _fired_probes and
+        # never the per-run _reach_attempted dedup, so a fresh run retries each rare target once.
+        reach_keys = {
+            key for key in persisted
+            if isinstance(key, tuple) and len(key) == 2 and key[0] == self._REACH_MARKER
+        }
+        self._fired_probes |= persisted - bump_keys - reach_keys
         self._resumed_bump_probes |= {obj_hash for (_marker, obj_hash) in bump_keys}
+        self._resumed_reach_probes |= {target_hash for (_marker, target_hash) in reach_keys}
         board = self._board_cell_count or self._board_cells(frame) or state.get("board") or 0
         if not self._board_cell_count and board:
             self._board_cell_count = board
@@ -4567,6 +4821,11 @@ class EwmAgent:
             probes = self._fired_probes | {
                 (self._BUMP_MARKER, obj_hash)
                 for obj_hash in (self._fired_bump_objects | self._resumed_bump_probes)
+            } | {
+                # REACH tokens (Run-39): this run's executed reach targets union the resumed
+                # prior-run set, so reach provenance ACCUMULATES across runs like bumps do.
+                (self._REACH_MARKER, target_hash)
+                for target_hash in (self._fired_reach_targets | self._resumed_reach_probes)
             }
             body = encode_coverage_state(
                 self._coverage_cells,
