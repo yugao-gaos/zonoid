@@ -12,3 +12,4 @@
 {"evt":"edge_removed","from":"note:note-mrdpsp01pr3","to":"note:note-mrbnwsfik44","kind":"context","actor":"overlay-sync","ts":"2026-07-09T17:15:28.784Z"}
 {"evt":"edge_added","from":"note:note-mrdpsp01pr3","to":"note:note-mrbq3z5gb0i","kind":"context","actor":"overlay-sync","ts":"2026-07-10T15:21:11.249Z","weight":0.6,"by":"judge","judged":true}
 {"evt":"edge_added","from":"note:note-mrdpsp01pr3","to":"codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline","kind":"context","actor":"overlay-sync","ts":"2026-07-10T17:18:05.597Z","weight":0,"by":"autowire","judged":false,"score":0.365,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mrdpsp01pr3","to":"codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline","kind":"context","actor":"overlay-sync","ts":"2026-07-10T18:30:34.779Z"}
