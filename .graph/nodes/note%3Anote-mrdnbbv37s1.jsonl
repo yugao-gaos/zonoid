@@ -12,3 +12,4 @@
 {"evt":"edge_removed","from":"note:note-mrdnbbv37s1","to":"note:note-mr5lqjqbaai","kind":"context","actor":"overlay-sync","ts":"2026-07-09T16:08:11.692Z"}
 {"evt":"edge_removed","from":"note:note-mrdnbbv37s1","to":"note:note-mrdk6x496hg","kind":"context","actor":"overlay-sync","ts":"2026-07-09T16:11:46.430Z"}
 {"evt":"edge_added","from":"note:note-mrdnbbv37s1","to":"codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-","kind":"context","actor":"overlay-sync","ts":"2026-07-10T16:00:09.172Z","weight":0,"by":"autowire","judged":false,"score":0.409,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mrdnbbv37s1","to":"codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-","kind":"context","actor":"overlay-sync","ts":"2026-07-10T18:55:43.212Z"}
