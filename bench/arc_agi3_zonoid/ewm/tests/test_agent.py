@@ -5225,6 +5225,343 @@ class CrossRunCoveragePersistenceTests(unittest.TestCase):
         self.assertEqual(decoded["visited"], {(1, 0, 0), (1, 0, 1), (1, 0, 2)})
 
 
+# ---------------------------------------------------------------------------------------------------
+# Run-39 REACH PROBES (hoisted walks that land the mover on rare special cells)
+# ---------------------------------------------------------------------------------------------------
+
+
+class _ReachSpecialCellEnv:
+    """An open 3x12 board with ONE rare WALKABLE special cell (color 8), a solid 5-cell wall
+    (color 4 — too big to pass the rarity bar), and rare trail/ground-colored fragments (colors
+    9/3 — excluded by reach_exclude_colors): the ls20 navigate-to-target shape in miniature. The
+    avatar (color 2) may stand ON the special cell (it renders on top); wall/decor cells are
+    solid, so they stay bumpable contact targets but can never be occupied."""
+
+    ACTIONS = ["UP", "DOWN", "LEFT", "RIGHT"]
+
+    def __init__(self, budget: int = 400) -> None:
+        self._rows, self._cols = 3, 12
+        self._avatar = (0, 0)
+        self._special = (2, 8)                      # rare 1-cell color-8 class: THE reach target
+        self._wall = {(2, c) for c in range(1, 6)}  # 5-cell color-4 wall: never rare
+        self._decor = {(0, 11): 9, (1, 11): 3}      # rare but trail/ground colored: excluded
+        self.remaining_actions = budget
+        self.act_calls = 0
+        self._level = 1
+
+    def _grid(self):
+        grid = [[0] * self._cols for _ in range(self._rows)]
+        for (r, c) in self._wall:
+            grid[r][c] = 4
+        for (r, c), color in self._decor.items():
+            grid[r][c] = color
+        grid[self._special[0]][self._special[1]] = 8
+        grid[self._avatar[0]][self._avatar[1]] = 2  # avatar renders ON TOP (footprint coverage)
+        return grid
+
+    def observe(self):
+        return {
+            "grid": self._grid(),
+            "level": self._level,
+            "step": 0,
+            "valid_actions": list(self.ACTIONS),
+            "score": 0,
+            "remaining_actions": self.remaining_actions,
+        }
+
+    def _apply_one(self, action: str) -> None:
+        dr, dc = DELTAS[str(action)]
+        ar, ac = self._avatar
+        nr, nc = ar + dr, ac + dc
+        if not (0 <= nr < self._rows and 0 <= nc < self._cols):
+            return
+        if (nr, nc) in self._wall or (nr, nc) in self._decor:
+            return  # wall/decor are solid; the SPECIAL cell is walkable
+        self._avatar = (nr, nc)
+
+    def act(self, actions, expect=None):
+        self.act_calls += 1
+        executed = []
+        stop_reason = "completed"
+        for index, action in enumerate(actions):
+            name = action.get("action") if isinstance(action, dict) else action
+            self.remaining_actions = max(0, self.remaining_actions - 1)
+            self._apply_one(str(name))
+            executed.append(name)
+            after = self._grid()
+            if expect is not None and index < len(expect) and expect[index] is not None:
+                if not grids_match([list(r) for r in expect[index]], after):
+                    stop_reason = "expect_mismatch"
+                    break
+        frame = {"grid": self._grid(), "level": self._level, "step": 0, "score": 0}
+        return {
+            "current_frame": frame,
+            "action_result": {"score": 0, "done": False},
+            "valid_actions": list(self.ACTIONS),
+            "remaining_actions": self.remaining_actions,
+            "executed": executed,
+            "stop_reason": stop_reason,
+            "done": False,
+        }
+
+
+class _ReachStride2Env(_ReachSpecialCellEnv):
+    """A 1x7 corridor with a STRIDE-2 avatar and the rare special cell (color 8) on ODD column
+    (0, 3) — off the even-parity movement lattice, the banked-suite shape of the ls20 row-32/33
+    special cells: the walk can only settle on a lattice cell, so the reach attempt must fire the
+    ONE extra step INTO the target direction."""
+
+    def __init__(self, budget: int = 200) -> None:
+        super().__init__(budget)
+        self._rows, self._cols = 1, 7
+        self._avatar = (0, 0)
+        self._special = (0, 3)
+        self._wall = set()
+        self._decor = {}
+
+    def _apply_one(self, action: str) -> None:
+        dr, dc = DELTAS[str(action)]
+        ar, ac = self._avatar
+        nr, nc = ar + dr * 2, ac + dc * 2  # STRIDE 2
+        if not (0 <= nr < self._rows and 0 <= nc < self._cols):
+            return
+        self._avatar = (nr, nc)
+
+
+class _ReachFrozenEnv(_ReachSpecialCellEnv):
+    """FOUR rare special-cell classes and an avatar that NEVER moves (every action no-ops) — the
+    reach anti-spin shape: attempts that neither arrive nor change any non-auto cell."""
+
+    def __init__(self, budget: int = 400) -> None:
+        super().__init__(budget)
+        self._wall = set()
+        self._decor = {}
+        self._specials = {(2, 2): 8, (0, 6): 13, (2, 5): 10, (2, 8): 11}
+
+    def _grid(self):
+        grid = [[0] * self._cols for _ in range(self._rows)]
+        for (r, c), color in self._specials.items():
+            grid[r][c] = color
+        grid[self._avatar[0]][self._avatar[1]] = 2
+        return grid
+
+    def _apply_one(self, action: str) -> None:
+        return  # frozen: the env no-ops every move
+
+
+class ReachProbeTests(unittest.TestCase):
+    """Run-39: REACH PROBES land the mover ON rare special cells to test the navigate-to-target
+    win hypothesis. Run 38 destroyed every color-8/color-11 object and the engine still reported
+    levels_completed=0, so contact is not the ls20 win; the remaining candidates are the tiny
+    color-0/color-1 cell classes in the color-5 maze. Banked-suite evidence shaping the semantics:
+    the 2x5 mover's FOOTPRINT covered the on-lattice color-0 cell (31, 21) while anchored at
+    (30, 19) — so arrival is footprint coverage on the OBSERVED frame, never a top-left position
+    match — and the row-32/33 cells sit OFF the stride-5 lattice, so an off-lattice settle fires
+    ONE step INTO the target direction."""
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _reach_agent(self, env, **cfg):
+        # The hoist-agent shape (no trust/live-sample seeding): reach probing is hoist-driven and
+        # must not depend on the goal-discovery window.
+        from bench.arc_agi3_zonoid.ewm.world_model import WorldModelProgram
+
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        base = dict(
+            game_id="reach", max_turns=6, min_probe_transitions=1,
+            goal_discovery_min_live_samples=3, goal_discovery_min_live_rate=0.7,
+            max_interaction_probes_per_turn=6, coverage_persistence=False,
+            bump_probe_repeats=1,
+        )
+        base.update(cfg)
+        ag = EwmAgent(env, FakeLlm([]), kb=FakeKb(max_writes_per_turn=8),
+                      vision_enabled=False, config=AgentConfig(**base))
+        ag.program = WorldModelProgram.load(QUOTA_MODEL_SOURCE)
+        return ag
+
+    @staticmethod
+    def _seed_moves(ag, rows, cols, moves):
+        """Seed observed single-step moves of the color-2 avatar so the empirical walk steers
+        greedily — the model treats the special cell as a solid static (the ls20 misprediction
+        shape), so model-plan steering could never walk ONTO it."""
+
+        def grid(cell):
+            g = [[0] * cols for _ in range(rows)]
+            g[cell[0]][cell[1]] = 2
+            return g
+
+        for action, src, dst in moves:
+            ag.suite.append(grid(src), action, grid(dst))
+
+    def _seed_unit_moves(self, ag, rows=3, cols=12):
+        self._seed_moves(ag, rows, cols, (
+            ("RIGHT", (0, 0), (0, 1)), ("LEFT", (0, 1), (0, 0)),
+            ("DOWN", (0, 0), (1, 0)), ("UP", (1, 0), (0, 0)),
+        ))
+
+    # -- target identification (a) -----------------------------------------------------------------
+
+    def test_reach_targets_rare_excluding_mover_trail_background(self):
+        # Only the rare color-8 class qualifies: the mover (color 2), the 5-cell color-4 wall
+        # (fails the rarity bar), the trail/ground fragments (colors 9/3, reach_exclude_colors),
+        # and the dominant background class are all excluded.
+        env = _ReachSpecialCellEnv()
+        ag = self._reach_agent(env)
+        targets = ag._reach_targets(env._grid())
+        self.assertEqual([cell for (_h, cell) in targets], [env._special])
+
+    def test_color_zero_special_cells_target_when_background_is_dominant_color(self):
+        # THE ls20 shape: the special cells ARE color 0 while the visual background is the
+        # dominant color 4 — a hardcoded color-0 background skip (the _bump_contexts convention)
+        # would exclude the very cells the reach probe exists to test.
+        env = _ReachSpecialCellEnv()
+        ag = self._reach_agent(env)
+        grid = [[4] * 6 for _ in range(5)]
+        grid[0][0] = 2  # the mover
+        grid[3][3] = 0  # a rare color-0 special cell (the ls20 candidate class)
+        targets = ag._reach_targets(grid)
+        self.assertEqual([cell for (_h, cell) in targets], [(3, 3)])
+
+    # -- walk arrival (b) ---------------------------------------------------------------------------
+
+    def test_walk_arrival_increments_reach_probes_and_arrived(self):
+        env = _ReachSpecialCellEnv()
+        ag = self._reach_agent(env)
+        self._seed_unit_moves(ag)
+        target_hash = ag._reach_targets(env._grid())[0][0]
+        out = ag._reach_discovery(env.observe())
+        self.assertIsNotNone(out)
+        self.assertEqual(ag.summary.reach_probes, 1)
+        self.assertEqual(ag.summary.reach_arrived, 1)
+        # The mover is STANDING ON the special cell (footprint coverage on the observed frame).
+        self.assertEqual(env._avatar, env._special)
+        # The executed target's durable identity was recorded for cross-run persistence.
+        self.assertIn(target_hash, ag._fired_reach_targets)
+
+    # -- off-lattice settle fires ONE step INTO the target (c) --------------------------------------
+
+    def test_off_lattice_target_fires_one_step_into_direction(self):
+        env = _ReachStride2Env()
+        ag = self._reach_agent(env)
+        self._seed_moves(ag, 1, 7, (
+            ("RIGHT", (0, 0), (0, 2)), ("LEFT", (0, 2), (0, 0)),
+        ))
+        acts: list[list] = []
+        orig_act = ag._act
+        ag._act = lambda actions, expect=None: (
+            acts.append(list(actions)) or orig_act(actions, expect)
+        )
+        out = ag._reach_discovery(env.observe())
+        self.assertIsNotNone(out)
+        self.assertEqual(ag.summary.reach_probes, 1)
+        self.assertEqual(ag.summary.reach_arrived, 0)  # a stride-2 mover never OCCUPIES the odd cell
+        # The walk settled on the lattice at its step cap (2 * (3 // 2) + 4 = 6 steps), then
+        # EXACTLY ONE bump-convention step fired INTO the target direction.
+        self.assertEqual(len(acts), 6 + 1)
+        self.assertEqual(len(acts[-1]), 1)
+        self.assertIn(str(acts[-1][0]), ("LEFT", "RIGHT"))  # into-target on the column axis
+
+    # -- hoist ordering: bump -> reach -> frontier (d) ----------------------------------------------
+
+    def test_hoist_order_bump_then_reach_then_frontier(self):
+        env = _ReachSpecialCellEnv()
+        ag = self._reach_agent(
+            env, exploration_min_bump_actions=1, max_interaction_probes_per_turn=1,
+        )
+        self._seed_unit_moves(ag)
+        # 1) Floor unmet -> the hoisted turn is a BUMP batch (the Run-32 guarantee, unchanged).
+        self.assertIsNotNone(ag._hoist_bump_batch(env.observe()))
+        self.assertEqual(ag.summary.hoisted_bump_batches, 1)
+        self.assertGreaterEqual(ag.summary.bumps_probed, 1)
+        self.assertEqual(ag.summary.reach_probes, 0)
+        # 2) Floor met -> the next hoisted turn is a REACH probe, before any frontier batch.
+        self.assertIsNotNone(ag._hoist_bump_batch(env.observe()))
+        self.assertEqual(ag.summary.reach_probes, 1)
+        self.assertEqual(ag.summary.hoisted_bump_batches, 1)
+        self.assertEqual(ag.summary.hoisted_frontier_batches, 0)
+        # 3) Reach targets exhausted -> the hoisted turn falls through to the FRONTIER phase.
+        self.assertIsNotNone(ag._hoist_bump_batch(env.observe()))
+        self.assertEqual(ag.summary.reach_probes, 1)
+        self.assertEqual(ag.summary.hoisted_frontier_batches, 1)
+
+    # -- reach anti-spin (e) ------------------------------------------------------------------------
+
+    def test_reach_anti_spin_stands_down_after_three_empty_attempts(self):
+        # Three consecutive attempts that neither arrive nor change any non-auto cell stand the
+        # phase down for the REST OF THE RUN: the 4th rare target is never attempted, and a later
+        # reach call returns None immediately.
+        env = _ReachFrozenEnv()
+        ag = self._reach_agent(env)
+        self._seed_unit_moves(ag)  # the observed deltas LIE: the live env no-ops every move
+        out = ag._reach_discovery(env.observe())
+        self.assertIsNotNone(out)
+        self.assertEqual(ag.summary.reach_probes, 3)
+        self.assertEqual(ag.summary.reach_arrived, 0)
+        self.assertEqual(ag._reach_empty_streak, 3)
+        self.assertIsNone(ag._reach_discovery(env.observe()))
+        self.assertEqual(ag.summary.reach_probes, 3)  # stood down: no 4th attempt
+
+    # -- persistence: codec round-trip + resumed rank last (f) --------------------------------------
+
+    def test_reach_tokens_round_trip_and_compound_through_coverage_codec(self):
+        from bench.arc_agi3_zonoid.ewm import kb_protocol
+
+        # PERSIST: an executed reach target rides the SAME coverage note as bump tokens — the
+        # opaque (marker, hash) pair shape needs no codec change.
+        kb = FakeKb(max_writes_per_turn=8)
+        ag = self._reach_agent(_ReachSpecialCellEnv(), coverage_persistence=True)
+        ag.kb = kb
+        ag._board_cell_count = 3
+        ag._coverage_cells = {(1, 0, 0)}
+        ag._fired_reach_targets = {"tgtA"}
+        ag._persist_coverage()
+        body = [args for (kind, args) in kb.writes if kind == "coverage_state"][0][1]
+        decoded = kb_protocol.decode_coverage_state(body)
+        self.assertIn(("<reach>", "tgtA"), decoded["probes"])
+
+        # RESUME: the token seeds the cross-run ORDERING set only — never _fired_probes and never
+        # the per-run dedup (prefer-not-exclude, the bump-resume semantics).
+        kb2 = _CoverageKb("reach", body)
+        ag2 = self._reach_agent(_ReachSpecialCellEnv(), coverage_persistence=True)
+        ag2.kb = kb2
+        ag2._board_cell_count = 3
+        ag2._resume_coverage(ag2.env.observe())
+        self.assertIn("tgtA", ag2._resumed_reach_probes)
+        self.assertNotIn(("<reach>", "tgtA"), ag2._fired_probes)
+        self.assertNotIn("tgtA", ag2._reach_attempted)
+
+        # COMPOUND: a run that reaches nothing new still re-persists the resumed token.
+        ag2._persist_coverage()
+        cov2 = [args for (kind, args) in kb2.writes if kind == "coverage_state"]
+        decoded2 = kb_protocol.decode_coverage_state(cov2[-1][1])
+        self.assertIn(("<reach>", "tgtA"), decoded2["probes"])
+
+    def test_resumed_reach_targets_rank_last_but_stay_targetable(self):
+        env = _ReachFrozenEnv()
+        ag = self._reach_agent(env)
+        grid = env._grid()
+        targets = ag._reach_targets(grid)
+        self.assertGreaterEqual(len(targets), 2)
+        cheapest = targets[0][0]
+        ag._resumed_reach_probes.add(cheapest)
+        reordered = ag._reach_targets(grid)
+        # Still present (prefer-not-exclude: the board can change)...
+        self.assertIn(cheapest, [h for (h, _c) in reordered])
+        # ...but ranked LAST, behind every untried target.
+        self.assertEqual(reordered[-1][0], cheapest)
+        self.assertNotIn(cheapest, [h for (h, _c) in reordered[:-1]])
+        # Untried targets keep their cheapest-first order among themselves.
+        player = (0, 0)
+        costs = [
+            abs(cell[0] - player[0]) + abs(cell[1] - player[1])
+            for (_h, cell) in reordered[:-1]
+        ]
+        self.assertEqual(costs, sorted(costs))
+
+
 def _script_reflect_only() -> FakeLlm:
     """A FakeLlm that always returns a benign reflect (no program authoring) — for loop-drive tests
     where the program is not needed (the toy env just gets reactive/probe play)."""

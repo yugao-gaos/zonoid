@@ -729,6 +729,10 @@ def live_run(
             # the bump floor is met/exhausted (coverage growth, not luck-gated).
             "hoisted_bump_batches": summary.get("hoisted_bump_batches", 0),
             "hoisted_frontier_batches": summary.get("hoisted_frontier_batches", 0),
+            # Run-39 REACH PROBES telemetry: hoisted walks that land the mover on rare special
+            # cells (reach_arrived = the footprint actually covered the target on the live frame).
+            "reach_probes": summary.get("reach_probes", 0),
+            "reach_arrived": summary.get("reach_arrived", 0),
             "coverage_resumed_pct": summary.get("coverage_resumed_pct", 0.0),
             "coverage_persisted": summary.get("coverage_persisted", False),
             # Run-23 SILENT-DROP DIAGNOSTICS + CONFIG ECHO: make a dropped field / no-op bump visible.
