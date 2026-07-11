@@ -246849,6 +246849,143 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "note:note-mrf5twxja3x|note:note-mrf5udorz9a": {
+      "id": "note:note-mrf5twxja3x|note:note-mrf5udorz9a",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": null,
+      "assignee": null,
+      "timestamps": null,
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline": {
+      "id": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Derive ls20 ink persistence rule and win plan from all banked suites offline",
+        "description": "ANALYSIS TASK (no production code changes; deliverable = a causal model + win plan recorded as KB notes and in task_result). Context: note note-mrf766rr6sn (OVERRIDE) — ls20 is a timed drawing game: 3x3 target glyph (top box rows 9-15: XXX/..X/X.X in color 9), 5x5 cursor (2x5 color-12 mover + 3-row color-9 tail) on a 5x4-block canvas (rows 25-49 x cols 34-53), color-11 timer bar (rows 61-62) refilling from 3 color-8 life pairs, valid actions ACTION1-4 only. UNKNOWNS to derive from the 16 banked transition suites under /Users/imyu/Desktop/zonoid/out/ewm-runs/*/transition-suite.json (grid-only evidence; runs 33-40 richest): (1) INK PERSISTENCE RULE — trail paints on up-moves, erases on down-moves, shifts on horizontal: find any transition sequence where trail cells PERSIST after the cursor departs (net ink). Characterize exactly (e.g. tail length growth, direction combos, wall contact). If NO persistence exists in any suite, say so and analyze what else changes: (2) LEFT BOX SEMANTICS — rows 30-39 cols 14-28 with the @/K plus glyph: correlate its cell changes (the (32,20-22)/(31,21)/(33,21) toggles seen as 0/1<->9 'indicator' flips in run 33's map) against cursor block-position on the canvas — test the MINI-MAP hypothesis (left box mirrors canvas at 1:1-cell-per-block scale; @/K = target-vs-drawn markers). (3) BOTTOM-LEFT GLYPH (rows 53-61) — static or does it ever change? (4) LIFE-LOSS BOUNDARIES — at timer-empty frames (color-11 count jumps up, color-8 drops), does the canvas/trail/cursor reset? What exactly resets? (5) TARGET MATCH TEST — is there any frame where the drawn state matched a row/subset of the target and something reacted (indicator flip, timer pause)? DELIVERABLE: (a) a causal model note (record_decision, wires_to this task) stating the ink rule, box semantics, and reset semantics with transition-index evidence; (b) a WIN PLAN: either a concrete ACTION1-4 sequence from the reset position that paints the target glyph (if the ink rule allows) or the precise experiment the next live run must perform to disambiguate (specific action sequence + what to watch). Work entirely offline from the suites; you may render boards as ASCII the way the dispatcher did. If you find the model contradicts the OVERRIDE note, say so explicitly with evidence. Commit nothing beyond (optionally) an analysis notebook under out/ewm-analysis/ if useful; complete with status done (no tests required beyond existing suite remaining green if you touch nothing).",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-10T17:16:48.576Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-10T17:16:48.576Z",
+        "lastChanged": "2026-07-10T17:30:04.058Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-": {
+      "id": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Local state file as primary cross run store and fix hoist phase advance on bump exhaustion",
+        "description": "Run 39 (out/ewm-runs/ls20-1783695392) exposed two live divergences. (1) COVERAGE RECALL BROKEN AGAIN: coverage_resumed_pct=0.0 and the offline probe (read/recall_coverage_state via KbClient synthetic) now returns None — run 38's larger coverage note (533 visited + probe tokens) was evidently gutted by the daemon source-cluster rewrite, the SAME hazard that gutted the program index (cycle-10 finding). This is the THIRD KB-retrieval failure mode (chunk flood -> corroboration gate -> cluster gutting) to break the same round-trip. DESIGN DECISION (dispatcher): the agent's OWN cross-run state moves to a LOCAL FILE as the primary store — out/ewm-state/<game_id>-coverage.json (mkdir as needed), exact JSON round-trip of the coverage state dict (visited/probes/board/plateau), written where _persist_coverage currently writes and read FIRST in _resume_coverage; the existing KB write/read stays as BEST-EFFORT SECONDARY (write-through for graph observability; KB read only when the local file is absent/corrupt — e.g. fresh machine). Tests: local write->read round-trip incl. probe tokens; KB fallback used only when file missing; corrupt file degrades to KB then fresh sweep. (2) HOIST STUCK IN BUMP PHASE: run 39 reach_probes=0 and hoisted_frontier_batches=0 (also 0 in run 38) — read _hoist_bump_batch and its phase logic (agent.py ~1002-1010 state + ~3069 call site): with 12 objects exhausted (3-empty bump standdown) but bumps_probed(12) < exploration_min_bump_actions(24), the phase machine stands down entirely instead of ADVANCING — the cycle-11/12 phase order (bump-min -> reach -> frontier) must treat BUMP EXHAUSTION (standdown while under min) as satisfying the bump phase: on bump standdown, advance to REACH (untried targets) then FRONTIER, each with their own anti-spin exactly as specced. Add a summary field hoist_phase (last active phase string) for run-summary observability, echoed by driver.py. Tests: (a) bump standdown under min -> reach engages (replicates run-39 shape); (b) reach exhausted -> frontier engages; (c) existing phase tests pass. LIVE VERIFICATION before completing (contractual): (i) write+read the local state file round-trip with probes in the worktree; (ii) simulate the run-39 hoist shape in a stub env test that FAILS pre-fix; include both in task_result. Scope: agent.py, kb_protocol.py (local-file helpers may live here or agent.py — pick the cleaner seam), driver.py echo, tests. python3 -m pytest bench/arc_agi3_zonoid/ewm/tests -q must be all green.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-10T15:58:53.023Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-10T15:58:53.023Z",
+        "lastChanged": "2026-07-10T16:30:03.101Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the": {
+      "id": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Reach probes: hoisted walks that land the mover on rare special cells to test the win condition",
+        "description": "Run 38 (out/ewm-runs/ls20-1783610264) falsified the consumption hypothesis: ALL color-8 (12->0) and color-11 (84->0) cells destroyed, engine still reports levels_completed=0. Remaining win-condition candidate: NAVIGATE-TO-TARGET — the cleared board retains tiny special cells (color 1: 2 cells, color 0: 3 cells, near the blinking indicator ~row 32) inside the color-5 maze. NEW BEHAVIOR in bench/arc_agi3_zonoid/ewm/agent.py: REACH PROBES, a third hoisted phase. (0) FIRST, from the banked run-38 suite (out/ewm-runs/ls20-1783610264/transition-suite.json) determine offline whether the mover ever OCCUPIED a color-0/color-1 cell (vs merely bumping adjacent) — record the answer in your task_result; design accordingly. (1) _reach_targets(grid): rare-cell classes = colors whose total cell count <= reach_target_max_cells (new config, default 4), excluding mover colors (_player_color_set), trail/ground/background (3, 0-as-background only if it IS background — read how segmentation treats 0 vs the color-0 special cells; use the segmentation object classes not raw colors if cleaner), one target per class occurrence cluster. (2) Reach execution: for each untried target, _empirical_walk to the target cell itself — 'arrived' = mover footprint covers/lands on it; if the stride-5 lattice cannot land exactly (off-lattice), walk to nearest approach cell then step INTO it once (reuse the bump firing convention). After each reach, observe and let the existing boundary/level detection do its job (driver already stops on level_transition). (3) Hoist priority: bump-min guarantee first (unchanged), THEN reach probes while untried targets remain, THEN frontier (cycle-11 semantics), each with its existing anti-spin pattern (a reach attempt that neither arrives nor changes anything counts toward a 3-strike standdown). (4) Per-run dedup + cross-run persistence: record fired reach targets as ('<reach>', stable-cell-or-object-hash) probe tokens in the same persisted coverage probes set (cycle-11 codec — no format change needed, tokens are opaque pairs), resumed targets rank last (prefer-not-exclude). (5) Summary counters reach_probes, reach_arrived (dataclass + to_dict + driver.py echo). Tests (existing stub-env fixtures): (a) rare-cell targets identified, mover walks and arrives -> reach_probes/reach_arrived increment; (b) off-lattice target -> approach + step-into path; (c) hoist ordering bump->reach->frontier; (d) reach anti-spin; (e) probe tokens round-trip through the coverage codec; (f) ALL existing tests pass (python3 -m pytest bench/arc_agi3_zonoid/ewm/tests -q). Scope: agent.py, driver.py echo, tests. kb_protocol.py only if the probe-token reuse genuinely requires it (it should not).",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-10T14:28:34.801Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-10T14:28:34.801Z",
+        "lastChanged": "2026-07-10T14:54:53.920Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -283607,54 +283744,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mrbnujv5aqy",
-      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.418,
-      "by": "judge",
-      "judged": true,
-      "score": 0.418,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrbnujv5aqy",
-      "to": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.418,
-      "by": "judge",
-      "judged": true,
-      "score": 0.418,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrbnujv5aqy",
-      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrbnujv5aqy",
-      "to": "note:note-mrbnuu7vb49",
-      "kind": "context",
-      "weight": 0.451,
-      "by": "judge",
-      "judged": true,
-      "score": 0.451,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrbnuu7vb49",
-      "to": "note:note-mrbnujv5aqy",
-      "kind": "context",
-      "weight": 0.787,
-      "by": "judge",
-      "judged": true,
-      "score": 0.787,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mrbnuu7vb49",
       "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
       "kind": "context",
@@ -283732,6 +283821,345 @@
       "origin": "asserted"
     },
     {
+      "from": "knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-2",
+      "to": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
+      "kind": "context",
+      "weight": 0.372,
+      "by": "judge",
+      "judged": true,
+      "score": 0.372,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
+      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "kind": "context",
+      "weight": 0.392,
+      "by": "judge",
+      "judged": true,
+      "score": 0.392,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqjh4kuu1o3",
+      "to": "codex/kbclient-omits-task_key-on-read-searches-when-synthetic-so-corroboration-gate-st",
+      "kind": "context",
+      "weight": 0.486,
+      "by": "judge",
+      "judged": true,
+      "score": 0.486,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqpni1fwt9t",
+      "to": "note:note-mqpv6qx0gzv",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mr5bebfkw0t",
+      "to": "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.427,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5xad0sam6",
+      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "kind": "context",
+      "weight": 0.612,
+      "by": "judge",
+      "judged": true,
+      "score": 0.612,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5y9o2i9wy",
+      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "kind": "context",
+      "weight": 0.533,
+      "by": "judge",
+      "judged": true,
+      "score": 0.533,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbge90hlsx",
+      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "kind": "context",
+      "weight": 0.462,
+      "by": "judge",
+      "judged": true,
+      "score": 0.462,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbivetaj8p",
+      "to": "note:note-mrdgxaku2cv",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mrbnuu7vb49",
+      "to": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
+      "kind": "context",
+      "weight": 0.413,
+      "by": "judge",
+      "judged": true,
+      "score": 0.413,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbnwsfik44",
+      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "kind": "context",
+      "weight": 0.521,
+      "by": "judge",
+      "judged": true,
+      "score": 0.521,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdghicnc6j",
+      "to": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrdghicnc6j",
+      "to": "followup/investigate-search-arm-0-notes-not-appea-o05d",
+      "kind": "context",
+      "weight": 0.814,
+      "by": "judge",
+      "judged": true,
+      "score": 0.814,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdghicnc6j",
+      "to": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
+      "kind": "context",
+      "weight": 0.699,
+      "by": "judge",
+      "judged": true,
+      "score": 0.699,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdghicnc6j",
+      "to": "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.438,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdgxaku2cv",
+      "to": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrdgxaku2cv",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrdgxaku2cv",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrdgxaku2cv",
+      "to": "codex/ewm-repair-budget-guard-reach-exploration-run-twenty-eight",
+      "kind": "context",
+      "weight": 0.439,
+      "by": "judge",
+      "judged": true,
+      "score": 0.439,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdgxaku2cv",
+      "to": "codex/kbclient-omits-task_key-on-read-searches-when-synthetic-so-corroboration-gate-st",
+      "kind": "context",
+      "weight": 0.697,
+      "by": "judge",
+      "judged": true,
+      "score": 0.697,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdk6x496hg",
+      "to": "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrdmigcubf3",
+      "to": "note:note-mrdmia4g7uw",
+      "kind": "context",
+      "weight": 0.798,
+      "by": "judge",
+      "judged": true,
+      "score": 0.798,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdn533smky",
+      "to": "note:note-mrdmigcubf3",
+      "kind": "context",
+      "weight": 0.59,
+      "by": "judge",
+      "judged": true,
+      "score": 0.59,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdn58yvbl4",
+      "to": "note:note-mrdn533smky",
+      "kind": "context",
+      "weight": 0.792,
+      "by": "judge",
+      "judged": true,
+      "score": 0.792,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdnbbv37s1",
+      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrdnizjtsd8",
+      "to": "note:note-mrbge90hlsx",
+      "kind": "context",
+      "weight": 0.49,
+      "by": "judge",
+      "judged": true,
+      "score": 0.49,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdpsp01pr3",
+      "to": "note:note-mrbq3z5gb0i",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.721,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
+      "to": "codex/kbclient-omits-task_key-on-read-searches-when-synthetic-so-corroboration-gate-st",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
+      "to": "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
+      "to": "knowledge:source_section:note-mqqmixayq8m#note-evidence",
+      "kind": "context",
+      "weight": 0.432,
+      "by": "judge",
+      "judged": true,
+      "score": 0.432,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
+      "to": "knowledge:source_doc:note-mqqmixayq8m",
+      "kind": "context",
+      "weight": 0.411,
+      "by": "judge",
+      "judged": true,
+      "score": 0.411,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/hoist-min-bump-guarantee-into-main-turn-loop-so-contact-probing-is-not-luck-gate",
+      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/kb-note-client-omit-wires_to-on-synthetic-task-key-instead-of-404ing-on-phantom-",
+      "to": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/kbclient-omits-task_key-on-read-searches-when-synthetic-so-corroboration-gate-st",
+      "to": "codex/fix-search-kb-recall-semantics",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.405,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "to": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.616,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "to": "codex/hoist-min-bump-guarantee-into-main-turn-loop-so-contact-probing-is-not-luck-gate",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.495,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.557,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
       "to": "note:note-mqqqrlczyc2",
       "kind": "context",
@@ -283747,6 +284175,16 @@
       "by": "judge",
       "judged": true,
       "score": 0.531,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqpavx66iic#note-evidence:chunk-1",
+      "to": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
+      "kind": "context",
+      "weight": 0.351,
+      "by": "judge",
+      "judged": true,
+      "score": 0.351,
       "origin": "autowire-semantic"
     },
     {
@@ -283780,16 +284218,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-2",
-      "to": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
-      "kind": "context",
-      "weight": 0.372,
-      "by": "judge",
-      "judged": true,
-      "score": 0.372,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "knowledge:source_chunk:note-mqqpqf49a5m#note-evidence:chunk-3",
       "to": "note:note-mqqt68limis",
       "kind": "context",
@@ -283809,7 +284237,7 @@
     },
     {
       "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
-      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "to": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
       "kind": "context",
       "weight": 0.392,
       "by": "judge",
@@ -283840,6 +284268,56 @@
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-8",
+      "to": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
+      "kind": "context",
+      "weight": 0.451,
+      "by": "judge",
+      "judged": true,
+      "score": 0.451,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-8",
+      "to": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "kind": "context",
+      "weight": 0.316,
+      "by": "judge",
+      "judged": true,
+      "score": 0.316,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-1",
+      "to": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "kind": "context",
+      "weight": 0.322,
+      "by": "judge",
+      "judged": true,
+      "score": 0.322,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-8",
+      "to": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
+      "kind": "context",
+      "weight": 0.451,
+      "by": "judge",
+      "judged": true,
+      "score": 0.451,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-8",
+      "to": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "kind": "context",
+      "weight": 0.316,
+      "by": "judge",
+      "judged": true,
+      "score": 0.316,
+      "origin": "autowire-semantic"
     },
     {
       "from": "knowledge:source_doc:note-mqqnit1ph68",
@@ -286481,16 +286959,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqjh4kuu1o3",
-      "to": "codex/kbclient-omits-task_key-on-read-searches-when-synthetic-so-corroboration-gate-st",
-      "kind": "context",
-      "weight": 0.486,
-      "by": "judge",
-      "judged": true,
-      "score": 0.486,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqjh7j03b4f",
       "to": "fix/enforce-task-key",
       "kind": "context",
@@ -288562,14 +289030,6 @@
       "judged": true
     },
     {
-      "from": "note:note-mqpni1fwt9t",
-      "to": "note:note-mqpv6qx0gzv",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
-    },
-    {
       "from": "note:note-mqppi1wigd1",
       "to": "codex/search-economy-retrieval-phase1",
       "kind": "context",
@@ -289617,15 +290077,6 @@
       "origin": "asserted"
     },
     {
-      "from": "note:note-mr5bebfkw0t",
-      "to": "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.427,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mr5c2remh4y",
       "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4",
       "kind": "context",
@@ -289643,6 +290094,16 @@
       "by": "judge",
       "judged": true,
       "score": 0.822,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5hvc643og",
+      "to": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
+      "kind": "context",
+      "weight": 0.432,
+      "by": "judge",
+      "judged": true,
+      "score": 0.432,
       "origin": "autowire-semantic"
     },
     {
@@ -289685,44 +290146,74 @@
     },
     {
       "from": "note:note-mr5xad0sam6",
-      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "to": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
       "kind": "context",
-      "weight": 0.612,
+      "weight": 0.511,
       "by": "judge",
       "judged": true,
-      "score": 0.612,
+      "score": 0.511,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr5y9o2i9wy",
-      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "from": "note:note-mrbnuu7vb49",
+      "to": "note:note-mrdmia4g7uw",
       "kind": "context",
-      "weight": 0.533,
+      "weight": 0.787,
       "by": "judge",
       "judged": true,
-      "score": 0.533,
+      "score": 0.787,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mrbge90hlsx",
-      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "from": "note:note-mrdjfb7dhgw",
+      "to": "note:note-mrdmia4g7uw",
       "kind": "context",
-      "weight": 0.462,
+      "weight": 0.798,
       "by": "judge",
       "judged": true,
-      "score": 0.462,
+      "score": 0.798,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mrbivetaj8p",
-      "to": "note:note-mrdgxaku2cv",
+      "from": "note:note-mrdmia4g7uw",
+      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
       "kind": "context",
-      "weight": 0.6,
+      "weight": 0.418,
       "by": "judge",
-      "judged": true
+      "judged": true,
+      "score": 0.418,
+      "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mrbnujv5aqy",
+      "from": "note:note-mrdmia4g7uw",
+      "to": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.418,
+      "by": "judge",
+      "judged": true,
+      "score": 0.418,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdmia4g7uw",
+      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrdmia4g7uw",
+      "to": "note:note-mrbnuu7vb49",
+      "kind": "context",
+      "weight": 0.451,
+      "by": "judge",
+      "judged": true,
+      "score": 0.451,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdmia4g7uw",
       "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-3",
       "kind": "context",
       "weight": 0.418,
@@ -289732,165 +290223,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mrbnuu7vb49",
-      "to": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
-      "kind": "context",
-      "weight": 0.413,
-      "by": "judge",
-      "judged": true,
-      "score": 0.413,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrbnwsfik44",
-      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
-      "kind": "context",
-      "weight": 0.521,
-      "by": "judge",
-      "judged": true,
-      "score": 0.521,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrdghicnc6j",
-      "to": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrdghicnc6j",
-      "to": "followup/investigate-search-arm-0-notes-not-appea-o05d",
-      "kind": "context",
-      "weight": 0.814,
-      "by": "judge",
-      "judged": true,
-      "score": 0.814,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrdghicnc6j",
-      "to": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
-      "kind": "context",
-      "weight": 0.699,
-      "by": "judge",
-      "judged": true,
-      "score": 0.699,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrdghicnc6j",
-      "to": "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.438,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrdgxaku2cv",
-      "to": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrdgxaku2cv",
-      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrdgxaku2cv",
-      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrdgxaku2cv",
-      "to": "codex/ewm-repair-budget-guard-reach-exploration-run-twenty-eight",
-      "kind": "context",
-      "weight": 0.439,
-      "by": "judge",
-      "judged": true,
-      "score": 0.439,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrdgxaku2cv",
-      "to": "codex/kbclient-omits-task_key-on-read-searches-when-synthetic-so-corroboration-gate-st",
-      "kind": "context",
-      "weight": 0.697,
-      "by": "judge",
-      "judged": true,
-      "score": 0.697,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrdjfb7dhgw",
-      "to": "note:note-mrbnujv5aqy",
-      "kind": "context",
-      "weight": 0.798,
-      "by": "judge",
-      "judged": true,
-      "score": 0.798,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrdk6x496hg",
-      "to": "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrdmigcubf3",
-      "to": "note:note-mrbnujv5aqy",
-      "kind": "context",
-      "weight": 0.798,
-      "by": "judge",
-      "judged": true,
-      "score": 0.798,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrdmigcubf3",
-      "to": "note:note-mrdmia4g7uw",
-      "kind": "context",
-      "weight": 0.798,
-      "by": "judge",
-      "judged": true,
-      "score": 0.798,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrdn533smky",
-      "to": "note:note-mrdmigcubf3",
-      "kind": "context",
-      "weight": 0.59,
-      "by": "judge",
-      "judged": true,
-      "score": 0.59,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrdn533smky",
-      "to": "note:note-mrbnujv5aqy",
-      "kind": "context",
-      "weight": 0.671,
-      "by": "judge",
-      "judged": true,
-      "score": 0.671,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mrdn533smky",
       "to": "note:note-mrdmia4g7uw",
       "kind": "context",
@@ -289898,39 +290230,11 @@
       "by": "judge",
       "judged": true,
       "score": 0.671,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrdn58yvbl4",
-      "to": "note:note-mrdn533smky",
-      "kind": "context",
-      "weight": 0.792,
-      "by": "judge",
-      "judged": true,
-      "score": 0.792,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrdnbbv37s1",
-      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrdnizjtsd8",
-      "to": "note:note-mrbge90hlsx",
-      "kind": "context",
-      "weight": 0.49,
-      "by": "judge",
-      "judged": true,
-      "score": 0.49,
       "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mrdpnp6b2pv",
-      "to": "note:note-mrdpnnp8qpk",
+      "to": "note:note-mrf4c053t8z",
       "kind": "context",
       "weight": 0.796,
       "by": "judge",
@@ -289941,10 +290245,135 @@
     {
       "from": "note:note-mrdpsp01pr3",
       "to": "note:note-mrbq3z5gb0i",
-      "kind": "blocking",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mrf22r19495",
+      "to": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrf22r19495",
+      "to": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-8",
+      "kind": "context",
+      "weight": 0.548,
       "by": "judge",
       "judged": true,
-      "score": 0.721,
+      "score": 0.548,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf4c053t8z",
+      "to": "note:note-mrdpnp6b2pv",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mrf4c1h2euu",
+      "to": "note:note-mrf4c053t8z",
+      "kind": "context",
+      "weight": 0.803,
+      "by": "judge",
+      "judged": true,
+      "score": 0.803,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf70dny7ox",
+      "to": "note:note-mrf4c053t8z",
+      "kind": "context",
+      "weight": 0.807,
+      "by": "judge",
+      "judged": true,
+      "score": 0.807,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf70dny7ox",
+      "to": "note:note-mrf70c4jq6o",
+      "kind": "context",
+      "weight": 0.807,
+      "by": "judge",
+      "judged": true,
+      "score": 0.807,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf70dny7ox",
+      "to": "note:note-mrf7063yh1v",
+      "kind": "context",
+      "weight": 0.8,
+      "by": "judge",
+      "judged": true,
+      "score": 0.8,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf7jpahab7",
+      "to": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "kind": "context",
+      "weight": 0.366,
+      "judged": true,
+      "origin": "autowire-semantic",
+      "by": "judge",
+      "score": 0.366
+    },
+    {
+      "from": "note:note-mrf7jpahab7",
+      "to": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-8",
+      "kind": "context",
+      "weight": 0.633,
+      "by": "judge",
+      "judged": true,
+      "score": 0.633,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf7r99bob0",
+      "to": "note:note-mrf7jpahab7",
+      "kind": "context",
+      "weight": 0.701,
+      "by": "judge",
+      "judged": true,
+      "score": 0.701,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf7r99bob0",
+      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-8",
+      "kind": "context",
+      "weight": 0.656,
+      "by": "judge",
+      "judged": true,
+      "score": 0.656,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf7r99bob0",
+      "to": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.653,
+      "by": "judge",
+      "judged": true,
+      "score": 0.653,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf7r99bob0",
+      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.653,
+      "by": "judge",
+      "judged": true,
+      "score": 0.653,
       "origin": "autowire-semantic"
     },
     {
@@ -290065,35 +290494,43 @@
       "judged": true
     },
     {
-      "from": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
-      "to": "codex/kbclient-omits-task_key-on-read-searches-when-synthetic-so-corroboration-gate-st",
+      "from": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "to": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
       "kind": "context",
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
-      "to": "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
-      "kind": "context",
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
-      "to": "knowledge:source_section:note-mqqmixayq8m#note-evidence",
-      "kind": "context",
-      "weight": 0.432,
+      "weight": 0.322,
       "by": "judge",
       "judged": true,
-      "score": 0.432,
+      "score": 0.322,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/dedupe-must-preserve-source-chunk-content-orient-reads-program-source-from-searc",
-      "to": "knowledge:source_doc:note-mqqmixayq8m",
+      "from": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "to": "knowledge:source_doc:note-mr57kpil9xk",
       "kind": "context",
-      "weight": 0.411,
+      "weight": 0.314,
       "by": "judge",
       "judged": true,
-      "score": 0.411,
+      "score": 0.314,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "to": "knowledge:source_doc:note-mr5c2remh4y",
+      "kind": "context",
+      "weight": 0.314,
+      "by": "judge",
+      "judged": true,
+      "score": 0.314,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "to": "knowledge:source_doc:note-mr5c37uw1tw",
+      "kind": "context",
+      "weight": 0.314,
+      "by": "judge",
+      "judged": true,
+      "score": 0.314,
       "origin": "autowire-semantic"
     },
     {
@@ -290190,60 +290627,69 @@
       "origin": "subconscious-assignment"
     },
     {
-      "from": "codex/hoist-min-bump-guarantee-into-main-turn-loop-so-contact-probing-is-not-luck-gate",
-      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
-      "kind": "context",
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/kb-note-client-omit-wires_to-on-synthetic-task-key-instead-of-404ing-on-phantom-",
-      "to": "codex/coverage-resume-dedupe-search-hits-and-drop-full_content-from-index-discovery",
-      "kind": "context",
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/kbclient-omits-task_key-on-read-searches-when-synthetic-so-corroboration-gate-st",
-      "to": "codex/fix-search-kb-recall-semantics",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.405,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
-      "to": "codex/empirical-bump-approach-walk-per-step-act-observe-replan-no-expect-gating",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
-    },
-    {
-      "from": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "from": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
       "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
-      "kind": "blocking",
+      "kind": "context",
+      "weight": 0.419,
       "by": "judge",
       "judged": true,
-      "score": 0.616,
+      "score": 0.419,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "from": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
+      "to": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
       "to": "codex/hoist-min-bump-guarantee-into-main-turn-loop-so-contact-probing-is-not-luck-gate",
       "kind": "blocking",
       "by": "judge",
       "judged": true,
-      "score": 0.495,
+      "score": 0.395,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
+      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.507,
       "origin": "autowire-semantic"
     },
     {
       "from": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
-      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
+      "to": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
+      "to": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
+      "kind": "context",
+      "weight": 0.336,
+      "by": "judge",
+      "judged": true,
+      "score": 0.336,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
+      "to": "codex/ewm-model-quantum-interaction-discovery-stride-agnostic-run-twenty-seven",
       "kind": "blocking",
       "by": "judge",
       "judged": true,
-      "score": 0.557,
+      "score": 0.341,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
+      "to": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
+      "kind": "context",
+      "origin": "asserted"
     },
     {
       "from": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/8",
@@ -290317,5 +290763,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-07-10T10:55:27.901Z"
+  "compacted_at": "2026-07-11T10:55:27.945Z"
 }
