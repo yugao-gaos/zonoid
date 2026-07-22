@@ -23,3 +23,4 @@
 {"evt":"edge_removed","from":"note:note-mqenc9e44v4","to":"note:note-mq561rur","kind":"context","actor":"overlay-sync","ts":"2026-06-21T05:01:36.388Z"}
 {"evt":"edge_removed","from":"note:note-mqenc9e44v4","to":"note:note-mq7dy433","kind":"context","actor":"overlay-sync","ts":"2026-06-21T05:01:36.388Z"}
 {"evt":"edge_removed","from":"note:note-mqenc9e44v4","to":"bench/bench-trial-15-discovered","kind":"context","actor":"overlay-sync","ts":"2026-06-21T05:01:36.388Z"}
+{"evt":"edge_added","from":"note:note-mqenc9e44v4","to":"codex/canonical-graph-submodule-worktree-resolution","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:24:33.383Z","weight":0,"by":"autowire","judged":false,"score":0.447,"origin":"autowire-semantic"}
