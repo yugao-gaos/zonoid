@@ -116,3 +116,4 @@
 {"evt":"edge_added","from":"note:note-mqqjxaewu58","to":"codex/graph-submodule-design-audit","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:06:26.068Z","weight":0.83,"by":"subconscious","judged":true,"score":0.83,"origin":"subconscious-agentic-search"}
 {"evt":"edge_removed","from":"note:note-mqqjxaewu58","to":"codex/graph-submodule-design-audit","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:09:56.167Z"}
 {"evt":"edge_added","from":"note:note-mqqjxaewu58","to":"codex/externalize-daemon-runtime","kind":"context","actor":"overlay-sync","ts":"2026-07-22T21:44:02.843Z","weight":0.851,"by":"subconscious","judged":true,"score":0.851,"origin":"subconscious-agentic-search"}
+{"evt":"edge_added","from":"note:note-mqqjxaewu58","to":"codex/build-graph-repo-manager","kind":"context","actor":"overlay-sync","ts":"2026-07-22T22:46:38.507Z","weight":0.83,"by":"subconscious","judged":true,"score":0.83,"origin":"subconscious-agentic-search"}
