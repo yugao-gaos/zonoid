@@ -124,3 +124,4 @@
 {"evt":"edge_promoted","from":"note:note-mqqwu05983g","to":"codex/caveman-ponytail-policy","kind":"context","actor":"overlay-sync","ts":"2026-06-29T15:51:07.357Z","weight":0.866,"by":"subconscious","judged":true,"score":0.866,"origin":"subconscious-agentic-search"}
 {"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/subconscious-context-default-compression","kind":"context","actor":"overlay-sync","ts":"2026-07-01T02:05:12.480Z"}
 {"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/exec-brain-state-seam-retry","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:10:18.733Z"}
+{"evt":"edge_added","from":"note:note-mqqwu05983g","to":"codex/graph-submodule-design-audit","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:06:26.068Z","weight":0.846,"by":"subconscious","judged":true,"score":0.846,"origin":"subconscious-agentic-search"}
