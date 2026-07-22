@@ -54,6 +54,7 @@ const { taskEmbedText } = require('./lib/node-tags');
 const headlessDrain = require('./lib/headless-drain');
 const { createHeadlessDrainRunner } = require('./lib/headless-drain-runner');
 const registry = require('./lib/workspace-registry');
+const repoTarget = require('./lib/repo-target');
 const runtimePaths = require('./lib/runtime-paths');
 const { ensureManagedGraphLoop } = require('./lib/loop-autostart');
 const { sweepStaleWakeups, sweepOrphanProcesses } = require('./lib/schedule-wakeup');
@@ -543,6 +544,21 @@ function touchAgent(agentId, patch = {}) {
 // per-request resolved workspace (no global default — callers pass the resolved value).
 function resolveRepo(key, explicit, ov, ws) {
   return explicit || (key && ov && ov.repos && ov.repos[key]) || ws;
+}
+
+// Safe Git-target resolution for branch/worktree operations. The operation path remains distinct
+// from the graph workspace, while the returned target also carries realpath + Git common-dir
+// identity. Workspace fallback is rejected when the graph repo belongs to a named multi-repo
+// workspace, forcing the caller to select or configure the intended repo.
+async function resolveRepoTarget(key, explicit, ov, ws) {
+  return repoTarget.resolveRepoTarget({
+    key,
+    explicit,
+    overlay: ov,
+    workspace: ws,
+    registry: registry.loadRegistry(WORKSPACES_FILE),
+    git,
+  });
 }
 
 // Per-request workspace targeting for graph routes. P3: there is NO daemon-global default — the
@@ -2816,7 +2832,7 @@ const ctx = {
   repoToWorkspace: registry.repoToWorkspace,
   workspaceForRepo: (repoPath) => registry.repoToWorkspace(registry.loadRegistry(WORKSPACES_FILE)).get(repoPath) || null,
   repoRoot: registry.repoRoot,
-  send, sendOp, readBody, notifyChange, buildGraph, readGraphSnapshot, targetOverlay, overlayFor, resolveRepo, nodeExistsInGraph, registeredWorkspaces,
+  send, sendOp, readBody, notifyChange, buildGraph, readGraphSnapshot, targetOverlay, overlayFor, resolveRepo, resolveRepoTarget, nodeExistsInGraph, registeredWorkspaces,
   validateMetricSpec, validateBenchmark,
   overlayStore, harness: claudeHarness, harnessRegistry, filedrop, writeTaskStatus, readNativeTask, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
   cache, loops, saveLoops, saveAgents,

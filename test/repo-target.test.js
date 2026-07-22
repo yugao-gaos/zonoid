@@ -1,74 +1,80 @@
 #!/usr/bin/env node
-// Plain Node test for the target-repo decoupling: git.js operating on a repo path that is NOT a
-// daemon workspace, plus overlay.setRepo / the explicit > task-field > workspace resolution order.
-// No framework; matches the style of test/git.test.js. Run: node test/repo-target.test.js
 'use strict';
+
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
-// Sandbox BASE so worktrees + overlays land in a temp dir (BASE is read at require-time).
-// realpath the temp dir: on macOS os.tmpdir() is a /var -> /private/var symlink, so `git worktree
-// list` reports the resolved path while our path helpers keep the symlink form — normalize to match.
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-repo-base-')));
 process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
 const git = require('../lib/git');
 const overlay = require('../lib/overlay');
+const repoTarget = require('../lib/repo-target');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
 
-// Mirror the daemon's resolveRepo precedence for a direct unit assertion.
-function resolveRepo(ov, key, explicit, workspace) {
-  return explicit || (key && ov.repos && ov.repos[key]) || workspace;
-}
-
-// A "workspace" that is NOT a git repo (mirrors the dogfood finding: daemon workspace != repo).
-const workspace = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ws-')));
-// A separate target repo, distinct from the workspace.
-const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-repo-')));
+const workspace = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ws-repo-')));
+const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-target-repo-')));
 const KEY = 'sess-xyz/3';
-try {
-  // --- overlay.setRepo + resolution order ---
+const COLLISION_KEY = 'sess-xyz/collision';
+
+async function main() {
   const ov = overlay.EMPTY();
-  ok('repos map present in EMPTY()', ov.repos && typeof ov.repos === 'object');
-  ok('resolve falls back to workspace when nothing set', resolveRepo(ov, KEY, null, workspace) === workspace);
-  overlay.setRepo(ov, KEY, repo);
-  ok('setRepo records the path', ov.repos[KEY] === repo);
-  ok('resolve uses task repo field over workspace', resolveRepo(ov, KEY, null, workspace) === repo);
-  ok('resolve: explicit beats task field', resolveRepo(ov, KEY, '/explicit/path', workspace) === '/explicit/path');
-  overlay.setRepo(ov, KEY, '');
-  ok('setRepo with empty path clears the field', ov.repos[KEY] === undefined);
-  ok('resolve back to workspace after clear', resolveRepo(ov, KEY, null, workspace) === workspace);
+  git.initRepo(workspace);
+  git.initRepo(repo);
 
-  // setRepo survives a save/load round-trip (persistence).
+  const multiRegistry = {
+    version: 2,
+    workspaces: { product: { repos: [workspace, repo] } },
+  };
+  const singleRegistry = {
+    version: 2,
+    workspaces: { product: { repos: [workspace] } },
+  };
+
+  const ambiguous = await repoTarget.resolveRepoTarget({ key: KEY, overlay: ov, workspace, registry: multiRegistry, git });
+  ok('multi-repo workspace fallback is rejected as ambiguous', ambiguous.ok === false && ambiguous.code === 'ambiguous_repo_target');
+  ok('ambiguity error names the workspace and both canonical repos', ambiguous.workspace_name === 'product' && ambiguous.repos.length === 2);
+
+  const fallback = await repoTarget.resolveRepoTarget({ key: KEY, overlay: ov, workspace, registry: singleRegistry, git });
+  ok('single-repo workspace fallback remains convenient', fallback.ok === true && fallback.repo === workspace);
+  ok('workspace fallback provenance and common-dir are exposed', fallback.target.provenance === 'workspace' && !!fallback.target.git_common_dir);
+
   overlay.setRepo(ov, KEY, repo);
+  const stored = await repoTarget.resolveRepoTarget({ key: KEY, overlay: ov, workspace, registry: multiRegistry, git });
+  ok('stored task repo wins over ambiguous workspace fallback', stored.ok === true && stored.repo === repo && stored.target.provenance === 'task');
+
+  const explicit = await repoTarget.resolveRepoTarget({ key: KEY, explicit: workspace, overlay: ov, workspace, registry: multiRegistry, git });
+  ok('explicit repo beats stored task repo', explicit.ok === true && explicit.repo === workspace && explicit.target.provenance === 'explicit');
+
   overlay.save(workspace, ov);
-  ok('repo field persists across load', overlay.load(workspace).repos[KEY] === repo);
-
-  // --- git.js drives the arbitrary repo, NOT the workspace ---
-  ok('workspace is not a repo (dogfood case)', git.isRepo(workspace) === false);
-  const init = git.initRepo(repo);
-  ok('initRepo works on arbitrary repo path', /^[0-9a-f]{7,40}$/.test(init.head || ''));
-  ok('isRepo true on the target repo', git.isRepo(repo) === true);
-  ok('workspace STILL not a repo (untouched)', git.isRepo(workspace) === false);
+  ok('stored repo path survives overlay save/load', overlay.load(workspace).repos[KEY] === repo);
 
   const created = git.createWorktree(repo, KEY);
-  ok('worktree created for target repo', fs.existsSync(created.worktree));
-  // Worktree path is keyed by the REPO hash, so distinct repos never collide on disk.
-  ok('worktree path differs from a workspace-keyed path', created.worktree !== git.worktreePath(workspace, KEY));
-  ok('listWorktrees on target repo shows the attempt', git.listWorktrees(repo).some((t) => t.branch === git.branchName(KEY)));
-  ok('listWorktrees on workspace is [] (no repo there)', git.listWorktrees(workspace).length === 0);
+  ok('worktree created for selected target repo', fs.existsSync(created.worktree));
+  ok('worktree path remains keyed by the selected operation path', created.worktree !== git.worktreePath(workspace, KEY));
+  const verified = git.verifyWorktreeTarget(repo, created.worktree);
+  ok('attempt worktree shares the selected repo common-dir', verified.ok === true && verified.target.git_common_dir === verified.worktree.git_common_dir);
+  ok('same worktree is rejected for a different target repo', git.verifyWorktreeTarget(workspace, created.worktree).ok === false);
+  git.removeWorktree(repo, KEY);
 
-  const rm = git.removeWorktree(repo, KEY);
-  ok('removeWorktree on target repo removed=true', rm.removed === true);
-} finally {
-  for (const d of [workspace, repo, SANDBOX, git.worktreePath(repo, KEY)]) {
-    fs.rmSync(d, { recursive: true, force: true });
-  }
+  const collisionPath = git.worktreePath(repo, COLLISION_KEY);
+  fs.mkdirSync(path.dirname(collisionPath), { recursive: true });
+  execFileSync('git', ['-C', workspace, 'worktree', 'add', '-b', 'wrong-collision', collisionPath], { stdio: 'ignore' });
+  const collision = git.createWorktree(repo, COLLISION_KEY);
+  ok('foreign checkout at deterministic path is rejected before creation', collision.target_mismatch === true);
+  ok('foreign checkout is left in place', fs.existsSync(collisionPath));
+  execFileSync('git', ['-C', workspace, 'worktree', 'remove', '--force', collisionPath], { stdio: 'ignore' });
 }
 
-console.log('-----');
-console.log(`${pass} passed, ${fail} failed`);
-process.exit(fail === 0 ? 0 : 1);
+main().catch((err) => {
+  console.error(err && err.stack ? err.stack : err);
+  fail++;
+}).finally(() => {
+  for (const dir of [workspace, repo, SANDBOX]) fs.rmSync(dir, { recursive: true, force: true });
+  console.log('-----');
+  console.log(`${pass} passed, ${fail} failed`);
+  process.exit(fail === 0 ? 0 : 1);
+});
