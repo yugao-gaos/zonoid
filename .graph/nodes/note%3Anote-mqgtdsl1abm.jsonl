@@ -39,3 +39,4 @@
 {"evt":"edge_removed","from":"note:note-mqgtdsl1abm","to":"note:note-mqeapqae6jf","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqgtdsl1abm","to":"note:note-mqfmkwytf2n","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqgtdsl1abm","to":"note:note-mqflqx78zk2","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_added","from":"note:note-mqgtdsl1abm","to":"codex/audit-cross-repo-worktree-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:47:41.955Z","weight":0,"by":"autowire","judged":false,"score":0.521,"origin":"autowire-semantic"}

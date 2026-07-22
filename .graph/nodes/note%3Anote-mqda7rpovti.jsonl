@@ -25,3 +25,4 @@
 {"evt":"edge_promoted","from":"note:note-mqda7rpovti","to":"1e01ab32-97eb-4eec-9b28-6632a1dc44f6/1","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.611,"by":"judge","judged":true,"score":0.611,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqda7rpovti","to":"codex/ewm-repl-sandbox-budget-guards-segmentation","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:30:47.603Z","weight":0,"by":"autowire","judged":false,"score":0.386,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqda7rpovti","to":"codex/ewm-repl-sandbox-budget-guards-segmentation","kind":"context","actor":"overlay-sync","ts":"2026-07-02T23:40:45.507Z"}
+{"evt":"edge_added","from":"note:note-mqda7rpovti","to":"codex/audit-cross-repo-worktree-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:47:41.955Z","weight":0,"by":"autowire","judged":false,"score":0.508,"origin":"autowire-semantic"}
