@@ -114,3 +114,4 @@
 {"evt":"edge_removed","from":"note:note-mqqjxaewu58","to":"codex/headroom-style-reversible-context-pilot","kind":"context","actor":"overlay-sync","ts":"2026-07-01T02:03:52.524Z"}
 {"evt":"edge_removed","from":"note:note-mqqjxaewu58","to":"codex/subconscious-context-default-compression","kind":"context","actor":"overlay-sync","ts":"2026-07-01T06:23:41.424Z"}
 {"evt":"edge_added","from":"note:note-mqqjxaewu58","to":"codex/graph-submodule-design-audit","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:06:26.068Z","weight":0.83,"by":"subconscious","judged":true,"score":0.83,"origin":"subconscious-agentic-search"}
+{"evt":"edge_removed","from":"note:note-mqqjxaewu58","to":"codex/graph-submodule-design-audit","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:09:56.167Z"}
