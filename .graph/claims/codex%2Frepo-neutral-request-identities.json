@@ -3,8 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "repo-neutral-protocol-worker",
   "branch": "orch/attempt/codex-repo-neutral-request-identities",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-07-22T21:14:51.665Z",
   "lease_until": "2026-07-22T22:14:51.665Z",
-  "completed_at": "2026-07-22T21:33:47.235Z"
+  "completed_at": "2026-07-22T21:34:39.634Z"
 }
