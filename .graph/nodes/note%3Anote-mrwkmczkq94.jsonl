@@ -16,3 +16,4 @@
 {"evt":"edge_promoted","from":"note:note-mrwkmczkq94","to":"codex/repo-neutral-request-identities","kind":"context","actor":"overlay-sync","ts":"2026-07-22T21:14:42.717Z","weight":0.5,"by":"judge","judged":true,"origin":"subconscious-assignment"}
 {"evt":"edge_removed","from":"note:note-mrwkmczkq94","to":"note:note-mrwhqujye3g","kind":"context","actor":"overlay-sync","ts":"2026-07-22T21:29:03.835Z"}
 {"evt":"edge_added","from":"note:note-mrwkmczkq94","to":"codex/preserve-legacy-identity-errors","kind":"context","actor":"overlay-sync","ts":"2026-07-22T21:37:57.558Z","weight":0,"by":"autowire","judged":false,"score":0.565,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mrwkmczkq94","to":"codex/preserve-legacy-identity-errors","kind":"context","actor":"overlay-sync","ts":"2026-07-22T21:41:20.552Z"}
