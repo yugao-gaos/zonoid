@@ -17,6 +17,14 @@ const daemon = require('../daemon');
 
 const graphRepo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-graph-repo-')));
 const otherRepo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-other-repo-')));
+const linkedPrimary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-linked-primary-')));
+const linkedWorktree = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-linked-worktree-')));
+fs.mkdirSync(path.join(linkedPrimary, '.graph'));
+const linkedGitDir = path.join(linkedPrimary, '.git', 'worktrees', 'identity-test');
+fs.mkdirSync(linkedGitDir, { recursive: true });
+fs.writeFileSync(path.join(linkedGitDir, 'commondir'), '../..\n');
+fs.mkdirSync(path.join(linkedWorktree, '.graph'));
+fs.writeFileSync(path.join(linkedWorktree, '.git'), `gitdir: ${linkedGitDir}\n`);
 
 test('canonical request fields win while deprecated aliases remain identical', () => {
   const identity = requestIdentity.fromRequest({
@@ -51,6 +59,17 @@ test('client composition only defaults target_repo for an unambiguous named work
   assert.deepEqual(requestIdentity.composeClientIdentity({ graph_repo: graphRepo }, multi), {
     workspace_id: 'product', graph_repo: graphRepo, target_repo: null,
   });
+});
+
+test('client composition canonicalizes tracked-graph worktrees and prefers a human workspace ID', () => {
+  const registry = { version: 2, workspaces: {
+    [linkedPrimary]: { repos: [linkedPrimary] },
+    product: { repos: [linkedPrimary] },
+  } };
+  assert.deepEqual(requestIdentity.composeClientIdentity({ graph_repo: linkedWorktree }, registry), {
+    workspace_id: 'product', graph_repo: linkedPrimary, target_repo: linkedPrimary,
+  });
+  assert.ok(registry.workspaces[linkedPrimary], 'legacy absolute-path workspace entry is retained');
 });
 
 test('targetOverlay accepts graph_repo and has no process-global repo fallback', () => {
@@ -130,7 +149,9 @@ test('per-tool canonical identity is forwarded instead of the MCP session defaul
 });
 
 test.after(() => {
-  for (const dir of [graphRepo, otherRepo, sandbox]) fs.rmSync(dir, { recursive: true, force: true });
+  for (const dir of [graphRepo, otherRepo, linkedPrimary, linkedWorktree, sandbox]) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
   // Requiring daemon.js starts the embedding sidecar; terminate after node:test flushes its report.
   setTimeout(() => process.exit(process.exitCode || 0), 100);
 });

@@ -105,6 +105,22 @@ try {
   ok('repoRoot from inside a worktree resolves to the real graph-bearing repo',
     reg.repoRoot(inWorktree) === fs.realpathSync(realRepo));
 
+  // A linked worktree can contain `.graph` because graph history is tracked. Its `.git` FILE must
+  // take precedence over that copied marker: resolve through gitdir/commondir to the primary
+  // checkout instead of registering the disposable worktree as a second graph repo.
+  const linkedPrimary = mk('linkedPrimary');
+  touchDir(linkedPrimary, '.graph');
+  const linkedGitDir = mk('linkedPrimary', '.git', 'worktrees', 'tracked-graph');
+  touchFile(linkedGitDir, 'commondir', '../..\n');
+  const linkedWorktree = mk('external-worktrees', 'tracked-graph');
+  touchDir(linkedWorktree, '.graph');
+  touchFile(linkedWorktree, '.git', `gitdir: ${linkedGitDir}\n`);
+  ok('repoRoot maps a linked worktree with tracked .graph to its primary checkout',
+    reg.repoRoot(linkedWorktree) === fs.realpathSync(linkedPrimary));
+  const nestedLinked = touchDir(linkedWorktree, 'src');
+  ok('repoRoot maps a nested path in a tracked-graph worktree to its primary checkout',
+    reg.repoRoot(nestedLinked) === fs.realpathSync(linkedPrimary));
+
   // ── repoRoot: standalone worktree (gitdir-FILE) is NEVER treated as a repo root ──
   // The gitdir-FILE+no-.graph dir must not register as a repo; repoRoot resolves PAST it. (We assert
   // "not this dir" rather than strict null because the OS tmp tree may have an unrelated .graph
@@ -232,6 +248,18 @@ try {
   // first-writer-wins on a dup repo across workspaces
   const dupReg = { version: 2, workspaces: { wsX: { repos: ['/r/shared'] }, wsY: { repos: ['/r/shared'] } } };
   ok('repoToWorkspace first-writer-wins on duplicate repo', reg.repoToWorkspace(dupReg).get('/r/shared') === 'wsX');
+
+  // A pre-v2 absolute-path workspace key may coexist with a later human name. Keep both entries in
+  // history, but expose the human name as the canonical reverse lookup even when legacy was first.
+  const legacyAndNamed = { version: 2, workspaces: {
+    '/r/shared': { repos: ['/r/shared'] },
+    product: { repos: ['/r/shared'] },
+  } };
+  const preferred = reg.repoToWorkspace(legacyAndNamed);
+  ok('repoToWorkspace prefers a human workspace ID over a duplicate absolute-path key',
+    preferred.get('/r/shared') === 'product');
+  ok('repoToWorkspace preference does not delete legacy registry history',
+    Object.prototype.hasOwnProperty.call(legacyAndNamed.workspaces, '/r/shared'));
 
   // ── addRepo: create new workspace + idempotency ──────────────────────────────────
   const addFile = path.join(SANDBOX, 'add.json');
