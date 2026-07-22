@@ -100,3 +100,4 @@
 {"evt":"edge_added","from":"note:note-mq75a810","to":"codex/harden-cross-repo-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:28:07.563Z","weight":0,"by":"autowire","judged":false,"score":0.468,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mq75a810","to":"codex/externalize-worktree-runtime","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:29:35.142Z","weight":0,"by":"autowire","judged":false,"score":0.534,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mq75a810","to":"codex/externalize-worktree-runtime","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:33:05.711Z"}
+{"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/harden-cross-repo-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:42:22.162Z","weight":0.95,"by":"autowire","judged":false,"score":0.468,"origin":"asserted"}
