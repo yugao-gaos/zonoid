@@ -8,3 +8,5 @@
 {"evt":"edge_removed","from":"note:note-mqpkqkfp748","to":"codex/fix-onboarding-stale-legacy-queue","kind":"context","actor":"overlay-sync","ts":"2026-06-23T07:21:27.758Z"}
 {"evt":"edge_added","from":"note:note-mqpkqkfp748","to":"codex/fix-onboarding-stale-legacy-queue","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:03:11.927Z","weight":0.6,"by":"judge","judged":true}
 {"evt":"edge_added","from":"note:note-mqpkqkfp748","to":"codex/remove-dashboard-blocking-queue","kind":"context","actor":"overlay-sync","ts":"2026-07-22T22:53:20.300Z","weight":0,"by":"autowire","judged":false,"score":0.4,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqpkqkfp748","to":"codex/remove-dashboard-blocking-queue","kind":"blocking","actor":"overlay-sync","ts":"2026-07-22T23:04:17.978Z","by":"judge","judged":true,"score":0.4,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqpkqkfp748","to":"codex/remove-dashboard-blocking-queue","kind":"context","actor":"overlay-sync","ts":"2026-07-22T23:04:17.978Z"}

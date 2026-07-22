@@ -20,3 +20,4 @@
 {"evt":"edge_added","from":"note:note-mqpauss185e","to":"codex/graph-submodule-design-audit","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:05:56.612Z","weight":0,"by":"autowire","judged":false,"score":0.403,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqpauss185e","to":"codex/graph-submodule-design-audit","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:09:20.395Z"}
 {"evt":"edge_added","from":"note:note-mqpauss185e","to":"codex/build-graph-repo-manager","kind":"context","actor":"overlay-sync","ts":"2026-07-22T22:56:31.088Z","weight":0,"by":"autowire","judged":false,"score":0.622,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqpauss185e","to":"codex/build-graph-repo-manager","kind":"context","actor":"overlay-sync","ts":"2026-07-22T23:04:10.577Z"}
