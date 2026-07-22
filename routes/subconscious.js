@@ -2,6 +2,7 @@
 
 const path = require('path');
 const overlayStore = require('../lib/overlay');
+const repoTarget = require('../lib/repo-target');
 const { defaultSubconsciousStore } = require('../lib/subconscious');
 const { applyReversibleContextCompression } = require('../lib/search/context-compression');
 
@@ -320,7 +321,8 @@ function buildAssignmentEnvelope(ctx, T, input) {
   const gitInfo = (T.ov.git && T.ov.git[taskKey]) || {};
   const lifecycle = overlayStore.reviewLifecycleFor(T.ov, taskKey, T.ov.status && T.ov.status[taskKey]);
   const reviewRequested = input.review_requested === true || lifecycle.review_state === 'requested' || lifecycle.review_state === 'pending';
-  const repoPath = input.repo_path || (T.ov.repos && T.ov.repos[taskKey]) || T.ws || null;
+  const target = input.target || gitInfo.target || null;
+  const repoPath = input.repo_path || (target && target.repo_path) || (T.ov.repos && T.ov.repos[taskKey]) || T.ws || null;
   const graphTask = taskForKey(graph, taskKey);
   const parentKeys = normalizeStringArray(input.parent_task_keys);
   const contextKeys = normalizeStringArray(input.context_task_keys);
@@ -344,6 +346,7 @@ function buildAssignmentEnvelope(ctx, T, input) {
     branch: gitInfo.branch || null,
     worktree: gitInfo.worktree || null,
     repo_path: repoPath,
+    target,
     base: input.base || null,
     context: {
       parent_task_keys: parentKeys,
@@ -407,8 +410,15 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       input.agentic_search_context = searchResult.subconscious_context || null;
       input.context_task_keys = searchResult.context_task_keys || [];
     }
+    const resolved = ctx.resolveRepoTarget
+      ? await ctx.resolveRepoTarget(taskKey, input.repo_path, T.ov, T.ws)
+      : { ok: true, repo: input.repo_path || (T.ov.repos && T.ov.repos[taskKey]) || T.ws, target: null };
+    if (!resolved.ok) { send(res, resolved.status || 409, resolved); return true; }
+    const persistedTarget = T.ov.git && T.ov.git[taskKey] && T.ov.git[taskKey].target;
     const assignment = buildAssignmentEnvelope(ctx, T, {
       ...input,
+      repo_path: resolved.repo,
+      target: input.repo_path ? resolved.target : (persistedTarget || resolved.target),
     });
     send(res, 200, { ok: true, action: 'read', workspace: T.ws, assignment });
     return true;
@@ -464,6 +474,23 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       return true;
     }
 
+    const requestedRepoPath = cleanString(b.repo_path);
+    const resolved = ctx.resolveRepoTarget
+      ? await ctx.resolveRepoTarget(taskKey, requestedRepoPath, T.ov, T.ws)
+      : {
+        ok: true,
+        repo: requestedRepoPath || (T.ov.repos && T.ov.repos[taskKey]) || T.ws,
+        target: null,
+      };
+    if (!resolved.ok) { send(res, resolved.status || 409, resolved); return true; }
+    let repo = resolved.repo;
+    let target = resolved.target;
+    const existingGitInfo = T.ov.git && T.ov.git[taskKey];
+    if (!requestedRepoPath && existingGitInfo && existingGitInfo.target
+        && existingGitInfo.target.repo_path === repo) {
+      target = { ...target, provenance: existingGitInfo.target.provenance || target.provenance };
+    }
+
     ensureTaskSnapshot(ctx, T, taskKey, b, b.subject || b.title || taskKey);
     for (const key of parentKeys.concat(contextKeys)) {
       if (!creatingKeys.has(key)) ensureTaskSnapshot(ctx, T, key, {}, key);
@@ -493,13 +520,17 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       overlayStore.setReviewLifecycle(T.ov, taskKey, reviewPatch);
     }
 
-    const repoPath = cleanString(b.repo_path);
-    const repo = ctx.resolveRepo ? ctx.resolveRepo(taskKey, repoPath, T.ov, T.ws) : (repoPath || T.ws);
-    if (!repo) { send(res, 400, { ok: false, error: 'repo_path or workspace required' }); return true; }
     overlayStore.setRepo(T.ov, taskKey, repo);
     if (b.test_cmd !== undefined) overlayStore.setTestCmd(T.ov, repo, b.test_cmd || '');
 
     let gitInfo = T.ov.git && T.ov.git[taskKey];
+    if (gitInfo && gitInfo.worktree && b.reallocate !== true) {
+      const verification = await repoTarget.verifyWorktreeTarget(target, gitInfo.worktree, ctx.git);
+      if (!verification.ok) {
+        send(res, 409, { ok: false, code: 'worktree_target_mismatch', repo, worktree: gitInfo.worktree, error: verification.error, verification });
+        return true;
+      }
+    }
     if (!gitInfo || !gitInfo.worktree || b.reallocate === true) {
       if (!ctx.git || typeof ctx.git.createWorktreeAsync !== 'function') {
         send(res, 500, { ok: false, error: 'git worktree primitive unavailable' });
@@ -509,6 +540,9 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
         if (typeof ctx.git.initRepoAsync === 'function') {
           const init = await ctx.git.initRepoAsync(repo);
           if (init && init.error) { send(res, 409, { ok: false, error: init.error, init }); return true; }
+          const identity = await repoTarget.identityFor(repo, ctx.git);
+          repo = identity.repo_path || repo;
+          target = { ...target, ...identity };
         } else {
           send(res, 409, { ok: false, error: 'target repo is not a git repo' });
           return true;
@@ -519,7 +553,14 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
         send(res, 409, { ...info, ok: false, repo, error: 'worktree path is currently leased by another creator; retry subconscious_assignment action:"prepare"' });
         return true;
       }
-      overlayStore.setGit(T.ov, taskKey, info);
+      if (info && info.error) {
+        send(res, 409, { ...info, ok: false, repo });
+        return true;
+      }
+      overlayStore.setGit(T.ov, taskKey, { ...info, target });
+      gitInfo = T.ov.git && T.ov.git[taskKey];
+    } else {
+      overlayStore.setGit(T.ov, taskKey, { target });
       gitInfo = T.ov.git && T.ov.git[taskKey];
     }
 
@@ -530,6 +571,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       review_requested: reviewRequested,
       legacy_judge_task_key: legacyJudgeTaskKey,
       repo_path: repo,
+      target,
       base: cleanString(b.base),
       parent_task_keys: parentKeys,
       context_task_keys: contextKeys,
@@ -549,6 +591,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       branch: assignment.branch,
       worktree: assignment.worktree,
       repo_path: assignment.repo_path,
+      target: assignment.target,
       next_expected_worker_action: assignment.next_expected_worker_action,
       git: gitInfo || null,
     });

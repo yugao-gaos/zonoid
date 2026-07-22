@@ -8,6 +8,7 @@ const path = require('path');
 const test = require('node:test');
 const routeFactory = require('../routes/subconscious');
 const graphRouteFactory = require('../routes/graph');
+const overlayStore = require('../lib/overlay');
 const { createSubconsciousStore } = require('../lib/subconscious');
 
 function node(id, label, extra = {}) {
@@ -40,8 +41,8 @@ function scoreNodeAgainstTokens(item, qt) {
   return { shared, score };
 }
 
-function makeCtx({ graph, workspace, store, body }) {
-  const ov = { knowledge: {}, edges: [], entity_nodes: {} };
+function makeCtx({ graph, workspace, store, body, overlay, overrides }) {
+  const ov = overlay || overlayStore.EMPTY();
   return {
     subconscious: store,
     buildGraph: () => graph,
@@ -70,6 +71,7 @@ function makeCtx({ graph, workspace, store, body }) {
     checkGatedRateLimit: () => false,
     EMBED_MODEL: 'test',
     workspace,
+    ...(overrides || {}),
   };
 }
 
@@ -155,4 +157,81 @@ test('subconscious search-context carries default reversible context handles int
   assert.equal(resolveRes.body.ok, true);
   assert.equal(resolveRes.body.key, 'note:long');
   assert.equal(resolveRes.body.content, longSummary);
+});
+
+test('assignment prepare rejects ambiguous named multi-repo fallback before worktree creation', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5, useGrader: false });
+  const ov = overlayStore.EMPTY();
+  let createCalls = 0;
+  const graph = { tasks: [node('task/target', 'Cross repo target', { status: 'ready' })] };
+  const ctx = makeCtx({
+    graph,
+    workspace: ws,
+    store,
+    body: null,
+    overlay: ov,
+    overrides: {
+      resolveRepoTarget: async () => ({
+        ok: false,
+        status: 409,
+        code: 'ambiguous_repo_target',
+        error: 'workspace contains multiple Git repositories; pass repo_path',
+      }),
+      git: {
+        createWorktreeAsync: async () => { createCalls++; return {}; },
+      },
+    },
+  });
+
+  const res = await callRoute(ctx, '/subconscious/assignment', {
+    action: 'prepare',
+    workspace: ws,
+    task_key: 'task/target',
+  });
+
+  assert.equal(res.status, 409);
+  assert.equal(res.body.code, 'ambiguous_repo_target');
+  assert.equal(createCalls, 0);
+  assert.equal(ov.repos['task/target'], undefined);
+});
+
+test('assignment prepare persists and exposes canonical target provenance', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5, useGrader: false });
+  const ov = overlayStore.EMPTY();
+  const target = {
+    provenance: 'workspace',
+    repo_path: ws,
+    canonical_path: ws,
+    git_common_dir: path.join(ws, '.git'),
+  };
+  const graph = { tasks: [node('task/target', 'Canonical target', { status: 'ready' })] };
+  const ctx = makeCtx({
+    graph,
+    workspace: ws,
+    store,
+    body: null,
+    overlay: ov,
+    overrides: {
+      resolveRepoTarget: async () => ({ ok: true, repo: ws, target }),
+      notifyChange() {},
+      git: {
+        isRepoAsync: async () => true,
+        createWorktreeAsync: async () => ({ branch: 'orch/attempt/task-target', worktree: path.join(ws, 'attempt'), head: 'abc123' }),
+      },
+    },
+  });
+
+  const res = await callRoute(ctx, '/subconscious/assignment', {
+    action: 'prepare',
+    workspace: ws,
+    task_key: 'task/target',
+  });
+
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body.target, target);
+  assert.deepEqual(res.body.assignment.target, target);
+  assert.deepEqual(ov.git['task/target'].target, target);
+  assert.equal(ov.repos['task/target'], ws);
 });
