@@ -25,3 +25,4 @@
 {"evt":"edge_promoted","from":"note:note-mqp5ek1qs96","to":"note:note-mqiu7rp9366","kind":"context","actor":"overlay-sync","ts":"2026-06-28T10:27:53.616Z","weight":0.6,"by":"judge","judged":true}
 {"evt":"edge_promoted","from":"note:note-mqp5ek1qs96","to":"note:note-mqiu7rp9366","kind":"context","actor":"overlay-sync","ts":"2026-06-28T10:28:05.643Z","weight":0.6,"by":"judge","judged":true}
 {"evt":"edge_promoted","from":"note:note-mqp5ek1qs96","to":"note:note-mqiu7rp9366","kind":"context","actor":"overlay-sync","ts":"2026-06-28T10:28:11.935Z","weight":0.6,"by":"judge","judged":true,"score":0.864,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqp5ek1qs96","to":"codex/externalize-daemon-runtime","kind":"context","actor":"overlay-sync","ts":"2026-07-22T21:42:55.064Z","weight":0,"by":"autowire","judged":false,"score":0.463,"origin":"autowire-semantic"}
