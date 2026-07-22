@@ -1,10 +1,9 @@
 {
   "task_key": "codex/canonical-graph-submodule-worktree-resolution",
   "git_user": "test <test@example.com>",
-  "session_id": "codex-mcp-54811-403152607653e7256fbdac5d45d293fe",
+  "session_id": "codex-mcp-64174-f7f7304cbdde11a0953aa84759f7e9d9",
   "branch": "orch/attempt/codex-canonical-graph-submodule-worktree-resolution",
-  "status": "tested",
-  "claimed_at": "2026-07-22T19:26:36.056Z",
-  "lease_until": "2026-07-22T20:26:36.056Z",
-  "completed_at": "2026-07-22T19:36:43.624Z"
+  "status": "claimed",
+  "claimed_at": "2026-07-22T19:42:14.775Z",
+  "lease_until": "2026-07-22T20:42:14.775Z"
 }
