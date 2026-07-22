@@ -9,27 +9,36 @@ const { spawn } = require('child_process');
 const { runtimePath } = require('./lib/runtime-paths');
 const core = require('./lib/mcp-core');
 const { extraToolsForClient, resolveSession } = require('./lib/mcp-harness-tools');
-const { repoRoot } = require('./lib/workspace-registry');
+const workspaceRegistry = require('./lib/workspace-registry');
+const requestIdentity = require('./lib/request-identity');
 const { hasHeadlessDrainAncestor } = require('./lib/headless-ancestor');
 
 const CLIENT = String(process.env.ORCH_CLIENT || 'claude').trim() || 'claude';
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const DAEMON = path.join(__dirname, 'daemon.js');
-// This session's pinned workspace (ORCH_WORKSPACE lets a process target a workspace independent
-// of its cwd). Passed into makeCall so every MUTATING (POST) tool call carries it — graph writes
-// land in THIS session's workspace even when another session flipped the daemon's global
-// state.workspace (the workspace-gremlin fix). The old ~/.claude/orchestrator/workspace pointer
-// file AND the process.cwd()-as-workspace fallback are gone (note:note-mqj0wcabtxh): when
-// ORCH_WORKSPACE is unset we resolve cwd -> its containing repo via repoRoot, and WS stays null if
-// cwd is not inside a repo (callers tolerate null — see makeCall in lib/mcp-core.js).
-const WS = process.env.ORCH_WORKSPACE || repoRoot(process.cwd());
-const CALL = core.makeCall(PORT, WS);
+// This CLIENT composes request identity. Explicit canonical env vars win; deprecated
+// ORCH_WORKSPACE still aliases graph_repo. Cwd discovery belongs here—not in the daemon—and only
+// finds the graph-bearing repo. target_repo defaults client-side only when the named workspace is
+// unambiguous.
+const GRAPH_REPO = process.env.ORCH_GRAPH_REPO || process.env.ORCH_WORKSPACE
+  || workspaceRegistry.repoRoot(process.cwd());
+const CLIENT_IDENTITY = {
+  workspace_id: process.env.ORCH_WORKSPACE_ID || null,
+  graph_repo: GRAPH_REPO,
+  target_repo: process.env.ORCH_TARGET_REPO || null,
+};
+function refreshClientIdentity() {
+  const reg = workspaceRegistry.loadRegistry(runtimePath('workspaces.json'));
+  Object.assign(CLIENT_IDENTITY, requestIdentity.composeClientIdentity(CLIENT_IDENTITY, reg));
+}
+refreshClientIdentity();
+const CALL = core.makeCall(PORT, CLIENT_IDENTITY);
 // Harness session fallback: Claude Desktop exposes CLAUDE_CODE_SESSION_ID and Codex may expose
 // CODEX_THREAD_ID. When Codex Desktop exposes neither, resolveSession creates a random key scoped
 // to this MCP process so session-bound tools can still use the shared timer substrate.
 const SESSION = resolveSession({ client: CLIENT }) || null;
-const CLIENT_EXTRA = extraToolsForClient(CLIENT, WS, { session: SESSION, workspace: WS });
+const CLIENT_EXTRA = extraToolsForClient(CLIENT, GRAPH_REPO, { session: SESSION, workspace: GRAPH_REPO });
 
 function daemonEnv() {
   const env = { ...process.env };
@@ -84,7 +93,7 @@ async function ensureDaemon() {
 function write(msg) { process.stdout.write(JSON.stringify(msg) + '\n'); }
 async function handle(msg) {
   if (msg.method === 'tools/call') await ensureDaemon();   // self-heal before any tool runs
-  const resp = await core.handleRpc(msg, { call: CALL, uiHtml: core.uiHtml, extraTools: CLIENT_EXTRA, session: SESSION, workspace: WS });
+  const resp = await core.handleRpc(msg, { call: CALL, uiHtml: core.uiHtml, extraTools: CLIENT_EXTRA, session: SESSION, identity: CLIENT_IDENTITY, workspace: GRAPH_REPO });
   if (resp !== undefined) write(resp);
 }
 
@@ -105,6 +114,13 @@ process.stdin.on('data', (chunk) => {
 });
 process.stdin.on('end', () => { ending = true; maybeExit(); });
 
-// Startup: boot the daemon + register this workspace, so the graph reflects this project.
-// (WS is resolved above, next to CALL, so mutating tool calls carry it per-request too.)
-(async () => { try { await ensureDaemon(); if (WS) await CALL('POST', '/workspace', { path: WS }); } catch { /* ignore */ } })();
+// Startup: boot the daemon + register this graph repo, then refresh named-workspace ambiguity.
+(async () => {
+  try {
+    await ensureDaemon();
+    if (GRAPH_REPO) {
+      await CALL('POST', '/workspace', { path: GRAPH_REPO, workspace_id: CLIENT_IDENTITY.workspace_id });
+      refreshClientIdentity();
+    }
+  } catch { /* ignore */ }
+})();

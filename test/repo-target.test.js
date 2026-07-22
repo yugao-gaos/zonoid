@@ -34,20 +34,21 @@ async function main() {
     workspaces: { product: { repos: [workspace] } },
   };
 
-  const ambiguous = await repoTarget.resolveRepoTarget({ key: KEY, overlay: ov, workspace, registry: multiRegistry, git });
-  ok('multi-repo workspace fallback is rejected as ambiguous', ambiguous.ok === false && ambiguous.code === 'ambiguous_repo_target');
-  ok('ambiguity error names the workspace and both canonical repos', ambiguous.workspace_name === 'product' && ambiguous.repos.length === 2);
+  const ambiguous = await repoTarget.resolveRepoTarget({ key: KEY, overlay: ov, graphRepo: workspace, registry: multiRegistry, git });
+  ok('multi-repo graph identity is never reused as a Git target', ambiguous.ok === false && ambiguous.code === 'repo_target_required');
+  ok('missing-target error preserves graph repo context', ambiguous.graph_repo === workspace);
 
-  const fallback = await repoTarget.resolveRepoTarget({ key: KEY, overlay: ov, workspace, registry: singleRegistry, git });
-  ok('single-repo workspace fallback remains convenient', fallback.ok === true && fallback.repo === workspace);
-  ok('workspace fallback provenance and common-dir are exposed', fallback.target.provenance === 'workspace' && !!fallback.target.git_common_dir);
+  const noFallback = await repoTarget.resolveRepoTarget({ key: KEY, overlay: ov, graphRepo: workspace, registry: singleRegistry, git });
+  ok('single-repo convenience is not inferred by the daemon', noFallback.ok === false && noFallback.code === 'repo_target_required');
+  ok('missing target names canonical and deprecated fields', /target_repo/.test(noFallback.error) && /repo_path/.test(noFallback.error));
 
   overlay.setRepo(ov, KEY, repo);
-  const stored = await repoTarget.resolveRepoTarget({ key: KEY, overlay: ov, workspace, registry: multiRegistry, git });
-  ok('stored task repo wins over ambiguous workspace fallback', stored.ok === true && stored.repo === repo && stored.target.provenance === 'task');
+  const stored = await repoTarget.resolveRepoTarget({ key: KEY, overlay: ov, graphRepo: workspace, registry: multiRegistry, git });
+  ok('stored task repo supplies the Git target', stored.ok === true && stored.repo === repo && stored.target.provenance === 'task');
 
-  const explicit = await repoTarget.resolveRepoTarget({ key: KEY, explicit: workspace, overlay: ov, workspace, registry: multiRegistry, git });
-  ok('explicit repo beats stored task repo', explicit.ok === true && explicit.repo === workspace && explicit.target.provenance === 'explicit');
+  const explicit = await repoTarget.resolveRepoTarget({ key: KEY, targetRepo: workspace, overlay: ov, graphRepo: workspace, registry: multiRegistry, git });
+  ok('explicit target_repo beats stored task repo', explicit.ok === true && explicit.repo === workspace && explicit.target.provenance === 'explicit');
+  ok('canonical target identity is exposed with repo_path alias', explicit.target.target_repo === workspace && explicit.target.repo_path === workspace);
 
   overlay.save(workspace, ov);
   ok('stored repo path survives overlay save/load', overlay.load(workspace).repos[KEY] === repo);

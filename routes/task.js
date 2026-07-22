@@ -11,7 +11,7 @@ function isAdmissibleOverlayTaskKey(key) {
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, buildGraph, state, targetOverlay, nodeExistsInGraph,
-    validateMetricSpec, validateBenchmark, resolveRepo, taskTranscript, usageCached } = ctx;
+    validateMetricSpec, validateBenchmark, resolveRepoTarget, taskTranscript, usageCached } = ctx;
   const graphHasKey = (ws, key) => {
     if (typeof nodeExistsInGraph !== 'function') return true;
     return nodeExistsInGraph(buildGraph(ws), key);
@@ -80,7 +80,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     const spec = T.ov.metrics && T.ov.metrics[b.key];
     if (!spec) { send(res, 409, { ok: false, error: 'no metric spec on task: set one with configure_task (metric) first' }); return true; }
-    const repo = resolveRepo(b.key, b.repo_path, T.ov, T.ws);
+    const requestedTarget = b.target_repo || b.repo_path;
+    const resolvedTarget = resolveRepoTarget
+      ? await resolveRepoTarget(b.key, requestedTarget, T.ov, T.ws)
+      : { ok: true, repo: requestedTarget || (T.ov.repos && T.ov.repos[b.key]) };
+    if (!resolvedTarget.ok) { send(res, resolvedTarget.status || 400, resolvedTarget); return true; }
+    const repo = resolvedTarget.repo;
     if (!repo || !(await git.isRepoAsync(repo))) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
     const cwd = b.baseline ? repo : (await git.createWorktreeAsync(repo, b.key)).worktree;
     let result;
@@ -251,7 +256,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const key = u.searchParams.get('key');
     if (!key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
     const T = targetOverlay(null, u);
-    const repo = resolveRepo(key, u.searchParams.get('repo_path'), T.ov, T.ws);
+    const requestedTarget = u.searchParams.get('target_repo') || u.searchParams.get('repo_path');
+    const resolvedTarget = resolveRepoTarget
+      ? await resolveRepoTarget(key, requestedTarget, T.ov, T.ws)
+      : { ok: true, repo: requestedTarget || (T.ov.repos && T.ov.repos[key]) };
+    if (!resolvedTarget.ok) { send(res, resolvedTarget.status || 400, resolvedTarget); return true; }
+    const repo = resolvedTarget.repo;
     if (!repo || !(await git.isRepoAsync(repo))) { send(res, 409, { ok: false, error: 'target repo is not a git repo' }); return true; }
     const r = await git.attemptDiffAsync(repo, key);
     if (!r.ok) { send(res, 404, { ok: false, error: r.reason, key }); return true; }
