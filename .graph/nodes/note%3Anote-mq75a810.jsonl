@@ -77,3 +77,5 @@
 {"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/audit-cross-repo-worktree-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:13:07.389Z","weight":0.9,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/audit-cross-repo-worktree-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:13:19.022Z","weight":0.9,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/audit-cross-repo-worktree-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:13:29.745Z","weight":0.9,"origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/audit-cross-repo-worktree-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:13:54.148Z","weight":0.9,"origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/audit-cross-repo-worktree-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:14:07.485Z","weight":0.9,"origin":"asserted"}
