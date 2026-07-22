@@ -14,13 +14,17 @@ Non-graph runtime artifacts live under the Zonoid runtime data dir:
 
 If `CLAUDE_PLUGIN_DATA` points at the Zonoid install/source root, runtime state is redirected to `<install>/.zonoid` so source files and daemon state do not share the same directory.
 
-On the first default-path startup after upgrading, Zonoid copies durable universal state from the live
-legacy `~/.claude/orchestrator/.zonoid` directory before switching to the external directory. The
-migration never deletes the legacy source, never copies legacy worktrees, and never overwrites an
+Daemon startup and CLI `init` are the only paths that migrate durable universal state from the live
+legacy `~/.claude/orchestrator/.zonoid` directory. Generic runtime resolution and hook helpers are
+read-only, so a client starting while the old daemon is still writing cannot begin a competing copy.
+Before migration they select the authoritative legacy runtime; after a successful migration they
+select the external runtime. While `.legacy-migration-incomplete` exists they continue selecting the
+legacy runtime, and daemon startup or CLI `init` can safely resume the copy.
+
+Migration never deletes the legacy source, never copies legacy worktrees, and never overwrites an
 external directory that already contains authoritative universal state. An external directory that
 contains only newly allocated worktrees is safe to fill; those worktrees are left untouched. If a
-copy fails, an incomplete marker allows a later run to resume without overwriting copied entries,
-and the current run continues to use the legacy source.
+copy fails, the current daemon and clients continue using the legacy source.
 Process-local PID, log, and socket artifacts are recreated instead of migrated.
 
 ## Universal Runtime State

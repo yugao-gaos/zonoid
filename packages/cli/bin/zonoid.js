@@ -34,9 +34,9 @@ function resolveInstallDir() {
 
 // Computed once at startup; exported for tests.
 const INSTALL_DIR = resolveInstallDir();
-// Keep module imports side-effect free. `init` performs the copy-first migration;
-// daemon startup also migrates through the default runtime-path resolver.
-let ZONOID_DATA_DIR = runtimePaths.resolveDataDir(process.env, { migrate: false });
+// Runtime path resolution is read-only. `init` and daemon startup are the only
+// entry points that explicitly perform the copy-first legacy migration.
+let ZONOID_DATA_DIR = runtimePaths.resolveDataDir();
 
 // ── output helpers ──────────────────────────────────────────────────────────
 

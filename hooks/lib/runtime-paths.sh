@@ -77,42 +77,6 @@ orch_has_authoritative_data() {
   [[ -f "$dir/scheduled-wakeups.json" ]]
 }
 
-orch_migrate_legacy_data() {
-  local source destination marker name failed=0
-  source="$(orch_canonical_dir "$HOME/.claude/orchestrator/.zonoid")"
-  destination="$(orch_canonical_dir "$(orch_external_data_dir)")"
-  marker="$destination/.legacy-migration-incomplete"
-
-  if [[ "$source" == "$destination" ]] || ! orch_has_authoritative_data "$source"; then
-    printf '%s\n' "$destination"
-    return 0
-  fi
-  if [[ ! -e "$marker" ]] && orch_has_authoritative_data "$destination"; then
-    printf '%s\n' "$destination"
-    return 0
-  fi
-
-  mkdir -p "$destination" || { printf '%s\n' "$source"; return 0; }
-  if [[ ! -e "$marker" ]]; then
-    : > "$marker" || { printf '%s\n' "$source"; return 0; }
-  fi
-
-  for name in overlay sessions wake scheduled-tasks tasks adapters models certs \
-    agents.json loops.json loop.json workspaces.json token backend.env op-cache.json \
-    tool-analytics.json scheduled-wakeups.json; do
-    [[ -e "$source/$name" ]] || continue
-    [[ -e "$destination/$name" ]] && continue
-    cp -R -n "$source/$name" "$destination/$name" || failed=1
-  done
-
-  if [[ "$failed" -eq 0 ]]; then
-    rm -f "$marker"
-    printf '%s\n' "$destination"
-  else
-    printf '%s\n' "$source"
-  fi
-}
-
 orch_data_dir() {
   if [[ -n "${ORCH_DATA:-}" ]]; then
     orch_canonical_dir "$ORCH_DATA"
@@ -132,5 +96,18 @@ orch_data_dir() {
     fi
     return 0
   fi
-  orch_migrate_legacy_data
+  local legacy_runtime external_runtime marker
+  legacy_runtime="$(orch_canonical_dir "$HOME/.claude/orchestrator/.zonoid")"
+  external_runtime="$(orch_canonical_dir "$(orch_external_data_dir)")"
+  marker="$external_runtime/.legacy-migration-incomplete"
+
+  if [[ -e "$marker" ]] && orch_has_authoritative_data "$legacy_runtime"; then
+    printf '%s\n' "$legacy_runtime"
+  elif orch_has_authoritative_data "$external_runtime"; then
+    printf '%s\n' "$external_runtime"
+  elif orch_has_authoritative_data "$legacy_runtime"; then
+    printf '%s\n' "$legacy_runtime"
+  else
+    printf '%s\n' "$external_runtime"
+  fi
 }
