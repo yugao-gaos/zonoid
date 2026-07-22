@@ -120,6 +120,25 @@ async function testDirtyRefusal() {
   ok('unrelated dirty files refuse conversion', thrown && !gitlink(repo));
 }
 
+async function testReviewFixes() {
+  const remote = bareRemote();
+  const repo = ordinaryRepo(remote);
+  fs.rmSync(path.join(repo, '.graph', 'one.txt'));
+  const result = await lifecycle.init(repo, { yes: true, remote });
+  ok('conversion mirrors current graph deletions', result.status === 'initialized'
+    && !fs.existsSync(path.join(repo, '.graph', 'one.txt'))
+    && fs.existsSync(path.join(repo, '.graph', 'two.txt')));
+
+  const source = ordinaryRepo(bareRemote());
+  const worktreeRemote = bareRemote();
+  const worktree = temp('graph-lifecycle-worktree-');
+  fs.rmdirSync(worktree);
+  rawGit(['-C', source, 'worktree', 'add', '--detach', worktree]);
+  identity(worktree);
+  const worktreeResult = await lifecycle.init(worktree, { yes: true, remote: worktreeRemote });
+  ok('init resolves worktree git paths', worktreeResult.status === 'initialized' && gitlink(worktree));
+}
+
 async function testSyncFlushCheckpointStatus() {
   const remote = bareRemote();
   const repo = ordinaryRepo(remote);
@@ -150,6 +169,7 @@ async function main() {
     await testDryRunAndExtraction();
     await testRollback();
     await testDirtyRefusal();
+    await testReviewFixes();
     await testSyncFlushCheckpointStatus();
   } finally {
     for (const dir of cleanup.reverse()) fs.rmSync(dir, { recursive: true, force: true });
