@@ -3,7 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "codex-mcp-54811-403152607653e7256fbdac5d45d293fe",
   "branch": "orch/attempt/codex-canonical-graph-submodule-worktree-resolution",
-  "status": "claimed",
+  "status": "failed",
   "claimed_at": "2026-07-22T19:26:36.056Z",
-  "lease_until": "2026-07-22T20:26:36.056Z"
+  "lease_until": "2026-07-22T20:26:36.056Z",
+  "completed_at": "2026-07-22T19:35:28.461Z"
 }
