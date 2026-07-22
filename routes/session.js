@@ -251,7 +251,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
 
     const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes });
-    if (effectiveSeverity !== 'review') { for (const L of loops.values()) L.active = false; saveLoops(); }
+    // Guidance is a dashboard visibility surface, not a scheduler gate. Keep the loop running so
+    // unresolved decisions do not strand unrelated ready work; the pending item remains available
+    // through /guidance for the user to answer when convenient.
     T.save(); notifyChange();
     send(res, 200, { ok: true, id }); return true;
   }

@@ -1357,12 +1357,6 @@ function decideOne(L, ctx) {
     const sig = stopSignalFor(L.session, { graph: ctx.graph, ov });
     if (sig) { L.active = false; return { action: 'stop', reason: 'cooperative stop', stop: sig }; }
   }
-  // Escalation gate: an open BLOCKING guidance question outranks everything. Halt the loop and wait
-  // for the user. 'review' items (judge housekeeping) never pause — they queue on the dashboard.
-  if (ctx.pendingGuidance.length) {
-    L.active = false;
-    return { action: 'await_user', reason: 'awaiting user guidance', review_pending: ctx.reviewPending, questions: ctx.pendingGuidance.map((g) => ({ id: g.id, question: g.question, context: g.context, trigger: g.trigger })) };
-  }
   if (!L.active) return { action: 'stop', reason: 'loop not active' };
   L.iterations++;
   const loopMainTx = L.session ? sessionBindings.mainTranscriptForSession(state, L.session) : null;
@@ -1559,6 +1553,11 @@ function decideAll() {
     const ctx = ctxFor(L.workspace || __testWs);
     const d = decideOne(L, ctx);
     const entry = { loopId: L.id, ...d };
+    // Keep unresolved dashboard decisions visible without turning them into a scheduler gate.
+    // The loop action remains authoritative; clients can render these alongside spawn/idle/stop.
+    if (ctx.pendingGuidance.length) {
+      entry.dashboard_guidance = ctx.pendingGuidance.map((g) => ({ id: g.id, question: g.question, context: g.context, trigger: g.trigger }));
+    }
     if (ctx.reviewPending > 0) {
       const pend = overlayStore.pendingGuidance(ctx.ov);
       entry.review_items = pend.filter((g) => g.severity === 'review').map((g) => ({ id: g.id, question: g.question }));

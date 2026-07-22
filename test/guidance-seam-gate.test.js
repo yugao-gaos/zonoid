@@ -7,7 +7,7 @@
 // Covers:
 //   (a) a confident project-local preference note → /guidance AUTO-RESOLVES (predicted:true) without
 //       touching the pending guidance queue and without pausing the loop.
-//   (b) no match → escalates normally (pending guidance item added, loop paused).
+//   (b) no match → escalates normally (pending guidance item added without pausing the loop).
 //   (c) hard-override (irreversible/outward/...) → ALWAYS escalates even with a perfect match.
 //
 // Run: node test/guidance-seam-gate.test.js — exits non-zero on any failed assertion.
@@ -97,7 +97,7 @@ const QUESTION = 'should I squash-merge or merge-commit this orch attempt branch
     ok('b.1: gate did NOT predict (no predicted flag)', r && r.code === 200 && !r.body.predicted);
     const pending = overlayStore.pendingGuidance(ov);
     ok('b.2: one pending guidance item queued', pending.length === 1 && pending[0].question === QUESTION);
-    ok('b.3: blocking loop paused', loops.get('L1').active === false);
+    ok('b.3: blocking guidance does not pause loop', loops.get('L1').active === true);
   }
 
   // ---- (c) hard-override → ALWAYS escalate even with a perfect match ----------------------------
@@ -109,7 +109,7 @@ const QUESTION = 'should I squash-merge or merge-commit this orch attempt branch
     const r = getLast();
     ok('c.1: hard-override did NOT predict', r && !r.body.predicted);
     ok('c.2: hard-override escalated to the pending queue', overlayStore.pendingGuidance(ov).length === 1);
-    ok('c.3: hard-override paused the loop', loops.get('L1').active === false);
+    ok('c.3: hard-override does not pause loop', loops.get('L1').active === true);
   }
 
   // ---- (c2) hard-override via keyword on the question text (no flag) ----------------------------
