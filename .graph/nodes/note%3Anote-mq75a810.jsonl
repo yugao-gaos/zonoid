@@ -88,3 +88,4 @@
 {"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/audit-cross-repo-worktree-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:16:36.995Z","weight":0.9,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/audit-cross-repo-worktree-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:16:56.321Z","weight":0.9,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/audit-cross-repo-worktree-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:17:21.228Z","weight":0.9,"origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/audit-cross-repo-worktree-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:17:44.094Z","weight":0.9,"origin":"asserted"}
