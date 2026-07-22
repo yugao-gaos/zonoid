@@ -24,3 +24,4 @@
 {"evt":"edge_added","from":"note:note-mrwkmczkq94","to":"codex/externalize-daemon-runtime","kind":"context","actor":"overlay-sync","ts":"2026-07-22T21:44:02.843Z","weight":0.866,"by":"subconscious","judged":true,"score":0.866,"origin":"subconscious-agentic-search"}
 {"evt":"edge_removed","from":"note:note-mrwkmczkq94","to":"note:note-mq7iaabuefb","kind":"context","actor":"overlay-sync","ts":"2026-07-22T21:45:41.545Z"}
 {"evt":"note_superseded","id":"note-mrwkmczkq94","supersededBy":"note-mrwn109nbx2","validTo":"2026-07-22T22:12:08.987Z","ts":"2026-07-22T22:12:08.987Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mrwkmczkq94","to":"note:note-mqjx2nj5gav","kind":"context","actor":"overlay-sync","ts":"2026-07-22T22:38:53.876Z"}
