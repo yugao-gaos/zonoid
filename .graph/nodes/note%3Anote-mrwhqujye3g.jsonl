@@ -12,3 +12,4 @@
 {"evt":"edge_promoted","from":"note:note-mrwhqujye3g","to":"knowledge:source_chunk:chunk-contributing-md-6-0-graph-is-intentionally-git-version-deb5a14c25","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:44:41.872Z","weight":0.679,"by":"judge","judged":true,"score":0.679,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mrwhqujye3g","to":"note:note-mqiuag3ftku","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:04:31.583Z"}
 {"evt":"edge_removed","from":"note:note-mrwhqujye3g","to":"note:note-mq8dk5go63q","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:12:01.413Z"}
+{"evt":"edge_promoted","from":"note:note-mrwhqujye3g","to":"knowledge:source_section:section-contributing-md-6-graph-merge-strategy-2a8676cf18","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:17:01.497Z","weight":0.679,"by":"judge","judged":true,"score":0.679,"origin":"autowire-semantic"}
