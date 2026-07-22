@@ -3,7 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "codex-externalize-daemon-runtime",
   "branch": "orch/attempt/codex-externalize-daemon-runtime",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-07-22T21:49:02.782Z",
-  "lease_until": "2026-07-22T22:49:02.782Z"
+  "lease_until": "2026-07-22T22:49:02.782Z",
+  "completed_at": "2026-07-22T21:59:39.127Z"
 }
