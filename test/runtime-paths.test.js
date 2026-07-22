@@ -53,9 +53,7 @@ try {
   const legacyData = path.join(tmp, 'legacy-data');
   const install = path.join(tmp, 'install-root');
   const home = path.join(tmp, 'home');
-  const external = process.platform === 'darwin'
-    ? path.join(home, 'Library', 'Application Support', 'zonoid')
-    : path.join(home, '.local', 'share', 'zonoid');
+  const external = runtimePaths.externalDataDir({ HOME: home, USERPROFILE: home });
   fs.mkdirSync(install, { recursive: true });
   fs.writeFileSync(path.join(install, 'daemon.js'), '');
   fs.writeFileSync(path.join(install, 'mcp-graph.js'), '');
@@ -101,12 +99,87 @@ try {
   assert.equal(shellDataDir({ HOME: home }), external, 'shell helper externalizes new installs');
 
   const legacyRuntime = path.join(home, '.claude', 'orchestrator', '.zonoid');
-  fs.mkdirSync(path.join(legacyRuntime, 'worktrees'), { recursive: true });
-  const canonicalLegacyRuntime = fs.realpathSync(legacyRuntime);
-  assert.equal(runtimePaths.defaultDataDir({ HOME: home }), canonicalLegacyRuntime, 'default data dir preserves live legacy runtime data');
-  assert.equal(runtimePaths.resolveDataDir({ HOME: home }), canonicalLegacyRuntime, 'resolveDataDir preserves live legacy runtime data');
-  assert.equal(runtimePaths.resolveWorktreeDir({ HOME: home }), path.join(path.resolve(external), 'worktrees'), 'new worktrees externalize while legacy runtime data remains active');
-  assert.equal(shellDataDir({ HOME: home }), canonicalLegacyRuntime, 'shell helper preserves live legacy runtime data');
+  fs.mkdirSync(path.join(legacyRuntime, 'overlay'), { recursive: true });
+  fs.mkdirSync(path.join(legacyRuntime, 'worktrees', 'legacy-attempt'), { recursive: true });
+  fs.writeFileSync(path.join(legacyRuntime, 'overlay', 'state.json'), 'legacy overlay');
+  fs.writeFileSync(path.join(legacyRuntime, 'agents.json'), 'legacy agents');
+  fs.writeFileSync(path.join(legacyRuntime, 'worktrees', 'legacy-attempt', 'marker'), 'legacy worktree');
+  fs.mkdirSync(path.join(external, 'worktrees', 'external-attempt'), { recursive: true });
+  fs.writeFileSync(path.join(external, 'worktrees', 'external-attempt', 'marker'), 'external worktree');
+
+  assert.equal(runtimePaths.hasAuthoritativeRuntimeData(external), false, 'external worktrees alone are not authoritative universal state');
+  const migration = runtimePaths.migrateLegacyRuntime({ HOME: home });
+  const canonicalExternal = fs.realpathSync(external);
+  assert.equal(migration.status, 'migrated', 'live legacy universal state migrates');
+  assert.equal(migration.dataDir, canonicalExternal, 'migration switches to external runtime data');
+  assert.equal(fs.readFileSync(path.join(external, 'agents.json'), 'utf8'), 'legacy agents', 'universal files copy to external runtime');
+  assert.equal(fs.readFileSync(path.join(external, 'overlay', 'state.json'), 'utf8'), 'legacy overlay', 'universal directories copy to external runtime');
+  assert.equal(fs.readFileSync(path.join(external, 'worktrees', 'external-attempt', 'marker'), 'utf8'), 'external worktree', 'existing external worktrees are preserved');
+  assert.equal(fs.existsSync(path.join(external, 'worktrees', 'legacy-attempt')), false, 'legacy worktrees are not copied');
+  assert.equal(fs.readFileSync(path.join(legacyRuntime, 'agents.json'), 'utf8'), 'legacy agents', 'legacy source is never deleted or changed');
+  assert.equal(fs.existsSync(path.join(external, '.legacy-migration-incomplete')), false, 'successful migration clears its incomplete marker');
+  assert.equal(runtimePaths.defaultDataDir({ HOME: home }), canonicalExternal, 'default data dir stays external after migration');
+  assert.equal(runtimePaths.resolveDataDir({ HOME: home }), canonicalExternal, 'resolveDataDir stays external after migration');
+  assert.equal(runtimePaths.resolveWorktreeDir({ HOME: home }), path.join(canonicalExternal, 'worktrees'), 'new worktrees stay external while the legacy source remains preserved');
+  assert.equal(shellDataDir({ HOME: home }), canonicalExternal, 'shell helper uses migrated external runtime data');
+
+  const authoritativeHome = path.join(tmp, 'authoritative-home');
+  const authoritativeExternal = runtimePaths.externalDataDir({ HOME: authoritativeHome, USERPROFILE: authoritativeHome });
+  const authoritativeLegacy = path.join(authoritativeHome, '.claude', 'orchestrator', '.zonoid');
+  fs.mkdirSync(path.join(authoritativeLegacy, 'overlay'), { recursive: true });
+  fs.mkdirSync(authoritativeExternal, { recursive: true });
+  fs.writeFileSync(path.join(authoritativeLegacy, 'agents.json'), 'legacy must not win');
+  fs.writeFileSync(path.join(authoritativeLegacy, 'overlay', 'state.json'), 'legacy only');
+  fs.writeFileSync(path.join(authoritativeExternal, 'agents.json'), 'external authoritative');
+  const canonicalAuthoritativeExternal = fs.realpathSync(authoritativeExternal);
+  const refused = runtimePaths.migrateLegacyRuntime({ HOME: authoritativeHome });
+  assert.equal(refused.status, 'external_authoritative', 'authoritative external runtime blocks legacy migration');
+  assert.equal(fs.readFileSync(path.join(authoritativeExternal, 'agents.json'), 'utf8'), 'external authoritative', 'authoritative external files are never overwritten');
+  assert.equal(fs.existsSync(path.join(authoritativeExternal, 'overlay')), false, 'legacy state is not merged into an authoritative external runtime');
+  assert.equal(fs.readFileSync(path.join(authoritativeLegacy, 'agents.json'), 'utf8'), 'legacy must not win', 'refused migration leaves legacy source untouched');
+  assert.equal(shellDataDir({ HOME: authoritativeHome }), canonicalAuthoritativeExternal, 'shell helper respects authoritative external runtime');
+
+  const shellHome = path.join(tmp, 'shell-home');
+  const shellExternal = runtimePaths.externalDataDir({ HOME: shellHome, USERPROFILE: shellHome });
+  const shellLegacy = path.join(shellHome, '.claude', 'orchestrator', '.zonoid');
+  fs.mkdirSync(path.join(shellLegacy, 'overlay'), { recursive: true });
+  fs.mkdirSync(path.join(shellLegacy, 'worktrees', 'legacy-attempt'), { recursive: true });
+  fs.mkdirSync(path.join(shellExternal, 'worktrees', 'external-attempt'), { recursive: true });
+  fs.writeFileSync(path.join(shellLegacy, 'overlay', 'state.json'), 'shell legacy overlay');
+  fs.writeFileSync(path.join(shellLegacy, 'agents.json'), 'shell legacy agents');
+  fs.writeFileSync(path.join(shellLegacy, 'worktrees', 'legacy-attempt', 'marker'), 'legacy worktree');
+  fs.writeFileSync(path.join(shellExternal, 'worktrees', 'external-attempt', 'marker'), 'external worktree');
+  assert.equal(shellDataDir({ HOME: shellHome }), fs.realpathSync(shellExternal), 'shell helper migrates legacy universal state around external worktrees');
+  assert.equal(fs.readFileSync(path.join(shellExternal, 'agents.json'), 'utf8'), 'shell legacy agents', 'shell migration copies universal files');
+  assert.equal(fs.readFileSync(path.join(shellExternal, 'overlay', 'state.json'), 'utf8'), 'shell legacy overlay', 'shell migration copies universal directories');
+  assert.equal(fs.readFileSync(path.join(shellExternal, 'worktrees', 'external-attempt', 'marker'), 'utf8'), 'external worktree', 'shell migration preserves external worktrees');
+  assert.equal(fs.existsSync(path.join(shellExternal, 'worktrees', 'legacy-attempt')), false, 'shell migration skips legacy worktrees');
+  assert.equal(fs.readFileSync(path.join(shellLegacy, 'agents.json'), 'utf8'), 'shell legacy agents', 'shell migration preserves the legacy source');
+
+  const resumeHome = path.join(tmp, 'resume-home');
+  const resumeExternal = runtimePaths.externalDataDir({ HOME: resumeHome, USERPROFILE: resumeHome });
+  const resumeLegacy = path.join(resumeHome, '.claude', 'orchestrator', '.zonoid');
+  fs.mkdirSync(path.join(resumeLegacy, 'overlay'), { recursive: true });
+  fs.mkdirSync(resumeExternal, { recursive: true });
+  fs.writeFileSync(path.join(resumeLegacy, 'agents.json'), 'legacy agents');
+  fs.writeFileSync(path.join(resumeLegacy, 'overlay', 'state.json'), 'resume overlay');
+  fs.writeFileSync(path.join(resumeExternal, 'agents.json'), 'already copied');
+  fs.writeFileSync(path.join(resumeExternal, '.legacy-migration-incomplete'), 'retry');
+  const resumed = runtimePaths.migrateLegacyRuntime({ HOME: resumeHome });
+  assert.equal(resumed.status, 'migrated', 'incomplete copy resumes even after some universal state exists');
+  assert.equal(fs.readFileSync(path.join(resumeExternal, 'agents.json'), 'utf8'), 'already copied', 'resume never overwrites an existing destination entry');
+  assert.equal(fs.readFileSync(path.join(resumeExternal, 'overlay', 'state.json'), 'utf8'), 'resume overlay', 'resume copies missing universal state');
+  assert.equal(fs.existsSync(path.join(resumeExternal, '.legacy-migration-incomplete')), false, 'resume clears the incomplete marker');
+
+  const overrideHome = path.join(tmp, 'override-home');
+  const overrideLegacy = path.join(overrideHome, '.claude', 'orchestrator', '.zonoid');
+  const overrideExternal = runtimePaths.externalDataDir({ HOME: overrideHome, USERPROFILE: overrideHome });
+  fs.mkdirSync(overrideLegacy, { recursive: true });
+  fs.writeFileSync(path.join(overrideLegacy, 'agents.json'), 'legacy agents');
+  const explicit = runtimePaths.migrateLegacyRuntime({ HOME: overrideHome, ORCH_DATA: orch });
+  assert.equal(explicit.status, 'explicit_override', 'explicit data-dir override bypasses migration');
+  assert.equal(explicit.dataDir, path.resolve(orch), 'explicit data-dir override remains exact');
+  assert.equal(fs.existsSync(overrideExternal), false, 'explicit override does not create the external runtime directory');
 
   const runtimePathsPath = require.resolve('../lib/runtime-paths');
   const gitPath = require.resolve('../lib/git');
@@ -115,8 +188,8 @@ try {
   setEnv({ HOME: home });
   const freshGit = require('../lib/git');
   const repoHash = crypto.createHash('sha1').update('/repo/example').digest('hex').slice(0, 16);
-  assert.equal(freshGit.worktreePath('/repo/example', 'task/1'), path.join(path.resolve(external), 'worktrees', repoHash, 'task-1'), 'git attempt worktree allocation externalizes independently of live legacy state');
-  assert.equal(freshGit.featureWorktreePath('/repo/example', 'feature/1'), path.join(path.resolve(external), 'worktrees', repoHash, 'feature-feature-1'), 'git feature worktree allocation externalizes independently of live legacy state');
+  assert.equal(freshGit.worktreePath('/repo/example', 'task/1'), path.join(canonicalExternal, 'worktrees', repoHash, 'task-1'), 'git attempt worktree allocation externalizes independently of live legacy state');
+  assert.equal(freshGit.featureWorktreePath('/repo/example', 'feature/1'), path.join(canonicalExternal, 'worktrees', repoHash, 'feature-feature-1'), 'git feature worktree allocation externalizes independently of live legacy state');
   delete require.cache[runtimePathsPath];
   delete require.cache[gitPath];
 
@@ -137,7 +210,9 @@ try {
 
   const zonoidCli = fs.readFileSync(path.join(__dirname, '..', 'packages', 'cli', 'bin', 'zonoid.js'), 'utf8');
   assert.doesNotMatch(zonoidCli, /const ZONOID_DATA_DIR = path\.join\(INSTALL_DIR, '\.zonoid'\);/, 'service install no longer hardcodes install/.zonoid');
-  assert.match(zonoidCli, /const ZONOID_DATA_DIR = runtimePaths\.resolveDataDir\(\);/, 'service install pins the resolved runtime data dir');
+  assert.match(zonoidCli, /let ZONOID_DATA_DIR = runtimePaths\.resolveDataDir\(process\.env, \{ migrate: false \}\);/, 'service install resolves the external runtime data dir without import-time migration');
+  assert.match(zonoidCli, /ZONOID_DATA_DIR = runtimeMigration\.dataDir;/, 'service install follows the safe migration result, including legacy fallback on copy failure');
+  assert.match(zonoidCli, /runtimePaths\.migrateLegacyRuntime\(\)/, 'CLI init runs the copy-first legacy migration');
 } finally {
   setEnv(oldEnv);
   fs.rmSync(tmp, { recursive: true, force: true });

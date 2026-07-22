@@ -34,7 +34,9 @@ function resolveInstallDir() {
 
 // Computed once at startup; exported for tests.
 const INSTALL_DIR = resolveInstallDir();
-const ZONOID_DATA_DIR = runtimePaths.resolveDataDir();
+// Keep module imports side-effect free. `init` performs the copy-first migration;
+// daemon startup also migrates through the default runtime-path resolver.
+let ZONOID_DATA_DIR = runtimePaths.resolveDataDir(process.env, { migrate: false });
 
 // ── output helpers ──────────────────────────────────────────────────────────
 
@@ -1412,6 +1414,14 @@ async function init(opts = {}) {
   console.log(`\nZonoid init — workspace: ${cwd}`);
   console.log(`Install dir:  ${INSTALL_DIR}`);
   console.log(`Harness:      ${harnesses.join(', ')}\n`);
+
+  const runtimeMigration = runtimePaths.migrateLegacyRuntime();
+  ZONOID_DATA_DIR = runtimeMigration.dataDir;
+  if (runtimeMigration.migrated) {
+    ok(`Runtime state copied to ${runtimeMigration.dataDir} (legacy source preserved)`);
+  } else if (runtimeMigration.status === 'migration_failed') {
+    warn(`Runtime migration incomplete; continuing with legacy state: ${runtimeMigration.error}`);
+  }
 
   section('1. Core install');
   checkInstallDir();

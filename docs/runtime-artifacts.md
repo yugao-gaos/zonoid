@@ -7,13 +7,25 @@ Non-graph runtime artifacts live under the Zonoid runtime data dir:
 1. `ORCH_DATA`, when set
 2. `ZONOID_DATA`, when set
 3. `CLAUDE_PLUGIN_DATA`, for legacy installs and tests
-4. `~/.claude/orchestrator/.zonoid` by default
+4. The OS application-data directory by default:
+   - macOS: `~/Library/Application Support/zonoid`
+   - Linux: `${XDG_DATA_HOME:-~/.local/share}/zonoid`
+   - Windows: `%APPDATA%/zonoid`
 
 If `CLAUDE_PLUGIN_DATA` points at the Zonoid install/source root, runtime state is redirected to `<install>/.zonoid` so source files and daemon state do not share the same directory.
 
+On the first default-path startup after upgrading, Zonoid copies durable universal state from the live
+legacy `~/.claude/orchestrator/.zonoid` directory before switching to the external directory. The
+migration never deletes the legacy source, never copies legacy worktrees, and never overwrites an
+external directory that already contains authoritative universal state. An external directory that
+contains only newly allocated worktrees is safe to fill; those worktrees are left untouched. If a
+copy fails, an incomplete marker allows a later run to resume without overwriting copied entries,
+and the current run continues to use the legacy source.
+Process-local PID, log, and socket artifacts are recreated instead of migrated.
+
 ## Universal Runtime State
 
-Universal daemon state lives directly under `.zonoid/`:
+Universal daemon state lives directly under the resolved runtime data directory:
 
 - `agents.json`, `loops.json`, `loop.json`, `workspaces.json`
 - `overlay/`, `tasks/`, `worktrees/`, `wake/`, `scheduled-tasks/`
@@ -35,8 +47,8 @@ When `ORCH_WORKSPACE` is unavailable, the fallback registry is `<runtime-data-di
 
 ## Adapter Runtime State
 
-Adapter-specific runtime state lives under `.zonoid/adapters/<adapter>/`.
+Adapter-specific runtime state lives under `<runtime-data-dir>/adapters/<adapter>/`.
 
-- Codex Desktop session bridge: `.zonoid/adapters/codex/session-bridge.json`
+- Codex Desktop session bridge: `<runtime-data-dir>/adapters/codex/session-bridge.json`
 
 Use adapter-specific paths for state that only one harness understands. Use universal paths only for daemon-owned state shared by all harnesses.
