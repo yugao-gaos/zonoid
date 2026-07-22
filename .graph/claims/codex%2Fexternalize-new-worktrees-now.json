@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/externalize-new-worktrees-now",
+  "git_user": "test <test@example.com>",
+  "session_id": "codex-mcp-91379-a33d714a64986085219c1445f65ea017",
+  "branch": "orch/attempt/codex-externalize-new-worktrees-now",
+  "status": "claimed",
+  "claimed_at": "2026-07-22T20:43:24.773Z",
+  "lease_until": "2026-07-22T21:43:24.773Z"
+}
