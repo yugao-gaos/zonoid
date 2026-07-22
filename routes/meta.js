@@ -92,7 +92,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
   if (p === '/workspace' && m === 'POST') {
     const b = await readBody(req);
-    if (!b.path) { send(res, 400, { ok: false, error: 'path required' }); return true; }
+    const requestedGraphRepo = b.graph_repo || b.path;
+    if (!requestedGraphRepo) { send(res, 400, { ok: false, error: 'graph_repo required (deprecated alias: path)' }); return true; }
     // P3: setWorkspace REGISTERS + BINDS the workspace (no global default to flip), so the old
     // "skip when a different workspace is already pinned" guard is gone — each call just registers
     // and binds its own path.
@@ -106,7 +107,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // creates its .graph). We only substitute repoRoot's result when it CLIMBED to a STRICT ANCESTOR
     // — i.e. b.path is genuinely nested inside an existing repo — so a fresh top-level workspace dir is
     // never silently re-homed onto a stray ancestor marker.
-    const resolvedRoot = repoRoot(b.path);
+    const resolvedRoot = repoRoot(requestedGraphRepo);
     const norm = (s) => {
       const resolved = path.resolve(s).replace(/[/\\]+$/, '');
       try { return fs.realpathSync(resolved).replace(/[/\\]+$/, ''); }
@@ -123,12 +124,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const os = require('os');
     const containers = new Set([norm(os.tmpdir()), norm(os.homedir())]);
     const climbed = resolvedRoot
-      && norm(resolvedRoot) !== norm(b.path)
+      && norm(resolvedRoot) !== norm(requestedGraphRepo)
       && !containers.has(norm(resolvedRoot))
       && path.dirname(norm(resolvedRoot)) !== norm(resolvedRoot); // not the fs root
-    const repoRootPath = climbed ? resolvedRoot : b.path;
-    setWorkspace(repoRootPath, { ...b, path: repoRootPath, workspace: b.workspace });
-    send(res, 200, { ok: true, workspace: repoRootPath }); return true;
+    const repoRootPath = climbed ? resolvedRoot : requestedGraphRepo;
+    const workspaceId = b.workspace_id || b.workspace || path.basename(repoRootPath);
+    setWorkspace(repoRootPath, { ...b, path: repoRootPath, workspace: workspaceId });
+    send(res, 200, { ok: true, workspace_id: workspaceId, graph_repo: repoRootPath, workspace: repoRootPath }); return true;
   }
 
   if (p === '/workspace/add-repo' && m === 'POST') {
@@ -137,12 +139,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // its repo root, registers via the registry (idempotent, atomic v2 write), and warms the same
     // per-repo machinery setWorkspace does so the repo is immediately usable (overlay + merge driver).
     const b = await readBody(req);
-    if (!b.workspace || typeof b.workspace !== 'string') { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
-    if (!b.repo || typeof b.repo !== 'string') { send(res, 400, { ok: false, error: 'repo required' }); return true; }
-    const repoPath = repoRoot(b.repo) || b.repo;
+    const workspaceId = b.workspace_id || b.workspace;
+    if (!workspaceId || typeof workspaceId !== 'string') { send(res, 400, { ok: false, error: 'workspace_id required (deprecated alias: workspace)' }); return true; }
+    const requestedGraphRepo = b.graph_repo || b.repo;
+    if (!requestedGraphRepo || typeof requestedGraphRepo !== 'string') { send(res, 400, { ok: false, error: 'graph_repo required (deprecated alias: repo)' }); return true; }
+    const repoPath = repoRoot(requestedGraphRepo) || requestedGraphRepo;
     try {
       fs.mkdirSync(ctx.BASE, { recursive: true });
-      require('../lib/workspace-registry').addRepo(WORKSPACES_FILE, { workspace: b.workspace, repo: repoPath });
+      require('../lib/workspace-registry').addRepo(WORKSPACES_FILE, { workspace: workspaceId, repo: repoPath });
     } catch (e) { send(res, 500, { ok: false, error: String(e && e.message || e) }); return true; }
     // Warm overlay + merge driver for the repo (same side-effects setWorkspace performs), so the
     // freshly registered repo is ready for graph ops without a separate /workspace bind.
@@ -153,7 +157,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       ctx.git.ensureMergeDriver(repoPath);
     } catch { /* best effort warm — registration already persisted */ }
     notifyChange();
-    send(res, 200, { ok: true, workspace: b.workspace, repo: repoPath }); return true;
+    send(res, 200, { ok: true, workspace_id: workspaceId, graph_repo: repoPath, workspace: workspaceId, repo: repoPath }); return true;
   }
 
   if (p === '/analytics/tool-call' && m === 'POST') {

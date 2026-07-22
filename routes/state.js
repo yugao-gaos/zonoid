@@ -6,13 +6,14 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     isTruthy, frontier, agentsArr } = ctx;
 
   if (p === '/state') {
-    const stWs = u.searchParams.get('workspace');
-    if (!stWs) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
+    const T = targetOverlay(null, u);
+    const stWs = T.graph_repo || T.ws;
+    if (!stWs) { send(res, 400, { ok: false, error: 'graph_repo required; workspace required (deprecated alias)' }); return true; }
     const stKey = `state|${stWs}|${u.searchParams.get('scope') || ''}|${u.searchParams.get('compact') || ''}|${u.searchParams.get('include_archived') || ''}|${u.searchParams.get('include_internal') || ''}|arch1`;
     const stHit = respCacheGet(stWs, stKey);
     if (stHit !== undefined) { send(res, 200, stHit); return true; }
-    const T = targetOverlay(null, u);
     const ws = T.ws;
+    const identity = { workspace_id: T.workspace_id, graph_repo: ws, workspace: ws };
     const g = buildGraph(ws);
     const includeInternal = isTruthy(u.searchParams.get('include_internal'));
     const hiddenInternal = includeInternal ? new Set() : frontier.internalTaskIds(g.tasks);
@@ -29,7 +30,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     const archivedTasks = arch.size ? frontier.archivedTaskList(graphTasks, arch) : null;
     if (u.searchParams.get('scope') === 'frontier') {
       const f = frontier.projectFrontier(graphTasks, g.ghosts, edgesOut, { windowMs, includeInternal: true });
-      const body = { workspace: ws, scope: 'frontier', tasks: f.tasks, ghosts: f.ghosts, edges: f.edges, summary: { ...g.summary, archived: f.archived, frontier_kept: f.tasks.length } };
+      const body = { ...identity, scope: 'frontier', tasks: f.tasks, ghosts: f.ghosts, edges: f.edges, summary: { ...g.summary, archived: f.archived, frontier_kept: f.tasks.length } };
       if (archivedTasks) body.archived_tasks = archivedTasks;
       if (includeInternal) body.internal_lanes = internalLanes.buildInternalLaneProjection({ workspace: ws, graph: g, overlay: T.ov });
       send(res, 200, respCachePut(stWs, stKey, body)); return true;
@@ -48,11 +49,11 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
         if (t.git && t.git.merged) o.merged = true;
         return o;
       });
-      const body = { workspace: ws, compact: true, tasks: slim, ghosts: g.ghosts, edges: edgesOut, summary, ...archField };
+      const body = { ...identity, compact: true, tasks: slim, ghosts: g.ghosts, edges: edgesOut, summary, ...archField };
       if (includeInternal) body.internal_lanes = internalLanes.buildInternalLaneProjection({ workspace: ws, graph: g, overlay: T.ov });
       send(res, 200, respCachePut(stWs, stKey, body)); return true;
     }
-    const body = { workspace: ws, tasks, ghosts: g.ghosts, edges: edgesOut, routes: state.routes, agents: agentsArr().filter((a) => a.workspace === ws), summary, config: T.ov.config || {}, ...archField };
+    const body = { ...identity, tasks, ghosts: g.ghosts, edges: edgesOut, routes: state.routes, agents: agentsArr().filter((a) => a.workspace === ws), summary, config: T.ov.config || {}, ...archField };
     if (includeInternal) body.internal_lanes = internalLanes.buildInternalLaneProjection({ workspace: ws, graph: g, overlay: T.ov });
     send(res, 200, respCachePut(stWs, stKey, body)); return true;
   }

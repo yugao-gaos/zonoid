@@ -81,8 +81,8 @@ ok('.git file (worktree pointer) => not primary (false)', isPrimaryCheckout(wtDi
 const bareDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-bare-')));
 ok('missing .git => primary (true)', isPrimaryCheckout(bareDir) === true);
 
-// --- isPrimaryCheckout: default root is the daemon source dir ---
-ok('default root resolves without throwing', typeof isPrimaryCheckout() === 'boolean');
+// --- no daemon-source repo identity: callers must pass the graph repo explicitly ---
+ok('missing root is not inferred from the daemon install path', isPrimaryCheckout() === false);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

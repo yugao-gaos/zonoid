@@ -3,6 +3,7 @@
 const path = require('path');
 const overlayStore = require('../lib/overlay');
 const repoTarget = require('../lib/repo-target');
+const requestIdentity = require('../lib/request-identity');
 const { defaultSubconsciousStore } = require('../lib/subconscious');
 const { applyReversibleContextCompression } = require('../lib/search/context-compression');
 
@@ -322,7 +323,8 @@ function buildAssignmentEnvelope(ctx, T, input) {
   const lifecycle = overlayStore.reviewLifecycleFor(T.ov, taskKey, T.ov.status && T.ov.status[taskKey]);
   const reviewRequested = input.review_requested === true || lifecycle.review_state === 'requested' || lifecycle.review_state === 'pending';
   const target = input.target || gitInfo.target || null;
-  const repoPath = input.repo_path || (target && target.repo_path) || (T.ov.repos && T.ov.repos[taskKey]) || T.ws || null;
+  const repoPath = input.target_repo || input.repo_path || (target && (target.target_repo || target.repo_path))
+    || (T.ov.repos && T.ov.repos[taskKey]) || null;
   const graphTask = taskForKey(graph, taskKey);
   const parentKeys = normalizeStringArray(input.parent_task_keys);
   const contextKeys = normalizeStringArray(input.context_task_keys);
@@ -345,6 +347,10 @@ function buildAssignmentEnvelope(ctx, T, input) {
     legacy_judge_task_key: input.legacy_judge_task_key || lifecycle.legacy_judge_task_key || null,
     branch: gitInfo.branch || null,
     worktree: gitInfo.worktree || null,
+    workspace_id: T.workspace_id || null,
+    graph_repo: T.graph_repo || T.ws || null,
+    target_repo: repoPath,
+    workspace: T.graph_repo || T.ws || null,
     repo_path: repoPath,
     target,
     base: input.base || null,
@@ -383,7 +389,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       task_key: taskKey,
       legacy_judge_task_key: cleanString(u.searchParams.get('judge_task_key')),
       review_requested: !!cleanString(u.searchParams.get('judge_task_key')),
-      repo_path: cleanString(u.searchParams.get('repo_path')),
+      target_repo: cleanString(u.searchParams.get('target_repo') || u.searchParams.get('repo_path')),
       base: cleanString(u.searchParams.get('base')),
     };
     if (wantsAgenticContext({
@@ -411,16 +417,16 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       input.context_task_keys = searchResult.context_task_keys || [];
     }
     const resolved = ctx.resolveRepoTarget
-      ? await ctx.resolveRepoTarget(taskKey, input.repo_path, T.ov, T.ws)
-      : { ok: true, repo: input.repo_path || (T.ov.repos && T.ov.repos[taskKey]) || T.ws, target: null };
+      ? await ctx.resolveRepoTarget(taskKey, input.target_repo, T.ov, T.ws)
+      : { ok: true, repo: input.target_repo || (T.ov.repos && T.ov.repos[taskKey]), target: null };
     if (!resolved.ok) { send(res, resolved.status || 409, resolved); return true; }
     const persistedTarget = T.ov.git && T.ov.git[taskKey] && T.ov.git[taskKey].target;
     const assignment = buildAssignmentEnvelope(ctx, T, {
       ...input,
-      repo_path: resolved.repo,
-      target: input.repo_path ? resolved.target : (persistedTarget || resolved.target),
+      target_repo: resolved.repo,
+      target: input.target_repo ? resolved.target : (persistedTarget || resolved.target),
     });
-    send(res, 200, { ok: true, action: 'read', workspace: T.ws, assignment });
+    send(res, 200, { ok: true, action: 'read', ...requestIdentity.responseFields(assignment), assignment });
     return true;
   }
 
@@ -474,12 +480,12 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       return true;
     }
 
-    const requestedRepoPath = cleanString(b.repo_path);
+    const requestedRepoPath = cleanString(b.target_repo || b.repo_path);
     const resolved = ctx.resolveRepoTarget
       ? await ctx.resolveRepoTarget(taskKey, requestedRepoPath, T.ov, T.ws)
       : {
         ok: true,
-        repo: requestedRepoPath || (T.ov.repos && T.ov.repos[taskKey]) || T.ws,
+        repo: requestedRepoPath || (T.ov.repos && T.ov.repos[taskKey]),
         target: null,
       };
     if (!resolved.ok) { send(res, resolved.status || 409, resolved); return true; }
@@ -570,7 +576,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       task_key: taskKey,
       review_requested: reviewRequested,
       legacy_judge_task_key: legacyJudgeTaskKey,
-      repo_path: repo,
+      target_repo: repo,
       target,
       base: cleanString(b.base),
       parent_task_keys: parentKeys,
@@ -580,7 +586,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     send(res, 200, {
       ok: true,
       action: 'prepare',
-      workspace: T.ws,
+      ...requestIdentity.responseFields({ workspace_id: T.workspace_id, graph_repo: T.ws, target_repo: repo }),
       assignment,
       task_key: taskKey,
       judge_task_key: null,
@@ -590,6 +596,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       legacy_judge_task_key: assignment.legacy_judge_task_key,
       branch: assignment.branch,
       worktree: assignment.worktree,
+      target_repo: assignment.target_repo,
       repo_path: assignment.repo_path,
       target: assignment.target,
       next_expected_worker_action: assignment.next_expected_worker_action,

@@ -4,6 +4,7 @@ const overlayStore = require('../lib/overlay');
 const graphStore = require('../lib/graph-store');
 const path = require('path');
 const fs = require('fs');
+const requestIdentity = require('../lib/request-identity');
 const { compileSearchContext } = require('../lib/search/context-compiler');
 const { resolveContextHandle } = require('../lib/search/context-compression');
 
@@ -59,17 +60,18 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (target) suggestions[key] = (await ctx.suggestForTask(g, target)).suggestions;
     }
     ctx.notifyChange();
-    send(res, 200, { ok: true, workspace: T.ws, adopted, suggestions }); return true;
+    send(res, 200, { ok: true, ...requestIdentity.responseFields({ workspace_id: T.workspace_id, graph_repo: T.ws }), adopted, suggestions }); return true;
   }
 
   if (p === '/graph/init' && m === 'POST') {
     const b = await readBody(req);
-    const { ws } = targetOverlay(b, u);
+    const T = targetOverlay(b, u);
+    const { ws } = T;
     if (!ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
     graphStore.open(path.join(ws, '.graph'));
     graphStore.initGitAttributes(ws);
     fs.writeFileSync(path.join(ws, '.graph', '.gitkeep'), '');
-    send(res, 200, { ok: true, workspace: ws }); return true;
+    send(res, 200, { ok: true, ...requestIdentity.responseFields({ workspace_id: T.workspace_id, graph_repo: ws }) }); return true;
   }
 
   if (p === '/learnings') {
