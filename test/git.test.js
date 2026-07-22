@@ -14,6 +14,9 @@ const isWorkTree = (dir) => { try { return execFileSync('git', ['-C', dir, 'rev-
 
 const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-git-'));
 const KEY = 'sess-abc/7';
+const LEGACY_KEY = 'sess-abc/legacy';
+const LEGACY_FEATURE = 'legacy-feature';
+const legacyParent = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-legacy-worktrees-')));
 try {
   const init = git.initRepo(ws);
   ok('initRepo returns head sha', /^[0-9a-f]{7,40}$/.test(init.head || ''));
@@ -44,6 +47,22 @@ try {
   ok('worktree dir gone', !fs.existsSync(expectedPath));
   ok('listWorktrees back to 1 entry', git.listWorktrees(ws).length === 1);
   ok('removeWorktree idempotent (removed=false)', git.removeWorktree(ws, KEY).removed === false);
+
+  // Existing branches may still live under the old, nested runtime root. Git's recorded path is
+  // authoritative for reuse and removal; the newly computed external path is only for allocation.
+  const legacyAttemptPath = path.join(legacyParent, 'attempt');
+  execFileSync('git', ['-C', ws, 'worktree', 'add', '-b', git.branchName(LEGACY_KEY), legacyAttemptPath, 'HEAD']);
+  const legacyAttempt = git.createWorktree(ws, LEGACY_KEY);
+  ok('createWorktree returns the Git-recorded legacy path', legacyAttempt.worktree === legacyAttemptPath);
+  ok('legacy attempt path differs from new allocation path', legacyAttempt.worktree !== git.worktreePath(ws, LEGACY_KEY));
+  ok('removeWorktree removes the Git-recorded legacy path', git.removeWorktree(ws, LEGACY_KEY).removed === true && !fs.existsSync(legacyAttemptPath));
+
+  const legacyFeaturePath = path.join(legacyParent, 'feature');
+  execFileSync('git', ['-C', ws, 'worktree', 'add', '-b', git.featureBranchName(LEGACY_FEATURE), legacyFeaturePath, 'HEAD']);
+  const legacyFeature = git.createFeatureWorktree(ws, LEGACY_FEATURE);
+  ok('createFeatureWorktree returns the Git-recorded legacy path', legacyFeature.worktree === legacyFeaturePath);
+  ok('legacy feature path differs from new allocation path', legacyFeature.worktree !== git.featureWorktreePath(ws, LEGACY_FEATURE));
+  ok('removeFeatureWorktree removes the Git-recorded legacy path', git.removeFeatureWorktree(ws, LEGACY_FEATURE).removed === true && !fs.existsSync(legacyFeaturePath));
 
   // ---- per-path lease (Item 1: two agents cannot claim the same worktree path) ----
   // createWorktree leaves a lease file alongside the worktree.
@@ -92,6 +111,7 @@ try {
   fs.rmSync(bare, { recursive: true, force: true });
 } finally {
   fs.rmSync(ws, { recursive: true, force: true });
+  fs.rmSync(legacyParent, { recursive: true, force: true });
   for (const k of [KEY, 'sess-abc/contend', 'sess-abc/stale']) {
     fs.rmSync(git.worktreePath(ws, k), { recursive: true, force: true });
     fs.rmSync(git.leasePath(git.worktreePath(ws, k)), { force: true });

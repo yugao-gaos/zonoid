@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/harden-cross-repo-targeting",
+  "git_user": "test <test@example.com>",
+  "session_id": "codex-mcp-89174-e5057f4fdfcd84761e4919f5120ecc8f",
+  "branch": "orch/attempt/codex-harden-cross-repo-targeting",
+  "status": "claimed",
+  "claimed_at": "2026-07-22T20:43:44.604Z",
+  "lease_until": "2026-07-22T21:43:44.604Z"
+}
