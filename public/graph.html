@@ -5786,8 +5786,7 @@ async function renderGuidance(force){
   const copyBtn=it=>'<button class="gbtn" id="cpc-'+esc(it.id)+'" onclick="copyForClaude(\''+esc(it.id)+'\')">Copy for Claude</button>';
   // Per-item controls, driven by it.action:
   //   dup-cluster → expandable member list (radio = keeper) + [Consolidate]/[Distinct]
-  //   otherwise   → an answer <input> + [Answer]  (blocking items get this too — answering the
-  //                 last blocking item un-pauses the loop)
+  //   otherwise   → an answer <input> + [Answer]
   const controls=it=>{
     if(isCluster(it)){
       const open=guidOpen.has('m-'+it.id);
@@ -5827,7 +5826,7 @@ async function renderGuidance(force){
     (guidErr[it.id]?'<div class="gerr">'+esc(guidErr[it.id])+'</div>':'')+
     '</div>';
   let html='<button class="appclose" style="float:right;margin:-2px -2px 6px 8px" onclick="closeGuidancePopup()">✕</button>';
-  if(pending.length) html+='<span class="gtitle">⏸ Loop paused — waiting on you ('+pending.length+')</span>'+pending.map(gitem).join('');
+  if(pending.length) html+='<span class="gtitle">Dashboard decisions (non-blocking) ('+pending.length+')</span>'+pending.map(gitem).join('');
   if(reviewFollowUps.length) html+='<span class="gtitle" style="margin-top:10px">Follow-up review ('+reviewFollowUps.length+')</span>'+reviewFollowUps.map(gitem).join('');
   if(reviewClusters.length) html+='<span class="gtitle" style="margin-top:10px">Dup clusters ('+reviewClusters.length+')</span>'+reviewClusters.map(gitem).join('');
   if(reviewStale.length) html+='<span class="gtitle" style="margin-top:10px">⚠ Stale work — session gone ('+reviewStale.length+')</span>'+reviewStale.map(gitem).join('');
@@ -5838,7 +5837,7 @@ async function renderGuidance(force){
     const cnt=document.getElementById('notifCount'); if(cnt) cnt.textContent=pending.length+reviewStale.length;
     btn.classList.add('has-pending','show');
   }
-  // Auto-open only for blocking items (loop paused); review-only stays collapsed until clicked.
+  // Keep pending decisions visible; they do not pause the scheduler.
   if(pending.length||reviewFollowUps.length||reviewClusters.length||reviewStale.length) box.classList.add('show');
 }
 // POST a resolution. decision: 'consolidate'|'distinct' for dup-clusters (consolidate sends the

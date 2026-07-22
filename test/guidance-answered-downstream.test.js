@@ -99,7 +99,7 @@ const QUESTION = 'what backoff should the FB-3 ingest retryBackoff loop use to a
     const r = getLast();
     ok('b.1: hard-override did NOT predict', r && !r.body.predicted);
     ok('b.2: hard-override escalated to the pending queue', overlayStore.pendingGuidance(ov).length === 1);
-    ok('b.3: hard-override paused the loop', loops.get('L1').active === false);
+    ok('b.3: hard-override does not pause loop', loops.get('L1').active === true);
   }
 
   // ---- (c) diffuse / low-confidence note → still ASKS ------------------------------------------
@@ -110,7 +110,7 @@ const QUESTION = 'what backoff should the FB-3 ingest retryBackoff loop use to a
     const r = getLast();
     ok('c.1: low-confidence did NOT predict', r && !r.body.predicted);
     ok('c.2: one pending guidance item queued', overlayStore.pendingGuidance(ov).length === 1);
-    ok('c.3: blocking loop paused', loops.get('L1').active === false);
+    ok('c.3: blocking guidance does not pause loop', loops.get('L1').active === true);
   }
 
   // ---- journal: answered-downstream verdicts are appended with a distinct reason ---------------
