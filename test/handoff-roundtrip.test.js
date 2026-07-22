@@ -153,7 +153,7 @@ async function waitForPing(ms = 8000) {
     // DISPATCH: dispatcher branches a worktree (registered in overlay.git — the delegation proof),
     // then builds the handoff_envelope it would hand the worker. The branch slot is the real attempt
     // branch returned by branch_task.
-    const wt = await req('POST', '/git/worktree', { workspace: WS, key: K(1) });
+    const wt = await req('POST', '/git/worktree', { workspace: WS, target_repo: WS, key: K(1) });
     ok('attempt worktree created + registered', wt.status === 200 && String(wt.body.branch).startsWith('orch/attempt/'));
     const worktreePath = wt.body.worktree || wt.body.path;
 
@@ -244,7 +244,7 @@ async function waitForPing(ms = 8000) {
     ok('metric spec set on task 2', (await req('POST', '/task/metric', { workspace: WS, key: K(2), spec: METRIC })).status === 200);
 
     // MEASURE: run the configured measure_command (echo 7) via measure_task.
-    const meas = await req('POST', '/task/measure', { workspace: WS, key: K(2) });
+    const meas = await req('POST', '/task/measure', { workspace: WS, target_repo: WS, key: K(2) });
     ok('metric measurement recorded', meas.status === 200);
 
     // The metric worker's task_result: has_metric_spec injected (T2's validation-time discriminator

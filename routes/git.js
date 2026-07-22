@@ -2,11 +2,12 @@
 const overlayStore = require('../lib/overlay');
 const git = require('../lib/git');
 const repoTarget = require('../lib/repo-target');
+const requestIdentity = require('../lib/request-identity');
 
 async function resolveTarget(ctx, key, explicit, T) {
   if (typeof ctx.resolveRepoTarget === 'function') return ctx.resolveRepoTarget(key, explicit, T.ov, T.ws);
-  const repo = explicit || (typeof ctx.resolveRepo === 'function' && ctx.resolveRepo(key, explicit, T.ov, T.ws));
-  if (!repo) return { ok: false, status: 400, error: 'repo_path or workspace required' };
+  const repo = explicit || (key && T.ov.repos && T.ov.repos[key]);
+  if (!repo) return { ok: false, status: 400, code: 'repo_target_required', error: 'target_repo (deprecated alias: repo_path) or persisted task target required' };
   const identity = await repoTarget.identityFor(repo, ctx.git || git);
   return {
     ok: true,
@@ -16,6 +17,14 @@ async function resolveTarget(ctx, key, explicit, T) {
       ...identity,
     },
   };
+}
+
+function identityFields(T, targetRepo) {
+  return requestIdentity.responseFields({
+    workspace_id: T.workspace_id,
+    graph_repo: T.graph_repo || T.ws,
+    target_repo: targetRepo,
+  });
 }
 
 async function verifyStoredWorktree(target, worktree, gitImpl) {
@@ -34,43 +43,44 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     let target = null;
     let repo = null;
-    if (b.repo_path) {
-      const resolved = await resolveTarget(ctx, b.key, b.repo_path, T);
+    const requestedTarget = b.target_repo || b.repo_path;
+    if (requestedTarget) {
+      const resolved = await resolveTarget(ctx, b.key, requestedTarget, T);
       if (!resolved.ok) { send(res, resolved.status || 409, resolved); return true; }
       repo = resolved.repo;
       target = resolved.target;
     }
     overlayStore.setRepo(T.ov, b.key, repo);
     T.save(); notifyChange();
-    send(res, 200, { ok: true, key: b.key, repo: T.ov.repos[b.key] || null, target }); return true;
+    send(res, 200, { ok: true, key: b.key, ...identityFields(T, repo), repo: T.ov.repos[b.key] || null, target }); return true;
   }
 
   if (p === '/git/init' && m === 'POST') {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
-    const resolved = await resolveTarget(ctx, b.key, b.repo_path, T);
+    const resolved = await resolveTarget(ctx, b.key, b.target_repo || b.repo_path, T);
     if (!resolved.ok) { send(res, resolved.status || 409, resolved); return true; }
     const repo = resolved.repo;
     const r = await git.initRepoAsync(repo);
     const identity = await repoTarget.identityFor(repo, git);
     const target = { ...resolved.target, ...identity };
     notifyChange();
-    send(res, 200, { ...r, repo, target }); return true;
+    send(res, 200, { ...r, ...identityFields(T, repo), repo, target }); return true;
   }
 
   if (p === '/git/status') {
     const T = targetOverlay(null, u);
-    const resolved = await resolveTarget(ctx, u.searchParams.get('key'), u.searchParams.get('repo_path'), T);
+    const resolved = await resolveTarget(ctx, u.searchParams.get('key'), u.searchParams.get('target_repo') || u.searchParams.get('repo_path'), T);
     if (!resolved.ok) { send(res, resolved.status || 409, resolved); return true; }
     const repo = resolved.repo;
-    send(res, 200, { repo, target: resolved.target, isRepo: await git.isRepoAsync(repo), worktrees: await git.listWorktreesAsync(repo), test_cmd: overlayStore.testCmdFor(T.ov, repo) }); return true;
+    send(res, 200, { ...identityFields(T, repo), repo, target: resolved.target, isRepo: await git.isRepoAsync(repo), worktrees: await git.listWorktreesAsync(repo), test_cmd: overlayStore.testCmdFor(T.ov, repo) }); return true;
   }
 
   if (p === '/git/worktree' && m === 'POST') {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
-    const resolved = await resolveTarget(ctx, b.key, b.repo_path, T);
+    const resolved = await resolveTarget(ctx, b.key, b.target_repo || b.repo_path, T);
     if (!resolved.ok) { send(res, resolved.status || 409, resolved); return true; }
     const repo = resolved.repo;
     if (!repo || !(await git.isRepoAsync(repo))) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
@@ -81,14 +91,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (info && info.error) { send(res, 409, { ...info, ok: false, repo, target: resolved.target }); return true; }
     overlayStore.setGit(T.ov, b.key, { ...info, target: resolved.target });
     T.save(); notifyChange();
-    send(res, 200, { ...info, repo, target: resolved.target }); return true;
+    send(res, 200, { ...info, ...identityFields(T, repo), repo, target: resolved.target }); return true;
   }
 
   if (p === '/git/worktree/remove' && m === 'POST') {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
-    const resolved = await resolveTarget(ctx, b.key, b.repo_path, T);
+    const resolved = await resolveTarget(ctx, b.key, b.target_repo || b.repo_path, T);
     if (!resolved.ok) { send(res, resolved.status || 409, resolved); return true; }
     const repo = resolved.repo;
     const stored = T.ov.git && T.ov.git[b.key];
@@ -101,14 +111,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (repo) await git.removeWorktreeAsync(repo, b.key);
     delete T.ov.git[b.key];
     T.save(); notifyChange();
-    send(res, 200, { ok: true }); return true;
+    send(res, 200, { ok: true, ...identityFields(T, repo) }); return true;
   }
 
   if (p === '/git/merge' && m === 'POST') {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
-    const resolved = await resolveTarget(ctx, b.key, b.repo_path, T);
+    const resolved = await resolveTarget(ctx, b.key, b.target_repo || b.repo_path, T);
     if (!resolved.ok) { send(res, resolved.status || 409, resolved); return true; }
     const repo = resolved.repo;
     if (!repo || !(await git.isRepoAsync(repo))) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
@@ -138,7 +148,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       T.save();
     }
     notifyChange();
-    send(res, 200, { ...result, repo, target: resolved.target }); return true;
+    send(res, 200, { ...result, ...identityFields(T, repo), repo, target: resolved.target }); return true;
   }
 
   // ---- feature tier (stay-remote two-tier topology) ------------------------
@@ -149,7 +159,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
-    const resolved = await resolveTarget(ctx, b.key, b.repo_path, T);
+    const resolved = await resolveTarget(ctx, b.key, b.target_repo || b.repo_path, T);
     if (!resolved.ok) { send(res, resolved.status || 409, resolved); return true; }
     const repo = resolved.repo;
     if (!repo || !(await git.isRepoAsync(repo))) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
@@ -160,7 +170,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (info && info.error) { send(res, 409, { ...info, ok: false, repo, target: resolved.target }); return true; }
     overlayStore.setFeature(T.ov, b.key, { feature_branch: info.branch, feature_worktree: info.worktree, base: b.base || 'main', target: resolved.target });
     T.save(); notifyChange();
-    send(res, 200, { ...info, repo, target: resolved.target }); return true;
+    send(res, 200, { ...info, ...identityFields(T, repo), repo, target: resolved.target }); return true;
   }
 
   // GATED tier-2: merge the feature branch into main. Dispatcher decision ONLY — never auto/loop.
@@ -168,7 +178,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
-    const resolved = await resolveTarget(ctx, b.key, b.repo_path, T);
+    const resolved = await resolveTarget(ctx, b.key, b.target_repo || b.repo_path, T);
     if (!resolved.ok) { send(res, resolved.status || 409, resolved); return true; }
     const repo = resolved.repo;
     if (!repo || !(await git.isRepoAsync(repo))) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
@@ -185,14 +195,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       T.save();
     }
     notifyChange();
-    send(res, 200, { ...result, repo, target: resolved.target }); return true;
+    send(res, 200, { ...result, ...identityFields(T, repo), repo, target: resolved.target }); return true;
   }
 
   if (p === '/feature/remove' && m === 'POST') {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
-    const resolved = await resolveTarget(ctx, b.key, b.repo_path, T);
+    const resolved = await resolveTarget(ctx, b.key, b.target_repo || b.repo_path, T);
     if (!resolved.ok) { send(res, resolved.status || 409, resolved); return true; }
     const repo = resolved.repo;
     const feature = T.ov.features && T.ov.features[b.key];
@@ -205,7 +215,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (repo) await git.removeFeatureWorktreeAsync(repo, b.key);
     if (T.ov.features) delete T.ov.features[b.key];
     T.save(); notifyChange();
-    send(res, 200, { ok: true }); return true;
+    send(res, 200, { ok: true, ...identityFields(T, repo) }); return true;
   }
 
   return false;

@@ -55,6 +55,7 @@ const headlessDrain = require('./lib/headless-drain');
 const { createHeadlessDrainRunner } = require('./lib/headless-drain-runner');
 const registry = require('./lib/workspace-registry');
 const repoTarget = require('./lib/repo-target');
+const requestIdentity = require('./lib/request-identity');
 const runtimePaths = require('./lib/runtime-paths');
 const { ensureManagedGraphLoop } = require('./lib/loop-autostart');
 const { sweepStaleWakeups, sweepOrphanProcesses } = require('./lib/schedule-wakeup');
@@ -553,27 +554,35 @@ function resolveRepo(key, explicit, ov, ws) {
 async function resolveRepoTarget(key, explicit, ov, ws) {
   return repoTarget.resolveRepoTarget({
     key,
-    explicit,
+    targetRepo: explicit,
     overlay: ov,
-    workspace: ws,
+    graphRepo: ws,
     registry: registry.loadRegistry(WORKSPACES_FILE),
     git,
   });
 }
 
-// Per-request workspace targeting for graph routes. P3: there is NO daemon-global default — the
-// target MUST come from the request body's `workspace` or the ?workspace= query. When neither is
+// Per-request graph-repo targeting. There is NO daemon-global default — the target MUST come from
+// canonical `graph_repo` or deprecated `workspace` in the request body/query. When neither is
 // supplied, `ws` is null and the route MUST 400 (`if (!T.ws) return 400 {error:"workspace required"}`)
 // rather than defaulting. The overlay is the per-workspace cache entry (overlayFor); save() persists
 // to the RESOLVED workspace and re-stamps the cache so the daemon's own write doesn't look
 // out-of-band on the next overlayFor (preserves write-coalescing). With a null ws, ov is the EMPTY
 // overlay and save() is a no-op — the route should have 400'd before touching it.
 function targetOverlay(b, u) {
-  const explicit = (b && b.workspace) || (u && u.searchParams.get('workspace')) || null;
-  if (!explicit) return { ws: null, ov: overlayStore.EMPTY(), save: () => {} };
-  const ws = explicit;
+  const identity = requestIdentity.fromRequest(b, u);
+  const ws = identity.graph_repo;
+  const workspaceId = identity.workspace_id
+    || requestIdentity.workspaceIdForRepo(registry.loadRegistry(WORKSPACES_FILE), ws);
+  const fields = requestIdentity.responseFields({ ...identity, workspace_id: workspaceId });
+  if (!ws) return { ...fields, ws: null, ov: overlayStore.EMPTY(), save: () => {} };
   const ov = overlayFor(ws);
-  return { ws, ov, save: () => { overlayStore.save(ws, ov); refreshOverlayStamp(ws, ov); invalidateAggregate(ws); } };
+  return {
+    ...fields,
+    ws,
+    ov,
+    save: () => { overlayStore.save(ws, ov); refreshOverlayStamp(ws, ov); invalidateAggregate(ws); },
+  };
 }
 
 function saveDispatchOverlay(ws, ov) {
@@ -2703,10 +2712,16 @@ function readBody(req) {
     req.on('end', () => {
       try {
         const b = Buffer.concat(chunks).toString('utf8');
-        const parsed = b ? JSON.parse(b) : {};
+        const rawParsed = b ? JSON.parse(b) : {};
+        const requestPath = new URL(req.url || '/', `http://localhost:${PORT}`).pathname;
+        // These registry endpoints historically use `workspace` as the GROUP NAME, not the graph
+        // repo alias. They accept canonical workspace_id in their own route parser.
+        const parsed = requestPath === '/workspace' || requestPath === '/workspace/add-repo'
+          ? rawParsed
+          : requestIdentity.augmentBody(rawParsed);
         if (parsed && parsed.agent_id) {
           touchAgent(String(parsed.agent_id), {
-            workspace: parsed.workspace,
+            workspace: parsed.graph_repo || parsed.workspace,
             task_key: parsed.key || parsed.task_key,
             session: parsed.session,
             agent_type: parsed.agent_type,
@@ -2880,6 +2895,7 @@ const LOADING_WHITELIST = new Set(['/health', '/version', '/ping', '/', '/graph'
 
 const handler = async (req, res) => {
   const u = new URL(req.url, `http://localhost:${PORT}`);
+  requestIdentity.normalizeQuery(u);
   const p = u.pathname, m = req.method;
   try {
     // 503 loading gate: hold non-whitelisted traffic until boot completes.
@@ -2908,7 +2924,7 @@ const handler = async (req, res) => {
       || p.startsWith('/guidance')
       || p.startsWith('/git/');
     const protectedPath = p === '/mcp' || mutatingRequest || sensitiveRead;
-    if ((protectedPath || u.searchParams.has('workspace')) && m !== 'OPTIONS' && !authed(req, u)) return send(res, 401, { error: 'unauthorized: bearer token required' });
+    if ((protectedPath || u.searchParams.has('graph_repo') || u.searchParams.has('workspace')) && m !== 'OPTIONS' && !authed(req, u)) return send(res, 401, { error: 'unauthorized: bearer token required' });
 
     // Route modules handle all extracted endpoint groups.
     for (const route of routeModules) { if (await route(p, m, req, res, u, null)) return; }
@@ -2918,14 +2934,11 @@ const handler = async (req, res) => {
     return send(res, 500, { error: String((e && e.stack) || e) });
   }
 };
-// Compaction guard: git WORKTREE checkouts (under worktrees/, used for attempt branches) also run
-// daemons and also carry a tracked .graph — independent compaction there guarantees merge
-// conflicts when the attempt branch lands. Mechanical predicate: in a worktree `.git` is a FILE
-// (a gitdir pointer); in the primary checkout it's a DIRECTORY. `root` defaults to the daemon's
-// own source dir (__dirname) — the repo this process was started from. A missing .git (not a
-// checkout at all) counts as primary: there is no merge story, and that instance is the only
-// one that could ever compact its stores.
-function isPrimaryCheckout(root = __dirname) {
+// Per-graph-repo compaction guard: in a git worktree `.git` is a FILE (a gitdir pointer); in a
+// primary checkout it is a DIRECTORY. Callers must pass the graph repo explicitly—the daemon's
+// source/install directory is never treated as a current repo. A missing .git counts as primary.
+function isPrimaryCheckout(root) {
+  if (!root) return false;
   try { return !fs.statSync(path.join(root, '.git')).isFile(); } catch { return true; }
 }
 
@@ -3188,18 +3201,16 @@ if (require.main === module) {
     const stores = new Map();
     for (const s of graphStore.allStores()) stores.set(s.dir, s);
     for (const s of stores.values()) {
+      const graphRepo = path.dirname(s.dir);
+      if (!isPrimaryCheckout(graphRepo)) continue;
       try {
         const r = graphStore.compact(s);
         if (r.compacted) process.stdout.write(`graph compaction: folded ${r.compacted} node file(s) into ${s.checkpointFile}\n`);
       } catch { /* best effort — never break the daemon on a bad store */ }
     }
   }
-  // Only the PRIMARY checkout compacts: worktree daemons (attempt branches) share tracked .graph
-  // history with main, and compacting it independently guarantees merge conflicts later.
-  if (isPrimaryCheckout()) {
-    setTimeout(() => { try { compactGraphStores(); } catch { /* best effort */ } }, 300000).unref();
-    setInterval(() => { try { compactGraphStores(); } catch { /* best effort */ } }, 86400000).unref();
-  } else {
-    process.stdout.write('graph compaction: skipped — not the primary checkout (.git is a worktree gitdir pointer)\n');
-  }
+  // Eligibility is evaluated per graph repo. The daemon source/install directory never selects
+  // which registered graph stores may compact.
+  setTimeout(() => { try { compactGraphStores(); } catch { /* best effort */ } }, 300000).unref();
+  setInterval(() => { try { compactGraphStores(); } catch { /* best effort */ } }, 86400000).unref();
 }
