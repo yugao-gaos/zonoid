@@ -64,16 +64,20 @@ try {
 
   setEnv({ ORCH_DATA: orch, ZONOID_DATA: zonoid, CLAUDE_PLUGIN_DATA: install });
   assert.equal(runtimePaths.resolveDataDir(), path.resolve(orch), 'ORCH_DATA wins exactly');
+  assert.equal(runtimePaths.resolveWorktreeDir(), path.join(path.resolve(orch), 'worktrees'), 'ORCH_DATA keeps worktrees under the explicit data root');
 
   setEnv({ ZONOID_DATA: zonoid, CLAUDE_PLUGIN_DATA: install });
   assert.equal(runtimePaths.resolveDataDir(), path.resolve(zonoid), 'ZONOID_DATA wins over CLAUDE_PLUGIN_DATA');
+  assert.equal(runtimePaths.resolveWorktreeDir(), path.join(path.resolve(zonoid), 'worktrees'), 'ZONOID_DATA keeps worktrees under the explicit data root');
 
   setEnv({ CLAUDE_PLUGIN_DATA: legacyData });
   assert.equal(runtimePaths.resolveDataDir(), path.resolve(legacyData), 'legacy data dir remains exact when it is not an install root');
+  assert.equal(runtimePaths.resolveWorktreeDir(), path.join(path.resolve(legacyData), 'worktrees'), 'legacy data override keeps worktrees under the explicit data root');
 
   setEnv({ CLAUDE_PLUGIN_DATA: install });
   const canonicalInstall = fs.realpathSync(install);
   assert.equal(runtimePaths.resolveDataDir(), path.join(canonicalInstall, '.zonoid'), 'install root redirects into .zonoid');
+  assert.equal(runtimePaths.resolveWorktreeDir(), path.join(canonicalInstall, '.zonoid', 'worktrees'), 'install root keeps worktrees under its runtime data root');
   assert.equal(codexSessionBridge.bridgeFile(), path.join(canonicalInstall, '.zonoid', 'adapters', 'codex', 'session-bridge.json'));
   assert.equal(codexSessionBridge.legacyBridgeFile(), path.join(path.resolve(install), 'codex', 'session-bridge.json'));
 
@@ -93,6 +97,7 @@ try {
   setEnv({ HOME: home });
   assert.equal(runtimePaths.defaultDataDir({ HOME: home }), path.resolve(external), 'default data dir externalizes new installs');
   assert.equal(runtimePaths.resolveDataDir({ HOME: home }), path.resolve(external), 'resolveDataDir uses external default when no legacy data exists');
+  assert.equal(runtimePaths.resolveWorktreeDir({ HOME: home }), path.join(path.resolve(external), 'worktrees'), 'worktree dir uses the external default');
   assert.equal(shellDataDir({ HOME: home }), external, 'shell helper externalizes new installs');
 
   const legacyRuntime = path.join(home, '.claude', 'orchestrator', '.zonoid');
@@ -100,6 +105,7 @@ try {
   const canonicalLegacyRuntime = fs.realpathSync(legacyRuntime);
   assert.equal(runtimePaths.defaultDataDir({ HOME: home }), canonicalLegacyRuntime, 'default data dir preserves live legacy runtime data');
   assert.equal(runtimePaths.resolveDataDir({ HOME: home }), canonicalLegacyRuntime, 'resolveDataDir preserves live legacy runtime data');
+  assert.equal(runtimePaths.resolveWorktreeDir({ HOME: home }), path.join(path.resolve(external), 'worktrees'), 'new worktrees externalize while legacy runtime data remains active');
   assert.equal(shellDataDir({ HOME: home }), canonicalLegacyRuntime, 'shell helper preserves live legacy runtime data');
 
   const runtimePathsPath = require.resolve('../lib/runtime-paths');
@@ -109,7 +115,8 @@ try {
   setEnv({ HOME: home });
   const freshGit = require('../lib/git');
   const repoHash = crypto.createHash('sha1').update('/repo/example').digest('hex').slice(0, 16);
-  assert.equal(freshGit.worktreePath('/repo/example', 'task/1'), path.join(canonicalLegacyRuntime, 'worktrees', repoHash, 'task-1'), 'git worktree allocation follows the resolved runtime data dir');
+  assert.equal(freshGit.worktreePath('/repo/example', 'task/1'), path.join(path.resolve(external), 'worktrees', repoHash, 'task-1'), 'git attempt worktree allocation externalizes independently of live legacy state');
+  assert.equal(freshGit.featureWorktreePath('/repo/example', 'feature/1'), path.join(path.resolve(external), 'worktrees', repoHash, 'feature-feature-1'), 'git feature worktree allocation externalizes independently of live legacy state');
   delete require.cache[runtimePathsPath];
   delete require.cache[gitPath];
 
