@@ -14,3 +14,4 @@
 {"evt":"edge_removed","from":"note:note-mqon6doarir","to":"codex/route-mechanical-dashboard-escalations-to-automation","kind":"context","actor":"overlay-sync","ts":"2026-07-01T06:10:31.969Z"}
 {"evt":"edge_added","from":"note:note-mqon6doarir","to":"29556785-fa39-442e-8eba-b5dd9dc00862/7","kind":"context","actor":"overlay-sync","ts":"2026-07-03T11:48:30.464Z","weight":0,"by":"autowire","judged":false,"score":0.308,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqon6doarir","to":"29556785-fa39-442e-8eba-b5dd9dc00862/7","kind":"context","actor":"overlay-sync","ts":"2026-07-03T14:59:09.403Z"}
+{"evt":"edge_added","from":"note:note-mqon6doarir","to":"codex/remove-dashboard-blocking-queue","kind":"context","actor":"overlay-sync","ts":"2026-07-22T22:53:20.300Z","weight":0,"by":"autowire","judged":false,"score":0.506,"origin":"autowire-semantic"}
