@@ -17,6 +17,13 @@ orch_external_data_dir() {
     Darwin)
       printf '%s/Library/Application Support/zonoid\n' "$HOME"
       ;;
+    MINGW*|MSYS*|CYGWIN*)
+      if [[ -n "${APPDATA:-}" ]]; then
+        printf '%s/zonoid\n' "${APPDATA%/}"
+      else
+        printf '%s/AppData/Roaming/zonoid\n' "$HOME"
+      fi
+      ;;
     *)
       if [[ -n "${XDG_DATA_HOME:-}" ]]; then
         printf '%s/zonoid\n' "${XDG_DATA_HOME%/}"
@@ -32,6 +39,27 @@ orch_has_live_data() {
   [[ -d "$dir/overlay" ]] ||
   [[ -d "$dir/sessions" ]] ||
   [[ -d "$dir/worktrees" ]] ||
+  [[ -d "$dir/wake" ]] ||
+  [[ -d "$dir/scheduled-tasks" ]] ||
+  [[ -d "$dir/tasks" ]] ||
+  [[ -d "$dir/adapters" ]] ||
+  [[ -d "$dir/models" ]] ||
+  [[ -d "$dir/certs" ]] ||
+  [[ -f "$dir/agents.json" ]] ||
+  [[ -f "$dir/loops.json" ]] ||
+  [[ -f "$dir/loop.json" ]] ||
+  [[ -f "$dir/workspaces.json" ]] ||
+  [[ -f "$dir/token" ]] ||
+  [[ -f "$dir/backend.env" ]] ||
+  [[ -f "$dir/op-cache.json" ]] ||
+  [[ -f "$dir/tool-analytics.json" ]] ||
+  [[ -f "$dir/scheduled-wakeups.json" ]]
+}
+
+orch_has_authoritative_data() {
+  local dir="${1%/}"
+  [[ -d "$dir/overlay" ]] ||
+  [[ -d "$dir/sessions" ]] ||
   [[ -d "$dir/wake" ]] ||
   [[ -d "$dir/scheduled-tasks" ]] ||
   [[ -d "$dir/tasks" ]] ||
@@ -68,11 +96,18 @@ orch_data_dir() {
     fi
     return 0
   fi
-  local legacy_runtime
+  local legacy_runtime external_runtime marker
   legacy_runtime="$(orch_canonical_dir "$HOME/.claude/orchestrator/.zonoid")"
-  if orch_has_live_data "$legacy_runtime"; then
+  external_runtime="$(orch_canonical_dir "$(orch_external_data_dir)")"
+  marker="$external_runtime/.legacy-migration-incomplete"
+
+  if [[ -e "$marker" ]] && orch_has_authoritative_data "$legacy_runtime"; then
     printf '%s\n' "$legacy_runtime"
-    return 0
+  elif orch_has_authoritative_data "$external_runtime"; then
+    printf '%s\n' "$external_runtime"
+  elif orch_has_authoritative_data "$legacy_runtime"; then
+    printf '%s\n' "$legacy_runtime"
+  else
+    printf '%s\n' "$external_runtime"
   fi
-  orch_canonical_dir "$(orch_external_data_dir)"
 }
