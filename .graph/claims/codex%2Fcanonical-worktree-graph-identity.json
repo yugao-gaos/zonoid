@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/canonical-worktree-graph-identity",
+  "git_user": "test <test@example.com>",
+  "session_id": "codex-mcp-73498-ad50efe5dc8b5d186a94dc72d6994fad",
+  "branch": "orch/attempt/codex-canonical-worktree-graph-identity",
+  "status": "tested",
+  "claimed_at": "2026-07-22T21:45:06.028Z",
+  "lease_until": "2026-07-22T22:45:06.028Z",
+  "completed_at": "2026-07-22T21:51:04.730Z"
+}
