@@ -44,3 +44,4 @@
 {"evt":"edge_removed","from":"note:note-mr4vdh2w510","to":"codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T20:44:41.478Z"}
 {"evt":"edge_removed","from":"note:note-mr4vdh2w510","to":"codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints","kind":"context","actor":"overlay-sync","ts":"2026-07-04T00:53:27.292Z"}
 {"evt":"edge_added","from":"note:note-mr4vdh2w510","to":"codex/graph-submodule-design-audit","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:05:56.612Z","weight":0,"by":"autowire","judged":false,"score":0.451,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mr4vdh2w510","to":"codex/graph-submodule-design-audit","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:18:31.213Z"}
