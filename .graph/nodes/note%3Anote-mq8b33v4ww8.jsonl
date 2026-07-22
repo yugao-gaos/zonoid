@@ -85,3 +85,4 @@
 {"evt":"edge_added","from":"note:note-mq8b33v4ww8","to":"opencode/setup-project-structure","kind":"blocking","actor":"overlay-sync","ts":"2026-07-01T03:22:47.392Z","by":"judge","judged":true,"score":0.363,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mq8b33v4ww8","to":"opencode/setup-project-structure","kind":"context","actor":"overlay-sync","ts":"2026-07-01T03:22:47.392Z"}
 {"evt":"edge_removed","from":"note:note-mq8b33v4ww8","to":"opencode/setup-project-structure","kind":"blocking","actor":"overlay-sync","ts":"2026-07-01T03:30:36.308Z"}
+{"evt":"edge_added","from":"note:note-mq8b33v4ww8","to":"codex/graph-submodule-design-audit","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:05:56.612Z","weight":0,"by":"autowire","judged":false,"score":0.412,"origin":"autowire-semantic"}
