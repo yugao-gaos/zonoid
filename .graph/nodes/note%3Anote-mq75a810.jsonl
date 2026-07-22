@@ -54,3 +54,4 @@
 {"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/audit-cross-repo-worktree-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:03:45.297Z","weight":0.9,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/audit-cross-repo-worktree-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:04:02.054Z","weight":0.9,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/audit-cross-repo-worktree-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:04:22.594Z","weight":0.9,"origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/audit-cross-repo-worktree-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:04:49.747Z","weight":0.9,"origin":"asserted"}
