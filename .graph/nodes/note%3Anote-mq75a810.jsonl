@@ -15,3 +15,4 @@
 {"evt":"edge_added","from":"note:note-mq75a810","to":"opencode/setup-project-structure","kind":"context","actor":"overlay-sync","ts":"2026-06-28T14:30:52.836Z","weight":0,"by":"autowire","judged":false,"score":0.37,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mq75a810","to":"opencode/setup-project-structure","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:34:14.865Z"}
 {"evt":"edge_added","from":"note:note-mq75a810","to":"codex/canonical-graph-submodule-worktree-resolution","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:24:33.383Z","weight":0,"by":"autowire","judged":false,"score":0.436,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/canonical-graph-submodule-worktree-resolution","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:25:36.127Z","weight":0.436,"by":"judge","judged":true,"score":0.436,"origin":"autowire-semantic"}
