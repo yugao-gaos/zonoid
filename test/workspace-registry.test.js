@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Tests for lib/workspace-registry.js — the workspace<->repo resolution foundation.
-//   - repoRoot walk-up: .graph vs .git, git-worktree gitdir-FILE case, attempt/feature-worktree exclusion
+//   - repoRoot walk-up: .graph vs .git, linked-worktree canonicalization, nested gitdir repos
 //   - loadRegistry v1->v2 migration: flat array in, v2 out, .bak written, idempotent re-load
 //   - addRepo idempotency + new-workspace creation
 //   - repoToWorkspace reverse index (first-writer-wins)
@@ -70,6 +70,14 @@ const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ws-r
 const mk = (...p) => { const d = path.join(SANDBOX, ...p); fs.mkdirSync(d, { recursive: true }); return d; };
 const touchDir = (parent, name) => { const d = path.join(parent, name); fs.mkdirSync(d, { recursive: true }); return d; };
 const touchFile = (parent, name, content = '') => { const f = path.join(parent, name); fs.writeFileSync(f, content); return f; };
+const linkWorktree = (primaryRepo, worktreeRoot, name) => {
+  const gitRoot = touchDir(primaryRepo, '.git');
+  const worktrees = touchDir(gitRoot, 'worktrees');
+  const gitdir = touchDir(worktrees, name);
+  touchFile(worktreeRoot, '.git', `gitdir: ${gitdir}\n`);
+  touchFile(gitdir, 'commondir', '../..\n');
+  return gitdir;
+};
 
 try {
   // ── repoRoot: .graph preferred ──────────────────────────────────────────────
@@ -91,29 +99,47 @@ try {
   touchDir(both, '.git');
   ok('repoRoot returns dir with .graph even when .git also present', reg.repoRoot(both) === fs.realpathSync(both));
 
-  // ── repoRoot: git-worktree gitdir-FILE under a real repo => excluded, walks up ─
-  // Simulate: realRepo has .graph; a worktree dir lives inside it whose .git is a FILE (gitdir
-  // pointer) and has NO .graph of its own. repoRoot must SKIP the worktree and resolve to realRepo.
-  const realRepo = mk('realRepo');
-  touchDir(realRepo, '.graph');
-  const worktree = touchDir(realRepo, 'wt-attempt');
-  touchFile(worktree, '.git', 'gitdir: /some/where/.git/worktrees/wt-attempt\n');
-  ok('repoRoot excludes a gitdir-FILE worktree (no .graph) and walks up to the real repo',
-    reg.repoRoot(worktree) === fs.realpathSync(realRepo));
-  // A dir nested inside the worktree also resolves up past the worktree to the real repo.
-  const inWorktree = touchDir(worktree, 'lib');
-  ok('repoRoot from inside a worktree resolves to the real graph-bearing repo',
-    reg.repoRoot(inWorktree) === fs.realpathSync(realRepo));
+  // ── repoRoot: primary checkout remains its own canonical root ──────────────────
+  const canonicalRepo = mk('canonicalRepo');
+  touchDir(canonicalRepo, '.graph');
+  touchDir(canonicalRepo, '.git');
+  ok('primary checkout resolves to itself under canonicalization',
+    reg.repoRoot(canonicalRepo, { registeredRepos: [canonicalRepo] }) === fs.realpathSync(canonicalRepo));
 
-  // ── repoRoot: standalone worktree (gitdir-FILE) is NEVER treated as a repo root ──
-  // The gitdir-FILE+no-.graph dir must not register as a repo; repoRoot resolves PAST it. (We assert
-  // "not this dir" rather than strict null because the OS tmp tree may have an unrelated .graph
-  // ancestor on some machines — the contract under test is the worktree EXCLUSION, not the ancestor.)
-  const orphan = mk('orphanArea');
-  const orphanWt = touchDir(orphan, 'lonewt');
-  touchFile(orphanWt, '.git', 'gitdir: /elsewhere\n');
-  ok('repoRoot never returns a gitdir-FILE worktree dir itself (excluded)',
-    reg.repoRoot(orphanWt) !== fs.realpathSync(orphanWt));
+  // ── repoRoot: linked worktree outside the primary checkout resolves to primary ─
+  const primaryRepo = mk('primaryRepo');
+  touchDir(primaryRepo, '.graph');
+  touchDir(primaryRepo, '.git');
+  const externalWt = mk('external-worktrees', 'attempt-no-submodule');
+  linkWorktree(primaryRepo, externalWt, 'attempt-no-submodule');
+  ok('linked worktree without local .graph resolves to the primary checkout',
+    reg.repoRoot(externalWt) === fs.realpathSync(primaryRepo));
+  const inExternalWt = touchDir(externalWt, 'lib');
+  ok('nested dir inside linked worktree resolves to the primary checkout',
+    reg.repoRoot(inExternalWt) === fs.realpathSync(primaryRepo));
+
+  // ── repoRoot: initialized .graph submodule inside linked worktree does NOT re-home it ─
+  const graphWt = mk('external-worktrees', 'attempt-with-submodule');
+  linkWorktree(primaryRepo, graphWt, 'attempt-with-submodule');
+  touchDir(graphWt, '.graph');
+  ok('linked worktree with local .graph still resolves to the primary checkout',
+    reg.repoRoot(graphWt) === fs.realpathSync(primaryRepo));
+  const deepGraphWt = touchDir(graphWt, 'src');
+  ok('nested dir inside linked worktree with local .graph still resolves to primary',
+    reg.repoRoot(deepGraphWt) === fs.realpathSync(primaryRepo));
+
+  // ── repoRoot: nested gitdir-FILE repo without commondir remains distinct ──────
+  const nestedHost = mk('nested-host');
+  touchDir(nestedHost, '.graph');
+  touchDir(nestedHost, '.git');
+  const nestedRepo = touchDir(nestedHost, 'vendor-submodule');
+  const nestedGitDir = touchDir(touchDir(touchDir(nestedHost, '.git'), 'modules'), 'vendor-submodule');
+  touchFile(nestedRepo, '.git', `gitdir: ${nestedGitDir}\n`);
+  ok('nested gitdir-FILE repo without commondir resolves to itself',
+    reg.repoRoot(nestedRepo) === fs.realpathSync(nestedRepo));
+  const deepNestedRepo = touchDir(nestedRepo, 'pkg');
+  ok('nested dir inside gitdir-FILE repo without commondir stays on nested repo',
+    reg.repoRoot(deepNestedRepo) === fs.realpathSync(nestedRepo));
 
   // ── repoRoot: a markerless dir is NEVER returned as its own root ────────────────
   const bare = mk('noMarkers', 'x', 'y');
