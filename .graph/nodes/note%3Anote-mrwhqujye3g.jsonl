@@ -27,3 +27,4 @@
 {"evt":"edge_promoted","from":"note:note-mrwhqujye3g","to":"codex/build-graph-repo-manager","kind":"context","actor":"overlay-sync","ts":"2026-07-22T22:47:35.923Z","weight":0.5,"by":"judge","judged":true,"origin":"subconscious-assignment"}
 {"evt":"edge_removed","from":"note:note-mrwhqujye3g","to":"codex/preserve-legacy-identity-errors","kind":"context","actor":"overlay-sync","ts":"2026-07-22T22:47:37.284Z"}
 {"evt":"edge_added","from":"note:note-mrwhqujye3g","to":"codex/remove-dashboard-blocking-queue","kind":"context","actor":"overlay-sync","ts":"2026-07-22T22:52:21.890Z","weight":0.859,"by":"subconscious","judged":true,"score":0.859,"origin":"subconscious-agentic-search"}
+{"evt":"edge_added","from":"note:note-mrwhqujye3g","to":"codex/integrate-graph-submodule-daemon","kind":"context","actor":"overlay-sync","ts":"2026-07-22T23:46:07.125Z","weight":0.885,"by":"subconscious","judged":true,"score":0.885,"origin":"subconscious-agentic-search"}
