@@ -4,3 +4,4 @@
 {"evt":"edge_added","from":"note:note-mqph9bwihv5","to":"note:note-mqphb5vshff","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.6,"by":"judge","judged":true}
 {"evt":"edge_added","from":"note:note-mqph9bwihv5","to":"codex/modularize-mcp-tool-definitions","kind":"context","actor":"overlay-sync","ts":"2026-06-29T00:59:00.210Z","weight":0,"by":"autowire","judged":false,"score":0.492,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqph9bwihv5","to":"codex/modularize-mcp-tool-definitions","kind":"context","actor":"overlay-sync","ts":"2026-07-01T06:47:24.698Z"}
+{"evt":"edge_added","from":"note:note-mqph9bwihv5","to":"codex/repo-neutral-request-identities","kind":"context","actor":"overlay-sync","ts":"2026-07-22T21:15:01.400Z","weight":0,"by":"autowire","judged":false,"score":0.391,"origin":"autowire-semantic"}
