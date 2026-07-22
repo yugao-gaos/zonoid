@@ -3,7 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "repo-neutral-compat-worker",
   "branch": "orch/attempt/codex-preserve-legacy-identity-errors",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-07-22T21:35:39.246Z",
-  "lease_until": "2026-07-22T22:35:39.246Z"
+  "lease_until": "2026-07-22T22:35:39.246Z",
+  "completed_at": "2026-07-22T21:37:56.024Z"
 }
