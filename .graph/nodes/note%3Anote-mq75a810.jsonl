@@ -18,3 +18,4 @@
 {"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/canonical-graph-submodule-worktree-resolution","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:25:36.127Z","weight":0.436,"by":"judge","judged":true,"score":0.436,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mq75a810","to":"codex/audit-cross-repo-worktree-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:48:10.435Z","weight":0.9,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/audit-cross-repo-worktree-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:49:08.047Z","weight":0.9,"origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/audit-cross-repo-worktree-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T19:49:34.021Z","weight":0.9,"origin":"asserted"}
