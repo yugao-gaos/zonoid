@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/add-graph-lifecycle-cli",
+  "git_user": "test <test@example.com>",
+  "session_id": "codex-mcp-42957-dff967608947bbdabffc31dffd7de7ea",
+  "branch": "orch/attempt/codex-add-graph-lifecycle-cli",
+  "status": "claimed",
+  "claimed_at": "2026-07-22T23:31:28.802Z",
+  "lease_until": "2026-07-23T00:31:28.802Z"
+}
