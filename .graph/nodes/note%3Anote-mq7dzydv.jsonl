@@ -20,3 +20,4 @@
 {"evt":"edge_added","from":"note:note-mq7dzydv","to":"codex/canonical-worktree-graph-identity","kind":"context","actor":"overlay-sync","ts":"2026-07-22T21:43:04.109Z","weight":0,"by":"autowire","judged":false,"score":0.484,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mq7dzydv","to":"codex/canonical-worktree-graph-identity","kind":"context","actor":"overlay-sync","ts":"2026-07-22T21:43:05.071Z"}
 {"evt":"edge_added","from":"note:note-mq7dzydv","to":"codex/canonical-worktree-graph-identity","kind":"context","actor":"overlay-sync","ts":"2026-07-22T21:45:16.650Z","weight":0,"by":"autowire","judged":false,"score":0.484,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mq7dzydv","to":"codex/canonical-worktree-graph-identity","kind":"context","actor":"overlay-sync","ts":"2026-07-22T22:47:26.325Z","weight":0.484,"by":"judge","judged":true,"score":0.484,"origin":"autowire-semantic"}
