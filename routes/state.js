@@ -8,7 +8,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
   if (p === '/state') {
     const T = targetOverlay(null, u);
     const stWs = T.graph_repo || T.ws;
-    if (!stWs) { send(res, 400, { ok: false, error: 'graph_repo required (deprecated alias: workspace)' }); return true; }
+    if (!stWs) { send(res, 400, { ok: false, error: 'graph_repo required; workspace required (deprecated alias)' }); return true; }
     const stKey = `state|${stWs}|${u.searchParams.get('scope') || ''}|${u.searchParams.get('compact') || ''}|${u.searchParams.get('include_archived') || ''}|${u.searchParams.get('include_internal') || ''}|arch1`;
     const stHit = respCacheGet(stWs, stKey);
     if (stHit !== undefined) { send(res, 200, stHit); return true; }
