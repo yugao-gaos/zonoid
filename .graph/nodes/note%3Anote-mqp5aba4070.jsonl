@@ -33,3 +33,4 @@
 {"evt":"edge_added","from":"note:note-mqp5aba4070","to":"codex/externalize-worktree-runtime","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:29:35.142Z","weight":0,"by":"autowire","judged":false,"score":0.483,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqp5aba4070","to":"codex/externalize-worktree-runtime","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:33:05.711Z"}
 {"evt":"edge_added","from":"note:note-mqp5aba4070","to":"codex/externalize-new-worktrees-now","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:43:26.314Z","weight":0,"by":"autowire","judged":false,"score":0.527,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp5aba4070","to":"codex/externalize-new-worktrees-now","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:54:33.689Z"}
