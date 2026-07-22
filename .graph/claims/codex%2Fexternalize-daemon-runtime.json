@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/externalize-daemon-runtime",
+  "git_user": "test <test@example.com>",
+  "session_id": "codex-externalize-daemon-runtime",
+  "branch": "orch/attempt/codex-externalize-daemon-runtime",
+  "status": "done",
+  "claimed_at": "2026-07-22T22:04:53.543Z",
+  "lease_until": "2026-07-22T23:04:53.543Z",
+  "completed_at": "2026-07-22T22:08:06.511Z"
+}

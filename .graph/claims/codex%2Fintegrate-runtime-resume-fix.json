@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/integrate-runtime-resume-fix",
+  "git_user": "test <test@example.com>",
+  "session_id": "codex-integrate-runtime-resume-fix",
+  "branch": "orch/attempt/codex-integrate-runtime-resume-fix",
+  "status": "done",
+  "claimed_at": "2026-07-22T22:09:05.177Z",
+  "lease_until": "2026-07-22T23:09:05.177Z",
+  "completed_at": "2026-07-22T22:10:05.534Z"
+}

@@ -63,7 +63,9 @@ const { sweepStaleWakeups, sweepOrphanProcesses } = require('./lib/schedule-wake
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
 const MAX_ROUTES = 50;
-const BASE = runtimePaths.resolveDataDir();
+const BASE = require.main === module
+  ? runtimePaths.migrateLegacyRuntime().dataDir
+  : runtimePaths.resolveDataDir();
 const LOOP_FILE = path.join(BASE, 'loop.json');     // legacy singleton file — migrated into LOOPS_FILE on first boot
 const LOOPS_FILE = path.join(BASE, 'loops.json');   // keyed registry: { [loopId]: entry }
 const MCP_CALL = mcpCore.makeCall(PORT); // self-call for /mcp tool dispatch (loopback)
