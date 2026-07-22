@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/externalize-worktree-runtime",
+  "git_user": "test <test@example.com>",
+  "session_id": "019f8b26-eae8-7973-8ad6-53afea06847c",
+  "branch": "orch/attempt/codex-externalize-worktree-runtime",
+  "status": "done",
+  "claimed_at": "2026-07-22T20:29:26.649Z",
+  "lease_until": "2026-07-22T21:29:26.649Z",
+  "completed_at": "2026-07-22T20:41:15.077Z"
+}

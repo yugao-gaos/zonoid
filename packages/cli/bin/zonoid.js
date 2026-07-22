@@ -6,6 +6,7 @@ const path = require('path');
 const os = require('os');
 const { spawnSync } = require('child_process');
 const http = require('http');
+const runtimePaths = require('../../../lib/runtime-paths');
 
 const REPO_URL = 'https://github.com/yugao-gaos/zonoid';
 const SKILLS_DIR = path.join(os.homedir(), '.claude', 'skills');
@@ -33,7 +34,7 @@ function resolveInstallDir() {
 
 // Computed once at startup; exported for tests.
 const INSTALL_DIR = resolveInstallDir();
-const ZONOID_DATA_DIR = path.join(INSTALL_DIR, '.zonoid');
+const ZONOID_DATA_DIR = runtimePaths.resolveDataDir();
 
 // ── output helpers ──────────────────────────────────────────────────────────
 

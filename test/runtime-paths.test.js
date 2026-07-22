@@ -4,6 +4,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const crypto = require('crypto');
 const { spawnSync } = require('child_process');
 const runtimePaths = require('../lib/runtime-paths');
 const codexSessionBridge = require('../lib/codex-session-bridge');
@@ -12,6 +13,8 @@ const oldEnv = {
   ORCH_DATA: process.env.ORCH_DATA,
   ZONOID_DATA: process.env.ZONOID_DATA,
   CLAUDE_PLUGIN_DATA: process.env.CLAUDE_PLUGIN_DATA,
+  HOME: process.env.HOME,
+  XDG_DATA_HOME: process.env.XDG_DATA_HOME,
 };
 
 function setEnv(values) {
@@ -49,23 +52,33 @@ try {
   const zonoid = path.join(tmp, 'zonoid-data');
   const legacyData = path.join(tmp, 'legacy-data');
   const install = path.join(tmp, 'install-root');
+  const home = path.join(tmp, 'home');
+  const external = process.platform === 'darwin'
+    ? path.join(home, 'Library', 'Application Support', 'zonoid')
+    : path.join(home, '.local', 'share', 'zonoid');
   fs.mkdirSync(install, { recursive: true });
   fs.writeFileSync(path.join(install, 'daemon.js'), '');
   fs.writeFileSync(path.join(install, 'mcp-graph.js'), '');
   fs.writeFileSync(path.join(install, 'package.json'), '{}');
+  fs.mkdirSync(home, { recursive: true });
 
   setEnv({ ORCH_DATA: orch, ZONOID_DATA: zonoid, CLAUDE_PLUGIN_DATA: install });
   assert.equal(runtimePaths.resolveDataDir(), path.resolve(orch), 'ORCH_DATA wins exactly');
+  assert.equal(runtimePaths.resolveWorktreeDir(), path.join(path.resolve(orch), 'worktrees'), 'ORCH_DATA keeps worktrees under the explicit data root');
 
   setEnv({ ZONOID_DATA: zonoid, CLAUDE_PLUGIN_DATA: install });
   assert.equal(runtimePaths.resolveDataDir(), path.resolve(zonoid), 'ZONOID_DATA wins over CLAUDE_PLUGIN_DATA');
+  assert.equal(runtimePaths.resolveWorktreeDir(), path.join(path.resolve(zonoid), 'worktrees'), 'ZONOID_DATA keeps worktrees under the explicit data root');
 
   setEnv({ CLAUDE_PLUGIN_DATA: legacyData });
   assert.equal(runtimePaths.resolveDataDir(), path.resolve(legacyData), 'legacy data dir remains exact when it is not an install root');
+  assert.equal(runtimePaths.resolveWorktreeDir(), path.join(path.resolve(legacyData), 'worktrees'), 'legacy data override keeps worktrees under the explicit data root');
 
   setEnv({ CLAUDE_PLUGIN_DATA: install });
-  assert.equal(runtimePaths.resolveDataDir(), path.join(path.resolve(install), '.zonoid'), 'install root redirects into .zonoid');
-  assert.equal(codexSessionBridge.bridgeFile(), path.join(path.resolve(install), '.zonoid', 'adapters', 'codex', 'session-bridge.json'));
+  const canonicalInstall = fs.realpathSync(install);
+  assert.equal(runtimePaths.resolveDataDir(), path.join(canonicalInstall, '.zonoid'), 'install root redirects into .zonoid');
+  assert.equal(runtimePaths.resolveWorktreeDir(), path.join(canonicalInstall, '.zonoid', 'worktrees'), 'install root keeps worktrees under its runtime data root');
+  assert.equal(codexSessionBridge.bridgeFile(), path.join(canonicalInstall, '.zonoid', 'adapters', 'codex', 'session-bridge.json'));
   assert.equal(codexSessionBridge.legacyBridgeFile(), path.join(path.resolve(install), 'codex', 'session-bridge.json'));
 
   const legacyBridge = {
@@ -79,7 +92,33 @@ try {
   assert.equal(shellDataDir({ ORCH_DATA: orch, ZONOID_DATA: zonoid, CLAUDE_PLUGIN_DATA: install }), orch, 'shell ORCH_DATA wins exactly');
   assert.equal(shellDataDir({ ZONOID_DATA: zonoid, CLAUDE_PLUGIN_DATA: install }), zonoid, 'shell ZONOID_DATA wins over CLAUDE_PLUGIN_DATA');
   assert.equal(shellDataDir({ CLAUDE_PLUGIN_DATA: legacyData }), legacyData, 'shell legacy data dir remains exact');
-  assert.equal(shellDataDir({ CLAUDE_PLUGIN_DATA: install }), path.join(install, '.zonoid'), 'shell install root redirects into .zonoid');
+  assert.equal(shellDataDir({ CLAUDE_PLUGIN_DATA: install }), path.join(canonicalInstall, '.zonoid'), 'shell install root redirects into .zonoid');
+
+  setEnv({ HOME: home });
+  assert.equal(runtimePaths.defaultDataDir({ HOME: home }), path.resolve(external), 'default data dir externalizes new installs');
+  assert.equal(runtimePaths.resolveDataDir({ HOME: home }), path.resolve(external), 'resolveDataDir uses external default when no legacy data exists');
+  assert.equal(runtimePaths.resolveWorktreeDir({ HOME: home }), path.join(path.resolve(external), 'worktrees'), 'worktree dir uses the external default');
+  assert.equal(shellDataDir({ HOME: home }), external, 'shell helper externalizes new installs');
+
+  const legacyRuntime = path.join(home, '.claude', 'orchestrator', '.zonoid');
+  fs.mkdirSync(path.join(legacyRuntime, 'worktrees'), { recursive: true });
+  const canonicalLegacyRuntime = fs.realpathSync(legacyRuntime);
+  assert.equal(runtimePaths.defaultDataDir({ HOME: home }), canonicalLegacyRuntime, 'default data dir preserves live legacy runtime data');
+  assert.equal(runtimePaths.resolveDataDir({ HOME: home }), canonicalLegacyRuntime, 'resolveDataDir preserves live legacy runtime data');
+  assert.equal(runtimePaths.resolveWorktreeDir({ HOME: home }), path.join(path.resolve(external), 'worktrees'), 'new worktrees externalize while legacy runtime data remains active');
+  assert.equal(shellDataDir({ HOME: home }), canonicalLegacyRuntime, 'shell helper preserves live legacy runtime data');
+
+  const runtimePathsPath = require.resolve('../lib/runtime-paths');
+  const gitPath = require.resolve('../lib/git');
+  delete require.cache[runtimePathsPath];
+  delete require.cache[gitPath];
+  setEnv({ HOME: home });
+  const freshGit = require('../lib/git');
+  const repoHash = crypto.createHash('sha1').update('/repo/example').digest('hex').slice(0, 16);
+  assert.equal(freshGit.worktreePath('/repo/example', 'task/1'), path.join(path.resolve(external), 'worktrees', repoHash, 'task-1'), 'git attempt worktree allocation externalizes independently of live legacy state');
+  assert.equal(freshGit.featureWorktreePath('/repo/example', 'feature/1'), path.join(path.resolve(external), 'worktrees', repoHash, 'feature-feature-1'), 'git feature worktree allocation externalizes independently of live legacy state');
+  delete require.cache[runtimePathsPath];
+  delete require.cache[gitPath];
 
   const setupHttps = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'setup-https.sh'), 'utf8');
   assert.match(setupHttps, /CERT_DIR="\$\(orch_data_dir\)\/certs"/, 'setup-https writes certs under the runtime data dir');
@@ -95,6 +134,10 @@ try {
   const migrateOverlay = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'migrate-overlay.js'), 'utf8');
   assert.doesNotMatch(migrateOverlay, /const BASE = process\.env\.CLAUDE_PLUGIN_DATA \|\| path\.join\(os\.homedir\(\), '\.claude', 'orchestrator'\)/, 'migrate-overlay does not default overlay reads to legacy root only');
   assert.match(migrateOverlay, /runtimePaths\.runtimePath\('overlay'\)/, 'migrate-overlay reads current overlay path from runtime helper');
+
+  const zonoidCli = fs.readFileSync(path.join(__dirname, '..', 'packages', 'cli', 'bin', 'zonoid.js'), 'utf8');
+  assert.doesNotMatch(zonoidCli, /const ZONOID_DATA_DIR = path\.join\(INSTALL_DIR, '\.zonoid'\);/, 'service install no longer hardcodes install/.zonoid');
+  assert.match(zonoidCli, /const ZONOID_DATA_DIR = runtimePaths\.resolveDataDir\(\);/, 'service install pins the resolved runtime data dir');
 } finally {
   setEnv(oldEnv);
   fs.rmSync(tmp, { recursive: true, force: true });
