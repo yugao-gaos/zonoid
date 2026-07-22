@@ -247206,6 +247206,117 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "codex/externalize-daemon-runtime": {
+      "id": "codex/externalize-daemon-runtime",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "failed",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Externalize daemon runtime state",
+        "description": "Make the default daemon runtime data directory repo-neutral. Default to the OS application-data directory even when ~/.claude/orchestrator is a symlink to a source repo. Add a safe, copy-first, non-destructive migration from live legacy <install>/.zonoid state when the external destination has no authoritative universal state; preserve existing external worktrees, never delete the source, and keep explicit ORCH_DATA/ZONOID_DATA/CLAUDE_PLUGIN_DATA overrides. Update the shell helper, docs, and focused tests. Work on feature repo-neutral-runtime.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-07-22T21:42:52.957Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-07-22T21:42:52.956Z",
+        "lastChanged": "2026-07-22T21:44:39.592Z",
+        "lastStatus": "failed"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/preserve-legacy-identity-errors": {
+      "id": "codex/preserve-legacy-identity-errors",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Preserve legacy identity error contracts",
+        "description": "Fix the repo-neutral identity feature's backward-compatible error wording so existing tests and clients that recognize 'workspace required' continue to work while canonical graph_repo guidance is also present. Run the focused identity and per-repo workspace tests.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-22T21:34:59.639Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-22T21:34:59.639Z",
+        "lastChanged": "2026-07-22T21:39:00.574Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/repo-neutral-request-identities": {
+      "id": "codex/repo-neutral-request-identities",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Make daemon request identities repo neutral",
+        "description": "Introduce canonical workspace_id, graph_repo, and target_repo identities across daemon HTTP/MCP request handling. Keep workspace and repo_path as deprecated compatibility aliases. The daemon must hold no global/current repo and must never derive graph or Git identity from process cwd or installation location. Resolve graph_repo per request or session binding, resolve target_repo explicitly or from persisted task metadata, move single-repo convenience to MCP/client request composition, and add comprehensive compatibility/multi-repo tests.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-22T21:12:22.597Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-22T21:12:22.597Z",
+        "lastChanged": "2026-07-22T21:34:41.033Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -284769,24 +284880,6 @@
       "origin": "asserted"
     },
     {
-      "from": "knowledge:source_chunk:chunk-agents-md-2-13-gate-contract-for-subagents-normal-work-5df8a2dfa0",
-      "to": "codex/externalize-new-worktrees-now",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.384,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
-      "to": "note:note-mqqqrlczyc2",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
-    },
-    {
       "from": "knowledge:source_chunk:chunk-agents-md-2-8-an-interactive-session-that-edits-code-d-76be713dcc",
       "to": "codex/canonical-graph-submodule-worktree-resolution",
       "kind": "context",
@@ -284794,16 +284887,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.457,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-claude-md-7-2-effect-2-auto-merge-on-judge-approve-whe-85c554656b",
-      "to": "codex/onboard-code-cli-sync-judge",
-      "kind": "context",
-      "weight": 0.531,
-      "by": "judge",
-      "judged": true,
-      "score": 0.531,
       "origin": "autowire-semantic"
     },
     {
@@ -284824,6 +284907,405 @@
       "by": "judge",
       "judged": true,
       "score": 0.489,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq75a7zx",
+      "to": "codex/harden-cross-repo-targeting",
+      "kind": "context",
+      "weight": 0.449,
+      "by": "judge",
+      "judged": true,
+      "score": 0.449,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq75a810",
+      "to": "codex/canonical-graph-submodule-worktree-resolution",
+      "kind": "context",
+      "weight": 0.436,
+      "by": "judge",
+      "judged": true,
+      "score": 0.436,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq75a810",
+      "to": "codex/harden-cross-repo-targeting",
+      "kind": "context",
+      "weight": 0.468,
+      "by": "judge",
+      "judged": true,
+      "score": 0.468,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mq7dzydv",
+      "to": "codex/audit-cross-repo-worktree-targeting",
+      "kind": "context",
+      "weight": 0.467,
+      "by": "judge",
+      "judged": true,
+      "score": 0.467,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq7iaabuefb",
+      "to": "codex/harden-cross-repo-targeting",
+      "kind": "context",
+      "weight": 0.425,
+      "by": "judge",
+      "judged": true,
+      "score": 0.425,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq8b33v4ww8",
+      "to": "codex/graph-submodule-design-audit",
+      "kind": "context",
+      "weight": 0.412,
+      "by": "judge",
+      "judged": true,
+      "score": 0.412,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq8b33v4ww8",
+      "to": "codex/canonical-graph-submodule-worktree-resolution",
+      "kind": "context",
+      "weight": 0.527,
+      "by": "judge",
+      "judged": true,
+      "score": 0.527,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mq8dk5go63q",
+      "to": "codex/canonical-graph-submodule-worktree-resolution",
+      "kind": "context",
+      "weight": 0.446,
+      "by": "judge",
+      "judged": true,
+      "score": 0.446,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqda7rpovti",
+      "to": "codex/audit-cross-repo-worktree-targeting",
+      "kind": "context",
+      "weight": 0.508,
+      "by": "judge",
+      "judged": true,
+      "score": 0.508,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqfhmxul2io",
+      "to": "codex/graph-submodule-design-audit",
+      "kind": "context",
+      "weight": 0.443,
+      "by": "judge",
+      "judged": true,
+      "score": 0.443,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgtdsl1abm",
+      "to": "codex/audit-cross-repo-worktree-targeting",
+      "kind": "context",
+      "weight": 0.521,
+      "by": "judge",
+      "judged": true,
+      "score": 0.521,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgw6i429p1",
+      "to": "codex/harden-cross-repo-targeting",
+      "kind": "context",
+      "weight": 0.441,
+      "by": "judge",
+      "judged": true,
+      "score": 0.441,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgycs0dynf",
+      "to": "codex/canonical-graph-submodule-worktree-resolution",
+      "kind": "context",
+      "weight": 0.555,
+      "by": "judge",
+      "judged": true,
+      "score": 0.555,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqgycs0dynf",
+      "to": "codex/audit-cross-repo-worktree-targeting",
+      "kind": "context",
+      "weight": 0.473,
+      "by": "judge",
+      "judged": true,
+      "score": 0.473,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqi8j0n8lak",
+      "to": "codex/externalize-new-worktrees-now",
+      "kind": "context",
+      "weight": 0.574,
+      "by": "judge",
+      "judged": true,
+      "score": 0.574,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqiu1y5bevv",
+      "to": "codex/externalize-worktree-runtime",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrf70c4jq6o",
+      "to": "note:note-mrf4c053t8z",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mrwhqujye3g",
+      "to": "codex/graph-submodule-design-audit",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrwhqujye3g",
+      "to": "codex/canonical-graph-submodule-worktree-resolution",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrwhqujye3g",
+      "to": "knowledge:source_chunk:chunk-contributing-md-6-0-graph-is-intentionally-git-version-deb5a14c25",
+      "kind": "context",
+      "weight": 0.679,
+      "by": "judge",
+      "judged": true,
+      "score": 0.679,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrwhqujye3g",
+      "to": "knowledge:source_section:section-contributing-md-6-graph-merge-strategy-2a8676cf18",
+      "kind": "context",
+      "weight": 0.679,
+      "by": "judge",
+      "judged": true,
+      "score": 0.679,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrwkmczkq94",
+      "to": "codex/harden-cross-repo-targeting",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrwkmczkq94",
+      "to": "codex/externalize-new-worktrees-now",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrwkmczkq94",
+      "to": "note:note-mqjx2nj5gav",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.541,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/audit-cross-repo-worktree-targeting",
+      "to": "codex/canonical-graph-submodule-worktree-resolution",
+      "kind": "context",
+      "weight": 0.441,
+      "by": "judge",
+      "judged": true,
+      "score": 0.441,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/audit-cross-repo-worktree-targeting",
+      "to": "codex/externalize-worktree-runtime",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/audit-cross-repo-worktree-targeting",
+      "to": "codex/harden-cross-repo-targeting",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/audit-cross-repo-worktree-targeting",
+      "to": "codex/externalize-new-worktrees-now",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/externalize-worktree-runtime",
+      "to": "knowledge:source_doc:note-mqqyd0ugp2b",
+      "kind": "context",
+      "weight": 0.38,
+      "by": "judge",
+      "judged": true,
+      "score": 0.38,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/externalize-worktree-runtime",
+      "to": "codex/harden-cross-repo-targeting",
+      "kind": "blocking",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/externalize-worktree-runtime",
+      "to": "codex/externalize-new-worktrees-now",
+      "kind": "blocking",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/graph-submodule-design-audit",
+      "to": "knowledge:source_doc:note-mqpavx66iic",
+      "kind": "context",
+      "weight": 0.422,
+      "by": "judge",
+      "judged": true,
+      "score": 0.422,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/graph-submodule-design-audit",
+      "to": "knowledge:source_section:section-contributing-md-6-graph-merge-strategy-2a8676cf18",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.47,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/graph-submodule-design-audit",
+      "to": "codex/canonical-graph-submodule-worktree-resolution",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "native-blockedBy"
+    },
+    {
+      "from": "codex/product-pipeline-worker-review",
+      "to": "codex/audit-cross-repo-worktree-targeting",
+      "kind": "context",
+      "weight": 0.6,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/product-pipeline-worker-review",
+      "to": "codex/externalize-worktree-runtime",
+      "kind": "context",
+      "weight": 0.55,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-adapters-codex-readme-md-4-0-create-task-or-file-drop--f66abb4e22",
+      "to": "codex/canonical-worktree-graph-identity",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.419,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
+      "to": "note:note-mqqqrlczyc2",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-claude-md-7-2-effect-2-auto-merge-on-judge-approve-whe-85c554656b",
+      "to": "codex/onboard-code-cli-sync-judge",
+      "kind": "context",
+      "weight": 0.531,
+      "by": "judge",
+      "judged": true,
+      "score": 0.531,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-contributing-md-3-0-the-daemon-daemon-js-is-an-http-se-0fd43b0650",
+      "to": "codex/externalize-daemon-runtime",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.358,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-contributing-md-5-2-sandboxed-daemon-convention-tests--d66a085242",
+      "to": "codex/externalize-daemon-runtime",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.384,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-contributing-md-6-0-graph-is-intentionally-git-version-deb5a14c25",
+      "to": "codex/canonical-worktree-graph-identity",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.452,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-readme-md-2-0-the-work-graph-and-the-knowledge-graph-a-a67a299356",
+      "to": "codex/canonical-worktree-graph-identity",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.465,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-readme-md-2-1-every-write-or-edit-tool-call-passes-thr-57a2d07de5",
+      "to": "codex/repo-neutral-request-identities",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.379,
       "origin": "autowire-semantic"
     },
     {
@@ -284875,12 +285357,42 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "knowledge:source_chunk:note-mqqvw755vf0#note-evidence:chunk-1",
+      "to": "codex/preserve-legacy-identity-errors",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.41,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-1",
+      "to": "codex/preserve-legacy-identity-errors",
+      "kind": "context",
+      "weight": 0.418,
+      "by": "judge",
+      "judged": true,
+      "score": 0.418,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-1",
       "to": "note:note-mqsi4rz0p98",
       "kind": "context",
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-1",
+      "to": "codex/externalize-daemon-runtime",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.369,
+      "origin": "autowire-semantic"
     },
     {
       "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-2",
@@ -285080,16 +285592,6 @@
       "origin": "asserted"
     },
     {
-      "from": "note:note-mq75a7zx",
-      "to": "codex/harden-cross-repo-targeting",
-      "kind": "context",
-      "weight": 0.449,
-      "by": "judge",
-      "judged": true,
-      "score": 0.449,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mq75a80n",
       "to": "c518dc9a-a501-4506-bc2d-7d29afec8fbc/1",
       "kind": "context",
@@ -285106,32 +285608,22 @@
       "judged": true
     },
     {
+      "from": "note:note-mq75a80t",
+      "to": "codex/externalize-daemon-runtime",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.454,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mq75a80w",
       "to": "note:note-mq75a81n",
       "kind": "context",
       "weight": 0.6,
       "by": "judge",
       "judged": true
-    },
-    {
-      "from": "note:note-mq75a810",
-      "to": "codex/canonical-graph-submodule-worktree-resolution",
-      "kind": "context",
-      "weight": 0.436,
-      "by": "judge",
-      "judged": true,
-      "score": 0.436,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mq75a810",
-      "to": "codex/harden-cross-repo-targeting",
-      "kind": "context",
-      "weight": 0.468,
-      "by": "judge",
-      "judged": true,
-      "score": 0.468,
-      "origin": "asserted"
     },
     {
       "from": "note:note-mq75a817",
@@ -285241,12 +285733,12 @@
     },
     {
       "from": "note:note-mq7dzydv",
-      "to": "codex/audit-cross-repo-worktree-targeting",
+      "to": "codex/canonical-worktree-graph-identity",
       "kind": "context",
-      "weight": 0.467,
-      "by": "judge",
-      "judged": true,
-      "score": 0.467,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.484,
       "origin": "autowire-semantic"
     },
     {
@@ -285325,26 +285817,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mq7heffwyzy",
-      "to": "codex/externalize-new-worktrees-now",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.505,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mq7iaabuefb",
-      "to": "codex/harden-cross-repo-targeting",
-      "kind": "context",
-      "weight": 0.425,
-      "by": "judge",
-      "judged": true,
-      "score": 0.425,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mq7yx05gyl6",
       "to": "note:note-mqa8bb7y052",
       "kind": "context",
@@ -285386,32 +285858,22 @@
       "judged": true
     },
     {
+      "from": "note:note-mq8aoc7vu8n",
+      "to": "codex/preserve-legacy-identity-errors",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.497,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mq8b33v4ww8",
       "to": "b1c48279-9822-4abe-81a5-1b7b2a329970/1",
       "kind": "context",
       "weight": 0.5,
       "by": "judge",
       "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mq8b33v4ww8",
-      "to": "codex/graph-submodule-design-audit",
-      "kind": "context",
-      "weight": 0.412,
-      "by": "judge",
-      "judged": true,
-      "score": 0.412,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mq8b33v4ww8",
-      "to": "codex/canonical-graph-submodule-worktree-resolution",
-      "kind": "context",
-      "weight": 0.527,
-      "by": "judge",
-      "judged": true,
-      "score": 0.527,
       "origin": "asserted"
     },
     {
@@ -285422,16 +285884,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.657,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mq8dk5go63q",
-      "to": "codex/canonical-graph-submodule-worktree-resolution",
-      "kind": "context",
-      "weight": 0.446,
-      "by": "judge",
-      "judged": true,
-      "score": 0.446,
       "origin": "autowire-semantic"
     },
     {
@@ -285551,16 +286003,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqda7rpovti",
-      "to": "codex/audit-cross-repo-worktree-targeting",
-      "kind": "context",
-      "weight": 0.508,
-      "by": "judge",
-      "judged": true,
-      "score": 0.508,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqe1cey1lux",
       "to": "091a4bf1-b671-4ff9-854d-993775faa5ee/24",
       "kind": "context",
@@ -285588,6 +286030,16 @@
       "by": "judge",
       "judged": true,
       "score": 0.566,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqe9hy58oqj",
+      "to": "codex/preserve-legacy-identity-errors",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.495,
       "origin": "autowire-semantic"
     },
     {
@@ -285966,6 +286418,16 @@
       "judged": true
     },
     {
+      "from": "note:note-mqfbygur4go",
+      "to": "codex/canonical-worktree-graph-identity",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.412,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqff4agm67d",
       "to": "codex/fix-token-accounting-attribution",
       "kind": "context",
@@ -285977,12 +286439,12 @@
     },
     {
       "from": "note:note-mqfhmxul2io",
-      "to": "codex/graph-submodule-design-audit",
+      "to": "codex/preserve-legacy-identity-errors",
       "kind": "context",
-      "weight": 0.443,
-      "by": "judge",
-      "judged": true,
-      "score": 0.443,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.51,
       "origin": "autowire-semantic"
     },
     {
@@ -286225,16 +286687,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqgtdsl1abm",
-      "to": "codex/audit-cross-repo-worktree-targeting",
-      "kind": "context",
-      "weight": 0.521,
-      "by": "judge",
-      "judged": true,
-      "score": 0.521,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqgvjghmn2z",
       "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/7",
       "kind": "context",
@@ -286265,16 +286717,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqgw6i429p1",
-      "to": "codex/harden-cross-repo-targeting",
-      "kind": "context",
-      "weight": 0.441,
-      "by": "judge",
-      "judged": true,
-      "score": 0.441,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqgw7oy7b8z",
       "to": "fbeb4c89-3ac8-44de-94c5-49a9793e27d5/8",
       "kind": "context",
@@ -286302,26 +286744,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.652,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgycs0dynf",
-      "to": "codex/canonical-graph-submodule-worktree-resolution",
-      "kind": "context",
-      "weight": 0.555,
-      "by": "judge",
-      "judged": true,
-      "score": 0.555,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mqgycs0dynf",
-      "to": "codex/audit-cross-repo-worktree-targeting",
-      "kind": "context",
-      "weight": 0.473,
-      "by": "judge",
-      "judged": true,
-      "score": 0.473,
       "origin": "autowire-semantic"
     },
     {
@@ -286810,16 +287232,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqi8j0n8lak",
-      "to": "codex/externalize-new-worktrees-now",
-      "kind": "context",
-      "weight": 0.574,
-      "by": "judge",
-      "judged": true,
-      "score": 0.574,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqi8xd01nw5",
       "to": "bench/realistic-A-83975",
       "kind": "context",
@@ -287124,14 +287536,6 @@
       "judged": true,
       "score": 0.658,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqiu1y5bevv",
-      "to": "codex/externalize-worktree-runtime",
-      "kind": "context",
-      "weight": 0.7,
-      "origin": "asserted",
-      "judged": true
     },
     {
       "from": "note:note-mqiu21zrgea",
@@ -288857,6 +289261,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqp5ek1qs96",
+      "to": "codex/externalize-daemon-runtime",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.463,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqp5etghi9l",
       "to": "note:note-mqp5byzb5hu",
       "kind": "context",
@@ -289247,6 +289661,26 @@
       "weight": 0.6,
       "by": "judge",
       "judged": true
+    },
+    {
+      "from": "note:note-mqph9bwihv5",
+      "to": "codex/repo-neutral-request-identities",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.391,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqph9bwihv5",
+      "to": "codex/externalize-daemon-runtime",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.436,
+      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqphb5vshff",
@@ -289845,6 +290279,16 @@
       "judged": true
     },
     {
+      "from": "note:note-mqpywsqkwff",
+      "to": "codex/canonical-worktree-graph-identity",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.434,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqpz36sv7ns",
       "to": "codex/search-economy-retrieval-phase1",
       "kind": "context",
@@ -290231,11 +290675,31 @@
       "origin": "subconscious-agentic-search"
     },
     {
+      "from": "note:note-mqqjxaewu58",
+      "to": "codex/externalize-daemon-runtime",
+      "kind": "context",
+      "weight": 0.851,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.851,
+      "origin": "subconscious-agentic-search"
+    },
+    {
       "from": "note:note-mqqlz3oc3we",
       "to": "codex/add-daemon-global-backend-credentials-file",
       "kind": "context",
       "weight": 1,
       "judged": true
+    },
+    {
+      "from": "note:note-mqqlz3oc3we",
+      "to": "codex/externalize-daemon-runtime",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.494,
+      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqqmeewyhir",
@@ -290607,6 +291071,16 @@
       "origin": "subconscious-agentic-search"
     },
     {
+      "from": "note:note-mqr366hr6af",
+      "to": "codex/externalize-daemon-runtime",
+      "kind": "context",
+      "weight": 0.848,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.848,
+      "origin": "subconscious-agentic-search"
+    },
+    {
       "from": "note:note-mqs2cryemhg",
       "to": "note:note-mqh250aamjb",
       "kind": "context",
@@ -290910,104 +291384,51 @@
       "judged": true
     },
     {
-      "from": "note:note-mrf70c4jq6o",
-      "to": "note:note-mrf4c053t8z",
+      "from": "note:note-mrwhqujye3g",
+      "to": "codex/preserve-legacy-identity-errors",
       "kind": "context",
-      "weight": 0.6,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.554,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrwhqujye3g",
+      "to": "codex/canonical-worktree-graph-identity",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.44,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrwkmczkq94",
+      "to": "codex/repo-neutral-request-identities",
+      "kind": "context",
+      "origin": "subconscious-assignment",
       "by": "judge",
+      "judged": true,
+      "weight": 0.5
+    },
+    {
+      "from": "note:note-mrwkmczkq94",
+      "to": "codex/canonical-worktree-graph-identity",
+      "kind": "context",
+      "weight": 0.95,
+      "origin": "subconscious-assignment",
       "judged": true
     },
     {
-      "from": "note:note-mrwhqujye3g",
-      "to": "codex/graph-submodule-design-audit",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrwhqujye3g",
-      "to": "codex/canonical-graph-submodule-worktree-resolution",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrwhqujye3g",
-      "to": "knowledge:source_chunk:chunk-contributing-md-6-0-graph-is-intentionally-git-version-deb5a14c25",
-      "kind": "context",
-      "weight": 0.679,
-      "by": "judge",
-      "judged": true,
-      "score": 0.679,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrwhqujye3g",
-      "to": "knowledge:source_section:section-contributing-md-6-graph-merge-strategy-2a8676cf18",
-      "kind": "context",
-      "weight": 0.679,
-      "by": "judge",
-      "judged": true,
-      "score": 0.679,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrwhqujye3g",
-      "to": "codex/externalize-new-worktrees-now",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.46,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mrwkmczkq94",
-      "to": "codex/harden-cross-repo-targeting",
+      "to": "codex/externalize-daemon-runtime",
       "kind": "context",
-      "weight": 1,
+      "weight": 0.866,
+      "by": "subconscious",
       "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrwkmczkq94",
-      "to": "codex/externalize-new-worktrees-now",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrwkmczkq94",
-      "to": "note:note-mrwhqujye3g",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.599,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrwkmczkq94",
-      "to": "note:note-mq7iaabuefb",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.551,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrwkmczkq94",
-      "to": "note:note-mqjx2nj5gav",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.541,
-      "origin": "autowire-semantic"
+      "score": 0.866,
+      "origin": "subconscious-agentic-search"
     },
     {
       "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/20",
@@ -291127,64 +291548,112 @@
       "judged": true
     },
     {
-      "from": "codex/audit-cross-repo-worktree-targeting",
+      "from": "codex/canonical-worktree-graph-identity",
       "to": "codex/canonical-graph-submodule-worktree-resolution",
-      "kind": "context",
-      "weight": 0.441,
-      "by": "judge",
-      "judged": true,
-      "score": 0.441,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/audit-cross-repo-worktree-targeting",
-      "to": "codex/externalize-worktree-runtime",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/audit-cross-repo-worktree-targeting",
-      "to": "codex/harden-cross-repo-targeting",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/audit-cross-repo-worktree-targeting",
-      "to": "codex/externalize-new-worktrees-now",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/externalize-new-worktrees-now",
-      "to": "codex/search-economy-phase1b-cmm-judge",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.362,
+      "score": 0.553,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/externalize-worktree-runtime",
-      "to": "knowledge:source_doc:note-mqqyd0ugp2b",
+      "from": "codex/canonical-worktree-graph-identity",
+      "to": "knowledge:source_section:section-readme-md-2-how-it-works-1a7ebe4168",
       "kind": "context",
-      "weight": 0.38,
-      "by": "judge",
-      "judged": true,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.465,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/canonical-worktree-graph-identity",
+      "to": "codex/externalize-new-worktrees-now",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.452,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/canonical-worktree-graph-identity",
+      "to": "knowledge:source_section:section-contributing-md-6-graph-merge-strategy-2a8676cf18",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.452,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/canonical-worktree-graph-identity",
+      "to": "knowledge:source_section:section-adapters-codex-readme-md-4-workflow-f97a157152",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.419,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/externalize-daemon-runtime",
+      "to": "codex/arc-bench-full-auto-zonoid-task-bootstrap",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
       "score": 0.38,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/externalize-worktree-runtime",
-      "to": "codex/harden-cross-repo-targeting",
-      "kind": "blocking",
-      "origin": "subconscious-assignment"
+      "from": "codex/externalize-daemon-runtime",
+      "to": "codex/onboard-drain-headless",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.37,
+      "origin": "autowire-semantic"
     },
     {
-      "from": "codex/externalize-worktree-runtime",
-      "to": "codex/externalize-new-worktrees-now",
-      "kind": "blocking",
-      "origin": "subconscious-assignment"
+      "from": "codex/externalize-daemon-runtime",
+      "to": "knowledge:source_section:note-mqsi4rz0p98#note-evidence",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.369,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/externalize-daemon-runtime",
+      "to": "knowledge:source_section:section-contributing-md-3-architecture-fa6467ef93",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.358,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/externalize-new-worktrees-now",
+      "to": "codex/externalize-daemon-runtime",
+      "kind": "context",
+      "weight": 0.9,
+      "origin": "subconscious-assignment",
+      "judged": true
+    },
+    {
+      "from": "codex/externalize-new-worktrees-now",
+      "to": "codex/canonical-worktree-graph-identity",
+      "kind": "context",
+      "weight": 1,
+      "by": "subconscious",
+      "judged": true,
+      "score": 1,
+      "origin": "subconscious-agentic-search"
     },
     {
       "from": "codex/fix-consolidate-universal-skills-kickback",
@@ -291280,46 +291749,81 @@
       "origin": "subconscious-assignment"
     },
     {
-      "from": "codex/graph-submodule-design-audit",
-      "to": "knowledge:source_doc:note-mqpavx66iic",
+      "from": "codex/harden-cross-repo-targeting",
+      "to": "codex/repo-neutral-request-identities",
       "kind": "context",
-      "weight": 0.422,
-      "by": "judge",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/harden-cross-repo-targeting",
+      "to": "codex/canonical-worktree-graph-identity",
+      "kind": "context",
+      "weight": 1,
+      "by": "subconscious",
       "judged": true,
-      "score": 0.422,
+      "score": 1,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "codex/preserve-legacy-identity-errors",
+      "to": "codex/fix-graph-dispatch-invariants",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.525,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/graph-submodule-design-audit",
+      "from": "codex/preserve-legacy-identity-errors",
+      "to": "codex/fix-graph-dispatch-invariants-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.437,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/preserve-legacy-identity-errors",
       "to": "knowledge:source_section:section-contributing-md-6-graph-merge-strategy-2a8676cf18",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.47,
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.435,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/graph-submodule-design-audit",
-      "to": "codex/canonical-graph-submodule-worktree-resolution",
+      "from": "codex/preserve-legacy-identity-errors",
+      "to": "codex/graph-submodule-design-audit",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.434,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/repo-neutral-request-identities",
+      "to": "codex/preserve-legacy-identity-errors",
       "kind": "blocking",
-      "origin": "native-blockedBy",
-      "by": "judge",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/repo-neutral-request-identities",
+      "to": "codex/externalize-daemon-runtime",
+      "kind": "context",
+      "weight": 0.9,
+      "origin": "subconscious-assignment",
       "judged": true
     },
     {
-      "from": "codex/product-pipeline-worker-review",
-      "to": "codex/audit-cross-repo-worktree-targeting",
+      "from": "codex/repo-neutral-request-identities",
+      "to": "codex/canonical-worktree-graph-identity",
       "kind": "context",
-      "weight": 0.6,
-      "origin": "asserted",
-      "judged": true
-    },
-    {
-      "from": "codex/product-pipeline-worker-review",
-      "to": "codex/externalize-worktree-runtime",
-      "kind": "context",
-      "weight": 0.55,
-      "origin": "asserted",
+      "weight": 0.95,
+      "origin": "subconscious-assignment",
       "judged": true
     },
     {
@@ -291394,5 +291898,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-07-22T21:08:50.074Z"
+  "compacted_at": "2026-07-22T21:45:54.317Z"
 }

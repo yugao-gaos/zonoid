@@ -130,3 +130,4 @@
 {"evt":"edge_removed","from":"note:note-mqfbygur4go","to":"codex/externalize-new-worktrees-now","kind":"context","actor":"overlay-sync","ts":"2026-07-22T21:04:07.845Z"}
 {"evt":"edge_added","from":"note:note-mqfbygur4go","to":"codex/canonical-worktree-graph-identity","kind":"context","actor":"overlay-sync","ts":"2026-07-22T21:43:04.109Z","weight":0,"by":"autowire","judged":false,"score":0.412,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqfbygur4go","to":"codex/canonical-worktree-graph-identity","kind":"context","actor":"overlay-sync","ts":"2026-07-22T21:43:05.071Z"}
+{"evt":"edge_added","from":"note:note-mqfbygur4go","to":"codex/canonical-worktree-graph-identity","kind":"context","actor":"overlay-sync","ts":"2026-07-22T21:45:16.650Z","weight":0,"by":"autowire","judged":false,"score":0.412,"origin":"autowire-semantic"}
