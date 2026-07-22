@@ -246986,6 +246986,226 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "codex/audit-cross-repo-worktree-targeting": {
+      "id": "codex/audit-cross-repo-worktree-targeting",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Audit cross repository worktree targeting",
+        "description": "Read-only diagnosis of why tasks for one registered repository can create Git worktrees under or from the daemon's main repository when multiple repositories share one daemon/workspace. Trace workspace resolution, task repo_path persistence, subconscious_assignment prepare, resolveRepo precedence, feature and attempt worktree path derivation, workspace registry lookup, and client/MCP workspace propagation. Compare with actual registered worktrees. Produce ranked root causes, evidence, and safe solution options; do not edit code.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-07-22T19:52:28.818Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-22T19:47:39.682Z",
+        "lastChanged": "2026-07-22T19:53:10.019Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/canonical-graph-submodule-worktree-resolution": {
+      "id": "codex/canonical-graph-submodule-worktree-resolution",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Keep submodule-backed graph canonical across Git worktrees",
+        "description": "Implement the first safe phase of .graph submodule support. Update workspace/repo resolution so an initialized .graph submodule inside an attempt or feature Git worktree never re-homes that worktree as a separate graph workspace. All worktrees sharing the superproject git common-dir must resolve to the registered primary checkout's canonical graph. Preserve normal behavior for standalone repositories and nested repos. Add focused tests for primary checkout, worktree with uninitialized .graph, worktree with initialized .graph submodule, and unrelated nested repo. Do not migrate .graph or create a remote yet.",
+        "status": "pending",
+        "blockedBy": [
+          "codex/graph-submodule-design-audit"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-07-22T19:24:31.022Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-22T19:24:31.022Z",
+        "lastChanged": "2026-07-22T19:44:23.116Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/externalize-new-worktrees-now": {
+      "id": "codex/externalize-new-worktrees-now",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Externalize new worktrees while preserving legacy state",
+        "description": "Correct the runtime relocation so existing installs with live legacy overlay/session data still create all NEW attempt and feature worktrees under the external per-user data root immediately. Keep legacy state in place and discoverable without destructive migration. Add a separate worktree storage resolver, preserve explicit env overrides, make existing-worktree lookup/removal use Git's recorded path rather than only a newly computed path, maintain Node/shell parity where applicable, and add migration regression tests.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-22T20:42:53.948Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-22T20:42:53.948Z",
+        "lastChanged": "2026-07-22T20:50:54.402Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/externalize-worktree-runtime": {
+      "id": "codex/externalize-worktree-runtime",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Move worktree runtime outside source repositories",
+        "description": "Change worktree/runtime placement so orchestrator attempt and feature worktrees live in an external per-user data root, never inside the zonoid installation or any target repository. Preserve explicit ORCH_DATA/ZONOID_DATA overrides, provide a safe legacy compatibility or migration strategy without deleting existing data, canonicalize paths, and add focused tests.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-22T20:41:00.010Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-22T20:28:03.138Z",
+        "lastChanged": "2026-07-22T20:41:16.844Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/graph-submodule-design-audit": {
+      "id": "codex/graph-submodule-design-audit",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Validate graph submodule architecture and migration boundaries",
+        "description": "Audit the proposed .graph Git submodule design before implementation. Cover canonical versus runtime versus telemetry state, continuous graph commits and pushes, batched superproject pointer updates at feature merge, clone/init/update behavior, multi-worktree and multi-daemon concurrency, offline/diverged remotes, crash recovery, migration of the existing tracked .graph directory and history, and exact code seams/tests. Produce an implementation-ready design with explicit invariants and phased scope; do not edit code.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-07-22T19:23:47.056Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-22T19:05:53.757Z",
+        "lastChanged": "2026-07-22T19:24:00.030Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/harden-cross-repo-targeting": {
+      "id": "codex/harden-cross-repo-targeting",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Harden cross repository target selection",
+        "description": "Separate graph workspace from Git target identity in assignment preparation. Preserve convenient single-repo behavior, but fail closed when repository targeting is ambiguous, persist target provenance, canonical Git identity, and verify a created worktree belongs to the requested Git common directory. Add focused route/MCP/git tests and useful diagnostics.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/externalize-worktree-runtime"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-07-22T21:01:28.134Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-22T20:28:04.883Z",
+        "lastChanged": "2026-07-22T21:01:40.078Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -284160,12 +284380,421 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "knowledge:source_chunk:note-mqpavx66iic#note-evidence:chunk-1",
+      "to": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
+      "kind": "context",
+      "weight": 0.351,
+      "by": "judge",
+      "judged": true,
+      "score": 0.351,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
+      "to": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
+      "kind": "context",
+      "weight": 0.392,
+      "by": "judge",
+      "judged": true,
+      "score": 0.392,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-8",
+      "to": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
+      "kind": "context",
+      "weight": 0.451,
+      "by": "judge",
+      "judged": true,
+      "score": 0.451,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-8",
+      "to": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "kind": "context",
+      "weight": 0.316,
+      "by": "judge",
+      "judged": true,
+      "score": 0.316,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-1",
+      "to": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "kind": "context",
+      "weight": 0.322,
+      "by": "judge",
+      "judged": true,
+      "score": 0.322,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-8",
+      "to": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
+      "kind": "context",
+      "weight": 0.451,
+      "by": "judge",
+      "judged": true,
+      "score": 0.451,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-8",
+      "to": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "kind": "context",
+      "weight": 0.316,
+      "by": "judge",
+      "judged": true,
+      "score": 0.316,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5hvc643og",
+      "to": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
+      "kind": "context",
+      "weight": 0.432,
+      "by": "judge",
+      "judged": true,
+      "score": 0.432,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5xad0sam6",
+      "to": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
+      "kind": "context",
+      "weight": 0.511,
+      "by": "judge",
+      "judged": true,
+      "score": 0.511,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrbnuu7vb49",
+      "to": "note:note-mrdmia4g7uw",
+      "kind": "context",
+      "weight": 0.787,
+      "by": "judge",
+      "judged": true,
+      "score": 0.787,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdjfb7dhgw",
+      "to": "note:note-mrdmia4g7uw",
+      "kind": "context",
+      "weight": 0.798,
+      "by": "judge",
+      "judged": true,
+      "score": 0.798,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdmia4g7uw",
+      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.418,
+      "by": "judge",
+      "judged": true,
+      "score": 0.418,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdmia4g7uw",
+      "to": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.418,
+      "by": "judge",
+      "judged": true,
+      "score": 0.418,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdmia4g7uw",
+      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrdmia4g7uw",
+      "to": "note:note-mrbnuu7vb49",
+      "kind": "context",
+      "weight": 0.451,
+      "by": "judge",
+      "judged": true,
+      "score": 0.451,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrdpnp6b2pv",
+      "to": "note:note-mrf4c053t8z",
+      "kind": "context",
+      "weight": 0.796,
+      "by": "judge",
+      "judged": true,
+      "score": 0.796,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf22r19495",
+      "to": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrf22r19495",
+      "to": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-8",
+      "kind": "context",
+      "weight": 0.548,
+      "by": "judge",
+      "judged": true,
+      "score": 0.548,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf4c053t8z",
+      "to": "note:note-mrdpnp6b2pv",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mrf4c1h2euu",
+      "to": "note:note-mrf4c053t8z",
+      "kind": "context",
+      "weight": 0.803,
+      "by": "judge",
+      "judged": true,
+      "score": 0.803,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf70dny7ox",
+      "to": "note:note-mrf4c053t8z",
+      "kind": "context",
+      "weight": 0.807,
+      "by": "judge",
+      "judged": true,
+      "score": 0.807,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf70dny7ox",
+      "to": "note:note-mrf70c4jq6o",
+      "kind": "context",
+      "weight": 0.807,
+      "by": "judge",
+      "judged": true,
+      "score": 0.807,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf70dny7ox",
+      "to": "note:note-mrf7063yh1v",
+      "kind": "context",
+      "weight": 0.8,
+      "by": "judge",
+      "judged": true,
+      "score": 0.8,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf7jpahab7",
+      "to": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "kind": "context",
+      "weight": 0.366,
+      "by": "judge",
+      "judged": true,
+      "score": 0.366,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf7jpahab7",
+      "to": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-8",
+      "kind": "context",
+      "weight": 0.633,
+      "by": "judge",
+      "judged": true,
+      "score": 0.633,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf7r99bob0",
+      "to": "note:note-mrf7jpahab7",
+      "kind": "context",
+      "weight": 0.701,
+      "by": "judge",
+      "judged": true,
+      "score": 0.701,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf7r99bob0",
+      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-8",
+      "kind": "context",
+      "weight": 0.656,
+      "by": "judge",
+      "judged": true,
+      "score": 0.656,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf7r99bob0",
+      "to": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.653,
+      "by": "judge",
+      "judged": true,
+      "score": 0.653,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mrf7r99bob0",
+      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.653,
+      "by": "judge",
+      "judged": true,
+      "score": 0.653,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "to": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
+      "kind": "context",
+      "weight": 0.322,
+      "by": "judge",
+      "judged": true,
+      "score": 0.322,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "to": "knowledge:source_doc:note-mr57kpil9xk",
+      "kind": "context",
+      "weight": 0.314,
+      "by": "judge",
+      "judged": true,
+      "score": 0.314,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "to": "knowledge:source_doc:note-mr5c2remh4y",
+      "kind": "context",
+      "weight": 0.314,
+      "by": "judge",
+      "judged": true,
+      "score": 0.314,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "to": "knowledge:source_doc:note-mr5c37uw1tw",
+      "kind": "context",
+      "weight": 0.314,
+      "by": "judge",
+      "judged": true,
+      "score": 0.314,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
+      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "kind": "context",
+      "weight": 0.419,
+      "by": "judge",
+      "judged": true,
+      "score": 0.419,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
+      "to": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
+      "to": "codex/hoist-min-bump-guarantee-into-main-turn-loop-so-contact-probing-is-not-luck-gate",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.395,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
+      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.507,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "to": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
+      "to": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
+      "kind": "context",
+      "weight": 0.336,
+      "by": "judge",
+      "judged": true,
+      "score": 0.336,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
+      "to": "codex/ewm-model-quantum-interaction-discovery-stride-agnostic-run-twenty-seven",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.341,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
+      "to": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
+      "kind": "context",
+      "origin": "asserted"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-agents-md-2-13-gate-contract-for-subagents-normal-work-5df8a2dfa0",
+      "to": "codex/externalize-new-worktrees-now",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.384,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
       "to": "note:note-mqqqrlczyc2",
       "kind": "context",
       "weight": 0.6,
       "by": "judge",
       "judged": true
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-agents-md-2-8-an-interactive-session-that-edits-code-d-76be713dcc",
+      "to": "codex/canonical-graph-submodule-worktree-resolution",
+      "kind": "context",
+      "weight": 0.457,
+      "by": "judge",
+      "judged": true,
+      "score": 0.457,
+      "origin": "autowire-semantic"
     },
     {
       "from": "knowledge:source_chunk:chunk-claude-md-7-2-effect-2-auto-merge-on-judge-approve-whe-85c554656b",
@@ -284178,13 +284807,23 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:note-mqpavx66iic#note-evidence:chunk-1",
-      "to": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
+      "from": "knowledge:source_chunk:chunk-contributing-md-6-0-graph-is-intentionally-git-version-deb5a14c25",
+      "to": "codex/graph-submodule-design-audit",
       "kind": "context",
-      "weight": 0.351,
+      "weight": 0.47,
       "by": "judge",
       "judged": true,
-      "score": 0.351,
+      "score": 0.47,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-contributing-md-6-0-graph-is-intentionally-git-version-deb5a14c25",
+      "to": "codex/canonical-graph-submodule-worktree-resolution",
+      "kind": "context",
+      "weight": 0.489,
+      "by": "judge",
+      "judged": true,
+      "score": 0.489,
       "origin": "autowire-semantic"
     },
     {
@@ -284236,16 +284875,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
-      "to": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
-      "kind": "context",
-      "weight": 0.392,
-      "by": "judge",
-      "judged": true,
-      "score": 0.392,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-1",
       "to": "note:note-mqsi4rz0p98",
       "kind": "context",
@@ -284268,56 +284897,6 @@
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-8",
-      "to": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
-      "kind": "context",
-      "weight": 0.451,
-      "by": "judge",
-      "judged": true,
-      "score": 0.451,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-8",
-      "to": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
-      "kind": "context",
-      "weight": 0.316,
-      "by": "judge",
-      "judged": true,
-      "score": 0.316,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-1",
-      "to": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
-      "kind": "context",
-      "weight": 0.322,
-      "by": "judge",
-      "judged": true,
-      "score": 0.322,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-8",
-      "to": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
-      "kind": "context",
-      "weight": 0.451,
-      "by": "judge",
-      "judged": true,
-      "score": 0.451,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-8",
-      "to": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
-      "kind": "context",
-      "weight": 0.316,
-      "by": "judge",
-      "judged": true,
-      "score": 0.316,
-      "origin": "autowire-semantic"
     },
     {
       "from": "knowledge:source_doc:note-mqqnit1ph68",
@@ -284501,6 +285080,16 @@
       "origin": "asserted"
     },
     {
+      "from": "note:note-mq75a7zx",
+      "to": "codex/harden-cross-repo-targeting",
+      "kind": "context",
+      "weight": 0.449,
+      "by": "judge",
+      "judged": true,
+      "score": 0.449,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mq75a80n",
       "to": "c518dc9a-a501-4506-bc2d-7d29afec8fbc/1",
       "kind": "context",
@@ -284523,6 +285112,26 @@
       "weight": 0.6,
       "by": "judge",
       "judged": true
+    },
+    {
+      "from": "note:note-mq75a810",
+      "to": "codex/canonical-graph-submodule-worktree-resolution",
+      "kind": "context",
+      "weight": 0.436,
+      "by": "judge",
+      "judged": true,
+      "score": 0.436,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq75a810",
+      "to": "codex/harden-cross-repo-targeting",
+      "kind": "context",
+      "weight": 0.468,
+      "by": "judge",
+      "judged": true,
+      "score": 0.468,
+      "origin": "asserted"
     },
     {
       "from": "note:note-mq75a817",
@@ -284631,6 +285240,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mq7dzydv",
+      "to": "codex/audit-cross-repo-worktree-targeting",
+      "kind": "context",
+      "weight": 0.467,
+      "by": "judge",
+      "judged": true,
+      "score": 0.467,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mq7gpd48",
       "to": "unify/fold-filedrop-followups",
       "kind": "context",
@@ -284706,6 +285325,26 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mq7heffwyzy",
+      "to": "codex/externalize-new-worktrees-now",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.505,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq7iaabuefb",
+      "to": "codex/harden-cross-repo-targeting",
+      "kind": "context",
+      "weight": 0.425,
+      "by": "judge",
+      "judged": true,
+      "score": 0.425,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mq7yx05gyl6",
       "to": "note:note-mqa8bb7y052",
       "kind": "context",
@@ -284756,6 +285395,26 @@
       "origin": "asserted"
     },
     {
+      "from": "note:note-mq8b33v4ww8",
+      "to": "codex/graph-submodule-design-audit",
+      "kind": "context",
+      "weight": 0.412,
+      "by": "judge",
+      "judged": true,
+      "score": 0.412,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq8b33v4ww8",
+      "to": "codex/canonical-graph-submodule-worktree-resolution",
+      "kind": "context",
+      "weight": 0.527,
+      "by": "judge",
+      "judged": true,
+      "score": 0.527,
+      "origin": "asserted"
+    },
+    {
       "from": "note:note-mq8cw5z5eto",
       "to": "followup/drain-final-13-onboarding-learner-candid-l29o",
       "kind": "context",
@@ -284763,6 +285422,16 @@
       "by": "judge",
       "judged": true,
       "score": 0.657,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq8dk5go63q",
+      "to": "codex/canonical-graph-submodule-worktree-resolution",
+      "kind": "context",
+      "weight": 0.446,
+      "by": "judge",
+      "judged": true,
+      "score": 0.446,
       "origin": "autowire-semantic"
     },
     {
@@ -284879,6 +285548,16 @@
       "by": "judge",
       "judged": true,
       "score": 0.778,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqda7rpovti",
+      "to": "codex/audit-cross-repo-worktree-targeting",
+      "kind": "context",
+      "weight": 0.508,
+      "by": "judge",
+      "judged": true,
+      "score": 0.508,
       "origin": "autowire-semantic"
     },
     {
@@ -285297,6 +285976,16 @@
       "origin": "subconscious-agentic-search"
     },
     {
+      "from": "note:note-mqfhmxul2io",
+      "to": "codex/graph-submodule-design-audit",
+      "kind": "context",
+      "weight": 0.443,
+      "by": "judge",
+      "judged": true,
+      "score": 0.443,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqfj0lgtpk5",
       "to": "note:note-mqfatdr2s67",
       "kind": "context",
@@ -285536,6 +286225,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqgtdsl1abm",
+      "to": "codex/audit-cross-repo-worktree-targeting",
+      "kind": "context",
+      "weight": 0.521,
+      "by": "judge",
+      "judged": true,
+      "score": 0.521,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqgvjghmn2z",
       "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/7",
       "kind": "context",
@@ -285566,6 +286265,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqgw6i429p1",
+      "to": "codex/harden-cross-repo-targeting",
+      "kind": "context",
+      "weight": 0.441,
+      "by": "judge",
+      "judged": true,
+      "score": 0.441,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqgw7oy7b8z",
       "to": "fbeb4c89-3ac8-44de-94c5-49a9793e27d5/8",
       "kind": "context",
@@ -285593,6 +286302,26 @@
       "by": "judge",
       "judged": true,
       "score": 0.652,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgycs0dynf",
+      "to": "codex/canonical-graph-submodule-worktree-resolution",
+      "kind": "context",
+      "weight": 0.555,
+      "by": "judge",
+      "judged": true,
+      "score": 0.555,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqgycs0dynf",
+      "to": "codex/audit-cross-repo-worktree-targeting",
+      "kind": "context",
+      "weight": 0.473,
+      "by": "judge",
+      "judged": true,
+      "score": 0.473,
       "origin": "autowire-semantic"
     },
     {
@@ -286081,6 +286810,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqi8j0n8lak",
+      "to": "codex/externalize-new-worktrees-now",
+      "kind": "context",
+      "weight": 0.574,
+      "by": "judge",
+      "judged": true,
+      "score": 0.574,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqi8xd01nw5",
       "to": "bench/realistic-A-83975",
       "kind": "context",
@@ -286385,6 +287124,14 @@
       "judged": true,
       "score": 0.658,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqiu1y5bevv",
+      "to": "codex/externalize-worktree-runtime",
+      "kind": "context",
+      "weight": 0.7,
+      "origin": "asserted",
+      "judged": true
     },
     {
       "from": "note:note-mqiu21zrgea",
@@ -290097,16 +290844,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr5hvc643og",
-      "to": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
-      "kind": "context",
-      "weight": 0.432,
-      "by": "judge",
-      "judged": true,
-      "score": 0.432,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mr5i0uv2sdg",
       "to": "codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen",
       "kind": "context",
@@ -290145,74 +290882,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr5xad0sam6",
-      "to": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
-      "kind": "context",
-      "weight": 0.511,
-      "by": "judge",
-      "judged": true,
-      "score": 0.511,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrbnuu7vb49",
-      "to": "note:note-mrdmia4g7uw",
-      "kind": "context",
-      "weight": 0.787,
-      "by": "judge",
-      "judged": true,
-      "score": 0.787,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrdjfb7dhgw",
-      "to": "note:note-mrdmia4g7uw",
-      "kind": "context",
-      "weight": 0.798,
-      "by": "judge",
-      "judged": true,
-      "score": 0.798,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrdmia4g7uw",
-      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.418,
-      "by": "judge",
-      "judged": true,
-      "score": 0.418,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrdmia4g7uw",
-      "to": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.418,
-      "by": "judge",
-      "judged": true,
-      "score": 0.418,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrdmia4g7uw",
-      "to": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrdmia4g7uw",
-      "to": "note:note-mrbnuu7vb49",
-      "kind": "context",
-      "weight": 0.451,
-      "by": "judge",
-      "judged": true,
-      "score": 0.451,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mrdmia4g7uw",
       "to": "knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-3",
       "kind": "context",
@@ -290233,16 +290902,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mrdpnp6b2pv",
-      "to": "note:note-mrf4c053t8z",
-      "kind": "context",
-      "weight": 0.796,
-      "by": "judge",
-      "judged": true,
-      "score": 0.796,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mrdpsp01pr3",
       "to": "note:note-mrbq3z5gb0i",
       "kind": "context",
@@ -290251,129 +290910,103 @@
       "judged": true
     },
     {
-      "from": "note:note-mrf22r19495",
-      "to": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mrf22r19495",
-      "to": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-8",
-      "kind": "context",
-      "weight": 0.548,
-      "by": "judge",
-      "judged": true,
-      "score": 0.548,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrf4c053t8z",
-      "to": "note:note-mrdpnp6b2pv",
+      "from": "note:note-mrf70c4jq6o",
+      "to": "note:note-mrf4c053t8z",
       "kind": "context",
       "weight": 0.6,
       "by": "judge",
       "judged": true
     },
     {
-      "from": "note:note-mrf4c1h2euu",
-      "to": "note:note-mrf4c053t8z",
+      "from": "note:note-mrwhqujye3g",
+      "to": "codex/graph-submodule-design-audit",
       "kind": "context",
-      "weight": 0.803,
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrwhqujye3g",
+      "to": "codex/canonical-graph-submodule-worktree-resolution",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrwhqujye3g",
+      "to": "knowledge:source_chunk:chunk-contributing-md-6-0-graph-is-intentionally-git-version-deb5a14c25",
+      "kind": "context",
+      "weight": 0.679,
       "by": "judge",
       "judged": true,
-      "score": 0.803,
+      "score": 0.679,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mrf70dny7ox",
-      "to": "note:note-mrf4c053t8z",
+      "from": "note:note-mrwhqujye3g",
+      "to": "knowledge:source_section:section-contributing-md-6-graph-merge-strategy-2a8676cf18",
       "kind": "context",
-      "weight": 0.807,
+      "weight": 0.679,
       "by": "judge",
       "judged": true,
-      "score": 0.807,
+      "score": 0.679,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mrf70dny7ox",
-      "to": "note:note-mrf70c4jq6o",
+      "from": "note:note-mrwhqujye3g",
+      "to": "codex/externalize-new-worktrees-now",
       "kind": "context",
-      "weight": 0.807,
-      "by": "judge",
-      "judged": true,
-      "score": 0.807,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.46,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mrf70dny7ox",
-      "to": "note:note-mrf7063yh1v",
+      "from": "note:note-mrwkmczkq94",
+      "to": "codex/harden-cross-repo-targeting",
       "kind": "context",
-      "weight": 0.8,
-      "by": "judge",
+      "weight": 1,
       "judged": true,
-      "score": 0.8,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrwkmczkq94",
+      "to": "codex/externalize-new-worktrees-now",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mrwkmczkq94",
+      "to": "note:note-mrwhqujye3g",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.599,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mrf7jpahab7",
-      "to": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
+      "from": "note:note-mrwkmczkq94",
+      "to": "note:note-mq7iaabuefb",
       "kind": "context",
-      "weight": 0.366,
-      "judged": true,
-      "origin": "autowire-semantic",
-      "by": "judge",
-      "score": 0.366
-    },
-    {
-      "from": "note:note-mrf7jpahab7",
-      "to": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-8",
-      "kind": "context",
-      "weight": 0.633,
-      "by": "judge",
-      "judged": true,
-      "score": 0.633,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.551,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mrf7r99bob0",
-      "to": "note:note-mrf7jpahab7",
+      "from": "note:note-mrwkmczkq94",
+      "to": "note:note-mqjx2nj5gav",
       "kind": "context",
-      "weight": 0.701,
-      "by": "judge",
-      "judged": true,
-      "score": 0.701,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrf7r99bob0",
-      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-8",
-      "kind": "context",
-      "weight": 0.656,
-      "by": "judge",
-      "judged": true,
-      "score": 0.656,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrf7r99bob0",
-      "to": "knowledge:source_chunk:note-mr5hxwtjf2m#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 0.653,
-      "by": "judge",
-      "judged": true,
-      "score": 0.653,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mrf7r99bob0",
-      "to": "knowledge:source_chunk:note-mr5i0uv2sdg#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 0.653,
-      "by": "judge",
-      "judged": true,
-      "score": 0.653,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.541,
       "origin": "autowire-semantic"
     },
     {
@@ -290494,44 +291127,64 @@
       "judged": true
     },
     {
-      "from": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
-      "to": "knowledge:source_section:note-mr5i0uv2sdg#note-evidence",
+      "from": "codex/audit-cross-repo-worktree-targeting",
+      "to": "codex/canonical-graph-submodule-worktree-resolution",
       "kind": "context",
-      "weight": 0.322,
+      "weight": 0.441,
       "by": "judge",
       "judged": true,
-      "score": 0.322,
+      "score": 0.441,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
-      "to": "knowledge:source_doc:note-mr57kpil9xk",
+      "from": "codex/audit-cross-repo-worktree-targeting",
+      "to": "codex/externalize-worktree-runtime",
       "kind": "context",
-      "weight": 0.314,
-      "by": "judge",
-      "judged": true,
-      "score": 0.314,
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/audit-cross-repo-worktree-targeting",
+      "to": "codex/harden-cross-repo-targeting",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/audit-cross-repo-worktree-targeting",
+      "to": "codex/externalize-new-worktrees-now",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/externalize-new-worktrees-now",
+      "to": "codex/search-economy-phase1b-cmm-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.362,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
-      "to": "knowledge:source_doc:note-mr5c2remh4y",
+      "from": "codex/externalize-worktree-runtime",
+      "to": "knowledge:source_doc:note-mqqyd0ugp2b",
       "kind": "context",
-      "weight": 0.314,
+      "weight": 0.38,
       "by": "judge",
       "judged": true,
-      "score": 0.314,
+      "score": 0.38,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
-      "to": "knowledge:source_doc:note-mr5c37uw1tw",
-      "kind": "context",
-      "weight": 0.314,
-      "by": "judge",
-      "judged": true,
-      "score": 0.314,
-      "origin": "autowire-semantic"
+      "from": "codex/externalize-worktree-runtime",
+      "to": "codex/harden-cross-repo-targeting",
+      "kind": "blocking",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/externalize-worktree-runtime",
+      "to": "codex/externalize-new-worktrees-now",
+      "kind": "blocking",
+      "origin": "subconscious-assignment"
     },
     {
       "from": "codex/fix-consolidate-universal-skills-kickback",
@@ -290627,69 +291280,47 @@
       "origin": "subconscious-assignment"
     },
     {
-      "from": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
-      "to": "codex/ewm-cross-run-coverage-persistence-bump-probes-run-twenty",
+      "from": "codex/graph-submodule-design-audit",
+      "to": "knowledge:source_doc:note-mqpavx66iic",
       "kind": "context",
-      "weight": 0.419,
+      "weight": 0.422,
       "by": "judge",
       "judged": true,
-      "score": 0.419,
+      "score": 0.422,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
-      "to": "codex/derive-ls20-ink-persistence-rule-and-win-plan-from-all-banked-suites-offline",
-      "kind": "context",
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
-      "to": "codex/hoist-min-bump-guarantee-into-main-turn-loop-so-contact-probing-is-not-luck-gate",
+      "from": "codex/graph-submodule-design-audit",
+      "to": "knowledge:source_section:section-contributing-md-6-graph-merge-strategy-2a8676cf18",
       "kind": "blocking",
       "by": "judge",
       "judged": true,
-      "score": 0.395,
+      "score": 0.47,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
-      "to": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
+      "from": "codex/graph-submodule-design-audit",
+      "to": "codex/canonical-graph-submodule-worktree-resolution",
       "kind": "blocking",
+      "origin": "native-blockedBy",
       "by": "judge",
-      "judged": true,
-      "score": 0.507,
-      "origin": "autowire-semantic"
+      "judged": true
     },
     {
-      "from": "codex/make-runs-compound-persist-fired-bump-probes-cross-run-and-hoist-frontier-batche",
-      "to": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
+      "from": "codex/product-pipeline-worker-review",
+      "to": "codex/audit-cross-repo-worktree-targeting",
       "kind": "context",
-      "origin": "asserted"
+      "weight": 0.6,
+      "origin": "asserted",
+      "judged": true
     },
     {
-      "from": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
-      "to": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
+      "from": "codex/product-pipeline-worker-review",
+      "to": "codex/externalize-worktree-runtime",
       "kind": "context",
-      "weight": 0.336,
-      "by": "judge",
-      "judged": true,
-      "score": 0.336,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
-      "to": "codex/ewm-model-quantum-interaction-discovery-stride-agnostic-run-twenty-seven",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.341,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/reach-probes-hoisted-walks-that-land-the-mover-on-rare-special-cells-to-test-the",
-      "to": "codex/local-state-file-as-primary-cross-run-store-and-fix-hoist-phase-advance-on-bump-",
-      "kind": "context",
-      "origin": "asserted"
+      "weight": 0.55,
+      "origin": "asserted",
+      "judged": true
     },
     {
       "from": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/8",
@@ -290763,5 +291394,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-07-11T10:55:27.945Z"
+  "compacted_at": "2026-07-22T21:08:50.074Z"
 }
