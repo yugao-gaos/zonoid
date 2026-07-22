@@ -102,3 +102,4 @@
 {"evt":"edge_removed","from":"note:note-mq75a810","to":"codex/externalize-worktree-runtime","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:33:05.711Z"}
 {"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/harden-cross-repo-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:42:22.162Z","weight":0.95,"by":"autowire","judged":false,"score":0.468,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mq75a810","to":"codex/harden-cross-repo-targeting","kind":"context","actor":"overlay-sync","ts":"2026-07-22T20:43:35.288Z","weight":0.468,"by":"judge","judged":true,"score":0.468,"origin":"asserted"}
+{"evt":"note_superseded","id":"note-mq75a810","supersededBy":"note-mrwkmczkq94","validTo":"2026-07-22T21:04:46.400Z","ts":"2026-07-22T21:04:46.400Z","actor":"supersede"}
