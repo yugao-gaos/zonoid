@@ -1,9 +1,0 @@
-{
-  "task_key": "codex/migrate-runtime-artifacts-to-zonoid",
-  "agent_id": "worker-runtime-artifacts-zonoid",
-  "branch": "orch/attempt/codex-migrate-runtime-artifacts-to-zonoid",
-  "status": "done",
-  "claimed_at": "2026-06-19T22:46:01.370Z",
-  "lease_until": "2026-06-19T23:46:01.370Z",
-  "completed_at": "2026-06-19T23:20:45.743Z"
-}

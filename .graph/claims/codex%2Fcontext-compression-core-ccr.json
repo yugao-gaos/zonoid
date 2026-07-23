@@ -1,9 +1,0 @@
-{
-  "task_key": "codex/context-compression-core-ccr",
-  "git_user": "test <test@example.com>",
-  "session_id": "codex-mcp-11467-ce621a7fd324e331c9daee77271cf4b4",
-  "branch": "orch/attempt/codex-context-compression-core-ccr",
-  "status": "claimed",
-  "claimed_at": "2026-06-28T14:35:57.490Z",
-  "lease_until": "2026-06-28T15:35:57.490Z"
-}

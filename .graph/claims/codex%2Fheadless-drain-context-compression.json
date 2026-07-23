@@ -1,9 +1,0 @@
-{
-  "task_key": "codex/headless-drain-context-compression",
-  "git_user": "test <test@example.com>",
-  "session_id": "codex-mcp-38432-24202c0eeb2c0db0faa4823ad446af54",
-  "branch": "orch/attempt/codex-headless-drain-context-compression",
-  "status": "claimed",
-  "claimed_at": "2026-06-28T15:08:44.903Z",
-  "lease_until": "2026-06-28T16:08:44.903Z"
-}

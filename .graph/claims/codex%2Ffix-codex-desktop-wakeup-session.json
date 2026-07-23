@@ -1,9 +1,0 @@
-{
-  "task_key": "codex/fix-codex-desktop-wakeup-session",
-  "agent_id": "worker-fix-codex-desktop-wakeup-session",
-  "branch": "orch/attempt/codex-fix-codex-desktop-wakeup-session",
-  "status": "done",
-  "claimed_at": "2026-06-19T19:29:37.901Z",
-  "lease_until": "2026-06-19T20:29:37.901Z",
-  "completed_at": "2026-06-19T19:33:54.054Z"
-}

@@ -1,0 +1,4 @@
+[submodule ".graph"]
+	path = .graph
+	url = https://github.com/yugao-gaos/zonoid-graph.git
+	branch = main

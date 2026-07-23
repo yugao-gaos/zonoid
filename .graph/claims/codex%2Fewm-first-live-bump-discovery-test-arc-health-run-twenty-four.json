@@ -1,9 +1,0 @@
-{
-  "task_key": "codex/ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
-  "git_user": "test <test@example.com>",
-  "session_id": "worker-ewm-run24-session",
-  "branch": "orch/attempt/codex-ewm-first-live-bump-discovery-test-arc-health-run-twenty-four",
-  "status": "claimed",
-  "claimed_at": "2026-07-04T14:00:22.833Z",
-  "lease_until": "2026-07-04T15:00:22.833Z"
-}

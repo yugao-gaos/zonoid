@@ -1,9 +1,0 @@
-{
-  "task_key": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
-  "git_user": "test <test@example.com>",
-  "session_id": "29556785-fa39-442e-8eba-b5dd9dc00862",
-  "branch": "orch/attempt/codex-daemon-chunker-indentation-native-orient-note-get-run-thirteen",
-  "status": "claimed",
-  "claimed_at": "2026-07-03T19:20:25.964Z",
-  "lease_until": "2026-07-03T20:20:25.964Z"
-}

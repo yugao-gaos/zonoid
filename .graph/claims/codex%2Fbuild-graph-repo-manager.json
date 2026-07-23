@@ -1,9 +1,0 @@
-{
-  "task_key": "codex/build-graph-repo-manager",
-  "git_user": "test <test@example.com>",
-  "session_id": "codex-mcp-75670-f355b98c6f4863484b0073c87925abb7",
-  "branch": "orch/attempt/codex-build-graph-repo-manager",
-  "status": "claimed",
-  "claimed_at": "2026-07-22T22:48:03.485Z",
-  "lease_until": "2026-07-22T23:48:03.485Z"
-}
