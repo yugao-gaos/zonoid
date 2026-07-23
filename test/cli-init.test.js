@@ -578,6 +578,8 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
     script.includes('git commit --no-verify'));
   ok('graphAutocommitHookScript: submodule mode uses direct graph flush',
     script.includes('graph flush') && script.includes('git -C "$REPO_ROOT/.graph"'));
+  ok('graphAutocommitHookScript: worktree-safe checkpoint path',
+    script.includes('git rev-parse --git-path GRAPH_CHECKPOINT'));
   ok('graphSubmoduleSyncHookBlock invokes graph sync',
     graphSubmoduleSyncHookBlock().includes('graph sync'));
 }

@@ -719,8 +719,8 @@ function graphAutocommitHookScript() {
   return `#!/bin/sh
 [ "\${ORCH_GRAPH_AUTOCOMMIT}" = "1" ] || exit 0
 
-CHECKPOINT=".git/GRAPH_CHECKPOINT"
 REPO_ROOT=$(git rev-parse --show-toplevel)
+CHECKPOINT=$(git rev-parse --git-path GRAPH_CHECKPOINT)
 COMMIT_HASH=$(git rev-parse --short HEAD)
 
 # Submodule mode is deterministic and direct: commit/push inside the graph repository only.
@@ -745,7 +745,7 @@ $CHANGED
 Steps:
 1. git add $CHANGED
 2. git commit --no-verify -m 'chore: graph snapshot [$COMMIT_HASH]'
-3. touch $REPO_ROOT/$CHECKPOINT
+3. touch $CHECKPOINT
 
 Do not touch anything outside .graph/.
 " 2>/dev/null &
@@ -870,7 +870,15 @@ function checkGraphAutocommitHook(cwd, opts = {}) {
   if (fs.existsSync(hookPath)) {
     const existing = fs.readFileSync(hookPath, 'utf8');
     if (existing.includes(MARKER)) {
-      ok('post-commit hook already installed');
+      const wanted = graphAutocommitHookScript();
+      if (existing === wanted) {
+        ok('post-commit hook already installed');
+      } else {
+        fix('Updating graph auto-commit post-commit hook...');
+        fs.writeFileSync(hookPath, wanted);
+        try { fs.chmodSync(hookPath, 0o755); } catch (_) { /* harmless on Windows */ }
+        ok('post-commit hook updated');
+      }
     } else if (existing.trim() === '') {
       // Empty file — safe to replace with our hook
       fix('Writing graph auto-commit post-commit hook (replacing empty file)...');
