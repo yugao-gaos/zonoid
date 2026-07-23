@@ -34,6 +34,11 @@ async function post(p, body) {
   return { status: res.status, body: await res.json() };
 }
 
+async function get(p) {
+  const res = await fetch(`${BASE}${p}`);
+  return { status: res.status, body: await res.json() };
+}
+
 async function waitForPing(ms = 12000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
@@ -65,6 +70,49 @@ async function waitForPing(ms = 12000) {
   try {
     if (!(await waitForPing())) throw new Error('daemon failed to start');
     await post('/workspace', { path: WS, force: true });
+
+    // Decision delivery must work at the new-session classify seam even when no task loop exists.
+    const ORIGIN_SID = 'decision-origin-session';
+    const RECEIVER_SID = 'decision-receiver-session';
+    const OTHER_SID = 'decision-other-session';
+    await post('/workspace', { path: WS, session_id: ORIGIN_SID, force: true });
+    let decision = await post('/guidance', {
+      workspace: WS,
+      session_id: ORIGIN_SID,
+      question: 'Choose the deterministic migration target',
+      context: 'No normal task is ready.',
+      highImpact: true,
+    });
+    ok('decision queued for origin session', decision.status === 200 && decision.body.id);
+    const closed = await post('/session/close', { session_id: ORIGIN_SID });
+    ok('origin session explicitly closed', closed.status === 200 && closed.body.closed === true);
+    const loopStatus = await get('/loop/status');
+    ok('decision delivery starts with no active loop', loopStatus.status === 200 && Object.keys(loopStatus.body.loops || {}).length === 0);
+
+    let decisionClassify = await post('/classify', { workspace: WS, session_id: RECEIVER_SID, prompt: 'hello new session' });
+    ok('decision classify has zero normal ready tasks', decisionClassify.body.ready.count === 0);
+    ok('new session classify receives pending decision', decisionClassify.body.decision_nudges.length === 1
+      && String(decisionClassify.body.additional_context).includes('[Subconscious decision]'));
+
+    const otherClassify = await post('/classify', { workspace: WS, session_id: OTHER_SID, prompt: 'hello second session' });
+    ok('second live session does not receive leased decision', otherClassify.body.decision_nudges.length === 0
+      && !String(otherClassify.body.additional_context).includes('[Subconscious decision]'));
+
+    decisionClassify = await post('/classify', { workspace: WS, session_id: RECEIVER_SID, prompt: 'hello again' });
+    ok('repeated classify before backoff does not repeat decision', decisionClassify.body.decision_nudges.length === 0);
+
+    const OFF_SID = 'decision-orch-off-session';
+    await post('/guidance', {
+      workspace: WS,
+      session_id: OFF_SID,
+      question: 'This decision must not appear while orchestration is off',
+      highImpact: true,
+    });
+    const sessionsBeforeOffClassify = (await get('/ping')).body.sessions;
+    const offClassify = await post('/classify', { workspace: WS, session_id: OFF_SID, prompt: 'hello opted out', orch_gate_off: true });
+    ok('orch_gate_off suppresses decision delivery', offClassify.body.decision_nudges.length === 0
+      && !String(offClassify.body.additional_context).includes('[Subconscious decision]'));
+    ok('orch_gate_off does not bind the session', (await get('/ping')).body.sessions === sessionsBeforeOffClassify);
 
     // ── ready-flag cache unit checks ────────────────────────────────────────
     _resetForTests();
