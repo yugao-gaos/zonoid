@@ -388,8 +388,16 @@ function tmpDir() {
   ok('initGitAttributes preserves existing content', content3.includes('*.png binary'));
   ok('initGitAttributes appends new entry', content3.includes('.graph/** merge=ours'));
 
+  // A graph submodule carries its own merge policy and must not dirty the superproject.
+  const dir3 = tmpDir();
+  fs.mkdirSync(path.join(dir3, '.graph'), { recursive: true });
+  fs.writeFileSync(path.join(dir3, '.graph', '.git'), 'gitdir: ../modules/.graph\n');
+  gs.initGitAttributes(dir3);
+  ok('initGitAttributes skips graph submodules', !fs.existsSync(path.join(dir3, '.gitattributes')));
+
   fs.rmSync(dir,  { recursive: true });
   fs.rmSync(dir2, { recursive: true });
+  fs.rmSync(dir3, { recursive: true });
 }
 
 

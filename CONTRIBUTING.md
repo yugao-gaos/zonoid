@@ -67,22 +67,17 @@ CI (`.github/workflows/test.yml`) runs `npm run test:all` on every push and PR, 
 `npm ci --omit=optional` (skips the large `@xenova/transformers` optional dependency, which is
 unnecessary under `ZONOID_SKIP_LIVE=1`).
 
-## `.graph` merge strategy
+## `.graph` repository and checkpoints
 
-`.graph/` is intentionally git-versioned, but attempt-branch worktrees (`branch_task`) can
-diverge it — merging an attempt back would hit delete/modify and `checkpoint.json` conflicts.
-`.gitattributes` therefore assigns `.graph/** merge=ours`: the daemon is the source of truth for
-graph state, so on any merge the **current branch's `.graph` wins wholesale** — graph files are
-never content-merged.
+`.graph/` is a Git submodule. The daemon continuously commits and pushes live graph state in that
+companion repository, while normal source commits leave the superproject gitlink alone. A deliberate
+`zonoid graph checkpoint` (including the feature-merge path) stages the pushed graph commit in the
+superproject.
 
-Merge drivers are not portable across clones, so each clone needs a one-time:
-
-```bash
-git config merge.ours.driver true
-```
-
-Without it, git falls back to the default merge driver for `.graph` paths and you may see
-spurious conflicts.
+`zonoid graph sync` initializes and updates the submodule after clone, checkout, or merge. Setup also
+enables `push.recurseSubmodules=on-demand`, so a superproject push cannot publish a gitlink whose graph
+commit is missing remotely. The graph repository carries its own JSONL/checkpoint merge policy in
+`.graph/.gitattributes`.
 
 ## Pull request process
 
