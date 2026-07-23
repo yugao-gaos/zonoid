@@ -1,1 +1,0 @@
-{"id": "synth-9", "subject": "game ls20 edit Initialize World Model State", "description": "Create a global state object to track the positions, sizes, and colors of all objects at each transition step. Initialize with the starting configuration from the first frame.", "status": "pending", "created_by": {"harness": "local", "agent_id": "ewm-synthgraph-ls20"}}
