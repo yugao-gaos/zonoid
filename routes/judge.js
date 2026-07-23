@@ -719,7 +719,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     for (const k of Object.keys(T.ov.judgingSince || {})) {
       if (judge.unverifiedEdgesForNode(T.ov, k).length === 0) overlayStore.clearJudgingSince(T.ov, k);
     }
-    T.save(); notifyChange();
+    T.save(); notifyChange(T.graph_repo || T.ws);
     send(res, 200, { ok: true, epoch, applied, edges: T.ov.edges.length }); return true;
   }
 
@@ -780,7 +780,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
       // Already-marked edges count as success (idempotent).
       else marked++;
     }
-    if (marked > 0) { T.save(); notifyChange(); }
+    if (marked > 0) { T.save(); notifyChange(T.graph_repo || T.ws); }
     send(res, 200, { ok: true, marked, skipped, total: sigs.length }); return true;
   }
 
@@ -789,7 +789,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(null, u);
     if (!T.ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
     const ws = T.ws;
-    ensureHarnessJudgeDrainTask(T.ov, () => { T.save(); notifyChange(); });
+    ensureHarnessJudgeDrainTask(T.ov, () => { T.save(); notifyChange(T.graph_repo || T.ws); });
     const queue = judge.buildQueue(T.ov);
     const depth = queue.length;
     const dupClusters = queue.filter((i) => i.kind === 'dup-cluster').length;

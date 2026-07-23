@@ -236,7 +236,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
       return { id: t.id, own: ownTok.get(t.id) || 0, merged, exploration: isExplorationTask(t), label: t.label };
     });
-    if (overlayDirty) { T.save(); ctx.notifyChange(); }
+    if (overlayDirty) { T.save(); ctx.notifyChange(T.graph_repo || T.ws); }
     const seen = new Set(nodes.map((n) => n.id));
     for (const gh of g.ghosts) {
       const gid = `ghost:${gh.workspace}|${gh.key}`;
@@ -278,7 +278,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (item) item.sessionKey = sid;
       escalated.add(sid); escDirty = true;
     }
-    if (escDirty) { T.save(); ctx.notifyChange(); }
+    if (escDirty) { T.save(); ctx.notifyChange(T.graph_repo || T.ws); }
     const flow = costflow.computeFlow(nodes, edges);
     const human = merged.human || { tokens: 0, files: 0 };
     const rnd = (x) => Math.round(x);

@@ -7,6 +7,7 @@ const os = require('os');
 const { spawnSync } = require('child_process');
 const http = require('http');
 const runtimePaths = require('../../../lib/runtime-paths');
+const graphLifecycle = require('../../../lib/graph-lifecycle');
 
 const REPO_URL = 'https://github.com/yugao-gaos/zonoid';
 const SKILLS_DIR = path.join(os.homedir(), '.claude', 'skills');
@@ -714,12 +715,19 @@ const VALID_HARNESSES = new Set(['claude', 'cursor', 'codex', 'opencode']);
  * .graph/*.jsonl files after each commit when ORCH_GRAPH_AUTOCOMMIT=1.
  */
 function graphAutocommitHookScript() {
+  const cli = fwdSlash(path.join(INSTALL_DIR, 'packages', 'cli', 'bin', 'zonoid.js'));
   return `#!/bin/sh
 [ "\${ORCH_GRAPH_AUTOCOMMIT}" = "1" ] || exit 0
 
-CHECKPOINT=".git/GRAPH_CHECKPOINT"
 REPO_ROOT=$(git rev-parse --show-toplevel)
+CHECKPOINT=$(git rev-parse --git-path GRAPH_CHECKPOINT)
 COMMIT_HASH=$(git rev-parse --short HEAD)
+
+# Submodule mode is deterministic and direct: commit/push inside the graph repository only.
+if git -C "$REPO_ROOT/.graph" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  "${fwdSlash(process.execPath)}" "${cli}" graph flush --repo "$REPO_ROOT" >/dev/null 2>&1 &
+  exit 0
+fi
 
 # On first run, catch all pending changes
 [ -f "$CHECKPOINT" ] || touch -t 197001010000 "$CHECKPOINT"
@@ -737,7 +745,7 @@ $CHANGED
 Steps:
 1. git add $CHANGED
 2. git commit --no-verify -m 'chore: graph snapshot [$COMMIT_HASH]'
-3. touch $REPO_ROOT/$CHECKPOINT
+3. touch $CHECKPOINT
 
 Do not touch anything outside .graph/.
 " 2>/dev/null &
@@ -862,7 +870,15 @@ function checkGraphAutocommitHook(cwd, opts = {}) {
   if (fs.existsSync(hookPath)) {
     const existing = fs.readFileSync(hookPath, 'utf8');
     if (existing.includes(MARKER)) {
-      ok('post-commit hook already installed');
+      const wanted = graphAutocommitHookScript();
+      if (existing === wanted) {
+        ok('post-commit hook already installed');
+      } else {
+        fix('Updating graph auto-commit post-commit hook...');
+        fs.writeFileSync(hookPath, wanted);
+        try { fs.chmodSync(hookPath, 0o755); } catch (_) { /* harmless on Windows */ }
+        ok('post-commit hook updated');
+      }
     } else if (existing.trim() === '') {
       // Empty file — safe to replace with our hook
       fix('Writing graph auto-commit post-commit hook (replacing empty file)...');
@@ -901,6 +917,184 @@ function checkGraphAutocommitHook(cwd, opts = {}) {
   } else {
     ok('~/.claude/settings.json env updated (existing ORCH_GRAPH_AUTOCOMMIT preserved)');
   }
+}
+
+function graphSubmoduleSyncHookBlock() {
+  const cli = fwdSlash(path.join(INSTALL_DIR, 'packages', 'cli', 'bin', 'zonoid.js'));
+  return `# >>> Zonoid graph submodule sync >>>
+if [ -f .gitmodules ] && git config -f .gitmodules --get-regexp '^submodule\\..*\\.path$' 2>/dev/null | grep -q '[[:space:]]\\.graph$'; then
+  "${fwdSlash(process.execPath)}" "${cli}" graph sync --repo "$(git rev-parse --show-toplevel)" >/dev/null 2>&1 || true
+fi
+# <<< Zonoid graph submodule sync <<<`;
+}
+
+function installManagedHookBlock(cwd, hookName, marker, block) {
+  const raw = runCapture('git', ['rev-parse', '--git-path', 'hooks'], { cwd });
+  const hooksDir = path.isAbsolute(raw) ? raw : path.resolve(cwd, raw);
+  const hookPath = path.join(hooksDir, hookName);
+  fs.mkdirSync(hooksDir, { recursive: true });
+  const existing = fs.existsSync(hookPath) ? fs.readFileSync(hookPath, 'utf8') : '#!/bin/sh\n';
+  if (existing.includes(marker)) return;
+  const prefix = existing.trim() ? existing.replace(/\s*$/, '\n\n') : '#!/bin/sh\n';
+  fs.writeFileSync(hookPath, `${prefix}${block}\n`);
+  try { fs.chmodSync(hookPath, 0o755); } catch (_) { /* harmless on Windows */ }
+}
+
+function checkGraphSubmoduleGit(cwd) {
+  const modules = path.join(cwd, '.gitmodules');
+  if (!fs.existsSync(modules)) return { configured: false, reason: 'no_gitmodules' };
+  let graphPath;
+  try { graphPath = runCapture('git', ['config', '-f', '.gitmodules', '--get', 'submodule..graph.path'], { cwd }); }
+  catch (_) {
+    try {
+      const entries = runCapture('git', ['config', '-f', '.gitmodules', '--get-regexp', '^submodule\\..*\\.path$'], { cwd });
+      graphPath = entries.split(/\r?\n/).find((line) => /\s\.graph$/.test(line));
+    } catch (_) { graphPath = null; }
+  }
+  if (!graphPath || !String(graphPath).includes('.graph')) return { configured: false, reason: 'no_graph_submodule' };
+
+  runChecked('git', ['config', 'push.recurseSubmodules', 'on-demand'], { cwd });
+  const update = spawnSync('git', ['submodule', 'update', '--init', '--recursive', '--', '.graph'], {
+    cwd, encoding: 'utf8', windowsHide: true,
+  });
+  if (update.status !== 0) warn(`graph submodule sync deferred: ${(update.stderr || update.stdout || '').trim()}`);
+  const block = graphSubmoduleSyncHookBlock();
+  installManagedHookBlock(cwd, 'post-merge', 'Zonoid graph submodule sync', block);
+  installManagedHookBlock(cwd, 'post-checkout', 'Zonoid graph submodule sync', block);
+  return { configured: true, synced: update.status === 0 };
+}
+
+function parseGraphArgs(argv) {
+  const graphIndex = argv[0] === 'graph' ? 0 : argv[1] === 'graph' ? 1 : argv[2] === 'graph' ? 2 : -1;
+  if (graphIndex < 0) throw new Error('expected: zonoid graph <init|sync|flush|checkpoint|status>');
+  const rest = argv.slice(graphIndex + 1);
+  const command = rest.shift();
+  if (!['init', 'sync', 'flush', 'checkpoint', 'status'].includes(command)) {
+    throw new Error('graph command must be init, sync, flush, checkpoint, or status');
+  }
+  const out = {
+    command,
+    repo: process.cwd(),
+    remote: undefined,
+    createRemote: false,
+    private: true,
+    yes: false,
+    dryRun: false,
+    latest: undefined,
+    push: true,
+  };
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i];
+    if (arg === '--remote' && rest[i + 1]) {
+      out.remote = rest[++i];
+    } else if (arg === '--create-remote') {
+      out.createRemote = true;
+    } else if (arg === '--private') {
+      out.private = true;
+    } else if (arg === '--public') {
+      out.private = false;
+    } else if (arg === '--yes') {
+      out.yes = true;
+    } else if (arg === '--dry-run') {
+      out.dryRun = true;
+    } else if (arg === '--latest=false') {
+      out.latest = false;
+    } else if (arg === '--latest') {
+      out.latest = true;
+    } else if (arg === '--no-push') {
+      out.push = false;
+    } else if (arg === '--repo' && rest[i + 1]) {
+      out.repo = rest[++i];
+    } else {
+      throw new Error(`unknown graph option: ${arg}`);
+    }
+  }
+  return out;
+}
+
+function githubRepoName(remote) {
+  const value = String(remote || '').replace(/\/+$/, '');
+  const match = value.match(/^(?:https?:\/\/github\.com\/|git@github\.com:)([^/]+)\/([^/]+?)(?:\.git)?$/i);
+  if (!match) throw new Error(`cannot derive GitHub OWNER/NAME from remote: ${remote}`);
+  return `${match[1]}/${match[2]}`;
+}
+
+function ghResult(repoRoot, args, deps = {}) {
+  if (typeof deps.gh === 'function') return Promise.resolve(deps.gh(args, repoRoot));
+  const result = spawnSync('gh', args, {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    windowsHide: true,
+    shell: false,
+  });
+  if (result.status !== 0) throw new Error((result.stderr || 'gh repo create failed').trim());
+  return Promise.resolve({ stdout: result.stdout || '' });
+}
+
+function githubCreateRemote(repoRoot, graphArgs, deps = {}) {
+  return async ({ ownerRemote }) => {
+    const name = githubRepoName(ownerRemote);
+    const visibility = graphArgs.private === false ? '--public' : '--private';
+    const created = await ghResult(repoRoot, ['repo', 'create', name, visibility], deps);
+    const createdText = typeof created === 'string' ? created : created && created.stdout;
+    const match = String(createdText || '').match(/https?:\/\/github\.com\/[^\s)]+/i);
+    if (match) return match[0].replace(/[.,]$/, '').replace(/\/?$/, '.git');
+    const viewed = await ghResult(repoRoot, ['repo', 'view', name, '--json', 'url', '--jq', '.url'], deps);
+    const url = String(typeof viewed === 'string' ? viewed : viewed && viewed.stdout || '').trim();
+    if (!url) throw new Error('gh did not return a clone URL');
+    return `${url.replace(/\/+$/, '')}.git`;
+  };
+}
+
+function graphExitCode(command, result, graphArgs = {}) {
+  if (command === 'status' || result.dryRun === true) return 0;
+  if (command === 'flush' && graphArgs.push === false && result.status === 'pending' && !result.error) return 0;
+  return ['initialized', 'exists', 'synced', 'pushed', 'pending', 'staged'].includes(result.status)
+    && !['pending'].includes(result.status) ? 0 : 1;
+}
+
+async function runGraphCommand(graphArgs, deps = {}) {
+  const lifecycle = deps.lifecycle || graphLifecycle;
+  const repoRoot = path.resolve(graphArgs.repo || deps.cwd || process.cwd());
+  const output = deps.output || ((value) => console.log(JSON.stringify(value, null, 2)));
+  const lifecycleOptions = {
+    remote: graphArgs.remote,
+    private: graphArgs.private,
+    createRemote: graphArgs.createRemote,
+    yes: graphArgs.yes,
+    dryRun: graphArgs.dryRun,
+    latest: graphArgs.latest,
+    push: graphArgs.push,
+  };
+
+  if (graphArgs.command === 'init' && !graphArgs.yes && !graphArgs.dryRun) {
+    const plan = await lifecycle.init(repoRoot, { ...lifecycleOptions, dryRun: true });
+    const result = {
+      ...plan,
+      status: 'confirmation-required',
+      action: 'convert ordinary .graph into a graph submodule',
+      requires: '--yes',
+      exitCode: 1,
+    };
+    output(result);
+    return result;
+  }
+
+  if (graphArgs.command === 'init' && graphArgs.createRemote) {
+    lifecycleOptions.createRemoteCallback = githubCreateRemote(repoRoot, graphArgs, deps);
+  }
+  let result;
+  if (graphArgs.command === 'init') result = await lifecycle.init(repoRoot, lifecycleOptions);
+  else if (graphArgs.command === 'sync') result = await lifecycle.sync(repoRoot, lifecycleOptions);
+  else if (graphArgs.command === 'flush') result = await lifecycle.flush(repoRoot, lifecycleOptions);
+  else if (graphArgs.command === 'checkpoint') result = await lifecycle.checkpoint(repoRoot, lifecycleOptions);
+  else result = await lifecycle.status(repoRoot, lifecycleOptions);
+  if ((graphArgs.command === 'init' && result.status === 'initialized') || graphArgs.command === 'sync') {
+    checkGraphSubmoduleGit(repoRoot);
+  }
+  result = { ...result, exitCode: graphExitCode(graphArgs.command, result, graphArgs) };
+  output(result);
+  return result;
 }
 
 // Parse `--harness` as comma-separated AND/OR repeatable, e.g.
@@ -1462,7 +1656,10 @@ async function init(opts = {}) {
   section('7. Pre-push test guard');
   checkPrePushTestHook(cwd);
 
-  section('8. Warmup');
+  section('8. Graph submodule');
+  checkGraphSubmoduleGit(cwd);
+
+  section('9. Warmup');
   const warmupScript = path.join(INSTALL_DIR, 'scripts', 'warmup-embeddings.js');
   if (fs.existsSync(warmupScript)) {
     fix('Warming up embedding model (first search_knowledge will be instant)...');
@@ -1517,12 +1714,21 @@ const cmd = process.argv[2];
 if (require.main === module) {
   if (cmd === 'init') {
     init(parseInitArgs(process.argv)).catch((err) => { console.error(err); process.exit(1); });
+  } else if (cmd === 'graph') {
+    runGraphCommand(parseGraphArgs(process.argv)).then((result) => {
+      if (result.exitCode) process.exit(result.exitCode);
+    }).catch((err) => { console.error(err && err.message || err); process.exit(1); });
   } else if (cmd === 'onboard') {
     onboard(parseOnboardArgs(process.argv));
   } else {
     console.log('Usage:');
     console.log('  npx @zonoid/cli init [--harness claude|cursor|codex|opencode] [--service] [--graph-autocommit] [--workspace <name>]');
     console.log('  npx @zonoid/cli onboard [--repo <path>] [--force] [--skip-learn] [--model opus] [--max-keep 20]');
+    console.log('  npx @zonoid/cli graph init [--remote URL] [--create-remote] [--private|--public] [--yes] [--dry-run]');
+    console.log('  npx @zonoid/cli graph sync [--latest=false]');
+    console.log('  npx @zonoid/cli graph flush [--no-push]');
+    console.log('  npx @zonoid/cli graph checkpoint');
+    console.log('  npx @zonoid/cli graph status');
     console.log('');
     console.log('Commands:');
     console.log('  init      Wire daemon, hooks/plugins, MCP, skills, and dashboard for this workspace.');
@@ -1569,6 +1775,8 @@ if (require.main === module) {
     stripCodexOrchTable,
     // graph auto-commit hook helpers
     graphAutocommitHookScript,
+    graphSubmoduleSyncHookBlock,
+    checkGraphSubmoduleGit,
     mergeGraphAutocommitFlag,
     prePushTestCommand,
     prePushTestHookScript,
@@ -1576,5 +1784,7 @@ if (require.main === module) {
     parseOnboardArgs,
     dashboardUrl,
     renderClaudeInstructions,
+    parseGraphArgs,
+    runGraphCommand,
   };
 }

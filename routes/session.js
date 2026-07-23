@@ -211,7 +211,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes });
         overlayStore.annotateGuidance(T.ov, id, { predicted: true, predictedFrom: provenance, gateReason: r.reason });
         overlayStore.resolveGuidance(T.ov, id, answer);
-        T.save(); notifyChange();
+        T.save(); notifyChange(T.graph_repo || T.ws);
         send(res, 200, { ok: true, id, predicted: true, answer, appliedNote: provenance, reason: r.reason }); return true;
       }
       // ANSWERED-DOWNSTREAM (EL-2/D, fix Mode-1 over-escalation): the preference pass said ASK, but
@@ -227,7 +227,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes });
         overlayStore.annotateGuidance(T.ov, id, { predicted: true, predictedFrom: ds.provenance, gateReason: ds.reason });
         overlayStore.resolveGuidance(T.ov, id, ds.answer);
-        T.save(); notifyChange();
+        T.save(); notifyChange(T.graph_repo || T.ws);
         send(res, 200, { ok: true, id, predicted: true, answer: ds.answer, appliedNote: ds.provenance, reason: ds.reason }); return true;
       }
       // r.decision === 'ask' AND no downstream answer → fall through to the normal escalation below.
@@ -244,7 +244,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes });
         overlayStore.annotateGuidance(T.ov, id, { predicted: true, predictedFrom: { title: 'Opus CLI (automode)' }, gateReason: 'automode: escalated to Opus CLI for autonomous decision' });
         overlayStore.resolveGuidance(T.ov, id, opusAnswer);
-        T.save(); notifyChange();
+        T.save(); notifyChange(T.graph_repo || T.ws);
         send(res, 200, { ok: true, id, predicted: true, answer: opusAnswer }); return true;
       }
       // Opus failed (unavailable, timeout) → fall through to normal blocking escalation.
@@ -254,7 +254,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // Guidance is a dashboard visibility surface, not a scheduler gate. Keep the loop running so
     // unresolved decisions do not strand unrelated ready work; the pending item remains available
     // through /guidance for the user to answer when convenient.
-    T.save(); notifyChange();
+    T.save(); notifyChange(T.graph_repo || T.ws);
     send(res, 200, { ok: true, id }); return true;
   }
 
@@ -262,7 +262,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(null, u);  // honors ?workspace= via targetOverlay
     const settled = judge.resolveSettledClusterGuidance(T.ov);
     const ambiguous = judge.resolveAmbiguousClusterGuidance(T.ov);
-    if (settled.length || ambiguous.length) { T.save(); notifyChange(); }
+    if (settled.length || ambiguous.length) { T.save(); notifyChange(T.graph_repo || T.ws); }
     const userAttention = overlayStore.userAttentionGuidance(T.ov);
     const internal = overlayStore.internalGuidance(T.ov);
     send(res, 200, {
@@ -372,7 +372,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     const healed = followups.healOrphanHolds(T.ov);
     if (healed.length) result.healed_orphan_holds = healed;
-    T.save(); notifyChange();
+    T.save(); notifyChange(T.graph_repo || T.ws);
     result.pending = overlayStore.pendingGuidance(T.ov).length;
     send(res, 200, result); return true;
   }

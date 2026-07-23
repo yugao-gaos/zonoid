@@ -59,7 +59,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const target = g.tasks.find((x) => x.id === key);
       if (target) suggestions[key] = (await ctx.suggestForTask(g, target)).suggestions;
     }
-    ctx.notifyChange();
+    ctx.notifyChange(T.graph_repo || T.ws);
     send(res, 200, { ok: true, ...requestIdentity.responseFields({ workspace_id: T.workspace_id, graph_repo: T.ws }), adopted, suggestions }); return true;
   }
 

@@ -416,7 +416,7 @@ test('review merge drain leaves merge conflicts visible and does not promote', a
 // Test 2b: clean drains snapshot .graph changes to git
 // ---------------------------------------------------------------------------
 
-test('commitGraphSnapshot commits only .graph changes', () => {
+test('commitGraphSnapshot commits only .graph changes', async () => {
   const hd = freshModule();
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-git-'));
   try {
@@ -429,13 +429,13 @@ test('commitGraphSnapshot commits only .graph changes', () => {
     fs.writeFileSync(path.join(repo, 'src.txt'), 'user work\n');
     git(repo, ['add', 'src.txt']);
 
-    const result = hd.commitGraphSnapshot(repo, 'headless test drain');
+    const result = await hd.commitGraphSnapshot(repo, 'headless test drain');
     assert.equal(result.committed, true, 'graph changes should be committed');
     assert.equal(git(repo, ['log', '-1', '--pretty=%s']), 'chore: headless test drain graph snapshot');
     assert.equal(git(repo, ['status', '--porcelain', '--', '.graph']), '', '.graph should be clean after snapshot');
     assert.match(git(repo, ['status', '--porcelain', '--', 'src.txt']), /^M  src\.txt/, 'staged non-graph work must not be committed');
 
-    const noChanges = hd.commitGraphSnapshot(repo, 'headless test drain');
+    const noChanges = await hd.commitGraphSnapshot(repo, 'headless test drain');
     assert.equal(noChanges.committed, false, 'second snapshot has no graph changes');
     assert.equal(noChanges.reason, 'no_graph_changes');
   } finally {

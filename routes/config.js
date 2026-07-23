@@ -90,7 +90,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     if (!provider) {
       overlayStore.setBackendConfig(T.ov, {});
       T.save();
-      notifyChange();
+      notifyChange(T.graph_repo || T.ws);
       const active = llmBackend.getActiveBackend(T.ov);
       send(res, 200, { ok: true, active: { provider: active.providerId, model: active.model || null } });
       return true;
@@ -104,7 +104,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     }
     overlayStore.setBackendConfig(T.ov, { provider, model });
     T.save();
-    notifyChange();
+    notifyChange(T.graph_repo || T.ws);
     const active = llmBackend.getActiveBackend(T.ov);
     send(res, 200, { ok: true, active: { provider: active.providerId, model: active.model || null } });
     return true;
@@ -176,7 +176,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     if (!provider) {
       overlayStore.setEmbeddingConfig(T.ov, {});
       T.save();
-      notifyChange();
+      notifyChange(T.graph_repo || T.ws);
       send(res, 200, { ok: true, active: embed.normalizeEmbeddingConfig(T.ov) });
       return true;
     }
@@ -187,7 +187,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     }
     overlayStore.setEmbeddingConfig(T.ov, valid.config);
     T.save();
-    notifyChange();
+    notifyChange(T.graph_repo || T.ws);
     send(res, 200, { ok: true, active: embed.normalizeEmbeddingConfig(T.ov) });
     return true;
   }

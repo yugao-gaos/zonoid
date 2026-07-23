@@ -1,23 +1,20 @@
+#!/usr/bin/env node
 'use strict';
-const fs         = require('fs');
-const path       = require('path');
-const graphStore = require('../lib/graph-store');
 
-const repoPath = path.resolve(process.argv[2] || process.cwd());
+const path = require('path');
+const { parseGraphArgs, runGraphCommand } = require('../packages/cli/bin/zonoid.js');
 
-graphStore.open(path.join(repoPath, '.graph'));
-console.log('✓ .graph/nodes/ created');
+async function main() {
+  const args = process.argv.slice(2);
+  let repo = process.cwd();
+  if (args[0] && !args[0].startsWith('-')) repo = path.resolve(args.shift());
+  const parsed = parseGraphArgs(['node', 'zonoid', 'graph', 'init', ...args]);
+  parsed.repo = repo;
+  const result = await runGraphCommand(parsed);
+  process.exit(result.exitCode || 0);
+}
 
-graphStore.initGitAttributes(repoPath);
-console.log('✓ .gitattributes updated (merge=union)');
-
-fs.writeFileSync(path.join(repoPath, '.graph', '.gitkeep'), '');
-console.log('✓ .graph/.gitkeep created');
-
-console.log(`
-Next steps:
-  git add .graph/ .gitattributes
-  git commit -m "chore: init graph-store tracking"
-  git push
-
-Teammates: pull and the orchestrator will start writing task history here.`);
+main().catch((error) => {
+  console.error(error && error.message || error);
+  process.exit(1);
+});
