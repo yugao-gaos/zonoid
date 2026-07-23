@@ -1724,7 +1724,7 @@ if (require.main === module) {
     console.log('Usage:');
     console.log('  npx @zonoid/cli init [--harness claude|cursor|codex|opencode] [--service] [--graph-autocommit] [--workspace <name>]');
     console.log('  npx @zonoid/cli onboard [--repo <path>] [--force] [--skip-learn] [--model opus] [--max-keep 20]');
-    console.log('  npx @zonoid/cli graph init [--remote URL] [--create-remote] [--private|--public] [--yes] [--dry-run]');
+    console.log('  npx @zonoid/cli graph init [--remote GRAPH_REPO_URL] [--create-remote] [--private|--public] [--yes] [--dry-run]');
     console.log('  npx @zonoid/cli graph sync [--latest=false]');
     console.log('  npx @zonoid/cli graph flush [--no-push]');
     console.log('  npx @zonoid/cli graph checkpoint');

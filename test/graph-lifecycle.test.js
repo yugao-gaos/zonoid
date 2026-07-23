@@ -81,6 +81,7 @@ async function testDryRunAndExtraction() {
   const before = git(repo, ['rev-parse', 'HEAD']);
   const dry = await lifecycle.init(repo, { dryRun: true, remote });
   ok('dry run does not mutate', dry.dryRun === true && git(repo, ['rev-parse', 'HEAD']) === before && !gitlink(repo));
+  ok('explicit graph remote is used exactly', dry.remote === remote);
   let graph = await lifecycle.init(repo, { yes: true, remote });
   ok('ordinary graph converts to submodule', graph.status === 'initialized' && gitlink(repo));
   ok('extracted graph keeps first history commit', git(path.join(repo, '.graph'), ['log', '--pretty=%s']).includes('graph one'));
