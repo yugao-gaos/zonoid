@@ -471,6 +471,9 @@ async function loadState() {
       // Sync an already-configured submodule before opening overlay/graph state. Ordinary .graph
       // directories are a no-op, and this never creates remotes or converts legacy repositories.
       await graphLifecycle.sync(ws, { latest: true });
+      // Also retry any local graph commit left pending by an offline previous shutdown. The
+      // debouncer is per graph_repo, so registered repositories remain isolated.
+      graphAutoflush.notifyChange(ws);
       const ov = overlayFor(ws);
       migrateBlindEdges(ws, ov);
       graphStore.open(path.join(ws, '.graph'));
@@ -3020,8 +3023,11 @@ if (require.main === module) {
   // daemon in its own process group can deliver it for a GRACEFUL stop (exit 0) instead of falling
   // back to TerminateProcess, which hard-kills the daemon with exit 1 (misread as a mid-run crash).
   // process.on('SIGBREAK') is a harmless no-op on POSIX (the event never fires there).
-  ['SIGINT', 'SIGTERM', 'SIGBREAK'].forEach(sig => process.on(sig, () => {
-    graphAutoflush.stop();
+  let shuttingDown = false;
+  ['SIGINT', 'SIGTERM', 'SIGBREAK'].forEach(sig => process.on(sig, async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    await graphAutoflush.stop({ flush: true, timeoutMs: 3500 }).catch(() => {});
     removeDaemonPort();
     removeDaemonPidfile();
     try {

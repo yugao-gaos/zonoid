@@ -137,6 +137,26 @@ test('autoflush retains offline pending work and retries on its timer', async ()
   }
 });
 
+test('graceful autoflush stop drains pending repositories', async () => {
+  const calls = [];
+  const service = createGraphAutoflush({
+    delayMs: 1000,
+    graphRepo: { flush: async (repoRoot) => { calls.push(repoRoot); return { status: 'pushed' }; } },
+  });
+  const left = fs.mkdtempSync(path.join(os.tmpdir(), 'graph-autoflush-stop-left-'));
+  const right = fs.mkdtempSync(path.join(os.tmpdir(), 'graph-autoflush-stop-right-'));
+  try {
+    service.notifyChange(left);
+    service.notifyChange(right);
+    await service.stop({ flush: true, timeoutMs: 100 });
+    assert.deepEqual(new Set(calls), new Set([fs.realpathSync(left), fs.realpathSync(right)]));
+    assert.equal(service.status().stopped, true);
+  } finally {
+    fs.rmSync(left, { recursive: true, force: true });
+    fs.rmSync(right, { recursive: true, force: true });
+  }
+});
+
 test('ordinary graph snapshot keeps superproject fallback behavior', async () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'graph-daemon-ordinary-'));
   try {

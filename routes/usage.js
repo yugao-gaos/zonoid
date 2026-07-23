@@ -30,7 +30,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       parent_session: parentSession,
     });
     T.save();
-    notifyChange();
+    notifyChange(T.graph_repo || T.ws);
     send(res, 200, { ok: true, task_key: resolved.task_key, agent_id: resolved.agent_id, slice });
     return true;
   }

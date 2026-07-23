@@ -715,12 +715,19 @@ const VALID_HARNESSES = new Set(['claude', 'cursor', 'codex', 'opencode']);
  * .graph/*.jsonl files after each commit when ORCH_GRAPH_AUTOCOMMIT=1.
  */
 function graphAutocommitHookScript() {
+  const cli = fwdSlash(path.join(INSTALL_DIR, 'packages', 'cli', 'bin', 'zonoid.js'));
   return `#!/bin/sh
 [ "\${ORCH_GRAPH_AUTOCOMMIT}" = "1" ] || exit 0
 
 CHECKPOINT=".git/GRAPH_CHECKPOINT"
 REPO_ROOT=$(git rev-parse --show-toplevel)
 COMMIT_HASH=$(git rev-parse --short HEAD)
+
+# Submodule mode is deterministic and direct: commit/push inside the graph repository only.
+if git -C "$REPO_ROOT/.graph" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  "${fwdSlash(process.execPath)}" "${cli}" graph flush --repo "$REPO_ROOT" >/dev/null 2>&1 &
+  exit 0
+fi
 
 # On first run, catch all pending changes
 [ -f "$CHECKPOINT" ] || touch -t 197001010000 "$CHECKPOINT"
@@ -904,6 +911,51 @@ function checkGraphAutocommitHook(cwd, opts = {}) {
   }
 }
 
+function graphSubmoduleSyncHookBlock() {
+  const cli = fwdSlash(path.join(INSTALL_DIR, 'packages', 'cli', 'bin', 'zonoid.js'));
+  return `# >>> Zonoid graph submodule sync >>>
+if [ -f .gitmodules ] && git config -f .gitmodules --get-regexp '^submodule\\..*\\.path$' 2>/dev/null | grep -q '[[:space:]]\\.graph$'; then
+  "${fwdSlash(process.execPath)}" "${cli}" graph sync --repo "$(git rev-parse --show-toplevel)" >/dev/null 2>&1 || true
+fi
+# <<< Zonoid graph submodule sync <<<`;
+}
+
+function installManagedHookBlock(cwd, hookName, marker, block) {
+  const raw = runCapture('git', ['rev-parse', '--git-path', 'hooks'], { cwd });
+  const hooksDir = path.isAbsolute(raw) ? raw : path.resolve(cwd, raw);
+  const hookPath = path.join(hooksDir, hookName);
+  fs.mkdirSync(hooksDir, { recursive: true });
+  const existing = fs.existsSync(hookPath) ? fs.readFileSync(hookPath, 'utf8') : '#!/bin/sh\n';
+  if (existing.includes(marker)) return;
+  const prefix = existing.trim() ? existing.replace(/\s*$/, '\n\n') : '#!/bin/sh\n';
+  fs.writeFileSync(hookPath, `${prefix}${block}\n`);
+  try { fs.chmodSync(hookPath, 0o755); } catch (_) { /* harmless on Windows */ }
+}
+
+function checkGraphSubmoduleGit(cwd) {
+  const modules = path.join(cwd, '.gitmodules');
+  if (!fs.existsSync(modules)) return { configured: false, reason: 'no_gitmodules' };
+  let graphPath;
+  try { graphPath = runCapture('git', ['config', '-f', '.gitmodules', '--get', 'submodule..graph.path'], { cwd }); }
+  catch (_) {
+    try {
+      const entries = runCapture('git', ['config', '-f', '.gitmodules', '--get-regexp', '^submodule\\..*\\.path$'], { cwd });
+      graphPath = entries.split(/\r?\n/).find((line) => /\s\.graph$/.test(line));
+    } catch (_) { graphPath = null; }
+  }
+  if (!graphPath || !String(graphPath).includes('.graph')) return { configured: false, reason: 'no_graph_submodule' };
+
+  runChecked('git', ['config', 'push.recurseSubmodules', 'on-demand'], { cwd });
+  const update = spawnSync('git', ['submodule', 'update', '--init', '--recursive', '--', '.graph'], {
+    cwd, encoding: 'utf8', windowsHide: true,
+  });
+  if (update.status !== 0) warn(`graph submodule sync deferred: ${(update.stderr || update.stdout || '').trim()}`);
+  const block = graphSubmoduleSyncHookBlock();
+  installManagedHookBlock(cwd, 'post-merge', 'Zonoid graph submodule sync', block);
+  installManagedHookBlock(cwd, 'post-checkout', 'Zonoid graph submodule sync', block);
+  return { configured: true, synced: update.status === 0 };
+}
+
 function parseGraphArgs(argv) {
   const graphIndex = argv[0] === 'graph' ? 0 : argv[1] === 'graph' ? 1 : argv[2] === 'graph' ? 2 : -1;
   if (graphIndex < 0) throw new Error('expected: zonoid graph <init|sync|flush|checkpoint|status>');
@@ -986,8 +1038,9 @@ function githubCreateRemote(repoRoot, graphArgs, deps = {}) {
   };
 }
 
-function graphExitCode(command, result) {
+function graphExitCode(command, result, graphArgs = {}) {
   if (command === 'status' || result.dryRun === true) return 0;
+  if (command === 'flush' && graphArgs.push === false && result.status === 'pending' && !result.error) return 0;
   return ['initialized', 'exists', 'synced', 'pushed', 'pending', 'staged'].includes(result.status)
     && !['pending'].includes(result.status) ? 0 : 1;
 }
@@ -1028,7 +1081,10 @@ async function runGraphCommand(graphArgs, deps = {}) {
   else if (graphArgs.command === 'flush') result = await lifecycle.flush(repoRoot, lifecycleOptions);
   else if (graphArgs.command === 'checkpoint') result = await lifecycle.checkpoint(repoRoot, lifecycleOptions);
   else result = await lifecycle.status(repoRoot, lifecycleOptions);
-  result = { ...result, exitCode: graphExitCode(graphArgs.command, result) };
+  if ((graphArgs.command === 'init' && result.status === 'initialized') || graphArgs.command === 'sync') {
+    checkGraphSubmoduleGit(repoRoot);
+  }
+  result = { ...result, exitCode: graphExitCode(graphArgs.command, result, graphArgs) };
   output(result);
   return result;
 }
@@ -1592,7 +1648,10 @@ async function init(opts = {}) {
   section('7. Pre-push test guard');
   checkPrePushTestHook(cwd);
 
-  section('8. Warmup');
+  section('8. Graph submodule');
+  checkGraphSubmoduleGit(cwd);
+
+  section('9. Warmup');
   const warmupScript = path.join(INSTALL_DIR, 'scripts', 'warmup-embeddings.js');
   if (fs.existsSync(warmupScript)) {
     fix('Warming up embedding model (first search_knowledge will be instant)...');
@@ -1708,6 +1767,8 @@ if (require.main === module) {
     stripCodexOrchTable,
     // graph auto-commit hook helpers
     graphAutocommitHookScript,
+    graphSubmoduleSyncHookBlock,
+    checkGraphSubmoduleGit,
     mergeGraphAutocommitFlag,
     prePushTestCommand,
     prePushTestHookScript,

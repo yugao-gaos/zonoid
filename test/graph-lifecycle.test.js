@@ -163,6 +163,29 @@ async function testSyncFlushCheckpointStatus() {
   ok('sync initializes a missing submodule', synced.status === 'synced' && fs.existsSync(path.join(repo, '.graph', 'one.txt')));
 }
 
+async function testFeatureCheckpoint() {
+  const remote = bareRemote();
+  const repo = ordinaryRepo(remote);
+  await lifecycle.init(repo, { yes: true, remote });
+  git(repo, ['commit', '-m', 'attach graph submodule']);
+
+  const feature = temp('graph-lifecycle-feature-');
+  fs.rmdirSync(feature);
+  rawGit(['-C', repo, 'worktree', 'add', '-b', 'feature/checkpoint', feature]);
+  identity(feature);
+  const mainBefore = git(repo, ['rev-parse', 'HEAD']);
+  const featureBefore = git(feature, ['rev-parse', 'HEAD']);
+  write(path.join(repo, '.graph', 'feature-state.txt'), 'latest\n');
+
+  const result = await lifecycle.checkpointFeature(repo, feature);
+  const featureGraph = git(feature, ['rev-parse', 'HEAD:.graph']);
+  ok('feature checkpoint commits only the feature pointer', result.status === 'committed'
+    && git(repo, ['rev-parse', 'HEAD']) === mainBefore
+    && git(feature, ['rev-parse', 'HEAD']) !== featureBefore);
+  ok('feature checkpoint points at pushed graph head', featureGraph === result.graphCommit
+    && git(path.join(feature, '.graph'), ['show', `${featureGraph}:feature-state.txt`]) === 'latest');
+}
+
 async function main() {
   try {
     await testDerive();
@@ -171,6 +194,7 @@ async function main() {
     await testDirtyRefusal();
     await testReviewFixes();
     await testSyncFlushCheckpointStatus();
+    await testFeatureCheckpoint();
   } finally {
     for (const dir of cleanup.reverse()) fs.rmSync(dir, { recursive: true, force: true });
   }

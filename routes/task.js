@@ -51,7 +51,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (err) { send(res, 400, { ok: false, error: err }); return true; }
     }
     overlayStore.setMetricSpec(T.ov, b.key, b.spec || null);
-    T.save(); ctx.notifyChange();
+    T.save(); ctx.notifyChange(T.graph_repo || T.ws);
     send(res, 200, { ok: true, key: b.key, metric: T.ov.metrics[b.key] || null }); return true;
   }
 
@@ -67,7 +67,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (err) { send(res, 400, { ok: false, error: err }); return true; }
     }
     overlayStore.setBenchmark(T.ov, b.key, b.benchmark || null);
-    T.save(); ctx.notifyChange();
+    T.save(); ctx.notifyChange(T.graph_repo || T.ws);
     send(res, 200, { ok: true, key: b.key, benchmark: T.ov.benchmarks[b.key] || null }); return true;
   }
 
@@ -93,7 +93,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     catch (e) { send(res, 422, { ok: false, error: String(e.message || e) }); return true; }
     const record = { ...result, command: spec.measure_command, measured_at: new Date().toISOString() };
     overlayStore.setMeasurement(T.ov, b.key, b.baseline ? { baseline: record } : record);
-    T.save(); ctx.notifyChange();
+    T.save(); ctx.notifyChange(T.graph_repo || T.ws);
     send(res, 200, { ok: true, key: b.key, baseline: !!b.baseline, repo, measurement: T.ov.measurements[b.key] }); return true;
   }
 
@@ -248,7 +248,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     overlayStore.clearJudgingSince(T.ov, key);
     overlayStore.clearEagerJudgeLease(T.ov, key);
     T.ov.notes[key] = `root: ${b.reason || 'declared standalone root'}`.slice(0, 280);
-    T.save(); ctx.notifyChange();
+    T.save(); ctx.notifyChange(T.graph_repo || T.ws);
     send(res, 200, { ok: true, key, was_unwired: wasUnwired }); return true;
   }
 

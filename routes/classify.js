@@ -186,11 +186,11 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
   const autostartLine = maybeAutostartLoop({
     ctx, sessionId, autoMode, hasReady: !!(readyEntry && readyEntry.count > 0), workspace: T.ws,
   });
-  if (autostartLine) notifyChange();
+  if (autostartLine) notifyChange(T.graph_repo || T.ws);
 
-  judgeRoute.ensureHarnessJudgeDrainTask(T.ov, () => { T.save(); notifyChange(); });
-  labelRoute.ensureHarnessLabelDrainTask(T.ov, () => { T.save(); notifyChange(); });
-  ensureHarnessLearnerDrainTask(T.ov, () => { T.save(); notifyChange(); });
+  judgeRoute.ensureHarnessJudgeDrainTask(T.ov, () => { T.save(); notifyChange(T.graph_repo || T.ws); });
+  labelRoute.ensureHarnessLabelDrainTask(T.ov, () => { T.save(); notifyChange(T.graph_repo || T.ws); });
+  ensureHarnessLearnerDrainTask(T.ov, () => { T.save(); notifyChange(T.graph_repo || T.ws); });
 
   const loopActive = hasActiveSessionLoop(ctx.loops, sessionId);
 

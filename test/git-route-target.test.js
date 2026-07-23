@@ -6,6 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const test = require('node:test');
+const { execFileSync } = require('child_process');
 
 const sandbox = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-git-route-target-')));
 process.env.CLAUDE_PLUGIN_DATA = sandbox;
@@ -29,6 +30,10 @@ function makeCtx(workspace, ov, resolveRepoTarget) {
     buildGraph: () => ({ tasks: [{ id: 'task/target' }] }),
     nodeExistsInGraph: () => true,
   };
+}
+
+function gitCmd(repo, args) {
+  return execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8' }).trim();
 }
 
 async function callRoute(ctx, pathname, body) {
@@ -85,6 +90,45 @@ test('attempt and feature routes reject worktrees from another Git common-dir', 
   git.removeFeatureWorktree(repoA, 'task/feature');
   fs.rmSync(repoA, { recursive: true, force: true });
   fs.rmSync(repoB, { recursive: true, force: true });
+});
+
+test('feature merge checkpoints graph before merging and refuses checkpoint failure', async () => {
+  const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-git-route-checkpoint-')));
+  git.initRepo(repo);
+  const feature = git.createFeatureWorktree(repo, 'task/checkpoint');
+  fs.writeFileSync(path.join(feature.worktree, 'feature.txt'), 'feature\n');
+  gitCmd(feature.worktree, ['add', 'feature.txt']);
+  gitCmd(feature.worktree, ['commit', '-m', 'feature change']);
+  const identity = await repoTarget.identityFor(repo, git);
+  const target = { provenance: 'task', ...identity };
+  const ov = overlayStore.EMPTY();
+  overlayStore.setRepo(ov, 'task/checkpoint', repo);
+  overlayStore.setFeature(ov, 'task/checkpoint', { feature_worktree: feature.worktree, feature_branch: feature.branch });
+  const calls = [];
+  const ctx = makeCtx(repo, ov, async () => ({ ok: true, repo, target }));
+  ctx.graphLifecycle = { checkpointFeature: async (...args) => { calls.push(args); return { status: 'unchanged' }; } };
+  const merged = await callRoute(ctx, '/feature/merge', { key: 'task/checkpoint', workspace: repo });
+  assert.equal(merged.status, 200);
+  assert.equal(merged.body.merged, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][1], feature.worktree);
+
+  const second = git.createFeatureWorktree(repo, 'task/checkpoint-fail');
+  fs.writeFileSync(path.join(second.worktree, 'blocked.txt'), 'blocked\n');
+  gitCmd(second.worktree, ['add', 'blocked.txt']);
+  gitCmd(second.worktree, ['commit', '-m', 'blocked feature']);
+  overlayStore.setRepo(ov, 'task/checkpoint-fail', repo);
+  overlayStore.setFeature(ov, 'task/checkpoint-fail', { feature_worktree: second.worktree, feature_branch: second.branch });
+  ctx.graphLifecycle = { checkpointFeature: async () => { throw new Error('graph offline'); } };
+  const before = gitCmd(repo, ['rev-parse', 'HEAD']);
+  const refused = await callRoute(ctx, '/feature/merge', { key: 'task/checkpoint-fail', workspace: repo });
+  assert.equal(refused.status, 409);
+  assert.equal(refused.body.code, 'graph_checkpoint_failed');
+  assert.equal(gitCmd(repo, ['rev-parse', 'HEAD']), before);
+
+  git.removeFeatureWorktree(repo, 'task/checkpoint');
+  git.removeFeatureWorktree(repo, 'task/checkpoint-fail');
+  fs.rmSync(repo, { recursive: true, force: true });
 });
 
 test.after(() => {
