@@ -114,6 +114,9 @@ async function testSuccessPushAndSync() {
   writeFile(path.join(writer.graphDir, 'writer.txt'), 'writer change\n');
   const flushed = await graphRepo.flush(writer.repoRoot, { message: 'writer flush', push: true, retries: 1 });
   ok('submodule flush pushes successfully', flushed.status === 'pushed' && flushed.branch === 'main', JSON.stringify(flushed));
+  const attributes = fs.readFileSync(path.join(writer.graphDir, '.gitattributes'), 'utf8');
+  ok('graph repo installs collaborative merge policy', attributes.includes('*.jsonl merge=union')
+    && attributes.includes('checkpoint.json merge=ours'));
   ok('ensureRemoteCommit sees pushed commit', await graphRepo.ensureRemoteCommit(writer.repoRoot, flushed.commit) === true);
 
   const synced = await graphRepo.sync(follower.repoRoot, { latest: true });

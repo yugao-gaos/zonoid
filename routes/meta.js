@@ -86,7 +86,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
     }
     if (agentsDirty) saveAgents();
-    if (released) { overlayStore.save(ws, ovWs); notifyChange(); cache.agg.delete(ws); cache.aggAt.delete(ws); }
+    if (released) { overlayStore.save(ws, ovWs); notifyChange(ws); cache.agg.delete(ws); cache.aggAt.delete(ws); }
     send(res, 200, { ok: true, released }); return true;
   }
 
@@ -156,7 +156,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       graphStore.initGitAttributes(repoPath);
       ctx.git.ensureMergeDriver(repoPath);
     } catch { /* best effort warm — registration already persisted */ }
-    notifyChange();
+    notifyChange(repoPath);
     send(res, 200, { ok: true, workspace_id: workspaceId, graph_repo: repoPath, workspace: workspaceId, repo: repoPath }); return true;
   }
 

@@ -24,6 +24,8 @@ const {
   opencodeMcpEntry,
   stripCodexOrchTable,
   graphAutocommitHookScript,
+  graphSubmoduleSyncHookBlock,
+  checkGraphSubmoduleGit,
   mergeGraphAutocommitFlag,
   prePushTestCommand,
   prePushTestHookScript,
@@ -574,6 +576,12 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
     script.includes('-newer'));
   ok('graphAutocommitHookScript: git commit --no-verify present',
     script.includes('git commit --no-verify'));
+  ok('graphAutocommitHookScript: submodule mode uses direct graph flush',
+    script.includes('graph flush') && script.includes('git -C "$REPO_ROOT/.graph"'));
+  ok('graphAutocommitHookScript: worktree-safe checkpoint path',
+    script.includes('git rev-parse --git-path GRAPH_CHECKPOINT'));
+  ok('graphSubmoduleSyncHookBlock invokes graph sync',
+    graphSubmoduleSyncHookBlock().includes('graph sync'));
 }
 
 // ── mergeGraphAutocommitFlag ─────────────────────────────────────────────────
@@ -652,6 +660,23 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
       script.includes('npm run test:all'));
   } finally {
     fs.rmSync(base, { recursive: true, force: true });
+  }
+}
+
+{
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-graph-hooks-'));
+  try {
+    spawnSync('git', ['init'], { cwd: repo, stdio: 'ignore' });
+    fs.writeFileSync(path.join(repo, '.gitmodules'), '[submodule ".graph"]\n\tpath = .graph\n\turl = https://example.test/graph.git\n');
+    const configured = checkGraphSubmoduleGit(repo);
+    const recurse = spawnSync('git', ['config', '--get', 'push.recurseSubmodules'], { cwd: repo, encoding: 'utf8' }).stdout.trim();
+    const hooks = path.join(repo, '.git', 'hooks');
+    ok('graph submodule config enables on-demand push', configured.configured && recurse === 'on-demand');
+    ok('graph submodule config installs pull sync hooks',
+      fs.readFileSync(path.join(hooks, 'post-merge'), 'utf8').includes('Zonoid graph submodule sync')
+      && fs.readFileSync(path.join(hooks, 'post-checkout'), 'utf8').includes('Zonoid graph submodule sync'));
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
   }
 }
 

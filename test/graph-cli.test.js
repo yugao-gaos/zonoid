@@ -73,11 +73,12 @@ async function main() {
   ok('dispatch prints lifecycle result', explicitOutput.values[0].status === 'initialized' && explicitOutput.values[0].exitCode === 0);
 
   const commandCalls = [];
-  await runGraphCommand(parseGraphArgs(['node', 'zonoid', 'graph', 'flush', '--no-push']), {
+  const localFlush = await runGraphCommand(parseGraphArgs(['node', 'zonoid', 'graph', 'flush', '--no-push']), {
     lifecycle: { flush: async (_repo, options) => { commandCalls.push(options); return { status: 'pending' }; } },
     output: () => {},
   });
   ok('dispatch passes flush push=false', commandCalls[0] && commandCalls[0].push === false);
+  ok('flush --no-push treats local pending commit as success', localFlush.exitCode === 0);
 
   console.log('-----');
   console.log(`${pass} passed, ${fail} failed`);

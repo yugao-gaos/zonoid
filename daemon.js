@@ -49,6 +49,8 @@ const { runUsageReconcile } = require('./lib/usage-reconcile');
 const frontier = require('./lib/frontier');
 const analytics = require('./lib/analytics');
 const graphStore = require('./lib/graph-store');
+const graphLifecycle = require('./lib/graph-lifecycle');
+const { createGraphAutoflush } = require('./lib/graph-autoflush');
 const sessionBindings = require('./lib/session-bindings');
 const { taskEmbedText } = require('./lib/node-tags');
 const headlessDrain = require('./lib/headless-drain');
@@ -391,6 +393,7 @@ const analyticsFlush = analytics.makeFlusher(ANALYTICS_FILE, analyticsState);
 // SSE: push a "changed" event to connected dashboards on every mutation (live updates without polling).
 const sseClients = new Set();
 let requestHeadlessDrainWake = null;
+const graphAutoflush = createGraphAutoflush();
 // notifyChange(ws?): push a 'changed' event to connected dashboards on every mutation.
 // When `ws` is given, emits `data: changed:<ws>\n\n` so workspace-specific clients can skip
 // refetches that don't affect their selected workspace. Bare call (no ws) emits the legacy
@@ -399,6 +402,8 @@ function notifyChange(ws) {
   respCache.clear();
   const payload = ws ? `data: changed:${ws}\n\n` : 'data: changed\n\n';
   for (const r of sseClients) { try { r.write(payload); } catch { sseClients.delete(r); } }
+  const graphRepo = ws && typeof ws === 'object' ? (ws.graph_repo || ws.workspace) : ws;
+  if (graphRepo) graphAutoflush.notifyChange(graphRepo);
   if (requestHeadlessDrainWake) {
     try { requestHeadlessDrainWake('graph-change'); } catch { /* best effort */ }
   }
@@ -463,6 +468,12 @@ async function loadState() {
   await yieldLoop();
   for (const ws of registeredWorkspaces()) {
     try {
+      // Sync an already-configured submodule before opening overlay/graph state. Ordinary .graph
+      // directories are a no-op, and this never creates remotes or converts legacy repositories.
+      await graphLifecycle.sync(ws, { latest: true });
+      // Also retry any local graph commit left pending by an offline previous shutdown. The
+      // debouncer is per graph_repo, so registered repositories remain isolated.
+      graphAutoflush.notifyChange(ws);
       const ov = overlayFor(ws);
       migrateBlindEdges(ws, ov);
       graphStore.open(path.join(ws, '.graph'));
@@ -492,7 +503,7 @@ async function loadState() {
         const ack = followups.acknowledgeDaemonRestartOnBoot(ov, { bootedAt: BOOTED_AT });
         if (ack) {
           overlayStore.save(ws, ov); refreshOverlayStamp(ws);
-          notifyChange();
+          notifyChange(ws);
           process.stdout.write(`orchestrator: acknowledged restart bucket ${ack.key} (${ws})\n`);
         }
       } catch (e) { process.stderr.write(`restart-bucket boot ack failed (${ws}): ${e.message}\n`); }
@@ -920,7 +931,7 @@ function sweepStaleClaims(ws, ov) {
     }
   }
   if (agentsDirty) saveAgents();
-  if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
+  if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
   return dirty;
 }
 
@@ -938,7 +949,7 @@ function sweepStaleNativeClaims(ws, ov, tasks) {
     }
   }
   if (agentsDirty) saveAgents();
-  if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
+  if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
   return dirty;
 }
 // Optional auto-retry for failed tasks. Disabled by default: a failure may represent a hard
@@ -964,7 +975,7 @@ function sweepFailedTasks(ws, ov) {
     console.log(`[retry] task ${t.id} attempt ${retryCount} (prev agent: ${prevAgent || '?'})`);
     dirty = true;
   }
-  if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
+  if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
   return dirty;
 }
 // staleVerdictKeys (pure): which 'tested'/'ready' tasks are stale verdict-pending hand-offs — owner
@@ -1016,7 +1027,7 @@ function sweepStaleVerdicts(ws, ov) {
     console.log(`[self-heal] task ${key} (was ${status}) routed to same-node review — owner gone`);
     dirty = true;
   }
-  if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
+  if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
   return dirty;
 }
 
@@ -1062,7 +1073,7 @@ function sweepStaleGuidance(ws, ov) {
     console.log(`[self-heal] guidance ${g.id} ${reason} — auto-resolved`);
     dirty = true;
   }
-  if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
+  if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
   return dirty;
 }
 
@@ -1270,7 +1281,7 @@ function applyOptimize(prob, base, L, ws, ov) {
   });
   if (d.decision === 'iterate') {
     overlayStore.setOptimize(ov, P.id, { decision: 'iterate', verdicts: prob.verdicts.length });
-    overlayStore.save(ws, ov); notifyChange();
+    overlayStore.save(ws, ov); notifyChange(ws);
     return { ...base, action: 'optimize', problem: P.id, label: P.label, metric: P.metric.metric,
       reason: d.reason, prior_verdict: last, next_poll_seconds: L.config.minPoll };
   }
@@ -1284,12 +1295,12 @@ function applyOptimize(prob, base, L, ws, ov) {
     });
     overlayStore.setOptimize(ov, P.id, { closed: true, decision: 'stuck' });
     L.active = false;
-    overlayStore.save(ws, ov); notifyChange();
+    overlayStore.save(ws, ov); notifyChange(ws);
     return { ...base, action: 'await_user', reason: `optimize stuck on ${P.id}: ${d.reason}` };
   }
   // converged | budget — stop iterating THIS problem; let the normal drained logic decide next.
   overlayStore.setOptimize(ov, P.id, { closed: true, decision: d.decision });
-  overlayStore.save(ws, ov); notifyChange();
+  overlayStore.save(ws, ov); notifyChange(ws);
   return null; // fall through to drained→plan/stop
 }
 
@@ -1424,7 +1435,7 @@ function decideOne(L, ctx) {
       });
       // Auto-block so it doesn't re-fire guidance every tick before the user responds.
       overlayStore.setBlocked(ov, t.id, 'cost_gate: awaiting user approval');
-      overlayStore.save(ws, ov); notifyChange();
+      overlayStore.save(ws, ov); notifyChange(ws);
     }
     // Re-derive ready after auto-blocking; keep guidance-pending tasks out of the spawn pool.
     const nowBlocked = (t) => !!(ov.blocked && ov.blocked[t.id]);
@@ -2359,7 +2370,7 @@ function commitGraphProjectionEffects(ws, ovWs, effects) {
     effects.edgesDirty = true;
   }
   if (effects.tsDirty || effects.edgesDirty || effects.adoptDirty || effects.repairDirty) {
-    overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange();
+    overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange(ws);
   }
   // INGEST-AT-BIRTH (BUILD1): native tasks adopted THIS build pass through the unified ingestNode funnel
   // (embed → setTaskVec → autowire → markEagerJudge) so they carry a vec + candidate edges + an eager mark
@@ -2375,7 +2386,7 @@ function commitGraphProjectionEffects(ws, ovWs, effects) {
           // vestigial judgingSince anchor here purely to keep the overlay tidy (the gate no longer reads
           // it; readiness is derived solely from unverifiedEdgesForNode).
           if (r.seeded === 0) { overlayStore.clearJudgingSince(ovWs, n.key); }
-          if (r.vec || r.seeded === 0) { overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange(); }
+          if (r.vec || r.seeded === 0) { overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange(ws); }
         } catch { /* best-effort birth ingest */ }
       }
     })();
@@ -2849,7 +2860,7 @@ const ctx = {
   repoToWorkspace: registry.repoToWorkspace,
   workspaceForRepo: (repoPath) => registry.repoToWorkspace(registry.loadRegistry(WORKSPACES_FILE)).get(repoPath) || null,
   repoRoot: registry.repoRoot,
-  send, sendOp, readBody, notifyChange, buildGraph, readGraphSnapshot, targetOverlay, overlayFor, resolveRepo, resolveRepoTarget, nodeExistsInGraph, registeredWorkspaces,
+  send, sendOp, readBody, notifyChange, graphAutoflush, buildGraph, readGraphSnapshot, targetOverlay, overlayFor, resolveRepo, resolveRepoTarget, nodeExistsInGraph, registeredWorkspaces,
   validateMetricSpec, validateBenchmark,
   overlayStore, harness: claudeHarness, harnessRegistry, filedrop, writeTaskStatus, readNativeTask, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
   cache, loops, saveLoops, saveAgents,
@@ -2947,7 +2958,7 @@ function isPrimaryCheckout(root) {
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
 module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleSnapshotClaimKeys, releaseSnapshotClaim, staleNativeClaimKeys, releaseNativeClaim, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings, worktreeVouchesLive, depSatisfied, vouchedLive, STALE_MINUTES_DEFAULT,
-  isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL, sseClients, nodeExistsInGraph,
+  isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, graphAutoflush, RESP_TTL, sseClients, nodeExistsInGraph,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
   decideOne, decideAll, ensureManagedGraphLoops, buildGraph, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __readinessDetailForTest: readinessDetail, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
 
@@ -3012,7 +3023,11 @@ if (require.main === module) {
   // daemon in its own process group can deliver it for a GRACEFUL stop (exit 0) instead of falling
   // back to TerminateProcess, which hard-kills the daemon with exit 1 (misread as a mid-run crash).
   // process.on('SIGBREAK') is a harmless no-op on POSIX (the event never fires there).
-  ['SIGINT', 'SIGTERM', 'SIGBREAK'].forEach(sig => process.on(sig, () => {
+  let shuttingDown = false;
+  ['SIGINT', 'SIGTERM', 'SIGBREAK'].forEach(sig => process.on(sig, async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    await graphAutoflush.stop({ flush: true, timeoutMs: 3500 }).catch(() => {});
     removeDaemonPort();
     removeDaemonPidfile();
     try {

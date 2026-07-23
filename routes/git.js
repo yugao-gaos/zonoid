@@ -3,6 +3,7 @@ const overlayStore = require('../lib/overlay');
 const git = require('../lib/git');
 const repoTarget = require('../lib/repo-target');
 const requestIdentity = require('../lib/request-identity');
+const graphLifecycleDefault = require('../lib/graph-lifecycle');
 
 async function resolveTarget(ctx, key, explicit, T) {
   if (typeof ctx.resolveRepoTarget === 'function') return ctx.resolveRepoTarget(key, explicit, T.ov, T.ws);
@@ -33,6 +34,7 @@ async function verifyStoredWorktree(target, worktree, gitImpl) {
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, notifyChange, targetOverlay, now, buildGraph, nodeExistsInGraph } = ctx;
+  const graphLifecycle = ctx.graphLifecycle || graphLifecycleDefault;
 
   if (p === '/git/repo' && m === 'POST') {
     const b = await readBody(req);
@@ -51,7 +53,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       target = resolved.target;
     }
     overlayStore.setRepo(T.ov, b.key, repo);
-    T.save(); notifyChange();
+    T.save(); notifyChange(T.graph_repo || T.ws);
     send(res, 200, { ok: true, key: b.key, ...identityFields(T, repo), repo: T.ov.repos[b.key] || null, target }); return true;
   }
 
@@ -64,7 +66,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const r = await git.initRepoAsync(repo);
     const identity = await repoTarget.identityFor(repo, git);
     const target = { ...resolved.target, ...identity };
-    notifyChange();
+    notifyChange(T.graph_repo || T.ws);
     send(res, 200, { ...r, ...identityFields(T, repo), repo, target }); return true;
   }
 
@@ -90,7 +92,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     if (info && info.error) { send(res, 409, { ...info, ok: false, repo, target: resolved.target }); return true; }
     overlayStore.setGit(T.ov, b.key, { ...info, target: resolved.target });
-    T.save(); notifyChange();
+    T.save(); notifyChange(T.graph_repo || T.ws);
     send(res, 200, { ...info, ...identityFields(T, repo), repo, target: resolved.target }); return true;
   }
 
@@ -110,7 +112,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     if (repo) await git.removeWorktreeAsync(repo, b.key);
     delete T.ov.git[b.key];
-    T.save(); notifyChange();
+    T.save(); notifyChange(T.graph_repo || T.ws);
     send(res, 200, { ok: true, ...identityFields(T, repo) }); return true;
   }
 
@@ -147,7 +149,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       overlayStore.setReviewLifecycle(T.ov, b.key, { merge_state: 'failed' });
       T.save();
     }
-    notifyChange();
+    notifyChange(T.graph_repo || T.ws);
     send(res, 200, { ...result, ...identityFields(T, repo), repo, target: resolved.target }); return true;
   }
 
@@ -169,7 +171,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     if (info && info.error) { send(res, 409, { ...info, ok: false, repo, target: resolved.target }); return true; }
     overlayStore.setFeature(T.ov, b.key, { feature_branch: info.branch, feature_worktree: info.worktree, base: b.base || 'main', target: resolved.target });
-    T.save(); notifyChange();
+    T.save(); notifyChange(T.graph_repo || T.ws);
     send(res, 200, { ...info, ...identityFields(T, repo), repo, target: resolved.target }); return true;
   }
 
@@ -189,13 +191,28 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         send(res, 409, { ok: false, code: 'feature_worktree_target_mismatch', repo, worktree: feature.feature_worktree, error: verification.error, verification }); return true;
       }
     }
+    let graphCheckpoint;
+    try {
+      graphCheckpoint = await graphLifecycle.checkpointFeature(repo, feature.feature_worktree, {
+        pointerMessage: `chore: checkpoint graph state for ${b.key}`,
+      });
+    } catch (error) {
+      send(res, 409, {
+        ok: false,
+        code: 'graph_checkpoint_failed',
+        error: error && error.message ? error.message : String(error),
+        repo,
+        target: resolved.target,
+      });
+      return true;
+    }
     const result = await git.mergeFeatureAsync(repo, b.key, { message: b.message });
     if (result.merged) {
       overlayStore.setFeature(T.ov, b.key, { merged: true, merge_sha: result.head || null, merged_at: now() });
       T.save();
     }
-    notifyChange();
-    send(res, 200, { ...result, ...identityFields(T, repo), repo, target: resolved.target }); return true;
+    notifyChange(T.graph_repo || T.ws);
+    send(res, 200, { ...result, graph_checkpoint: graphCheckpoint, ...identityFields(T, repo), repo, target: resolved.target }); return true;
   }
 
   if (p === '/feature/remove' && m === 'POST') {
@@ -214,7 +231,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     if (repo) await git.removeFeatureWorktreeAsync(repo, b.key);
     if (T.ov.features) delete T.ov.features[b.key];
-    T.save(); notifyChange();
+    T.save(); notifyChange(T.graph_repo || T.ws);
     send(res, 200, { ok: true, ...identityFields(T, repo) }); return true;
   }
 
