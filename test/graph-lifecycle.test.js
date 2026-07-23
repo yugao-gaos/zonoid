@@ -159,6 +159,10 @@ async function testSyncFlushCheckpointStatus() {
   ok('init result contains graph head', converted.graphHead && converted.remote === remote);
 
   git(repo, ['commit', '-m', 'checkpoint superproject']);
+  write(path.join(graphDir, 'after-checkpoint.txt'), 'new live state\n');
+  await lifecycle.flush(repo, { push: true, message: 'advance graph after checkpoint' });
+  const dirtyStatus = await lifecycle.status(repo);
+  ok('status reports an unstaged graph advance', dirtyStatus.gitlink.staged === false && dirtyStatus.gitlink.dirty === true);
   fs.rmSync(path.join(repo, '.graph'), { recursive: true, force: true });
   const synced = await lifecycle.sync(repo, { latest: false });
   ok('sync initializes a missing submodule', synced.status === 'synced' && fs.existsSync(path.join(repo, '.graph', 'one.txt')));
