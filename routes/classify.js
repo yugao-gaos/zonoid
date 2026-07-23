@@ -164,7 +164,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
 
   const heuristic = classifyHeuristic(prompt);
   const T = targetOverlay(b, u);
-  if (sessionId && T.ws) bindSession(sessionId, { workspace: T.ws, harness: b.harness });
+  if (!orchGateOff && sessionId && T.ws) bindSession(sessionId, { workspace: T.ws, harness: b.harness });
 
   state.routes.push({
     ts: now(),

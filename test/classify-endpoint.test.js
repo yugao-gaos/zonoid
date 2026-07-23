@@ -102,16 +102,17 @@ async function waitForPing(ms = 12000) {
     ok('repeated classify before backoff does not repeat decision', decisionClassify.body.decision_nudges.length === 0);
 
     const OFF_SID = 'decision-orch-off-session';
-    await post('/workspace', { path: WS, session_id: OFF_SID, force: true });
     await post('/guidance', {
       workspace: WS,
       session_id: OFF_SID,
       question: 'This decision must not appear while orchestration is off',
       highImpact: true,
     });
+    const sessionsBeforeOffClassify = (await get('/ping')).body.sessions;
     const offClassify = await post('/classify', { workspace: WS, session_id: OFF_SID, prompt: 'hello opted out', orch_gate_off: true });
     ok('orch_gate_off suppresses decision delivery', offClassify.body.decision_nudges.length === 0
       && !String(offClassify.body.additional_context).includes('[Subconscious decision]'));
+    ok('orch_gate_off does not bind the session', (await get('/ping')).body.sessions === sessionsBeforeOffClassify);
 
     // ── ready-flag cache unit checks ────────────────────────────────────────
     _resetForTests();
