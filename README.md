@@ -162,6 +162,32 @@ candidates are injected as knowledge notes into the graph. Future sessions inher
 as Tier-1 context via `search_knowledge` and `suggest_links`, so the agent starts each run with
 the accumulated findings of every prior session rather than a blank slate.
 
+## Orch auto (full autonomy)
+
+`orch auto` is a one-switch, per-workspace toggle that lets the daemon advance the task graph
+with zero interactive sessions. It atomically sets three workspace config flags (and `orch auto
+off` clears all three):
+
+- `self_plan` — the daemon planner may propose next steps on a drained DAG.
+- `automode` — escalations (`request_guidance`) are auto-answered by an LLM subprocess, judge
+  APPROVE verdicts auto-merge, and the review-verdict drain becomes eligible.
+- `headless_driver` — the daemon executes spawn/plan/optimize decisions and review verdicts
+  headlessly instead of waiting for an interactive driver.
+
+Three surfaces, one code path (`POST /config { auto: true|false }` expands to the three flags
+server-side):
+
+```
+say "orch auto" / "orch auto off" in a conversation      # classify hook
+Dashboard → Settings → "Orch Auto (full autonomy)"       # next to Full Automode
+curl -XPOST localhost:8787/config -d '{"workspace":"<path>","auto":true}'
+```
+
+The flags live in each workspace's overlay config, so every registered workspace toggles
+independently — nothing is daemon-global. Each flag also remains individually settable. Budget
+caps still govern autonomous work: managed loops run under the loop-autostart config and
+headless drains under the drain governor's per-boot token/concurrency budget.
+
 ## Dashboard
 
 ```

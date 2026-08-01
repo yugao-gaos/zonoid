@@ -220,3 +220,31 @@ Set via dashboard Settings → "Full Automode" toggle, or `POST /config { automo
 { "action": "merge", "task_key": "<impl_task_key>", "reason": "APPROVE: <one-line rationale>" }
 ```
 On KICK BACK: call `set_status(impl_task_key, "failed")` — no merge verdict.
+
+## Orch auto (one-switch full autonomy)
+
+`orch auto` is the atomic per-workspace switch that turns on everything the daemon needs to
+advance the task graph with ZERO interactive sessions. It sets three overlay config flags as a
+group; `orch auto off` clears all three:
+
+| flag | effect |
+| --- | --- |
+| `self_plan` | daemon planner may run `plan` on a drained DAG (headless planner drain) |
+| `automode` | Opus CLI auto-answers `request_guidance` escalations + auto-merge on judge APPROVE + review-verdict drain eligibility |
+| `headless_driver` | daemon executes spawn/plan/optimize decisions and review verdicts headlessly (lib/headless-spawn.js + review-verdict drain) |
+
+Surfaces (all funnel through ONE server-side code path — `POST /config { auto: true|false }`,
+which expands to the three flags):
+
+- **Conversation:** say `orch auto` / `orch auto off` (handled by the classify hook, same
+  pattern as `orch on`/`orch off`; the workspace is resolved from the conversation's cwd).
+- **Dashboard:** Settings → "Orch Auto (full autonomy)" toggle, next to Full Automode. A mixed
+  state (only some flags on) shows unchecked with a "partial" hint.
+- **HTTP:** `POST /config { workspace, auto: true }`. The response reports the resulting config.
+
+**Scope is per-workspace:** the flags live in each workspace's overlay config — every registered
+workspace toggles independently; nothing is daemon-global. The three flags also remain
+individually settable (`POST /config { self_plan: true }` etc.); `auto` just writes them as a
+group. Budget caps still apply under full autonomy: the managed graph loop runs under
+loop-autostart `AUTOSTART_CONFIG` (token budget / iterations / batch / concurrency) and headless
+drains under the headless-drain governor (per-boot token budget / drain concurrency).
