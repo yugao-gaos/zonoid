@@ -137,12 +137,17 @@ try {
   git(noRemote, ['config', 'user.email', 'local@example.test']);
   git(noRemote, ['commit', '--allow-empty', '-m', 'init']);
   const cr = claims.acquire(noRemote, task, { agentId: 'local' });
-  ok('direct git claim acquire reports missing origin', cr.ok === false && /origin/.test(cr.error), JSON.stringify(cr));
+  ok('remoteless acquire skips claim push cleanly', cr.ok === true && cr.pushed === false && cr.skipped === 'no_remote', JSON.stringify(cr));
+  ok('remoteless acquire writes no claim file', !fs.existsSync(path.join(noRemote, claims.claimRelPath(task))));
+  const crStrict = claims.acquire(noRemote, task, { agentId: 'local', strict: true });
+  ok('strict remoteless acquire still fails closed', crStrict.ok === false && /origin/.test(crStrict.error), JSON.stringify(crStrict));
+  ok('hasRemote false for remoteless repo (cached)', claims.hasRemote(noRemote) === false && claims.hasRemote(noRemote) === false);
+  ok('hasRemote true when a remote exists', claims.hasRemote(a) === true);
   ok('default mode skips acquisition without origin', claims.shouldAcquire(noRemote, { config: {} }) === false);
   ok('explicit git mode attempts advisory acquisition without origin', claims.shouldAcquire(noRemote, { config: { claim_mode: 'git' } }) === true && claims.claimModeStrict({ config: { claim_mode: 'git' } }) === false);
   ok('strict git mode requires acquisition without origin', claims.shouldAcquire(noRemote, { config: { claim_mode: 'git-strict' } }) === true && claims.claimModeStrict({ config: { claim_mode: 'git-strict' } }) === true);
   const frAdvisory = claims.finalize(noRemote, task, { agentId: 'local' });
-  ok('advisory finalize skips without origin', frAdvisory.ok === true && frAdvisory.skipped === true, JSON.stringify(frAdvisory));
+  ok('advisory finalize skips remoteless repo cleanly', frAdvisory.ok === true && frAdvisory.pushed === false && frAdvisory.skipped === 'no_remote', JSON.stringify(frAdvisory));
   const frStrict = claims.finalize(noRemote, task, { agentId: 'local', strict: true });
   ok('strict finalize fails closed without origin', frStrict.ok === false && /origin/.test(frStrict.error), JSON.stringify(frStrict));
 } finally {

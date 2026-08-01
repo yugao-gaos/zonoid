@@ -3196,6 +3196,30 @@ if (require.main === module) {
   // cross-workspace worker.
   setInterval(() => { try { sweepStaleAgents(); } catch { /* best effort */ } }, 60000).unref();
 
+  // Periodic native-task rescan (watcher fallback): fs.watch on ~/.claude/tasks can silently miss
+  // newly created files on Windows (observed live: a fresh <session>/5.json was never adopted),
+  // and adopt-on-first-sight only runs inside buildGraph. Compare a cheap readdir-only signature
+  // of each registered workspace's session task dirs; on change, bust the aggregate cache and run
+  // one buildGraph so adoption lands within ~60s even when the watcher never fires. No JSON is
+  // parsed unless the dirlist actually changed. First pass only baselines (boot-time files are
+  // adopted by the first routed buildGraph as usual).
+  const nativeTaskSigs = new Map();
+  setInterval(() => {
+    try {
+      const sigOf = claudeHarness.tasks.sessionTaskSignature;
+      if (typeof sigOf !== 'function') return;
+      for (const ws of registeredWorkspaces()) {
+        const sig = sigOf(ws);
+        const prev = nativeTaskSigs.get(ws);
+        nativeTaskSigs.set(ws, sig);
+        if (prev === undefined || prev === sig) continue;
+        invalidateAggregate(ws);
+        respCache.clear();
+        buildGraph(ws);
+      }
+    } catch { /* best effort */ }
+  }, 60000).unref();
+
   // Periodic scheduled-wakeup registry reaper (PART 1, always on, safe): reconcile the
   // .graph/scheduled-wakeups.json registry against process reality every 60s — prune entries
   // whose sleeper has died (fired+exited), and kill+prune any sleeper that is alive but long
