@@ -21,6 +21,35 @@ const k = require('./lib/hookkit');
     k.emitContext('UserPromptSubmit', '[Orchestrator] Disabled for this conversation.');
   }
 
+  // --- 'orch auto' / 'orch auto off': atomic per-workspace full-autonomy toggle ---------------
+  // Expands server-side (POST /config { auto }) to self_plan + automode + headless_driver so the
+  // hook, the dashboard toggle, and curl all share one code path. Match the 'off' form first —
+  // the bare 'orch auto' pattern would otherwise also match 'orch auto off'.
+  const autoOff = /(^|\s)@?orch\s+auto\s+off(?=\s|$|[^a-z0-9])/.test(low);
+  const autoOn = !autoOff && /(^|\s)@?orch\s+auto(?=\s|$|[^a-z0-9])/.test(low);
+  if (autoOn || autoOff) {
+    // Lazy requires: only loaded when the toggle actually fires, keeping the per-prompt hot path
+    // free of the heavier lib modules.
+    const { repoRoot } = require('../lib/workspace-registry');
+    const ws = repoRoot(input.cwd || process.cwd());
+    if (!ws) k.emitContext('UserPromptSubmit', '[Orchestrator] orch auto: cwd is not inside a repo — no workspace resolved, nothing toggled.');
+    const respText = await k.post('/config', { workspace: ws, auto: autoOn }, 2000);
+    let resp = null;
+    try { resp = JSON.parse(respText); } catch { resp = null; }
+    const cfg = resp && resp.config;
+    if (!cfg) k.emitContext('UserPromptSubmit', `[Orchestrator] orch auto ${autoOn ? 'on' : 'off'} FAILED — daemon unreachable, config unchanged.`);
+    const flags = `self_plan=${!!cfg.self_plan} automode=${!!cfg.automode} headless_driver=${!!cfg.headless_driver}`;
+    if (autoOn) {
+      const { AUTOSTART_CONFIG } = require('../lib/loop-autostart');
+      const { HEADLESS_DRAIN_CONFIG } = require('../lib/headless-drain');
+      k.emitContext('UserPromptSubmit',
+        `[Orchestrator] Full autonomy ON for ${resp.workspace || ws} (${flags}). The daemon now plans on a drained DAG (self_plan), executes spawn/plan/optimize + review verdicts headlessly (headless_driver), and auto-answers escalations + auto-merges approved attempts (automode). ` +
+        `Budget caps: managed loop ${AUTOSTART_CONFIG.tokenBudget} tokens / ${AUTOSTART_CONFIG.maxIterations} iterations / batch ${AUTOSTART_CONFIG.batch} / ${AUTOSTART_CONFIG.maxConcurrency} concurrent workers; headless drains ${HEADLESS_DRAIN_CONFIG.tokenBudget} tokens per daemon boot / ${HEADLESS_DRAIN_CONFIG.maxConcurrency} concurrent drain children. Disable with "orch auto off".`);
+    }
+    k.emitContext('UserPromptSubmit',
+      `[Orchestrator] Full autonomy OFF for ${resp.workspace || ws} (${flags}). Headless spawn/plan/review drains stand down; interactive dispatch resumes. Re-enable with "orch auto".`);
+  }
+
   if (k.isOff(sid)) k.allow();          // opted out -> no classify
 
   const body = { prompt };

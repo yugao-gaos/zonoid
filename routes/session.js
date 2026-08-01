@@ -140,6 +140,20 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (b.self_plan != null) T.ov.config.self_plan = !!b.self_plan;
     if (b.cost_gate != null) T.ov.config.cost_gate = !!b.cost_gate;
     if (b.automode != null) T.ov.config.automode = !!b.automode;
+    if (b.headless_driver != null) T.ov.config.headless_driver = !!b.headless_driver;
+    // Atomic full-autonomy toggle ("orch auto"): { auto:true|false } expands server-side to the
+    // three autonomy flags (self_plan + automode + headless_driver) so every surface — the
+    // conversation hook, the dashboard toggle, plain curl — stays atomic through this one code
+    // path. The individual flags above remain independently settable; auto simply overwrites them
+    // as a group. Applied AFTER the individual fields so { auto:true, automode:false } cannot
+    // produce a half-enabled state.
+    if (b.auto != null) {
+      if (!T.ws) { send(res, 400, { ok: false, error: 'auto requires a resolved workspace — pass workspace' }); return true; }
+      const on = !!b.auto;
+      T.ov.config.self_plan = on;
+      T.ov.config.automode = on;
+      T.ov.config.headless_driver = on;
+    }
     if (b.claim_mode != null) {
       const mode = gitClaims.normalizeClaimMode(b.claim_mode);
       if (!mode.valid) { send(res, 400, { ok: false, error: 'claim_mode must be "git", "git-strict", "strict", "local", or empty' }); return true; }
@@ -163,7 +177,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       T.ov.config.optimize = cur;
     }
     T.save();
-    send(res, 200, { ok: true, config: T.ov.config }); return true;
+    // On enabling headless autonomy, ensure the managed graph loop exists promptly instead of
+    // waiting for the daemon's 60s ensure interval. Best-effort and optional: unit tests drive
+    // this route with a fake ctx that has no loop machinery.
+    if ((b.auto === true || b.headless_driver === true) && typeof ctx.ensureManagedGraphLoops === 'function') {
+      try { ctx.ensureManagedGraphLoops(); } catch { /* advisory */ }
+    }
+    send(res, 200, { ok: true, workspace: T.ws, config: T.ov.config }); return true;
   }
 
   if (p === '/guidance' && m === 'POST') {
