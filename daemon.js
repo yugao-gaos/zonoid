@@ -3155,9 +3155,12 @@ if (require.main === module) {
   requestHeadlessDrainWake = headlessDrainRunner.requestWake;
 
   // Headless SPAWN executor (full-autonomy path): when a managed graph loop decides action:'spawn'
-  // and no interactive session is driving, the daemon dispatches the workers itself. Per-workspace
-  // opt-in via overlay config `headless_driver:true` (default off). Rides the SAME pump scheduling
-  // (a second runner instance) and the SAME headless-drain governor — see lib/headless-spawn.js.
+  // and no interactive session is driving, the daemon dispatches the workers itself. The same pass
+  // also executes drained-DAG 'plan'/'optimize' decisions by spawning a headless PLANNER child
+  // ('plan' additionally requires ov.config.self_plan) — one decideAll consumer for both, so
+  // decisions are never double-leased. Per-workspace opt-in via overlay config
+  // `headless_driver:true` (default off). Rides the SAME pump scheduling (a second runner
+  // instance) and the SAME headless-drain governor — see lib/headless-spawn.js.
   // decide mirrors the /next-action route exactly: decideAll() then saveLoops().
   const headlessSpawnExecutor = headlessSpawn.createSpawnExecutor({
     loops,
