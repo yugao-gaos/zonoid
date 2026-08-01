@@ -596,6 +596,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
             sessionId: claimSid,
             branch: gitInfo && gitInfo.branch,
             leaseMinutes: gitClaims.claimLeaseMinutes(T.ov),
+            strict: gitClaimMode.strict,
           });
         } catch (e) {
           gitClaim = { ok: false, error: 'git claim acquire failed', detail: String(e.stderr || e.message || e).slice(0, 500) };

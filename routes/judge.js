@@ -377,7 +377,20 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
 	        const reason = String(v.taskDecision.reason || 'task decision verdict');
 	        const now = new Date().toISOString();
 	        if (!T.ov.judgedTaskDecisions) T.ov.judgedTaskDecisions = {};
-	        if (action === 'approve') {
+	        // IN-FLIGHT GUARD: prepare stamps review_state 'requested' at dispatch, so a decision
+	        // item can surface while the worker is still running (observed live: the drain reviewed
+	        // an in-flight task, saw an empty diff, and applied a terminal cancel). Refuse terminal
+	        // verdicts while the task is live (in_progress worker or ready/claimable) and do NOT
+	        // stamp the decision — the stamp permanently retires the item (judgedTaskDecisions),
+	        // so an unstamped skip lets it re-surface once the task reaches 'tested'.
+	        const liveStatus = (byId.get(taskKey) || {}).status || null;
+	        const terminalAction = action === 'approve' || action === 'kick_back' || action === 'reject'
+	          || action === 'discard' || action === 'cancel';
+	        const skippedInFlight = terminalAction && (liveStatus === 'in_progress' || liveStatus === 'ready');
+	        if (skippedInFlight) {
+	          applied.skippedInFlight = (applied.skippedInFlight || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: `task:${action}_skipped_in_flight`, from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'approve') {
 	          overlayStore.setReviewLifecycle(T.ov, taskKey, {
 	            review_state: 'approved',
 	            review_verdict: 'APPROVE',
@@ -440,7 +453,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
 	          applied.escalated = (applied.escalated || 0) + 1;
 	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:escalate', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
 	        }
-	        judge.stampTaskDecision(T.ov.judgedTaskDecisions, taskKey, sourceAction);
+	        if (!skippedInFlight) judge.stampTaskDecision(T.ov.judgedTaskDecisions, taskKey, sourceAction);
 	      }
 	      if (v && v.followupTriage && v.followupTriage.task_key && v.followupTriage.action) {
 	        const taskKey = String(v.followupTriage.task_key);
