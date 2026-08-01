@@ -131,6 +131,25 @@ test('feature merge checkpoints graph before merging and refuses checkpoint fail
   fs.rmSync(repo, { recursive: true, force: true });
 });
 
+test('feature merge with no registry record refuses cleanly without touching checkpoint', async () => {
+  const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-git-route-nofeature-')));
+  git.initRepo(repo);
+  const identity = await repoTarget.identityFor(repo, git);
+  const target = { provenance: 'task', ...identity };
+  const ov = overlayStore.EMPTY();
+  const calls = [];
+  const ctx = makeCtx(repo, ov, async () => ({ ok: true, repo, target }));
+  ctx.graphLifecycle = { checkpointFeature: async (...args) => { calls.push(args); return { status: 'unchanged' }; } };
+
+  const res = await callRoute(ctx, '/feature/merge', { key: 'task/missing', workspace: repo });
+  assert.equal(res.status, 409);
+  assert.equal(res.body.code, 'unknown_feature');
+  assert.match(res.body.error, /no feature record for task\/missing/);
+  assert.equal(calls.length, 0, 'checkpoint must not run without a feature record');
+
+  fs.rmSync(repo, { recursive: true, force: true });
+});
+
 test.after(() => {
   fs.rmSync(sandbox, { recursive: true, force: true });
 });
