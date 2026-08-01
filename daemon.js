@@ -54,6 +54,7 @@ const { createGraphAutoflush } = require('./lib/graph-autoflush');
 const sessionBindings = require('./lib/session-bindings');
 const { taskEmbedText } = require('./lib/node-tags');
 const headlessDrain = require('./lib/headless-drain');
+const headlessSpawn = require('./lib/headless-spawn');
 const { createHeadlessDrainRunner } = require('./lib/headless-drain-runner');
 const registry = require('./lib/workspace-registry');
 const repoTarget = require('./lib/repo-target');
@@ -393,6 +394,7 @@ const analyticsFlush = analytics.makeFlusher(ANALYTICS_FILE, analyticsState);
 // SSE: push a "changed" event to connected dashboards on every mutation (live updates without polling).
 const sseClients = new Set();
 let requestHeadlessDrainWake = null;
+let requestHeadlessSpawnWake = null;
 const graphAutoflush = createGraphAutoflush();
 // notifyChange(ws?): push a 'changed' event to connected dashboards on every mutation.
 // When `ws` is given, emits `data: changed:<ws>\n\n` so workspace-specific clients can skip
@@ -406,6 +408,9 @@ function notifyChange(ws) {
   if (graphRepo) graphAutoflush.notifyChange(graphRepo);
   if (requestHeadlessDrainWake) {
     try { requestHeadlessDrainWake('graph-change'); } catch { /* best effort */ }
+  }
+  if (requestHeadlessSpawnWake) {
+    try { requestHeadlessSpawnWake('graph-change'); } catch { /* best effort */ }
   }
 }
 
@@ -3115,6 +3120,7 @@ if (require.main === module) {
         writeDaemonPort(port);
         superviseCodexWakeDeliveryForRegisteredWorkspaces();
         headlessDrainRunner.schedule(0, 'boot');
+        headlessSpawnRunner.schedule(0, 'boot');
       })
         .catch((e) => { process.stderr.write(`loadState failed: ${(e && e.stack) || e}\n`); process.exit(1); });
 
@@ -3147,6 +3153,18 @@ if (require.main === module) {
 
   const headlessDrainRunner = createHeadlessDrainRunner({ headlessDrain, getState: () => state });
   requestHeadlessDrainWake = headlessDrainRunner.requestWake;
+
+  // Headless SPAWN executor (full-autonomy path): when a managed graph loop decides action:'spawn'
+  // and no interactive session is driving, the daemon dispatches the workers itself. Per-workspace
+  // opt-in via overlay config `headless_driver:true` (default off). Rides the SAME pump scheduling
+  // (a second runner instance) and the SAME headless-drain governor — see lib/headless-spawn.js.
+  // decide mirrors the /next-action route exactly: decideAll() then saveLoops().
+  const headlessSpawnExecutor = headlessSpawn.createSpawnExecutor({
+    loops,
+    decide: () => { const r = decideAll(); saveLoops(); return r; },
+  });
+  const headlessSpawnRunner = createHeadlessDrainRunner({ headlessDrain: headlessSpawnExecutor, getState: () => state });
+  requestHeadlessSpawnWake = headlessSpawnRunner.requestWake;
 
   tryListen(PORT_BASE, MAX_PORT_ATTEMPTS);
 
