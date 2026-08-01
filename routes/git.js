@@ -185,11 +185,21 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const repo = resolved.repo;
     if (!repo || !(await git.isRepoAsync(repo))) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
     const feature = T.ov.features && T.ov.features[b.key];
-    if (feature && feature.feature_worktree) {
-      const verification = await verifyStoredWorktree(resolved.target, feature.feature_worktree, git);
-      if (!verification.ok) {
-        send(res, 409, { ok: false, code: 'feature_worktree_target_mismatch', repo, worktree: feature.feature_worktree, error: verification.error, verification }); return true;
-      }
+    if (!feature || !feature.feature_worktree) {
+      // Missing registry record: refuse cleanly instead of crashing into a misleading
+      // graph_checkpoint_failed on the feature_worktree dereference below.
+      send(res, 409, {
+        ok: false,
+        code: 'unknown_feature',
+        error: `no feature record for ${b.key} — the registry may predate the features persist fix; re-run create_feature (idempotent) to restore it, then retry merge`,
+        repo,
+        target: resolved.target,
+      });
+      return true;
+    }
+    const verification = await verifyStoredWorktree(resolved.target, feature.feature_worktree, git);
+    if (!verification.ok) {
+      send(res, 409, { ok: false, code: 'feature_worktree_target_mismatch', repo, worktree: feature.feature_worktree, error: verification.error, verification }); return true;
     }
     let graphCheckpoint;
     try {

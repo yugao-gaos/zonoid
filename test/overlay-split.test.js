@@ -208,6 +208,27 @@ try {
   const afterRoundTrip = totalNodeLines(WS8);
   ok('8. round-trip save produces no new JSONL events', afterRoundTrip === afterFirst);
 
+  // ── Test 9: features registry is LOCAL and survives save → load ──────────
+
+  const WS9 = path.join(TMP, 'ws9');
+  fs.mkdirSync(WS9, { recursive: true });
+  graphStore.forWorkspace(WS9);
+
+  const ov9 = overlayStore.load(WS9);
+  overlayStore.setFeature(ov9, 'task/feat', {
+    feature_branch: 'orch/feature/task-feat',
+    feature_worktree: path.join(WS9, 'wt', 'task-feat'),
+    base: 'main',
+  });
+  overlayStore.save(WS9, ov9);
+
+  const ov9b = overlayStore.load(WS9);
+  const feat9 = ov9b.features && ov9b.features['task/feat'];
+  ok('9. load() rehydrates features map', typeof ov9b.features === 'object');
+  ok('9. features record survives round-trip', !!feat9);
+  ok('9. feature_branch correct after round-trip', feat9 && feat9.feature_branch === 'orch/feature/task-feat');
+  ok('9. feature_worktree correct after round-trip', feat9 && feat9.feature_worktree === path.join(WS9, 'wt', 'task-feat'));
+
 } finally {
   fs.rmSync(TMP, { recursive: true, force: true });
 }
