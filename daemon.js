@@ -2887,7 +2887,7 @@ const ctx = {
   followups, verdicts, stopSignalFor,
   opReplay,
   ALL_STATUSES, ESCALATION_DEFAULTS, OPTIMIZE_DEFAULTS, LOOP_CONFIG_KEYS, CATCHALL_ESCALATE_TOKENS,
-  newLoop, decideAll,
+  newLoop, decideAll, ensureManagedGraphLoops,
   MAX_ROUTES,
   PORT,
 };

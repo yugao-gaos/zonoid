@@ -708,6 +708,16 @@
           <span class="sp-slider"></span>
         </label>
       </div>
+      <div class="sp-toggle-row" style="margin-top:8px">
+        <div>
+          <div class="sp-toggle-label">Orch Auto (full autonomy)</div>
+          <div class="sp-toggle-sublabel">self_plan + automode + headless_driver · Daemon plans, spawns &amp; reviews headlessly<span id="sp-orchauto-partial"></span></div>
+        </div>
+        <label class="sp-switch">
+          <input type="checkbox" id="sp-orchauto" onchange="saveOrchAuto(this.checked)">
+          <span class="sp-slider"></span>
+        </label>
+      </div>
     </div>
     <button class="spsave" onclick="saveSettings()">Save</button>
     <div class="sprow" style="margin-top:14px;border-top:1px solid #21262d;padding-top:14px">
@@ -7272,13 +7282,26 @@ async function checkSettingsConn(){
 async function loadAutomodeState(){
   try{
     const s=await(await dfetch('/state')).json();
-    const on=!!(s&&s.config&&s.config.automode);
-    document.getElementById('sp-automode').checked=on;
+    const c=(s&&s.config)||{};
+    document.getElementById('sp-automode').checked=!!c.automode;
+    // Orch Auto is the atomic three-flag switch: checked only when ALL of self_plan/automode/
+    // headless_driver are on; a mixed state shows unchecked with an honest "partial" hint.
+    const flags=[!!c.self_plan,!!c.automode,!!c.headless_driver];
+    const all=flags.every(Boolean);
+    document.getElementById('sp-orchauto').checked=all;
+    document.getElementById('sp-orchauto-partial').textContent=(!all&&flags.some(Boolean))?' · partial: some flags on':'';
   }catch{}
 }
 async function saveAutomode(on){
   try{ await dfetch('/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({automode:on})}); }
   catch{}
+  loadAutomodeState(); // automode is one of Orch Auto's three flags — refresh its checked/partial state
+}
+async function saveOrchAuto(on){
+  // { auto } expands server-side to self_plan + automode + headless_driver (one atomic code path).
+  try{ await dfetch('/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({auto:on})}); }
+  catch{}
+  loadAutomodeState();
 }
 function saveSettings(){
   const url=document.getElementById('sp-url').value.trim();

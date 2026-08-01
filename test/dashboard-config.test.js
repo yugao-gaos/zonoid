@@ -28,6 +28,12 @@ ok('backend API key status uses a colored dot and delete button',
   html.includes('id="bk-key-dot"') && html.includes('id="bk-key-delete"') && html.includes('function deleteBackendKey()'));
 ok('backend API key delete calls DELETE /config/backend/key',
   html.includes("method:'DELETE'") && html.includes("dfetch('/config/backend/key'"));
+ok('orch auto toggle present in Settings next to Full Automode',
+  html.includes('id="sp-orchauto"') && html.includes('Orch Auto (full autonomy)'));
+ok('orch auto toggle posts the atomic auto field (one server-side code path)',
+  html.includes('JSON.stringify({auto:on})'));
+ok('orch auto mixed state shows an honest partial hint',
+  html.includes('id="sp-orchauto-partial"') && html.includes('partial: some flags on'));
 
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
