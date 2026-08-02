@@ -10,6 +10,12 @@ const path = require('path');
 const { hasHeadlessDrainAncestor } = require('./lib/headless-ancestor');
 if (require.main === module && fs.existsSync(path.join(__dirname, '.orch-off'))) process.exit(0);
 if (require.main === module && hasHeadlessDrainAncestor()) process.exit(0);
+// Always-on file log: tee stdout/stderr into a rotating daemon.log BEFORE any other require
+// can log — a windowless daemon otherwise loses every error (observed live: silent failures,
+// invisible until a manual restart with shell redirection). Only when running AS the daemon:
+// requiring daemon.js from a test must never hijack the test runner's streams.
+const daemonLog = require('./lib/daemon-log');
+if (require.main === module) daemonLog.install();
 const crypto = require('crypto');
 const { URL } = require('url');
 const harnessRegistry = require('./lib/harness');
@@ -2887,6 +2893,7 @@ const ctx = {
   cache, loops, saveLoops, saveAgents,
   get bootState() { return bootState; },
   GIT_HEAD, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL, WORKSPACES_FILE, STALE_MINUTES_DEFAULT,
+  daemonLog,
   sseClients, agentsArr,
   taskTranscript, usageCached, harnessTranscriptForTask,
   touchAgent, staleClaimKeys, releaseClaim, reapAgent, sweepStaleClaims, sweepStaleLoops,
@@ -3123,6 +3130,19 @@ if (require.main === module) {
     });
     server.listen(port, '127.0.0.1', () => {
       process.stdout.write(`orchestrator daemon on http://127.0.0.1:${port}\n`);
+      // One-line boot tuning summary: the effective knobs a post-mortem reader needs first —
+      // where state lives, where the log tees to, and the drain governor's budget/backoff.
+      try {
+        const dcfg = headlessDrain.effectiveConfig();
+        const bcfg = headlessDrain.backoffConfig();
+        process.stdout.write(
+          `[boot] tuning: pid=${process.pid} node=${process.version} head=${GIT_HEAD || '?'} data=${BASE}`
+          + ` log=${daemonLog.logPath() || 'off'} stale_minutes=${STALE_MINUTES_DEFAULT}`
+          + ` drain.max_concurrency=${dcfg.maxConcurrency} drain.max_iterations=${dcfg.maxIterations}`
+          + ` drain.token_budget=${dcfg.tokenBudget} drain.timeout_ms=${dcfg.timeoutMs}`
+          + ` backoff.base_ms=${bcfg.baseMs} backoff.cap_ms=${bcfg.capMs}\n`
+        );
+      } catch (e) { process.stderr.write(`[boot] tuning line failed: ${e && e.message || e}\n`); }
       writeDaemonPidfile(); // advertise our pid for the cross-platform singleton guard (early, pre-loadState)
 
       // Also bind IPv6 loopback so `localhost` resolves on every OS — Windows resolves it to ::1
