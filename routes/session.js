@@ -19,7 +19,7 @@ async function resolveViaOpusCli({ question, context, workspace }) {
   if (!bin || !workspace) return null;
   const prompt = `You are the autonomous decision-maker for the Zonoid orchestrator. An agent needs a decision to proceed.\n\nQUESTION: ${question}${context ? `\n\nCONTEXT: ${context}` : ''}\n\nProvide a concise, actionable answer the agent can use directly.`;
   try {
-    const result = await runDrain({ bin, args: ['-p', prompt, '--model', 'claude-opus-4-8', '--output-format', 'text'], cwd: workspace, timeoutMs: 120000 });
+    const result = await runDrain({ bin, args: ['-p', prompt, '--model', 'claude-opus-5', '--output-format', 'text'], cwd: workspace, timeoutMs: 120000 });
     if (result.spawnError || result.timedOut || result.exitCode !== 0) return null;
     return result.stdout.trim() || null;
   } catch { return null; }
