@@ -312,3 +312,112 @@ test('handoff envelope carries slots from the prepare response; prompt embeds th
   assert.match(prompt, /status:"failed"/, 'failure contract must be explicit in the prompt');
   assert.ok(prompt.includes(envelope.branch));
 });
+
+// ---------------------------------------------------------------------------
+// Test 7: explicit Git target on the prepare request
+//
+// resolveRepoTarget never INFERS a target (no workspace fallback, even single-repo), so a headless
+// prepare that omits target_repo 400s with repo_target_required and nothing can ever dispatch.
+// ---------------------------------------------------------------------------
+
+test('prepare request carries the loop workspace as an explicit target_repo', async () => {
+  const { deps, calls } = makeFixture({
+    decisions: spawnDecision([{ key: 't/1', label: 'one' }]),
+  });
+  const result = await headlessSpawn.runDueSpawns({}, deps);
+  assert.equal(result.ran, 1);
+  assert.equal(calls.prepare[0].target_repo, WS, 'headless dispatcher must select the repo it drives');
+});
+
+test('a task with a persisted repo target omits target_repo (route keeps provenance:task)', async () => {
+  const { deps, calls } = makeFixture({
+    overlay: {
+      config: { headless_driver: true }, spawnLease: {}, status: {},
+      repos: { 't/1': '/other/repo' },
+    },
+    decisions: spawnDecision([{ key: 't/1', label: 'one' }]),
+  });
+  await headlessSpawn.runDueSpawns({}, deps);
+  assert.equal(calls.prepare[0].target_repo, null, 'a persisted target must not be restamped explicit');
+});
+
+test('defaultTargetRepo: persisted target wins (null ⇒ omit), else the workspace', () => {
+  assert.equal(headlessSpawn.defaultTargetRepo({ repos: { 'a': '/r' } }, 'a', '/ws'), null);
+  assert.equal(headlessSpawn.defaultTargetRepo({ repos: {} }, 'a', '/ws'), '/ws');
+  assert.equal(headlessSpawn.defaultTargetRepo(null, 'a', '/ws'), '/ws');
+  assert.equal(headlessSpawn.defaultTargetRepo(null, 'a', null), null);
+});
+
+// ---------------------------------------------------------------------------
+// Test 8: prepare backoff — an unpreparable task must not be re-attempted every pump
+// ---------------------------------------------------------------------------
+
+test('prepare failure stamps an exponential backoff window on the task', async () => {
+  const overlay = { config: { headless_driver: true }, spawnLease: {}, status: {} };
+  const { deps } = makeFixture({
+    overlay,
+    decisions: spawnDecision([{ key: 't/1', label: 'one' }]),
+    prepareResult: { ok: false, error: 'target_repo (deprecated alias: repo_path) or persisted task target required' },
+  });
+  const result = await headlessSpawn.runDueSpawns({}, deps);
+  const row = result.drains.find((d) => d.task === 't/1');
+  assert.equal(row.skipped, 'prepare_failed');
+  const entry = overlay.spawnBackoff['t/1'];
+  assert.equal(entry.attempts, 1);
+  assert.ok(entry.until > Date.now(), 'window must be in the future');
+  assert.match(entry.error, /repo_target_required|target required/);
+});
+
+test('a task inside its backoff window is skipped before any lease or prepare', async () => {
+  const overlay = {
+    config: { headless_driver: true },
+    spawnLease: {},
+    status: {},
+    spawnBackoff: { 't/1': { until: Date.now() + 300000, attempts: 2, error: 'boom' } },
+  };
+  const { deps, calls } = makeFixture({
+    overlay,
+    decisions: spawnDecision([{ key: 't/1', label: 'one' }]),
+  });
+  const result = await headlessSpawn.runDueSpawns({}, deps);
+  assert.equal(result.ran, 0);
+  assert.equal(result.skipped, 'prepare_backoff');
+  assert.equal(calls.prepare.length, 0, 'backed-off task must not re-hit the prepare route');
+  assert.equal(overlay.spawnLease['t/1'], undefined, 'backed-off task must not consume a spawn lease');
+  const row = result.drains.find((d) => d.task === 't/1');
+  assert.equal(row.backoff_attempts, 2);
+});
+
+test('an elapsed backoff window lets the task be re-attempted', async () => {
+  const overlay = {
+    config: { headless_driver: true },
+    spawnLease: {},
+    status: {},
+    spawnBackoff: { 't/1': { until: Date.now() - 1000, attempts: 1, error: 'boom' } },
+  };
+  const { deps, calls } = makeFixture({
+    overlay,
+    decisions: spawnDecision([{ key: 't/1', label: 'one' }]),
+  });
+  const result = await headlessSpawn.runDueSpawns({}, deps);
+  assert.equal(result.ran, 1);
+  assert.equal(calls.prepare.length, 1);
+  assert.equal(overlay.spawnBackoff['t/1'], undefined, 'a successful prepare must wipe the penalty');
+});
+
+test('spawnBackoffMs doubles per attempt and caps at one hour', () => {
+  const base = headlessSpawn.spawnBackoffMs(1);
+  assert.equal(headlessSpawn.spawnBackoffMs(2), base * 2);
+  assert.equal(headlessSpawn.spawnBackoffMs(3), base * 4);
+  assert.equal(headlessSpawn.spawnBackoffMs(99), 60 * 60 * 1000);
+});
+
+test('recordSpawnPrepareFailure accumulates attempts; clearSpawnBackoff reports whether it removed one', () => {
+  const ov = {};
+  headlessSpawn.recordSpawnPrepareFailure(ov, 'k', 'e1');
+  headlessSpawn.recordSpawnPrepareFailure(ov, 'k', 'e2');
+  assert.equal(ov.spawnBackoff['k'].attempts, 2);
+  assert.equal(ov.spawnBackoff['k'].error, 'e2');
+  assert.equal(headlessSpawn.clearSpawnBackoff(ov, 'k'), true);
+  assert.equal(headlessSpawn.clearSpawnBackoff(ov, 'k'), false, 'no write signalled when nothing to clear');
+});
