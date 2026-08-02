@@ -21,6 +21,7 @@ const headlessSpawn = require('../lib/headless-spawn');
 // ---------------------------------------------------------------------------
 
 const WS = '/ws/a';
+const WS_B = '/ws/b';
 
 function mockProvider(overrides = {}) {
   return {
@@ -58,12 +59,21 @@ function makeFixture(opts = {}) {
     loops.set(L.id, L);
   }
   const overlay = opts.overlay || { config: { headless_driver: true }, spawnLease: {}, status: {} };
-  const calls = { decide: 0, prepare: [], runDrain: [], failed: [] };
+  // Optional per-workspace overlays (multi-workspace tests); everything else shares `overlay`.
+  const overlays = opts.overlays || null;
+  const calls = { decide: 0, decideOpts: [], prepare: [], runDrain: [], failed: [] };
   const governor = { iterationsUsed: 0, tokensUsed: 0, concurrentRunning: 0, backoffUntil: 0, consecutiveThrottles: 0 };
   const deps = {
     loops,
-    decide: () => { calls.decide++; return opts.decisions || []; },
-    overlayLoad: () => overlay,
+    decide: (o) => {
+      calls.decide++;
+      calls.decideOpts.push(o);
+      const d = opts.decisions || [];
+      // Mirror the daemon: a scoped decide pass only ticks/returns loops passing the filter.
+      if (opts.honorFilter === false || !o || typeof o.loopFilter !== 'function') return d;
+      return d.filter((x) => o.loopFilter(loops.get(x.loopId)));
+    },
+    overlayLoad: (ws) => (overlays ? (overlays[ws] || null) : overlay),
     overlaySave: () => {},
     overlayStore: mockOverlayStore(),
     governor,
@@ -89,7 +99,7 @@ function makeFixture(opts = {}) {
     },
     effectiveConfig: () => ({ tokenBudget: 200000, maxIterations: 50, maxConcurrency: 2, timeoutMs: 1000 }),
   };
-  return { deps, calls, overlay, governor, loops };
+  return { deps, calls, overlay, overlays, governor, loops };
 }
 
 const spawnDecision = (tasks, loopId = 'm1') => [{ loopId, action: 'spawn', tasks }];
@@ -111,10 +121,10 @@ test('headless_driver off (default) → no dispatch and no decide pass', async (
 });
 
 // ---------------------------------------------------------------------------
-// Test 2: interactive session loop active → executor stands down entirely
+// Test 2: interactive session loop active → per-workspace stand-down
 // ---------------------------------------------------------------------------
 
-test('active session-bound loop → interactive_driver_active, no decide, no dispatch', async () => {
+test('active session-bound loop on the ONLY workspace → interactive_driver_active, no decide, no dispatch', async () => {
   const { deps, calls } = makeFixture({
     loops: [
       { id: 'm1', active: true, managed: 'graph', session: null, workspace: WS },
@@ -127,6 +137,118 @@ test('active session-bound loop → interactive_driver_active, no decide, no dis
   assert.equal(result.skipped, 'interactive_driver_active');
   assert.equal(calls.decide, 0, 'executor must not steal the interactive driver\'s decide pass');
   assert.equal(calls.runDrain.length, 0);
+});
+
+// --- per-workspace stand-down (mixed regime) ---------------------------------------------
+
+const gatedOverlay = () => ({ config: { headless_driver: true }, spawnLease: {}, status: {} });
+
+test('session loop on ANOTHER workspace → that workspace stands down, the gated one still dispatches', async () => {
+  const overlays = { [WS]: gatedOverlay(), [WS_B]: gatedOverlay() };
+  const { deps, calls } = makeFixture({
+    overlays,
+    loops: [
+      { id: 'm-a', active: true, managed: 'graph', session: null, workspace: WS },
+      { id: 'm-b', active: true, managed: 'graph', session: null, workspace: WS_B },
+      { id: 's-b', active: true, managed: null, session: 'sess-b', workspace: WS_B },  // drives WS_B only
+    ],
+    decisions: [
+      { loopId: 'm-a', action: 'spawn', tasks: [{ key: 'a/1', label: 'a one' }] },
+      { loopId: 'm-b', action: 'spawn', tasks: [{ key: 'b/1', label: 'b one' }] },
+    ],
+  });
+  const result = await headlessSpawn.runDueSpawns({}, deps);
+  assert.equal(result.ran, 1, 'the un-driven workspace must still dispatch');
+  assert.equal(calls.prepare.length, 1);
+  assert.equal(calls.prepare[0].task_key, 'a/1');
+  assert.equal(calls.prepare[0].workspace, WS);
+  assert.equal(calls.decide, 1, 'the decide pass runs — it is scoped, not skipped');
+
+  // The pass must be SCOPED so the session loop is never ticked or leased.
+  const o = calls.decideOpts[0];
+  assert.ok(o && typeof o.loopFilter === 'function', 'decide must receive a loopFilter');
+  assert.equal(o.loopFilter(deps.loops.get('s-b')), false, 'session loop must be filtered out');
+  assert.equal(o.loopFilter(deps.loops.get('m-b')), false, 'busy-workspace managed loop must be filtered out');
+  assert.equal(o.loopFilter(deps.loops.get('m-a')), true, 'un-driven gated loop must be servable');
+  assert.ok(o.skipWorkspaces instanceof Set && o.skipWorkspaces.has(WS_B) && !o.skipWorkspaces.has(WS));
+
+  assert.ok(!overlays[WS_B].spawnLease['b/1'], 'a session-driven workspace\'s task must not be leased here');
+});
+
+test('post-decide safety net: a decide seam ignoring loopFilter still cannot dispatch a busy workspace', async () => {
+  const overlays = { [WS]: gatedOverlay(), [WS_B]: gatedOverlay() };
+  const { deps, calls } = makeFixture({
+    overlays,
+    honorFilter: false,   // legacy/injected seam that returns every decision regardless of scoping
+    loops: [
+      { id: 'm-a', active: true, managed: 'graph', session: null, workspace: WS },
+      { id: 'm-b', active: true, managed: 'graph', session: null, workspace: WS_B },
+      { id: 's-b', active: true, managed: null, session: 'sess-b', workspace: WS_B },
+    ],
+    decisions: [
+      { loopId: 'm-a', action: 'spawn', tasks: [{ key: 'a/1', label: 'a one' }] },
+      { loopId: 'm-b', action: 'spawn', tasks: [{ key: 'b/1', label: 'b one' }] },
+    ],
+  });
+  const result = await headlessSpawn.runDueSpawns({}, deps);
+  assert.equal(result.ran, 1);
+  assert.deepEqual(calls.prepare.map((p) => p.task_key), ['a/1'], 'WS_B decision must be dropped post-decide');
+});
+
+test('gated workspace with no session dispatches even while another workspace is fully driven', async () => {
+  const overlays = { [WS]: gatedOverlay(), [WS_B]: { config: {}, spawnLease: {}, status: {} } };
+  const { deps, calls } = makeFixture({
+    overlays,
+    loops: [
+      { id: 'm-a', active: true, managed: 'graph', session: null, workspace: WS },
+      { id: 's-b', active: true, managed: null, session: 'sess-b', workspace: WS_B },
+    ],
+    decisions: [{ loopId: 'm-a', action: 'spawn', tasks: [{ key: 'a/1', label: 'a one' }] }],
+  });
+  const result = await headlessSpawn.runDueSpawns({}, deps);
+  assert.equal(result.ran, 1);
+  assert.equal(calls.runDrain.length, 1);
+});
+
+test('unpinned active session loop → conservative GLOBAL stand-down (cannot attribute a workspace)', async () => {
+  const { deps, calls } = makeFixture({
+    loops: [
+      { id: 'm1', active: true, managed: 'graph', session: null, workspace: WS },
+      { id: 's0', active: true, managed: null, session: 'sess-0', workspace: null },
+    ],
+    decisions: spawnDecision([{ key: 't/1', label: 'one' }]),
+  });
+  const result = await headlessSpawn.runDueSpawns({}, deps);
+  assert.equal(result.ran, 0);
+  assert.equal(result.skipped, 'interactive_driver_active');
+  assert.equal(calls.decide, 0);
+});
+
+test('INACTIVE session loop does not stand its workspace down', async () => {
+  const { deps, calls } = makeFixture({
+    loops: [
+      { id: 'm1', active: true, managed: 'graph', session: null, workspace: WS },
+      { id: 's1', active: false, managed: null, session: 'sess-1', workspace: WS },   // closed session
+    ],
+    decisions: spawnDecision([{ key: 't/1', label: 'one' }]),
+  });
+  const result = await headlessSpawn.runDueSpawns({}, deps);
+  assert.equal(result.ran, 1);
+  assert.equal(calls.runDrain.length, 1);
+});
+
+test('interactiveWorkspaces partitions the registry by session pin', () => {
+  const loops = new Map([
+    ['m', { id: 'm', active: true, managed: 'graph', session: null, workspace: WS }],
+    ['s', { id: 's', active: true, managed: null, session: 'x', workspace: WS_B }],
+    ['dead', { id: 'dead', active: false, managed: null, session: 'y', workspace: '/ws/c' }],
+  ]);
+  const r = headlessSpawn.interactiveWorkspaces(loops);
+  assert.deepEqual([...r.busy], [WS_B]);
+  assert.equal(r.unpinned, false);
+
+  loops.set('u', { id: 'u', active: true, managed: null, session: 'z', workspace: null });
+  assert.equal(headlessSpawn.interactiveWorkspaces(loops).unpinned, true);
 });
 
 // ---------------------------------------------------------------------------
