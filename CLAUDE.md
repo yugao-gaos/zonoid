@@ -248,3 +248,23 @@ individually settable (`POST /config { self_plan: true }` etc.); `auto` just wri
 group. Budget caps still apply under full autonomy: the managed graph loop runs under
 loop-autostart `AUTOSTART_CONFIG` (token budget / iterations / batch / concurrency) and headless
 drains under the headless-drain governor (per-boot token budget / drain concurrency).
+
+## Autonomy activity feed (`GET /activity`)
+
+Headless work leaves no graph trace *while it runs* — a spawned worker, planner, judge,
+review-verdict, learner, or label drain only shows up once it settles a node. Previously its sole
+record was a `process.stdout` line, which survives only if the daemon happened to be started with
+output redirection. `lib/activity.js` is the fix: a **bounded in-memory ring** (default 500 events,
+`ORCH_ACTIVITY_CAPACITY`) plus a **live in-flight registry**, written by `lib/headless-spawn.js` and
+`lib/headless-drain.js`.
+
+- **Ring, not a log.** Deliberately not persisted — the graph already owns durable history. Losing
+  the ring on restart is correct: after a restart nothing is in flight anyway.
+- **`GET /activity`** (`routes/activity.js`) returns `running[]` (each with live `elapsed_ms`),
+  `events[]` (newest first), and the two things that explain an EMPTY feed: `autonomy` (the
+  workspace's self_plan/automode/headless_driver flags) and `governor` (headless concurrency /
+  budget / rate-limit backoff). Query params: `workspace`, `limit`, `since`, `kind`.
+- **Incremental polling:** every event carries a monotonic `seq`. Poll with `since=<last seq>` for
+  only what is new, and compare `dropped` across polls to detect ring overflow.
+- **Dashboard:** an "Auto" status-dock counter shows live headless jobs at a glance; clicking it
+  opens the Autonomy section of the activity popup with the running + recent feed.
