@@ -17,9 +17,9 @@ ok('loop: keep running until', classifyHeuristic('keep running tests until green
 ok('workflow: list-shaped', classifyHeuristic('do a, b, c, d, e tasks').decision === 'workflow');
 
 const models = selectModels(0.2, 'abstain');
-ok('model: low complexity abstain -> sonnet', models.main_model === 'claude-sonnet-4-6');
+ok('model: low complexity abstain -> sonnet', models.main_model === 'claude-sonnet-5');
 ok('model: high complexity inject -> fable', selectModels(0.8, 'inject').main_model === 'claude-fable-5');
-ok('model: default -> opus', selectModels(0.5, 'abstain').main_model === 'claude-opus-4-8');
+ok('model: default -> opus', selectModels(0.5, 'abstain').main_model === 'claude-opus-5');
 
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
