@@ -70,7 +70,12 @@ async function main() {
   const rows = [];
   const perArm = new Map(); // arm -> accumulator
 
-  for (const arm of arms) perArm.set(arm, { tokens: [], recall: [], precision: [], tpcs: [], n: 0, reachable: 0 });
+  for (const arm of arms) {
+    perArm.set(arm, {
+      tokens: [], recall: [], precision: [], tpcs: [], n: 0, reachable: 0,
+      totalTokens: 0, totalCorrect: 0, perfect: 0, zero: 0,
+    });
+  }
 
   for (const q of queries) {
     for (const arm of arms) {
@@ -105,8 +110,13 @@ async function main() {
       acc.recall.push(sc.recall);
       acc.precision.push(sc.precision);
       if (tokensPerCorrect != null) acc.tpcs.push(tokensPerCorrect);
+      acc.totalTokens += assembled.tokens;
+      acc.totalCorrect += sc.correct;
+      if (sc.correct === 0) acc.zero += 1;
+      if (sc.nRelevant && sc.correct === sc.nRelevant) acc.perfect += 1;
       acc.n += 1;
       if (assembled.meta && assembled.meta.reachable) acc.reachable += 1;
+      acc.lastMeta = assembled.meta || {};
     }
   }
 
@@ -116,16 +126,23 @@ async function main() {
   console.log('');
   console.log(`Search-economy retrieval bench — ${queries.length} queries x ${arms.length} implemented arm(s)`);
   console.log('');
-  const head = `${pad('arm', 14)} ${pad('n', 4)} ${pad('mean_tokens', 12)} ${pad('mean_recall', 12)} ${pad('mean_prec', 10)} ${pad('mean_tok/correct', 16)}`;
+  const head = `${pad('arm', 16)} ${pad('n', 4)} ${pad('mean_tokens', 12)} ${pad('mean_recall', 12)} ${pad('perfect', 8)} ${pad('zero', 6)} ${pad('POOLED tok/corr', 16)} ${pad('mean_tok/corr', 14)}`;
   console.log(head);
   console.log('-'.repeat(head.length));
   for (const arm of arms) {
     const acc = perArm.get(arm);
     const tpcsMean = acc.tpcs.length ? mean(acc.tpcs) : null;
+    const pooled = acc.totalCorrect > 0 ? acc.totalTokens / acc.totalCorrect : null;
     console.log(
-      `${pad(arm, 14)} ${pad(acc.n, 4)} ${pad(fmt(mean(acc.tokens), 1), 12)} ${pad(fmt(mean(acc.recall)), 12)} ${pad(fmt(mean(acc.precision)), 10)} ${pad(fmt(tpcsMean, 1), 16)}`
+      `${pad(arm, 16)} ${pad(acc.n, 4)} ${pad(fmt(mean(acc.tokens), 1), 12)} ${pad(fmt(mean(acc.recall)), 12)} `
+      + `${pad(`${acc.perfect}/${acc.n}`, 8)} ${pad(`${acc.zero}/${acc.n}`, 6)} ${pad(fmt(pooled, 1), 16)} ${pad(fmt(tpcsMean, 1), 14)}`
     );
   }
+  console.log('');
+  console.log('POOLED tok/corr = sum(tokens) / sum(correct) — the headline. It is preferred over');
+  console.log('mean_tok/corr because the per-query mean can only be taken over queries with >=1');
+  console.log('correct symbol, so an arm is REWARDED for failing outright (its most expensive');
+  console.log('failures drop out of the average). Pooling charges every query\'s tokens.');
   console.log('');
 
   // Per-arm notes (reachability for the subconscious arm, deferred arms).
@@ -139,12 +156,25 @@ async function main() {
         console.log('      See README.md "Onboarding caveat". Phase 1 delivers harness correctness, not the win.');
       }
     }
+    if (arm === 'codebase-memory') {
+      const m = acc.lastMeta || {};
+      if (!m.available) {
+        console.log(`note: codebase-memory arm could NOT run the binary: ${m.error || 'unknown'}`);
+        console.log('      Install it, or point ORCH_CMM_BIN at the executable.');
+      } else if (!m.project) {
+        console.log(`note: codebase-memory arm found no indexed project: ${m.error || 'unknown'}`);
+      } else {
+        console.log(`note: codebase-memory arm used ${m.version || 'codebase-memory-mcp'} project "${m.project}"`);
+        console.log(`      (${m.projectSource === 'env' ? 'from ORCH_CMM_PROJECT' : 'auto-resolved from repo root'}), `
+          + `graph search reached on ${acc.reachable}/${acc.n} queries.`);
+      }
+    }
   }
   if (deferred.length) {
     console.log('');
     for (const arm of deferred) {
       const info = armInfo(arm);
-      console.log(`deferred: ${pad(arm, 14)} ${info ? info.describe : ''}`);
+      console.log(`deferred: ${pad(arm, 16)} ${info ? info.describe : ''}`);
     }
   }
 

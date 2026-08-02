@@ -14,6 +14,13 @@
 //   - subconscious: query the running daemon's agentic/RAG search bundle (GET /search).
 //                   Measures the token economy of the subconscious memory substrate.
 //
+// Phase 1b adds a THIRD live arm:
+//   - codebase-memory: query the codebase-memory-mcp code graph (BM25 over symbol nodes),
+//                   then fetch the SOURCE OF EACH MATCHED SYMBOL. Measures the token
+//                   economy of a precomputed AST/code-graph substrate: unlike naive it
+//                   returns whole symbols rather than byte windows, and unlike
+//                   subconscious it is keyed on code, not on self-knowledge notes.
+//
 // graphify (AST subgraph) and terminal-bench (e2e) arms are DEFERRED (need Python, not
 // installed). They are registered as stubs so they slot in WITHOUT refactoring run.js:
 // add a real implementation to the registry and it is picked up automatically.
@@ -24,6 +31,7 @@ const http = require('http');
 const { execFileSync } = require('child_process');
 
 const { makeCounter } = require('./tokens');
+const cmm = require('../adapters/codebase-memory-mcp');
 
 // Repo root = three levels up from this file (bench/search-economy/retrieval/ -> repo).
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
@@ -32,14 +40,34 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const DAEMON_URL = process.env.ORCH_DAEMON_URL || 'http://localhost:8787';
 const SEARCH_WORKSPACE = process.env.ORCH_SEARCH_WORKSPACE || 'D:\\zonoid';
 
+// codebase-memory arm knobs. The char cap is deliberately the SAME ceiling as naive
+// (NAIVE_CHAR_CAP) so the two arms are compared under one budget — the interesting
+// result is how far UNDER the shared ceiling each one lands for the same recall.
+const CMM_TOP_K = 8;          // symbols whose source is pulled into the bundle (== subconscious k)
+const CMM_OVERFETCH = 4;      // rank depth searched before filtering, as a multiple of TOP_K
+const CMM_PER_SYMBOL_CAP = 4000;
+
 const NAIVE_CHAR_CAP = 12000; // total chars of file content the naive arm may concatenate
 const NAIVE_MAX_FILES = 6;    // cap candidate files read
 const NAIVE_PER_FILE_CAP = 4000;
 const NAIVE_WINDOW = 900;     // chars of context to read AROUND each term match in a file
 
-// Generated/state/vendored paths the naive arm must not waste its char budget on.
+// Generated/state/vendored paths no arm may waste its char budget on.
 // (.graph + data hold huge daemon state JSON; node_modules/.git are vendored/VCS.)
 const NAIVE_EXCLUDE_RE = /(^|[\\/])(node_modules|\.git|\.graph|data|public|patches|packages[\\/].*[\\/]node_modules)([\\/]|$)/i;
+
+// The bench tree itself is excluded too: it holds this harness plus Python benchmark
+// fixtures, and a bench arm retrieving the bench's own scaffolding is measuring itself.
+const BENCH_EXCLUDE_RE = /(^|[\\/])bench([\\/]|$)/i;
+
+// THE shared retrieval-scope policy. Every arm filters candidates through this one
+// predicate, so no arm gets a scope advantage over another — the naive arm additionally
+// pushes it down into the grep invocation as globs (an optimization, same semantics).
+function isExcludedPath(relPath) {
+  const rel = String(relPath || '').replace(/\\/g, '/');
+  if (!rel) return true;
+  return NAIVE_EXCLUDE_RE.test(rel) || BENCH_EXCLUDE_RE.test(rel);
+}
 
 // ---------------------------------------------------------------------------
 // Symbol extraction: identifier-like tokens (function/const names, snake_case,
@@ -118,7 +146,7 @@ function grepHits(term) {
       if (!(e && e.status === 1)) files = [];
     }
   }
-  return files.filter((f) => !NAIVE_EXCLUDE_RE.test(path.relative(REPO_ROOT, f)));
+  return files.filter((f) => !isExcludedPath(path.relative(REPO_ROOT, f)));
 }
 
 // Read up to `cap` chars of `content`, centered on windows around each query-term match,
@@ -259,6 +287,122 @@ async function subconsciousAssemble(query, counter, opts = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// CODEBASE-MEMORY arm: query the codebase-memory-mcp code graph for the query's
+// terms, then pull the SOURCE of each matched symbol node.
+//
+// Two fairness decisions, both deliberate and both symmetric with the naive arm:
+//
+//  1. Query preprocessing. The graph search is BM25 over symbol names, and v0.8.1
+//     ignores `search_mode` — so a raw natural-language query lets stopwords
+//     ("which", "what", "does") dominate the scoring and rank Route/doc nodes above
+//     the real definition. We hand it `queryTerms(query)`, the SAME stopword-stripped
+//     term list the naive arm greps for. Neither arm sees the raw sentence.
+//  2. Path exclusion. Results are dropped through isExcludedPath() — literally the same
+//     predicate the naive arm filters its grep hits with — so neither arm spends its
+//     budget on generated daemon-state JSON or on the bench tree's own fixtures.
+//
+// Nodes with no file_path (Route pseudo-nodes) are dropped: they carry no source, so
+// they would consume rank depth without contributing anything to the bundle.
+// ---------------------------------------------------------------------------
+
+// Project resolution is process-wide state: resolve once, reuse for every query.
+let _cmmProject; // undefined = not yet resolved; null = resolved to nothing
+
+function resolveCmmProject() {
+  if (_cmmProject !== undefined) return _cmmProject;
+  if (process.env.ORCH_CMM_PROJECT) {
+    _cmmProject = { name: process.env.ORCH_CMM_PROJECT, root_path: REPO_ROOT, source: 'env' };
+    return _cmmProject;
+  }
+  try {
+    const found = cmm.resolveProject(REPO_ROOT);
+    _cmmProject = found ? { ...found, source: 'resolved' } : null;
+  } catch {
+    _cmmProject = null;
+  }
+  return _cmmProject;
+}
+
+function codebaseMemoryAssemble(query, counter) {
+  const probe = cmm.available();
+  const empty = (meta) => ({ bundleText: '', tokens: 0, hitSymbols: [], meta });
+
+  if (!probe.ok) {
+    return empty({ available: false, bin: probe.bin, error: probe.error });
+  }
+  const project = resolveCmmProject();
+  if (!project) {
+    return empty({
+      available: true,
+      version: probe.version,
+      error: `no codebase-memory-mcp project indexed for ${REPO_ROOT} `
+        + '(run `codebase-memory-mcp cli index_repository` or set ORCH_CMM_PROJECT)',
+    });
+  }
+
+  const terms = queryTerms(query);
+  const searchQuery = terms.join(' ');
+  let hits = [];
+  let searchError = null;
+  try {
+    const resp = cmm.searchGraph(project.name, searchQuery, { limit: CMM_TOP_K * CMM_OVERFETCH });
+    hits = Array.isArray(resp && resp.results) ? resp.results : [];
+  } catch (e) {
+    searchError = String((e && e.message) || e);
+  }
+
+  const considered = hits.length;
+  const usable = hits.filter((h) => {
+    const f = h && h.file_path;
+    if (!f) return false;                       // Route pseudo-nodes carry no source
+    return !isExcludedPath(f);
+  }).slice(0, CMM_TOP_K);
+
+  const parts = [];
+  const symbols = [];
+  let total = 0;
+  let snippetErrors = 0;
+  for (const hit of usable) {
+    if (total >= NAIVE_CHAR_CAP) break;
+    let snip;
+    try {
+      snip = cmm.getCodeSnippet(project.name, hit.qualified_name);
+    } catch {
+      snippetErrors += 1;
+      continue;
+    }
+    const source = (snip && snip.source) || '';
+    if (!source) { snippetErrors += 1; continue; }
+    const room = Math.min(CMM_PER_SYMBOL_CAP, NAIVE_CHAR_CAP - total);
+    const slice = source.slice(0, room);
+    const rel = String(hit.file_path).replace(/\\/g, '/');
+    parts.push(`// ===== ${rel}:${hit.start_line}-${hit.end_line} ${hit.label} ${hit.name} =====\n${slice}`);
+    total += slice.length;
+    symbols.push(hit.name);
+  }
+
+  const bundleText = parts.join('\n\n');
+  return {
+    bundleText,
+    tokens: counter(bundleText),
+    hitSymbols: [...extractSymbols(bundleText)],
+    meta: {
+      available: true,
+      version: probe.version,
+      project: project.name,
+      projectSource: project.source,
+      reachable: !searchError,
+      error: searchError,
+      terms,
+      nConsidered: considered,
+      nUsed: parts.length,
+      snippetErrors,
+      symbols,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // DEFERRED arms (need Python — not installed). Registered as stubs so they slot
 // into run.js without refactor. run.js skips arms whose `implemented` is false.
 // ---------------------------------------------------------------------------
@@ -286,6 +430,11 @@ const ARMS = {
     implemented: true,
     describe: 'query the running daemon /search for the agentic/RAG memory bundle (title+summary of recalled notes)',
     run: (query, counter, opts) => subconsciousAssemble(query, counter, opts),
+  },
+  'codebase-memory': {
+    implemented: true,
+    describe: 'query the codebase-memory-mcp code graph (BM25 over symbol nodes), then fetch the source of each matched symbol',
+    run: (query, counter, opts) => codebaseMemoryAssemble(query, counter, opts),
   },
   graphify: {
     implemented: false,
@@ -334,6 +483,7 @@ module.exports = {
   armInfo,
   extractSymbols,
   queryTerms,
+  isExcludedPath,
   REPO_ROOT,
   DAEMON_URL,
   SEARCH_WORKSPACE,
