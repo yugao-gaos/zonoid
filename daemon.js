@@ -971,6 +971,11 @@ function sweepFailedTasks(ws, ov) {
     ov.retryConfig[t.id].retryCount = retryCount;
     const prevAgent = ov.assignee && ov.assignee[t.id];
     ov.notes[t.id] = `auto-requeued after failure (attempt ${retryCount})${prevAgent ? ` — prior agent: '${prevAgent}'` : ''}. Review previous summary before re-attempting.`.slice(0, 280);
+    // Clear the review verdict alongside the status: the task is going back into the ready pipeline,
+    // so the 'rejected'/'blocked' record describes work that is about to be replaced. Leaving it made
+    // a pending task render as rejected and kept it out of the next review. Refused (and left alone)
+    // when the attempt already merged — that record is history worth keeping.
+    overlayStore.applyLifecycleEvent(ov, t.id, 'retry_requeue', { task_status: t.status });
     // Flip status back to pending so the task re-enters the ready pipeline
     delete ov.status[t.id];
     if (ov.snapshots && ov.snapshots[t.id]) {
@@ -1021,14 +1026,19 @@ function sweepStaleVerdicts(ws, ov) {
   let dirty = false;
   for (const { key, status, agentId } of stale) {
     if (hasPendingStaleVerdictReview(ov, key)) continue;
-    overlayStore.setReviewLifecycle(ov, key, {
-      review_state: 'requested',
-      merge_state: 'review_pending',
-      review_requested_at: new Date().toISOString(),
+    // Through the guarded machine, so a stale APPROVED-awaiting-merge task cannot have its landed
+    // verdict reset to 'requested' (hasPendingStaleVerdictReview only sees still-open reviews, so it
+    // waves settled ones straight through — that reset was a real lost-verdict path).
+    const decision = overlayStore.applyLifecycleEvent(ov, key, 'review_request', {
+      task_status: status,
       review_requested_by: 'stale-verdict-sweep',
-      review_reason: `Stale ${status} handoff: owner '${agentId || '?'}' is not running and the status timestamp is stale.`,
-      review_note: 'Routed to same-node review instead of dashboard escalation.',
+      reason: `Stale ${status} handoff: owner '${agentId || '?'}' is not running and the status timestamp is stale.`,
+      note: 'Routed to same-node review instead of dashboard escalation.',
     });
+    if (!decision.ok) {
+      console.log(`[self-heal] task ${key} (was ${status}) NOT re-requested: ${decision.refusal.code}`);
+      continue;
+    }
     console.log(`[self-heal] task ${key} (was ${status}) routed to same-node review — owner gone`);
     dirty = true;
   }
