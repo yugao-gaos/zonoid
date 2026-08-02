@@ -196,7 +196,7 @@ http://localhost:8787/graph?workspace=<url-encoded absolute workspace path>
 
 ## MCP tools
 
-47 tools, served identically over both transports (stdio and the daemon's `/mcp` endpoint). The
+56 tools, served identically over both transports (stdio and the daemon's `/mcp` endpoint). The
 live registry is the `TOOLS` array in `lib/mcp-core.js`. (Tasks themselves are created with
 Claude Code's native `TaskCreate`; these tools manage them once they exist.)
 

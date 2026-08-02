@@ -79,6 +79,14 @@ enables `push.recurseSubmodules=on-demand`, so a superproject push cannot publis
 commit is missing remotely. The graph repository carries its own JSONL/checkpoint merge policy in
 `.graph/.gitattributes`.
 
+Workspace graphs tracked in the superproject (`zonoid/.graph/**`) are covered by the root
+`.gitattributes` instead, which marks them `merge=ours`. Git ships no built-in `ours` merge driver,
+so enable it once per clone or the attribute silently falls back to a conflicting text merge:
+
+```bash
+git config merge.ours.driver true
+```
+
 ## Pull request process
 
 1. Fork the repo and create a branch from `main`.
