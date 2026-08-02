@@ -57,6 +57,7 @@ function readyOverlay(ws, tasks) {
   }
   daemon.__setWorkspaceForTest(ws);
   daemon.__setOverlayForTest(ov);
+  return ov;
 }
 
 function testedReviewOverlay(ws, key, lifecycle) {
@@ -206,6 +207,39 @@ test('active managed graph loop is reused, while foreground session loop may coe
   assert.equal(decisions[0].loopId, 'foreground', 'foreground loop gets first chance at ready work');
   assert.equal(decisions[0].action, 'spawn');
   assert.deepEqual(decisions[0].tasks, [{ key: 'codex/reuse-ready', label: 'Reuse ready work' }]);
+});
+
+// Scoped decideAll (opts.loopFilter / opts.skipWorkspaces): the headless spawn executor ticks only
+// the loops it may actually serve, so a session-driven loop is never charged or leased by it.
+test('decideAll honors loopFilter/skipWorkspaces without ticking or leasing excluded loops', () => {
+  const ws = registerWorkspace('scoped-decide');
+  const ov = readyOverlay(ws, [{ key: 'codex/scoped-ready', label: 'Scoped ready work' }]);
+  const loopId = managedGraphLoopId(ws);
+  const config = { tokenBudget: 5000000, maxIterations: 6250, minPoll: 30, maxPoll: 300, estPerTick: 800, batch: 4, maxConcurrency: 6, judgeParallelCap: 6 };
+  const fresh = new Date().toISOString();
+  daemon.__setLoopsForTest([
+    [loopId, { id: loopId, active: true, iterations: 0, spent: 0, baseline: 0, real: false, startedAt: fresh, session: null, lastProgress: fresh, workspace: ws, managed: 'graph', config }],
+    ['foreground', { id: 'foreground', active: true, iterations: 0, spent: 0, baseline: 0, real: false, startedAt: fresh, session: 'foreground-session', lastProgress: fresh, workspace: ws, managed: null, config }],
+  ]);
+
+  // skipWorkspaces excludes the whole workspace: nothing is decided, nothing is charged or leased.
+  const skipped = daemon.decideAll({ skipWorkspaces: new Set([ws]) });
+  assert.deepEqual(skipped, [], 'a skipped workspace yields no decisions');
+  const afterSkip = loopsById();
+  assert.equal(afterSkip.get('foreground').iterations, 0, 'excluded session loop must not be ticked');
+  assert.equal(afterSkip.get(loopId).iterations, 0, 'excluded managed loop must not be ticked');
+  assert.ok(!overlayStore.hasLiveSpawnLease(ov, 'codex/scoped-ready'),
+    'an excluded loop must not lease the ready task');
+
+  // loopFilter narrows to the managed loop only: it decides, the session loop is left untouched.
+  const scoped = daemon.decideAll({ loopFilter: (L) => !L.session });
+  assert.equal(scoped.length, 1);
+  assert.equal(scoped[0].loopId, loopId);
+  assert.equal(scoped[0].action, 'spawn');
+  assert.equal(loopsById().get('foreground').iterations, 0, 'filtered-out session loop must stay uncharged');
+
+  // No opts ⇒ unchanged behavior: every active loop is ticked.
+  assert.equal(daemon.decideAll().length, 2);
 });
 
 test('inactive restored managed graph loop is reactivated in place', () => {

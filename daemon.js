@@ -1522,7 +1522,19 @@ function ensureManagedGraphLoops(ctxByWs = null) {
 // honoring its own budget/config/session, and return a batched array [{ loopId, action, ... }]. The
 // `batch` config multiplexes across loops via a shared per-tick spawn pool (max of the active loops'
 // batch settings — generous but bounded). Inactive loops are skipped. Caller persists the registry.
-function decideAll() {
+//
+// SCOPED TICKS (`opts.loopFilter` / `opts.skipWorkspaces`): a caller that can only ACT on some loops
+// may narrow which loops are ticked. This matters because decideOne is not a read — it charges the
+// loop (iterations++/spend) and LEASES the tasks it picks, so ticking a loop whose decision the
+// caller will discard steals that loop's work from its real driver for a lease TTL. The headless
+// spawn executor uses this to tick only the workspaces no interactive session is driving
+// (lib/headless-spawn.js). /next-action passes nothing and ticks everything, as before. The global
+// per-workspace sweeps below always run regardless of the filter.
+//
+// @param {object} [opts]
+//   @param {Function} [opts.loopFilter]     — (L) => boolean; loops returning falsy are not ticked.
+//   @param {Set}      [opts.skipWorkspaces] — workspaces whose loops are not ticked.
+function decideAll(opts = {}) {
   sweepStaleLoops();   // central liveness sweep (same pass): demote dead/exhausted/stalled loops first
   // Sweep across the REAL set of registered workspaces (workspaces.json), not the single daemon-
   // global state.workspace pointer (P2b). registeredWorkspaces() already unions in active-loop
@@ -1541,8 +1553,12 @@ function decideAll() {
 
   // Foreground/request loops get first chance to spend the shared spawn pool; managed graph loops
   // are the background safety net and must not preempt an explicit driver loop for the same work.
+  const loopFilter = typeof opts.loopFilter === 'function' ? opts.loopFilter : null;
+  const skipWorkspaces = opts.skipWorkspaces instanceof Set ? opts.skipWorkspaces : null;
   const active = [...loops.values()]
     .filter((L) => L.active)
+    .filter((L) => !(skipWorkspaces && L.workspace && skipWorkspaces.has(L.workspace)))
+    .filter((L) => !loopFilter || !!loopFilter(L))
     .sort((a, b) => (a.managed ? 1 : 0) - (b.managed ? 1 : 0));
   // ONE spawn pool shared across ALL loops this tick (regardless of workspace) — the daemon-wide
   // concurrency bound is about total spawned workers, not per-workspace.
@@ -3159,16 +3175,18 @@ if (require.main === module) {
   requestHeadlessDrainWake = headlessDrainRunner.requestWake;
 
   // Headless SPAWN executor (full-autonomy path): when a managed graph loop decides action:'spawn'
-  // and no interactive session is driving, the daemon dispatches the workers itself. The same pass
+  // and no interactive session is driving THAT WORKSPACE, the daemon dispatches the workers itself
+  // (stand-down is per-workspace, so a session open on one repo no longer strands the rest). The same pass
   // also executes drained-DAG 'plan'/'optimize' decisions by spawning a headless PLANNER child
   // ('plan' additionally requires ov.config.self_plan) — one decideAll consumer for both, so
   // decisions are never double-leased. Per-workspace opt-in via overlay config
   // `headless_driver:true` (default off). Rides the SAME pump scheduling (a second runner
   // instance) and the SAME headless-drain governor — see lib/headless-spawn.js.
-  // decide mirrors the /next-action route exactly: decideAll() then saveLoops().
+  // decide mirrors the /next-action route exactly (decideAll() then saveLoops()), but FORWARDS the
+  // executor's scoping opts so loops on session-driven workspaces are never ticked or leased here.
   const headlessSpawnExecutor = headlessSpawn.createSpawnExecutor({
     loops,
-    decide: () => { const r = decideAll(); saveLoops(); return r; },
+    decide: (o) => { const r = decideAll(o); saveLoops(); return r; },
   });
   const headlessSpawnRunner = createHeadlessDrainRunner({ headlessDrain: headlessSpawnExecutor, getState: () => state });
   requestHeadlessSpawnWake = headlessSpawnRunner.requestWake;

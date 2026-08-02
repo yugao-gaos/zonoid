@@ -131,7 +131,7 @@ async function waitForPing(ms = 12000) {
       labelPressure: null,
       orchGateOff: false,
     });
-    ok('assembled sonnet for simple abstain', assembled.main_model === 'claude-sonnet-4-6');
+    ok('assembled sonnet for simple abstain', assembled.main_model === 'claude-sonnet-5');
 
     // context-classify unchanged
     r = await post('/context-classify', { prompt: 'fix the login button color' });
