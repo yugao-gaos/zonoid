@@ -2818,6 +2818,7 @@ const classifyRoute = require('./routes/classify');
 const uiRoute = require('./routes/ui');
 const usageRoute = require('./routes/usage');
 const subconsciousRoute = require('./routes/subconscious');
+const activityRoute = require('./routes/activity');
 
 // ctx: live access to daemon state + helpers. State fields use getters so reassignment
 // (state = {...} at /reset) is always visible. P3: there is no daemon-global workspace/overlay.
@@ -2910,7 +2911,8 @@ const ctx = {
 const routeModules = [
   mcpRoute(ctx), stateRoute(ctx), metaRoute(ctx), graphRoute(ctx), taskRoute(ctx), overlayRoute(ctx),
   gitRoute(ctx), judgeRoute(ctx), labelRoute(ctx), configRoute(ctx), analyticsRoute(ctx), onboardRoute(ctx),
-  sessionRoute(ctx), execRoute(ctx), classifyRoute(ctx), usageRoute(ctx), subconsciousRoute(ctx), uiRoute(ctx),
+  sessionRoute(ctx), execRoute(ctx), classifyRoute(ctx), usageRoute(ctx), subconsciousRoute(ctx),
+  activityRoute(ctx), uiRoute(ctx),
 ];
 
 function superviseCodexWakeDeliveryForRegisteredWorkspaces() {
@@ -2942,6 +2944,8 @@ const handler = async (req, res) => {
     const mutatingRequest = !['GET', 'HEAD', 'OPTIONS'].includes(m);
     const sensitiveRead = p === '/peek'
       || p === '/active-claim'
+      || p === '/activity'
+      || p === '/status'
       || p === '/agents'
       || p === '/events'
       || p === '/next-action'
