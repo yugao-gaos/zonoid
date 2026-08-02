@@ -2929,6 +2929,7 @@ const handler = async (req, res) => {
     const sensitiveRead = p === '/peek'
       || p === '/active-claim'
       || p === '/activity'
+      || p === '/status'
       || p === '/agents'
       || p === '/events'
       || p === '/next-action'

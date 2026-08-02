@@ -25,9 +25,20 @@
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
 
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
 // Set capacity BEFORE requiring: lib/activity reads the env var per call, but keeping it stable
 // across the whole file makes the ring assertions deterministic.
 process.env.ORCH_ACTIVITY_CAPACITY = '5';
+// Redirect the persisted archive into a temp dir — the suite must never append to the real
+// runtime activity.jsonl.
+const LOG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'activity-test-'));
+const LOG = path.join(LOG_DIR, 'activity.jsonl');
+process.env.ORCH_ACTIVITY_LOG = LOG;
+const clearLog = () => { for (const f of [LOG, `${LOG}.1`]) { try { fs.unlinkSync(f); } catch { /* absent */ } } };
+
 const activity = require('../lib/activity');
 const activityRoute = require('../routes/activity');
 
@@ -147,8 +158,82 @@ process.env.ORCH_ACTIVITY_CAPACITY = '50';
   ok('falsy never_claimed is omitted from detail', marked.detail && marked.detail.never_claimed === undefined);
 }
 
+// ---- (8b) persisted archive: worker start→done round-trips, survives the ring -------------
+activity.reset(); clearLog();
+{
+  const h = activity.begin({ kind: activity.KIND.WORKER, workspace: WS_A, task: 'round/trip', agent_id: 'w1' });
+  ok('a running job is NOT archived yet', !fs.existsSync(LOG) || fs.readFileSync(LOG, 'utf8').trim() === '');
+  h.end({ status: activity.STATUS.OK });
+
+  const lines = fs.readFileSync(LOG, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  ok('settled job is archived exactly once (no running + done pair)', lines.length === 1);
+  ok('archived row round-trips its identity', lines[0].task === 'round/trip' && lines[0].kind === 'worker');
+  ok('archived row is the SETTLED shape', lines[0].status === 'ok' && lines[0].duration_ms != null);
+
+  // The archive answers restart-spanning questions the bounded ring cannot.
+  activity.record({ kind: activity.KIND.REVIEW_MERGE, workspace: WS_A, task: 'm1' });
+  activity.record({ kind: activity.KIND.REVIEW_MERGE, workspace: WS_A, task: 'm2' });
+  activity.record({ kind: activity.KIND.REVIEW_MERGE, workspace: WS_B, task: 'm3' });
+  const since = new Date(new Date().getFullYear(), 0, 1).getTime();
+  ok('countSince counts archived merges', activity.countSince(since, { kind: activity.KIND.REVIEW_MERGE }) === 3);
+  ok('countSince honours the workspace filter', activity.countSince(since, { kind: activity.KIND.REVIEW_MERGE, workspace: WS_A }) === 2);
+  ok('countSince honours a future floor', activity.countSince(Date.now() + 60000, { kind: activity.KIND.REVIEW_MERGE }) === 0);
+
+  const last = activity.lastEvent({ kind: activity.KIND.WORKER });
+  ok('lastEvent finds the newest archived match', last && last.task === 'round/trip');
+  ok('lastEvent returns null when nothing matches', activity.lastEvent({ kind: activity.KIND.JUDGE }) === null);
+
+  // A torn/partial trailing line must not poison the reader.
+  fs.appendFileSync(LOG, '{"kind":"worker","at":');
+  ok('a torn trailing line is skipped, not fatal', activity.countSince(since, { kind: activity.KIND.REVIEW_MERGE }) === 3);
+}
+
+// ---- (8c) recordChange is edge-triggered --------------------------------------------------
+activity.reset(); clearLog();
+{
+  const first = activity.recordChange('backoff', 1, { kind: activity.KIND.DRAIN, text: 'backing off' });
+  const same = activity.recordChange('backoff', 1, { kind: activity.KIND.DRAIN, text: 'backing off' });
+  const changed = activity.recordChange('backoff', 2, { kind: activity.KIND.DRAIN, text: 'backing off harder' });
+  ok('first edge records', first !== null);
+  ok('unchanged signature does NOT record (no per-tick flood)', same === null);
+  ok('changed signature records again', changed !== null);
+  ok('only the two edges are in the ring', activity.list({ kinds: 'drain' }).length === 2);
+
+  // Independent signals do not shadow each other.
+  ok('a different signal records on its own edge', activity.recordChange('no_backend', 1, { kind: activity.KIND.DRAIN }) !== null);
+}
+
+// ---- (8d) never throws ---------------------------------------------------------------------
+activity.reset(); clearLog();
+{
+  // A getter that throws during serialization is the realistic failure: instrumentation must
+  // swallow it rather than take the drain down.
+  const hostile = { get boom() { throw new Error('hostile detail'); } };
+  let threw = false;
+  try { activity.record({ kind: activity.KIND.WORKER, workspace: WS_A, detail: hostile }); } catch { threw = true; }
+  ok('record() never throws on a hostile payload', threw === false);
+
+  threw = false;
+  let handle = null;
+  try { handle = activity.begin({ kind: activity.KIND.WORKER, workspace: WS_A, detail: hostile }); } catch { threw = true; }
+  ok('begin() never throws on a hostile payload', threw === false);
+  ok('begin() still returns an end()-able handle', handle && typeof handle.end === 'function');
+  threw = false;
+  try { handle.end({ status: activity.STATUS.OK }); } catch { threw = true; }
+  ok('the returned end() never throws', threw === false);
+}
+
 // ---- route harness ---------------------------------------------------------------------
-function makeCtx(overlayConfig) {
+// The overlay is a REAL overlayStore.EMPTY() so the route's reviewLifecycleFor/_reviewVerdictPending
+// calls exercise the production predicates, not a stub that could drift from them.
+const overlayStore = require('../lib/overlay');
+function makeCtx(opts = {}) {
+  const { _status, _review, planner, ...config } = opts;
+  const ov = overlayStore.EMPTY();
+  ov.config = config;
+  if (_status) ov.status = { ..._status };
+  if (planner) ov.planner = planner;
+  for (const [key, patch] of Object.entries(_review || {})) overlayStore.setReviewLifecycle(ov, key, patch);
   let sent = null;
   return {
     ctx: {
@@ -156,7 +241,7 @@ function makeCtx(overlayConfig) {
       targetOverlay: (_b, u) => {
         const wanted = u.searchParams.get('workspace') || u.searchParams.get('graph_repo');
         if (wanted === '__unresolvable__') throw new Error('no such workspace');
-        return { ws: wanted, ov: { config: overlayConfig || {} } };
+        return { ws: wanted, ov };
       },
     },
     sent: () => sent,
@@ -224,6 +309,37 @@ activity.reset();
   const h = makeCtx({});
   ok('non-/activity path is not handled', (await call(h, '/state')).handled === false);
   ok('POST /activity is not handled', (await call(h, '/activity', 'POST')).handled === false);
+  ok('POST /status is not handled', (await call(h, '/status', 'POST')).handled === false);
+}
+
+// ---- (13) GET /status — the lightweight CLI digest ------------------------------------------
+activity.reset(); clearLog();
+{
+  const live = activity.begin({ kind: activity.KIND.WORKER, workspace: WS_A, task: 'w/1' });
+  activity.begin({ kind: activity.KIND.JUDGE, workspace: WS_A });          // a drain, NOT a worker
+  activity.record({ kind: activity.KIND.REVIEW_MERGE, workspace: WS_A, task: 'm/1' });
+  activity.record({ kind: activity.KIND.REVIEW_MERGE, workspace: WS_A, task: 'm/2', status: activity.STATUS.FAILED, error: 'conflict' });
+
+  // Two tested tasks: one awaiting review, one already approved (must NOT count as pending).
+  const h = makeCtx({
+    automode: true,
+    _status: { 'p/1': 'tested', 'p/2': 'tested' },
+    _review: { 'p/1': { review_state: 'requested', merge_state: 'review_pending' } },
+  });
+  const r = await call(h, '/status?workspace=' + encodeURIComponent(WS_A));
+  ok('route handles GET /status', r.handled === true && r.code === 200);
+  ok('workers_running counts ONLY worker jobs', r.body.workers_running === 1);
+  ok('reviews_pending counts tasks awaiting review', r.body.reviews_pending === 1);
+  ok('merges_today counts only merges that LANDED', r.body.merges_today === 1);
+  ok('backoff_until is null when not throttled', r.body.backoff_until === null);
+  ok('status echoes the autonomy flags', r.body.autonomy && r.body.autonomy.partial === true);
+  ok('status reports last_planner_run (null with no planner history)', 'last_planner_run' in r.body);
+
+  const withPlanner = makeCtx({ planner: { lastPlanAt: Date.parse('2026-07-04T12:00:00Z') } });
+  const rp = await call(withPlanner, '/status?workspace=' + encodeURIComponent(WS_A));
+  ok('last_planner_run prefers the durable overlay marker', rp.body.last_planner_run === '2026-07-04T12:00:00.000Z');
+
+  live.end({ status: activity.STATUS.OK });
 }
 }
 

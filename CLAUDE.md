@@ -258,13 +258,25 @@ output redirection. `lib/activity.js` is the fix: a **bounded in-memory ring** (
 `ORCH_ACTIVITY_CAPACITY`) plus a **live in-flight registry**, written by `lib/headless-spawn.js` and
 `lib/headless-drain.js`.
 
-- **Ring, not a log.** Deliberately not persisted — the graph already owns durable history. Losing
-  the ring on restart is correct: after a restart nothing is in flight anyway.
+- **Ring for "now", archive for "today".** The ring answers what is happening and dies with the
+  process. Every SETTLED event is also appended to a size-capped, single-generation-rotated
+  `activity.jsonl` in the runtime dir (`ORCH_ACTIVITY_LOG`, `ORCH_ACTIVITY_LOG_MAX_BYTES`), so
+  restart-spanning questions ("how many merges landed today?") still have an answer. Running rows
+  are never archived — a half-open pair is exactly what a restart makes meaningless.
 - **`GET /activity`** (`routes/activity.js`) returns `running[]` (each with live `elapsed_ms`),
   `events[]` (newest first), and the two things that explain an EMPTY feed: `autonomy` (the
   workspace's self_plan/automode/headless_driver flags) and `governor` (headless concurrency /
   budget / rate-limit backoff). Query params: `workspace`, `limit`, `since`, `kind`.
+- **`GET /status`** is the lightweight digest for CLI/report use — no event list to parse:
+  `{ workers_running, drains_running, reviews_pending, merges_today, last_planner_run,
+  backoff_until, autonomy }`.
 - **Incremental polling:** every event carries a monotonic `seq`. Poll with `since=<last seq>` for
   only what is new, and compare `dropped` across polls to detect ring overflow.
+- **Pump-level conditions are edge-triggered.** Backoff entered/cleared and `no_backend` pauses go
+  through `activity.recordChange(signal, signature, …)`, which writes only when the value changes —
+  a level-triggered emit would flood the ring with one identical row per pump tick.
+- **Never throws.** Every exported entry point swallows its own failures (inert handle / empty
+  list): a drain that crashes because its activity row could not be written is strictly worse than
+  a drain with no activity row.
 - **Dashboard:** an "Auto" status-dock counter shows live headless jobs at a glance; clicking it
   opens the Autonomy section of the activity popup with the running + recent feed.
