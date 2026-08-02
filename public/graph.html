@@ -760,6 +760,11 @@
       <span class="sdnum zero" id="sdv-agents">0</span>
       <span class="sdlbl">Agents</span>
     </div>
+    <div class="sditem clickable" id="sd-auto" onclick="toggleActivityPopup()" title="Autonomy — headless workers &amp; drains running right now">
+      <span class="sdicon" style="color:#a371f7">◐</span>
+      <span class="sdnum zero" id="sdv-auto">0</span>
+      <span class="sdlbl">Auto</span>
+    </div>
   </div>
   <div class="sd-group">
     <div class="sditem" id="sd-total" title="Total tasks">
@@ -812,6 +817,12 @@
 </div>
 <div id="activityPopup">
   <span class="appclose" onclick="document.getElementById('activityPopup').classList.remove('show')">✕</span>
+  <!-- Autonomy feed (GET /activity): headless workers + drains leave NO graph trace while they run,
+       so this is the only place the dashboard can answer "what is happening right now". -->
+  <section class="feed">
+    <h2 style="margin-left:0">Autonomy <span id="autonomyFlags" style="font-size:10px;font-weight:400;color:#6e7681"></span></h2>
+    <div id="autonomyFeed"><div class="empty">loading…</div></div>
+  </section>
   <section class="feed"><h2 style="margin-left:0">Router decisions</h2><div id="routes"></div></section>
   <section class="feed"><h2 style="margin-left:0">Subagents</h2><div id="agents"></div></section>
 </div>
@@ -5469,7 +5480,7 @@ async function tick(){
   // re-ticks once a choice lands. This is what prevents a silent fall-through to the global pointer.
   if (!WS_RESOLVED) { try { await resolveExplicitWorkspace(); } catch {} if (!WS_RESOLVED) return; }
   let d; try{ d=await(await dfetch('/state')).json(); }catch{ return; }
-  refreshCost(); refreshCronTok(); refreshInfraHero(); refreshAgreement(); refreshEconomy();
+  refreshCost(); refreshCronTok(); refreshInfraHero(); refreshAgreement(); refreshEconomy(); refreshAutonomy();
   liveAgentIds=new Set((d.agents||[]).filter(a=>a&&a.state==='running').map(a=>a.agent_id));
   const s=d.summary, sc=s.statuses||{}; const order=['not_ready','ready','in_progress','tested','done','failed','canceled'];
 
@@ -7256,7 +7267,12 @@ window.addEventListener('resize', ()=>{
   else { const v=currentView==='focus'?'focus':'frontier'; dagState[v]={init:false,tf:null}; if(v==='focus') renderFocus(lastState); else renderFrontier(lastState); }
 });
 // Activity feeds collapsed by default; remembered in localStorage
-function toggleActivityPopup(){ document.getElementById('activityPopup').classList.toggle('show'); }
+function toggleActivityPopup(){
+  const p=document.getElementById('activityPopup');
+  p.classList.toggle('show');
+  // Opening the panel is an explicit "show me now" — bypass the poll floor so the feed is fresh.
+  if(p.classList.contains('show')){ _activityAt=0; refreshAutonomy(); }
+}
 function toggleGuidancePopup(){
   const p=document.getElementById('guidance'); p.classList.toggle('show');
   if(p.classList.contains('show')) document.getElementById('settingsPopup').classList.remove('show');
@@ -7536,6 +7552,69 @@ async function refreshEconomy(){
     const d=await(await dfetch('/metrics/economy')).json();
     if(d&&d.ok){ economyCache=d.economy; }
   }catch{}finally{ _economyBusy=false; }
+}
+// ---- autonomy activity feed (GET /activity) -------------------------------------------------
+// The autonomous tier's only ambient surface. Headless workers and drains write to an in-memory ring
+// in the daemon (lib/activity.js); a running job leaves NO graph trace until it settles, so without
+// this the dashboard shows node states and nothing about what is happening RIGHT NOW.
+let activityCache=null, _activityAt=0, _activityBusy=false;
+const AUTO_COLOR={running:'#58a6ff',ok:'#3fb950',failed:'#ff7b72',skipped:'#8b949e'};
+const AUTO_ICON={running:'▶',ok:'✓',failed:'✕',skipped:'⊘'};
+function fmtDur(ms){
+  if(ms==null||!isFinite(ms)) return '';
+  const s=Math.round(ms/1000); if(s<60) return s+'s';
+  const m=Math.floor(s/60); if(m<60) return m+'m';
+  const h=Math.floor(m/60); return h<24?h+'h':Math.floor(h/24)+'d';
+}
+function fmtAgo(iso){ const t=Date.parse(iso); return isFinite(t)?fmtDur(Date.now()-t)+' ago':''; }
+async function refreshAutonomy(){
+  // 3s floor: cheap in-memory read, but tick() can fire from several places at once.
+  if(_activityBusy||Date.now()-_activityAt<3000) return;
+  _activityBusy=true; _activityAt=Date.now();
+  try{
+    const d=await(await dfetch('/activity?limit=40')).json();
+    if(d&&d.ok){ activityCache=d; renderAutonomy(); }
+  }catch{}finally{ _activityBusy=false; }
+}
+function renderAutonomy(){
+  const feed=document.getElementById('autonomyFeed'); if(!feed) return;
+  const d=activityCache||{};
+  const live=d.running||[], evs=d.events||[];
+
+  // Dock counter: live headless jobs. This is the ambient signal — visible without opening anything.
+  setDockVal('sdv-auto', live.length, '#a371f7');
+  const dock=document.getElementById('sd-auto');
+  if(dock) dock.classList.toggle('wip-active', live.length>0);
+
+  // Flag chip answers "should anything be happening?" — an empty feed with autonomy off is expected,
+  // an empty feed with orch auto ON is a problem worth seeing.
+  const flags=document.getElementById('autonomyFlags'), a=d.autonomy;
+  if(flags&&a){
+    const on=['self_plan','automode','headless_driver'].filter(k=>a[k]);
+    flags.textContent=a.auto?'· orch auto ON':a.partial?'· partial ('+on.join(' + ')+')':'· autonomy off';
+    flags.style.color=a.auto?'#3fb950':a.partial?'#e3b341':'#6e7681';
+  }
+
+  // Governor: work can be due but deliberately paused. Without this a throttled daemon reads as idle.
+  const g=d.governor;
+  let head='';
+  if(g&&g.throttled) head+='<div class="row" style="color:#e3b341">⏸ rate-limit backoff — retrying in '+fmtDur(g.backoff_ms)+'</div>';
+  else if(g&&g.token_budget&&g.tokens_used>=g.token_budget) head+='<div class="row" style="color:#e3b341">⏸ headless token budget exhausted</div>';
+
+  // Running rows first (newest work is what a watcher came for), then settled history.
+  const settled=evs.filter(e=>e.status!=='running');
+  if(!live.length&&!settled.length){ feed.innerHTML=head+'<div class="empty">no headless activity yet</div>'; return; }
+  const row=(e,elapsed)=>{
+    const c=AUTO_COLOR[e.status]||'#8b949e';
+    // Settled rows show how long they took AND how long ago they started (e.ts is the start stamp —
+    // rows are ordered by seq, i.e. start order, so "ago" reads consistently down the list).
+    const when=elapsed!=null?fmtDur(elapsed)+' elapsed'
+      :[e.duration_ms!=null?fmtDur(e.duration_ms):null,fmtAgo(e.ts)].filter(Boolean).join(' · ');
+    const err=e.status==='failed'&&e.error?'<div style="color:#ff7b72;font-size:10px;padding-left:14px">'+esc(e.error)+'</div>':'';
+    return '<div class="row"><span style="color:'+c+'">'+(AUTO_ICON[e.status]||'·')+'</span> '+esc(e.text||e.kind)+
+      (when?' <span class="muted">'+esc(when)+'</span>':'')+'</div>'+err;
+  };
+  feed.innerHTML=head+live.map(e=>row(e,e.elapsed_ms)).join('')+settled.map(e=>row(e,null)).join('');
 }
 async function refreshAgreement(){
   if(_agreementBusy||Date.now()-_agreementAt<30000) return;
