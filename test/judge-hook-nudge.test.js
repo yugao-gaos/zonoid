@@ -47,7 +47,7 @@ function runHook(input, extraEnv = {}) {
   return { status: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
 }
 
-const BASE_CTX = `[Model routing] Recommended: main=claude-sonnet-4-6, subagent=claude-opus-4-8 (fast) (complexity=0.2, gate=abstain)
+const BASE_CTX = `[Model routing] Recommended: main=claude-sonnet-5, subagent=claude-opus-5 (fast) (complexity=0.2, gate=abstain)
 [Orch gate] Claim only the task matching the work at hand — NEVER force-claim a task to unlock edits for unrelated work; create a new task instead. Force-claims are capped at 3 per task; over cap is an automated backoff signal, not a user approval request.
 ${HEARTBEAT}`;
 
