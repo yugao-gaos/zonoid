@@ -79,8 +79,34 @@ function reviewsPending(ov) {
   return n;
 }
 
+/** Count in-flight activity rows grouped by kind — the "per kind" view of what is running. */
+function runningByKind(ws) {
+  const by = {};
+  for (const ev of activity.running({ workspace: ws })) {
+    const k = ev.kind || 'unknown';
+    by[k] = (by[k] || 0) + 1;
+  }
+  return by;
+}
+
+/**
+ * Internal-lane counts for a scoped /status — REUSES lib/internal-lanes.js (the same projection
+ * the dashboard frontier reads) rather than re-deriving queue math here. Advisory: any failure
+ * (no graph yet, overlay mid-write) degrades to null, never a 500.
+ */
+function lanesSummary(ctx, ws, ov) {
+  if (!ws || !ov) return null;
+  try {
+    const { buildInternalLaneProjection } = require('../lib/internal-lanes');
+    const graph = typeof ctx.buildGraph === 'function' ? ctx.buildGraph(ws) : null;
+    return buildInternalLaneProjection({ workspace: ws, graph, overlay: ov, includeItems: false }).summary;
+  } catch {
+    return null;
+  }
+}
+
 module.exports = (ctx) => async (p, m, req, res, u) => {
-  const { send, targetOverlay } = ctx;
+  const { send, targetOverlay, loops } = ctx;
 
   if ((p !== '/activity' && p !== '/status') || m !== 'GET') return false;
 
@@ -103,12 +129,28 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     const lastPlanner = plannerMarker
       ? new Date(plannerMarker).toISOString()
       : (activity.lastEvent({ kind: activity.KIND.PLANNER, workspace: ws }) || {}).ts || null;
+    const daemonLog = ctx.daemonLog || require('../lib/daemon-log');
     send(res, 200, {
       ok: true,
       workspace: ws,
       autonomy: autonomyView(ov),
       workers_running: activity.running({ workspace: ws, kinds: activity.KIND.WORKER }).length,
       drains_running: gov ? gov.concurrent_running : null,
+      // Full governor view: concurrency slots, iteration/token budgets, and backoff — the
+      // "work is due but deliberately paused" explainer a bare backoff_until can't give.
+      governor: gov,
+      // In-flight jobs grouped by kind (worker/planner/judge/drain/…): the per-kind slice of
+      // the same ring `workers_running` reads.
+      running_by_kind: runningByKind(ws),
+      // Managed graph loops currently active (daemon-side pump drivers). Null when the caller
+      // (a test fake ctx) provides no loops registry.
+      loops_active: loops && typeof loops.values === 'function'
+        ? [...loops.values()].filter((L) => L && L.active).length
+        : null,
+      // Where the always-on daemon log tees to (null = tee disabled or not installed).
+      log_path: typeof daemonLog.logPath === 'function' ? daemonLog.logPath() : null,
+      // Internal-lane counts (decision/work/learning/user_gate) when workspace-scoped.
+      lanes: lanesSummary(ctx, ws, ov),
       reviews_pending: reviewsPending(ov),
       // Restart-durable: counted from the persisted archive, not the in-memory ring.
       merges_today: activity.countSince(startOfDayMs(), {
