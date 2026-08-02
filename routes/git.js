@@ -135,18 +135,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (result.merged) {
       const mergedAt = now();
       overlayStore.setGit(T.ov, b.key, { merged: true, merge_sha: result.head || null, merged_at: mergedAt });
-      overlayStore.setReviewLifecycle(T.ov, b.key, { merge_state: 'merged', merge_sha: result.head || null, merged_at: mergedAt });
+      overlayStore.applyLifecycleEvent(T.ov, b.key, 'merge_landed', { merge_sha: result.head || null, merged_at: mergedAt });
       T.save();
     } else if (result.conflict) {
       const files = Array.isArray(result.files) && result.files.length ? result.files.join(', ') : 'unknown files';
-      overlayStore.setReviewLifecycle(T.ov, b.key, {
-        merge_state: 'conflict',
-        review_reason: `Merge conflict in ${files}`,
-        review_note: `Merge conflict in ${files}`,
-      });
+      overlayStore.applyLifecycleEvent(T.ov, b.key, 'merge_conflict', { reason: `Merge conflict in ${files}` });
       T.save();
     } else if (result.error || result.reason) {
-      overlayStore.setReviewLifecycle(T.ov, b.key, { merge_state: 'failed' });
+      overlayStore.applyLifecycleEvent(T.ov, b.key, 'merge_failed', {});
       T.save();
     }
     notifyChange(T.graph_repo || T.ws);

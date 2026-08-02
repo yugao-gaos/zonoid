@@ -360,7 +360,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           if (mr.merged) {
             const mergedAt = now();
             overlayStore.setGit(T.ov, action.task_key, { merged: true, merge_sha: mr.head || null, merged_at: mergedAt });
-            overlayStore.setReviewLifecycle(T.ov, action.task_key, { merge_state: 'merged', merge_sha: mr.head || null, merged_at: mergedAt, review_state: 'landed', review_verdict: 'APPROVE' });
+            overlayStore.applyLifecycleEvent(T.ov, action.task_key, 'merge_landed', { merge_sha: mr.head || null, merged_at: mergedAt });
             overlayStore.setStatus(T.ov, action.task_key, 'done');
             result.merged = true; result.merge_sha = mr.head || null;
           } else {

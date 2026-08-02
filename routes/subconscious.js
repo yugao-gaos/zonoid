@@ -509,21 +509,19 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
         : { origin: 'subconscious-assignment' });
     }
     if (reviewRequested) {
-      const reviewPatch = {
-        review_state: 'requested',
-        merge_state: 'review_pending',
+      // Through the guarded machine: a re-prepare of a task whose review already SETTLED must not
+      // silently reopen it (that would discard the verdict and re-queue an already-judged attempt).
+      // Pass rework:true only on an explicit reallocate — that IS a deliberate second attempt.
+      const opts = {
         legacy_judge_task_key: legacyJudgeTaskKey,
+        review_requested_at: (typeof ctx.now === 'function' ? ctx.now() : new Date().toISOString()),
+        rework: b.reallocate === true,
       };
       const requestedBy = cleanString(b.agent_id);
-      const requestedAt = typeof ctx.now === 'function' ? ctx.now() : new Date().toISOString();
       const reviewNote = cleanString(b.judge_description || b.judge_subject);
-      if (requestedBy) reviewPatch.review_requested_by = requestedBy;
-      if (requestedAt) reviewPatch.review_requested_at = requestedAt;
-      if (reviewNote) {
-        reviewPatch.review_note = reviewNote;
-        reviewPatch.review_reason = reviewNote;
-      }
-      overlayStore.setReviewLifecycle(T.ov, taskKey, reviewPatch);
+      if (requestedBy) opts.review_requested_by = requestedBy;
+      if (reviewNote) { opts.note = reviewNote; opts.reason = reviewNote; }
+      overlayStore.applyLifecycleEvent(T.ov, taskKey, 'review_request', opts);
     }
 
     overlayStore.setRepo(T.ov, taskKey, repo);
