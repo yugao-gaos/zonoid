@@ -345,6 +345,15 @@ function validateTerminalClaimOwner(ov, body) {
   const claimSession = ov.claimSessions && ov.claimSessions[key];
   const currentStatus = ov.status && ov.status[key];
   if (currentStatus !== 'in_progress' && !claimSession) return null;
+  // Same-node REVIEW transitions are not work completions. A reviewer submitting a verdict on a
+  // task that is no longer in_progress is BY DESIGN a different identity from the worker that
+  // built it, so a lingering claim binding (e.g. leaked by a stale release before releaseClaim
+  // cleared bindings, or a worker whose terminal write raced the sweep) must never force the
+  // reviewer to reuse the worker's session_id/agent_id. The in_progress guard below still stands —
+  // a live build cannot be verdicted out from under its worker (lifecycle machine enforces the
+  // same invariant at the transition layer).
+  const isReviewTransition = !!(body.review && (body.review.review_verdict || body.review.review_state));
+  if (isReviewTransition && currentStatus !== 'in_progress') return null;
 
   const sid = body.session_id ? String(body.session_id) : '';
   if (!sid) {

@@ -676,6 +676,13 @@ function validateBenchmark(b) {
 function releaseClaim(key, reason, ov, ctx = null, ws) {
   if (ov.status[key] !== 'in_progress') return false;
   delete ov.status[key];
+  // Clear the claim BINDINGS along with the status override. Leaving claimSessions/assignee behind
+  // made validateTerminalClaimOwner (routes/overlay.js) demand the DEAD worker's identity from
+  // whoever finishes the task next — observed live 2026-08-02: reviewers had to impersonate a
+  // stale worker's agent_id/session_id to record a verdict, and the headless review-verdict drain
+  // was hard-blocked on such tasks. A released claim has no owner; the next writer re-binds.
+  if (ov.claimSessions && ov.claimSessions[key]) delete ov.claimSessions[key];
+  if (ov.assignee && ov.assignee[key]) delete ov.assignee[key];
   ov.notes[key] = String(reason).slice(0, 280);
   if (ov.snapshots && ov.snapshots[key]) {
     overlayStore.setSnapshot(ov, key, { ...ov.snapshots[key], status: 'pending' });
