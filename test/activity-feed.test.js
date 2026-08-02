@@ -188,6 +188,37 @@ activity.reset(); clearLog();
   ok('a torn trailing line is skipped, not fatal', activity.countSince(since, { kind: activity.KIND.REVIEW_MERGE }) === 3);
 }
 
+// ---- (8b2) the archive NEVER defaults into the real runtime dir under the test runner ---------
+// Regression: every drain/spawn test drives the same instrumented production paths, so before this
+// guard a suite run appended hundreds of synthetic rows to the user's real activity.jsonl and made
+// GET /status report fabricated counts. ZONOID_SKIP_LIVE (set by scripts/run-tests.js for every
+// test file) disables the implicit runtime-dir default; an explicit ORCH_ACTIVITY_LOG still wins.
+activity.reset(); clearLog();
+{
+  const explicitLog = process.env.ORCH_ACTIVITY_LOG;
+  const priorSkip = process.env.ZONOID_SKIP_LIVE;
+  const { runtimePath } = require('../lib/runtime-paths');
+  const realArchive = runtimePath('activity.jsonl');
+  const before = fs.existsSync(realArchive) ? fs.statSync(realArchive).size : -1;
+
+  delete process.env.ORCH_ACTIVITY_LOG;         // fall back to the implicit default…
+  process.env.ZONOID_SKIP_LIVE = '1';           // …which the guard must refuse under the runner
+  activity.record({ kind: activity.KIND.REVIEW_MERGE, workspace: WS_A, task: 'must-not-persist' });
+  const after = fs.existsSync(realArchive) ? fs.statSync(realArchive).size : -1;
+  ok('no write reaches the real runtime archive under ZONOID_SKIP_LIVE', after === before);
+  ok('reads degrade to empty rather than reading the real archive', activity.countSince(0) === 0);
+  ok('the event is still in the ring (only the ARCHIVE is suppressed)',
+    activity.list({ kinds: 'review_merge' }).length === 1);
+
+  // The explicit override is what activity-feed's own archive tests rely on — it must still win.
+  process.env.ORCH_ACTIVITY_LOG = explicitLog;
+  activity.record({ kind: activity.KIND.REVIEW_MERGE, workspace: WS_A, task: 'explicit-override' });
+  ok('an explicit ORCH_ACTIVITY_LOG still archives under ZONOID_SKIP_LIVE', activity.countSince(0) === 1);
+
+  if (priorSkip === undefined) delete process.env.ZONOID_SKIP_LIVE;
+  else process.env.ZONOID_SKIP_LIVE = priorSkip;
+}
+
 // ---- (8c) recordChange is edge-triggered --------------------------------------------------
 activity.reset(); clearLog();
 {

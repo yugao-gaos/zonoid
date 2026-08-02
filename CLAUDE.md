@@ -262,7 +262,11 @@ output redirection. `lib/activity.js` is the fix: a **bounded in-memory ring** (
   process. Every SETTLED event is also appended to a size-capped, single-generation-rotated
   `activity.jsonl` in the runtime dir (`ORCH_ACTIVITY_LOG`, `ORCH_ACTIVITY_LOG_MAX_BYTES`), so
   restart-spanning questions ("how many merges landed today?") still have an answer. Running rows
-  are never archived — a half-open pair is exactly what a restart makes meaningless.
+  are never archived — a half-open pair is exactly what a restart makes meaningless. Under the test
+  runner (`ZONOID_SKIP_LIVE=1`) the implicit runtime-dir default is disabled entirely: drain/spawn
+  tests drive the same instrumented code paths, and without that guard a suite run writes hundreds
+  of synthetic rows into the real archive and `GET /status` reports fabricated counts. An explicit
+  `ORCH_ACTIVITY_LOG` still wins, which is how the archive's own tests exercise it.
 - **`GET /activity`** (`routes/activity.js`) returns `running[]` (each with live `elapsed_ms`),
   `events[]` (newest first), and the two things that explain an EMPTY feed: `autonomy` (the
   workspace's self_plan/automode/headless_driver flags) and `governor` (headless concurrency /
