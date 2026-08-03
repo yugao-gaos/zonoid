@@ -228,7 +228,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         // enters the pending queue and never pauses the loop. The verdict is already journaled.
         const provenance = { key: r.topKey, title: r.appliedNote && (r.appliedNote.title || r.appliedNote.label) || null, summary: r.appliedNote && r.appliedNote.summary || null };
         const answer = provenance.summary || provenance.title || '';
-        const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes });
+        const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes, request_session: b.session_id || u.searchParams.get('session') });
         overlayStore.annotateGuidance(T.ov, id, { predicted: true, predictedFrom: provenance, gateReason: r.reason });
         overlayStore.resolveGuidance(T.ov, id, answer);
         T.save(); notifyChange(T.graph_repo || T.ws);
@@ -244,7 +244,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const ds = await answeredDownstream(ctx, T.ws, { decision, flags, tags: b.tags, seam: 'guidance' });
       if (ds) {
         if (ds.provenance.key) recalledNotes = [String(ds.provenance.key).replace(/^note:/, '')];
-        const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes });
+        const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes, request_session: b.session_id || u.searchParams.get('session') });
         overlayStore.annotateGuidance(T.ov, id, { predicted: true, predictedFrom: ds.provenance, gateReason: ds.reason });
         overlayStore.resolveGuidance(T.ov, id, ds.answer);
         T.save(); notifyChange(T.graph_repo || T.ws);
@@ -261,7 +261,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (effectiveSeverity !== 'review' && T.ov.config && T.ov.config.automode) {
       const opusAnswer = await resolveViaOpusCli({ question: b.question, context: b.context, workspace: T.ws });
       if (opusAnswer) {
-        const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes });
+        const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes, request_session: b.session_id || u.searchParams.get('session') });
         overlayStore.annotateGuidance(T.ov, id, { predicted: true, predictedFrom: { title: 'Opus CLI (automode)' }, gateReason: 'automode: escalated to Opus CLI for autonomous decision' });
         overlayStore.resolveGuidance(T.ov, id, opusAnswer);
         T.save(); notifyChange(T.graph_repo || T.ws);
@@ -270,10 +270,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       // Opus failed (unavailable, timeout) → fall through to normal blocking escalation.
     }
 
-    const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes });
-    // Guidance is a dashboard visibility surface, not a scheduler gate. Keep the loop running so
-    // unresolved decisions do not strand unrelated ready work; the pending item remains available
-    // through /guidance for the user to answer when convenient.
+    const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes, request_session: b.session_id || u.searchParams.get('session') });
+    // Hold only the originating task. Other ready work and loops keep running; dependents remain
+    // gated naturally because their prerequisite cannot complete until this decision resolves.
     T.save(); notifyChange(T.graph_repo || T.ws);
     send(res, 200, { ok: true, id }); return true;
   }
@@ -300,6 +299,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!b.id) { send(res, 400, { ok: false, error: 'id required' }); return true; }
     const item = Array.isArray(T.ov.guidance) ? T.ov.guidance.find((g) => g.id === b.id) : null;
     if (!item) { send(res, 404, { ok: false, error: 'unknown guidance id' }); return true; }
+    if (item.resolved) {
+      send(res, 200, { ok: true, id: item.id, already_resolved: true, answer: item.answer, resolvedAt: item.resolvedAt, pending: overlayStore.pendingGuidance(T.ov).length });
+      return true;
+    }
     const action = item.action || null;
     const result = { ok: true };
     if (action && action.kind === 'dup-cluster' && (b.decision === 'consolidate' || b.decision === 'distinct')) {
@@ -395,6 +398,16 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     T.save(); notifyChange(T.graph_repo || T.ws);
     result.pending = overlayStore.pendingGuidance(T.ov).length;
     send(res, 200, result); return true;
+  }
+
+  if (p === '/session/close' && m === 'POST') {
+    const b = await readBody(req);
+    const sessionId = b.session_id || b.session;
+    if (!sessionId) { send(res, 400, { ok: false, error: 'session_id required' }); return true; }
+    const closed = require('../lib/session-bindings').closeSession(state.sessions, String(sessionId));
+    for (const L of loops.values()) if (L.session === String(sessionId)) L.active = false;
+    saveLoops();
+    send(res, 200, { ok: true, closed, session_id: String(sessionId) }); return true;
   }
 
   return false;

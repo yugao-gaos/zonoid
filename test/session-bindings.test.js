@@ -26,6 +26,9 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
   ok('bindSession: updates lastSeen', !!sessions.s1.lastSeen);
   sessions = sessionBindings.bindSession(sessions, 's1', { workspace: '/ws2' });
   ok('bindSession: partial update keeps transcript', sessions.s1.transcript === '/tmp/s1.jsonl' && sessions.s1.workspace === '/ws2');
+  ok('closeSession: marks an existing session closed', sessionBindings.closeSession(sessions, 's1') && sessions.s1.status === 'closed' && !!sessions.s1.closedAt);
+  sessions = sessionBindings.bindSession(sessions, 's1', { workspace: '/ws2' });
+  ok('bindSession: fresh activity reopens a closed session', !sessions.s1.status && !sessions.s1.closedAt);
 }
 
 // ── integration: daemon taskTranscript via sessions map ──────────────────────

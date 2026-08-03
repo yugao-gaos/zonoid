@@ -58,6 +58,7 @@ const graphStore = require('./lib/graph-store');
 const graphLifecycle = require('./lib/graph-lifecycle');
 const { createGraphAutoflush } = require('./lib/graph-autoflush');
 const sessionBindings = require('./lib/session-bindings');
+const decisionDelivery = require('./lib/decision-delivery');
 const { taskEmbedText } = require('./lib/node-tags');
 const headlessDrain = require('./lib/headless-drain');
 const headlessSpawn = require('./lib/headless-spawn');
@@ -1419,7 +1420,7 @@ function decideOne(L, ctx) {
   // reports the flag; the loop-driving dispatcher judges (suggest_links + add_dependency, or
   // mark_root for a true root). Wiring/mark_root clears ov.unwired → spawnable next tick.
   const isUnwired = (t) => !!(ov.unwired && ov.unwired[t.id]);
-  const isExplicitlyBlocked = (t) => !!(ov.blocked && ov.blocked[t.id]);
+  const isExplicitlyBlocked = (t) => !!(ov.blocked && ov.blocked[t.id]) || decisionDelivery.hasTaskHold(ov, t.id);
   // Blocked tasks are excluded from the spawn pool entirely. The block is sticky (overlay flag,
   // not derived from deps) and cleared only by unblock_task — never by dep re-derivation.
   let ready = readyAll.filter((t) => !isUnwired(t) && !isExplicitlyBlocked(t) && !isStandingHarnessTask(ov, t.id));
@@ -1516,10 +1517,18 @@ function decideOne(L, ctx) {
 
 function loopDecisionContext(ws, batch = null) {
   const ov = ws ? overlayFor(ws) : overlayStore.EMPTY();
+  const graph = buildGraph(ws);
+  const before = JSON.stringify([ov.guidance, ov.decision_holds]);
+  decisionDelivery.reconcileStale(ov, Date.now(), graph);
+  decisionDelivery.syncTaskHolds(ov);
+  if (ws && before !== JSON.stringify([ov.guidance, ov.decision_holds])) {
+    overlayStore.save(ws, ov);
+    notifyChange(ws);
+  }
   const pend = overlayStore.userAttentionGuidance(ov);
   return {
     ws, ov,
-    graph: buildGraph(ws),
+    graph,
     pendingGuidance: pend.filter((g) => g.severity !== 'review'),
     reviewPending: pend.filter((g) => g.severity === 'review').length,
     batch,
@@ -1604,14 +1613,24 @@ function decideAll(opts = {}) {
     return c;
   }
   const out = [];
+  const liveDecisionSessions = { ...state.sessions };
+  for (const loop of active) {
+    if (!loop.session) continue;
+    const bound = liveDecisionSessions[loop.session];
+    if (bound && (bound.closedAt || bound.closed_at || bound.status === 'closed')) continue;
+    liveDecisionSessions[loop.session] = { ...(bound || {}), workspace: loop.workspace || __testWs, lastSeen: now() };
+  }
   for (const L of active) {
     const ctx = ctxFor(L.workspace || __testWs);
     const d = decideOne(L, ctx);
     const entry = { loopId: L.id, ...d };
-    // Keep unresolved dashboard decisions visible without turning them into a scheduler gate.
-    // The loop action remains authoritative; clients can render these alongside spawn/idle/stop.
-    if (ctx.pendingGuidance.length) {
-      entry.dashboard_guidance = ctx.pendingGuidance.map((g) => ({ id: g.id, question: g.question, context: g.context, trigger: g.trigger }));
+    // Decision prompts are daemon-leased to exactly one live relevant session. Persisted reminder
+    // backoff prevents repeated next_action polls from re-prompting, and no other loop sees them.
+    if (L.session) {
+      const before = JSON.stringify([ctx.ov.guidance, ctx.ov.decision_holds]);
+      const nudges = decisionDelivery.takeDueNudges(ctx.ov, L.session, liveDecisionSessions, ctx.graph, ctx.ws);
+      if (nudges.length) entry.decision_nudges = nudges;
+      if (before !== JSON.stringify([ctx.ov.guidance, ctx.ov.decision_holds])) overlayStore.save(ctx.ws, ctx.ov);
     }
     if (ctx.reviewPending > 0) {
       const pend = overlayStore.pendingGuidance(ctx.ov);
@@ -2504,7 +2523,7 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
 	    const readiness = readinessDetail(R, ws, t.key, {
 	      status: _status,
 	      judging: _judging,
-	      blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null,
+	      blocked: (ovWs.blocked && ovWs.blocked[t.key]) || (ovWs.decision_holds && ovWs.decision_holds[t.key]) || null,
 	      note: ovWs.notes[t.key] || '',
 	    });
 	    if (!ovWs.readinessRepairs) ovWs.readinessRepairs = {};
@@ -2524,7 +2543,7 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
     // `provisional` stays false (P6 strict gate — see judgingState above; timedOut is pinned false,
     // so origin's `_js.judging && _js.timedOut` is equivalent — we keep the explicit literal).
     const reviewLifecycle = overlayStore.reviewLifecycleFor(ovWs, t.key, _status);
-    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, readiness, judging: _judging, provisional: false, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: taskVecNode.vecs, vecsMeta: taskVecNode.vecsMeta, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, ...reviewLifecycle, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
+    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, readiness, judging: _judging, provisional: false, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: taskVecNode.vecs, vecsMeta: taskVecNode.vecsMeta, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, ...reviewLifecycle, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || (ovWs.decision_holds && ovWs.decision_holds[t.key]) || null };
   });
   // KEPT context edges → context_deps for overlay-only graph nodes. The structBoost reranker
   // (/search) and BFS path tier read each node's context_deps as graph adjacency. Mirror the task-side

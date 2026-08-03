@@ -1,7 +1,0 @@
-INFO:arc_agi.scorecard:Initialized ScorecardManager with idle_for=0:15:00 and max_open_for=3 days, 0:00:00
-2026-07-03 18:26:58 | INFO | Successfully fetched 25 environment(s) from API
-2026-07-03 18:26:58 | INFO | Created new scorecard: e52a6596-d0e3-4bf8-ab64-150b56888af6
-2026-07-03 18:26:59 | INFO | Successfully fetched metadata for game ls20
-2026-07-03 18:26:59 | INFO | Successfully reset game ls20-9607627b, guid=54d88456-51fb-4248-81d8-2d63473fd2bd, scorecard_id=e52a6596-d0e3-4bf8-ab64-150b56888af6
-2026-07-03 18:56:05 | INFO | Closed scorecard: e52a6596-d0e3-4bf8-ab64-150b56888af6
-{"game": "ls20", "artifacts_dir": "out/ewm-runs/ls20-1783117618", "won": false, "levels_completed": 0, "actions_taken": 17, "decide_calls": 29, "reflect_calls": 18, "modes_visited": ["EXECUTE", "SYNTHESIZE"], "program_adopted": true, "program_synthesized": true, "orient_adopted": true, "orient_diagnosis": "adopted whole (native)", "orient_revalidation": {"probes": 4, "pass_rate": 1.0, "adopted_as": "whole"}, "divergences": 14, "transitions": 18, "synthesis_attempts": 0, "repair_attempts": 6, "suite_size": 18, "live_pass_rate": 1.0, "stop_reason": "budget", "scorecard_url": "https://arcprize.org/scorecards/e52a6596-d0e3-4bf8-ab64-150b56888af6", "max_actions": 80, "max_seconds": 1500.0, "vision": true, "graph_synthesis": true, "graph_synth_stats": {"sessions": 0, "changes_proposed": 0, "changes_passed": 0, "changes_skipped": 0, "final_pass_rates": []}}

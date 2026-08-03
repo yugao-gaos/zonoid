@@ -11,6 +11,7 @@ const { inflightWorkersContext, listDispatcherChildren } = require('../lib/dispa
 const { rowKey, readJsonl, journalPath, labeledPath } = require('../scripts/gate-label');
 const { HARNESS_LEARNER_DRAIN_KEY, ensureHarnessLearnerDrainTask } = require('../lib/harness-task');
 const { JUDGE_DEPTH, LABEL_DEPTH, computePressureNudge } = require('../lib/pressure-nudge');
+const decisionDelivery = require('../lib/decision-delivery');
 
 const DRAIN_TASK_KEYS = new Set([
   judgeRoute.HARNESS_JUDGE_DRAIN_KEY,
@@ -141,7 +142,7 @@ function sessionHasMetricSpec(sessionId, ctx, T) {
 }
 
 module.exports = (ctx) => async (p, m, req, res, u) => {
-  const { send, readBody, buildGraph, state, now, MAX_ROUTES, targetOverlay, notifyChange } = ctx;
+  const { send, readBody, buildGraph, state, now, MAX_ROUTES, targetOverlay, notifyChange, bindSession } = ctx;
 
   if (p !== '/classify' || m !== 'POST') return false;
 
@@ -163,6 +164,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
 
   const heuristic = classifyHeuristic(prompt);
   const T = targetOverlay(b, u);
+  if (!orchGateOff && sessionId && T.ws) bindSession(sessionId, { workspace: T.ws, harness: b.harness });
 
   state.routes.push({
     ts: now(),
@@ -174,10 +176,20 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
 
   const cc = await contextClassify(prompt, ctx, T.ws);
 
-  const readyEntry = refreshReadyFlag(sessionId, () => {
-    const g = buildGraph(T.ws);
-    return g.tasks.filter((t) => t.status === 'ready').map((t) => ({ key: t.id, label: t.label }));
-  });
+  const graph = buildGraph(T.ws);
+  const readyEntry = refreshReadyFlag(sessionId, () => graph.tasks
+    .filter((t) => t.status === 'ready')
+    .map((t) => ({ key: t.id, label: t.label })));
+
+  let decisionNudges = [];
+  if (!orchGateOff && sessionId && T.ws) {
+    const before = JSON.stringify([T.ov.guidance, T.ov.decision_holds]);
+    decisionNudges = decisionDelivery.takeDueNudges(T.ov, sessionId, state.sessions, graph, T.ws);
+    if (before !== JSON.stringify([T.ov.guidance, T.ov.decision_holds])) {
+      T.save();
+      notifyChange(T.graph_repo || T.ws);
+    }
+  }
 
   // AUTO mode: enforce the loop default-on. When the session is in an auto-accept permission mode
   // and tasks are ready with no active session loop, start the loop directly (idempotent) and emit a
@@ -209,6 +221,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     judgePressure: jp,
     labelPressure: lp,
     learnerPressure: lrp,
+    decisionNudges,
     orchGateOff,
     inflightWorkers: inflightWorkersContext(sessionId, ctx),
     hasActiveLoop: loopActive,

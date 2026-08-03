@@ -1,4 +1,0 @@
-KB search failed for 'game ls20 coverage state': TimeoutError('timed out')
-KB search failed for 'game ls20 world model program': TimeoutError('timed out')
-KB search failed for 'game ls20 world model program': TimeoutError('timed out')
-KB note write failed for 'game ls20 coverage chunk 1 of 1': <HTTPError 404: 'Not Found'>

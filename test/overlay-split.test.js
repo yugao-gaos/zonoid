@@ -61,6 +61,8 @@ try {
 
   // Add local fields (ephemeral runtime — kept on disk)
   ov1.config.test_key = 'val-1';
+  ov1.guidance.push({ id: 'decision-1', resolved: false, delivery: { session_id: 'session-1', lease_expires_at: '2026-01-01T00:05:00.000Z' } });
+  ov1.decision_holds['task/a'] = { guidance_id: 'decision-1', at: '2026-01-01T00:00:00.000Z' };
   // Add moved-to-graph-store fields
   ov1.assignee['task/a'] = 'agent-1';
   ov1.timestamps['task/a'] = { firstSeen: '2026-01-01T00:00:00.000Z' };
@@ -101,6 +103,8 @@ try {
     // Test 2: local fields MUST be on disk
     ok('2. save() keeps config on disk', Object.prototype.hasOwnProperty.call(diskData, 'config'));
     ok('2. config value correct on disk', diskData.config && diskData.config.test_key === 'val-1');
+    ok('2. decision lease persists on disk', diskData.guidance && diskData.guidance[0].delivery.session_id === 'session-1');
+    ok('2. decision hold persists on disk', diskData.decision_holds && diskData.decision_holds['task/a'].guidance_id === 'decision-1');
   }
 
   // ── Test 3: load() rehydrates edges from graph-store ─────────────────────
