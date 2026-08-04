@@ -1,7 +1,0 @@
-INFO:arc_agi.scorecard:Initialized ScorecardManager with idle_for=0:15:00 and max_open_for=3 days, 0:00:00
-2026-07-02 19:26:33 | INFO | Successfully fetched 25 environment(s) from API
-2026-07-02 19:26:33 | INFO | Created new scorecard: b1b7ec41-d8c7-4f6d-a16f-1215a3a8051f
-2026-07-02 19:26:33 | INFO | Successfully fetched metadata for game ls20
-2026-07-02 19:26:33 | INFO | Successfully reset game ls20-9607627b, guid=1e5e6dc8-926d-48a3-85fc-6c43c3b4122f, scorecard_id=b1b7ec41-d8c7-4f6d-a16f-1215a3a8051f
-2026-07-02 19:51:44 | INFO | Closed scorecard: b1b7ec41-d8c7-4f6d-a16f-1215a3a8051f
-{"game": "ls20", "won": false, "levels_completed": 0, "actions_taken": 70, "decide_calls": 114, "reflect_calls": 71, "modes_visited": ["RECOVER", "SYNTHESIZE"], "program_adopted": false, "program_synthesized": false, "divergences": 71, "transitions": 71, "stop_reason": "budget", "scorecard_url": "https://arcprize.org/scorecards/b1b7ec41-d8c7-4f6d-a16f-1215a3a8051f", "max_actions": 80, "max_seconds": 1500.0, "vision": false}

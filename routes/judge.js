@@ -22,6 +22,19 @@ function getPredictEdge() {
   return _predictEdge || null;
 }
 
+// Task-decision action -> lifecycle EVENT. The single place an advertised action becomes a real
+// transition; anything absent here is refused (and NOT retired) instead of silently falling through.
+// Actions are normalized to snake_case lowercase before lookup.
+const TASK_DECISION_EVENTS = Object.freeze({
+  approve: 'review_approve',
+  kick_back: 'review_kick_back',
+  reject: 'review_kick_back',
+  merge: 'review_merge_request',
+  discard: 'review_discard',
+  cancel: 'review_cancel',
+  escalate: 'review_escalate',
+});
+
 // Promotion state cache: null = unchecked; refresh at most every 60s.
 let _promotionState = null;
 let _promotionAt = 0;
@@ -332,6 +345,10 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     if (!T.ov.judgedAtEpoch) T.ov.judgedAtEpoch = {};
     if (!T.ov.judgedClusters) T.ov.judgedClusters = {};
     const applied = { created: 0, kept: 0, pruned: 0, surfaced: 0, judged: 0, consolidated: 0, superseded: 0, repointed: 0, clustersJudged: 0 };
+    // Machine-readable "why nothing happened" rows for refused task decisions. A zero counter is
+    // otherwise indistinguishable from an under-reporting apply (see the applied-counters OVERRIDE
+    // note), so refusals are reported explicitly rather than inferred.
+    const refusals = [];
     const byId = new Map(buildGraph(T.ws).tasks.map(function(t){return [t.id,t];}));
     // The edge's creation cosine lives in `score` (autowire seeds it there with weight 0); fall back to
     // `weight` for hand-asserted edges. Read it BEFORE a prune deletes the edge, else it's gone.
@@ -377,40 +394,47 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
 	        const reason = String(v.taskDecision.reason || 'task decision verdict');
 	        const now = new Date().toISOString();
 	        if (!T.ov.judgedTaskDecisions) T.ov.judgedTaskDecisions = {};
-	        // IN-FLIGHT GUARD: prepare stamps review_state 'requested' at dispatch, so a decision
-	        // item can surface while the worker is still running (observed live: the drain reviewed
-	        // an in-flight task, saw an empty diff, and applied a terminal cancel). Refuse terminal
-	        // verdicts while the task is live (in_progress worker or ready/claimable) and do NOT
-	        // stamp the decision — the stamp permanently retires the item (judgedTaskDecisions),
-	        // so an unstamped skip lets it re-surface once the task reaches 'tested'.
+	        // EVERY task decision goes through the ONE guarded transition authority
+	        // (lib/overlay/lifecycle-machine.js) BEFORE any state is touched. It owns the in-flight
+	        // guard (a verdict on a live worker's attempt is judging an empty diff), the
+	        // merged-is-absorbing guard, and the settled-verdict guard. An action with no event
+	        // mapping is REFUSED here instead of falling off the end of an else-if chain — the old
+	        // chain silently retired such items with zero state change (observed live with the
+	        // advertised-but-unimplemented "review" action).
 	        const liveStatus = (byId.get(taskKey) || {}).status || null;
-	        const terminalAction = action === 'approve' || action === 'kick_back' || action === 'reject'
-	          || action === 'discard' || action === 'cancel';
-	        const skippedInFlight = terminalAction && (liveStatus === 'in_progress' || liveStatus === 'ready');
-	        if (skippedInFlight) {
-	          applied.skippedInFlight = (applied.skippedInFlight || 0) + 1;
-	          judge.appendVerdict(T.ws, { epoch, verdict: `task:${action}_skipped_in_flight`, from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        const event = TASK_DECISION_EVENTS[action] || null;
+	        const decision = event
+	          ? overlayStore.applyLifecycleEvent(T.ov, taskKey, event, {
+	            task_status: liveStatus, agent_id: 'judge', reason, now,
+	          })
+	          : {
+	            ok: false,
+	            refusal: {
+	              code: 'unknown_action',
+	              reason: `no handler for task decision action '${action}'; expected one of ${Object.keys(TASK_DECISION_EVENTS).join(', ')}`,
+	              retryable: false,
+	            },
+	          };
+	        // Retire the item ONLY when the decision landed, or when it was refused because the state
+	        // is genuinely settled (re-offering those would loop). A timing refusal ('in_flight') and
+	        // an unrecognized action both leave the item UNSTAMPED so it can be re-judged — the stamp
+	        // is permanent (judgedTaskDecisions is never cleared by an epoch bump).
+	        const refusal = decision.ok ? null : decision.refusal;
+	        const retireOnRefusal = !!refusal && (refusal.code === 'already_merged' || refusal.code === 'already_reviewed');
+	        if (refusal) {
+	          applied.refused = (applied.refused || 0) + 1;
+	          if (refusal.retryable) applied.skippedInFlight = (applied.skippedInFlight || 0) + 1;
+	          refusals.push({ task_key: taskKey, action, code: refusal.code, reason: refusal.reason, retryable: refusal.retryable, retired: retireOnRefusal });
+	          // 'in_flight' keeps its established audit token; newer refusal codes get their own.
+	          const auditVerdict = refusal.code === 'in_flight'
+	            ? `task:${action}_skipped_in_flight`
+	            : `task:${action}_refused_${refusal.code}`;
+	          judge.appendVerdict(T.ws, { epoch, verdict: auditVerdict, from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
 	        } else if (action === 'approve') {
-	          overlayStore.setReviewLifecycle(T.ov, taskKey, {
-	            review_state: 'approved',
-	            review_verdict: 'APPROVE',
-	            merge_state: 'pending',
-	            reviewed_at: now,
-	            review_agent: 'judge',
-	            review_reason: reason,
-	          });
 	          applied.taskDecisions = (applied.taskDecisions || 0) + 1;
 	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:approve', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
 	        } else if (action === 'kick_back' || action === 'reject') {
 	          overlayStore.setStatus(T.ov, taskKey, 'failed', `judge kick-back: ${reason}`);
-	          overlayStore.setReviewLifecycle(T.ov, taskKey, {
-	            review_state: 'rejected',
-	            review_verdict: 'KICK_BACK',
-	            merge_state: 'blocked',
-	            reviewed_at: now,
-	            review_agent: 'judge',
-	            review_reason: reason,
-	          });
 	          applied.taskDecisions = (applied.taskDecisions || 0) + 1;
 	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:kick_back', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
 	        } else if (action === 'merge') {
@@ -418,13 +442,6 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
 	          applied.mergeRequested = (applied.mergeRequested || 0) + 1;
 	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:merge_request', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
 	        } else if (action === 'discard') {
-	          overlayStore.setReviewLifecycle(T.ov, taskKey, {
-	            review_state: 'canceled',
-	            merge_state: 'closed',
-	            reviewed_at: now,
-	            review_agent: 'judge',
-	            review_reason: reason,
-	          });
 	          T.ov.notes[taskKey] = `discard decision applied by judge: ${reason}`.slice(0, 280);
 	          applied.taskDecisions = (applied.taskDecisions || 0) + 1;
 	          applied.discarded = (applied.discarded || 0) + 1;
@@ -432,13 +449,6 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
 	        } else if (action === 'cancel') {
 	          overlayStore.setStatus(T.ov, taskKey, 'canceled', `cancel decision applied by judge: ${reason}`);
 	          T.ov.cancel_requested[taskKey] = now;
-	          overlayStore.setReviewLifecycle(T.ov, taskKey, {
-	            review_state: 'canceled',
-	            merge_state: 'closed',
-	            reviewed_at: now,
-	            review_agent: 'judge',
-	            review_reason: reason,
-	          });
 	          applied.taskDecisions = (applied.taskDecisions || 0) + 1;
 	          applied.canceled = (applied.canceled || 0) + 1;
 	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:cancel', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
@@ -453,7 +463,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
 	          applied.escalated = (applied.escalated || 0) + 1;
 	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:escalate', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
 	        }
-	        if (!skippedInFlight) judge.stampTaskDecision(T.ov.judgedTaskDecisions, taskKey, sourceAction);
+	        if (!refusal || retireOnRefusal) judge.stampTaskDecision(T.ov.judgedTaskDecisions, taskKey, sourceAction);
 	      }
 	      if (v && v.followupTriage && v.followupTriage.task_key && v.followupTriage.action) {
 	        const taskKey = String(v.followupTriage.task_key);
@@ -733,7 +743,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
       if (judge.unverifiedEdgesForNode(T.ov, k).length === 0) overlayStore.clearJudgingSince(T.ov, k);
     }
     T.save(); notifyChange(T.graph_repo || T.ws);
-    send(res, 200, { ok: true, epoch, applied, edges: T.ov.edges.length }); return true;
+    send(res, 200, { ok: true, epoch, applied, refusals, edges: T.ov.edges.length }); return true;
   }
 
   // POST /judge/drain?node=<key>&budget=<N>&sync=1[&workspace=<ws>]

@@ -1,1 +1,0 @@
-{"id": "synth-3", "subject": "game ls20 edit Initialize Object State", "description": "Create a new object of color 3 at the center of the grid to serve as the primary growing entity.", "status": "pending", "created_by": {"harness": "local", "agent_id": "ewm-synthgraph-ls20"}}

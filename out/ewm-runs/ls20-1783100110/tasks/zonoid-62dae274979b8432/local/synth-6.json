@@ -1,1 +1,0 @@
-{"id": "synth-6", "subject": "game ls20 edit Initialize World State", "description": "Create the initial grid state for transition 0, defining the positions and colors of all objects including obj#2 (color 3) and directional movers (colors 9 and 12).", "status": "pending", "created_by": {"harness": "local", "agent_id": "ewm-synthgraph-ls20"}}

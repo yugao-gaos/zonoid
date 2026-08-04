@@ -10,6 +10,12 @@ const path = require('path');
 const { hasHeadlessDrainAncestor } = require('./lib/headless-ancestor');
 if (require.main === module && fs.existsSync(path.join(__dirname, '.orch-off'))) process.exit(0);
 if (require.main === module && hasHeadlessDrainAncestor()) process.exit(0);
+// Always-on file log: tee stdout/stderr into a rotating daemon.log BEFORE any other require
+// can log — a windowless daemon otherwise loses every error (observed live: silent failures,
+// invisible until a manual restart with shell redirection). Only when running AS the daemon:
+// requiring daemon.js from a test must never hijack the test runner's streams.
+const daemonLog = require('./lib/daemon-log');
+if (require.main === module) daemonLog.install();
 const crypto = require('crypto');
 const { URL } = require('url');
 const harnessRegistry = require('./lib/harness');
@@ -52,6 +58,7 @@ const graphStore = require('./lib/graph-store');
 const graphLifecycle = require('./lib/graph-lifecycle');
 const { createGraphAutoflush } = require('./lib/graph-autoflush');
 const sessionBindings = require('./lib/session-bindings');
+const decisionDelivery = require('./lib/decision-delivery');
 const { taskEmbedText } = require('./lib/node-tags');
 const headlessDrain = require('./lib/headless-drain');
 const headlessSpawn = require('./lib/headless-spawn');
@@ -670,6 +677,13 @@ function validateBenchmark(b) {
 function releaseClaim(key, reason, ov, ctx = null, ws) {
   if (ov.status[key] !== 'in_progress') return false;
   delete ov.status[key];
+  // Clear the claim BINDINGS along with the status override. Leaving claimSessions/assignee behind
+  // made validateTerminalClaimOwner (routes/overlay.js) demand the DEAD worker's identity from
+  // whoever finishes the task next — observed live 2026-08-02: reviewers had to impersonate a
+  // stale worker's agent_id/session_id to record a verdict, and the headless review-verdict drain
+  // was hard-blocked on such tasks. A released claim has no owner; the next writer re-binds.
+  if (ov.claimSessions && ov.claimSessions[key]) delete ov.claimSessions[key];
+  if (ov.assignee && ov.assignee[key]) delete ov.assignee[key];
   ov.notes[key] = String(reason).slice(0, 280);
   if (ov.snapshots && ov.snapshots[key]) {
     overlayStore.setSnapshot(ov, key, { ...ov.snapshots[key], status: 'pending' });
@@ -971,6 +985,11 @@ function sweepFailedTasks(ws, ov) {
     ov.retryConfig[t.id].retryCount = retryCount;
     const prevAgent = ov.assignee && ov.assignee[t.id];
     ov.notes[t.id] = `auto-requeued after failure (attempt ${retryCount})${prevAgent ? ` — prior agent: '${prevAgent}'` : ''}. Review previous summary before re-attempting.`.slice(0, 280);
+    // Clear the review verdict alongside the status: the task is going back into the ready pipeline,
+    // so the 'rejected'/'blocked' record describes work that is about to be replaced. Leaving it made
+    // a pending task render as rejected and kept it out of the next review. Refused (and left alone)
+    // when the attempt already merged — that record is history worth keeping.
+    overlayStore.applyLifecycleEvent(ov, t.id, 'retry_requeue', { task_status: t.status });
     // Flip status back to pending so the task re-enters the ready pipeline
     delete ov.status[t.id];
     if (ov.snapshots && ov.snapshots[t.id]) {
@@ -1021,14 +1040,19 @@ function sweepStaleVerdicts(ws, ov) {
   let dirty = false;
   for (const { key, status, agentId } of stale) {
     if (hasPendingStaleVerdictReview(ov, key)) continue;
-    overlayStore.setReviewLifecycle(ov, key, {
-      review_state: 'requested',
-      merge_state: 'review_pending',
-      review_requested_at: new Date().toISOString(),
+    // Through the guarded machine, so a stale APPROVED-awaiting-merge task cannot have its landed
+    // verdict reset to 'requested' (hasPendingStaleVerdictReview only sees still-open reviews, so it
+    // waves settled ones straight through — that reset was a real lost-verdict path).
+    const decision = overlayStore.applyLifecycleEvent(ov, key, 'review_request', {
+      task_status: status,
       review_requested_by: 'stale-verdict-sweep',
-      review_reason: `Stale ${status} handoff: owner '${agentId || '?'}' is not running and the status timestamp is stale.`,
-      review_note: 'Routed to same-node review instead of dashboard escalation.',
+      reason: `Stale ${status} handoff: owner '${agentId || '?'}' is not running and the status timestamp is stale.`,
+      note: 'Routed to same-node review instead of dashboard escalation.',
     });
+    if (!decision.ok) {
+      console.log(`[self-heal] task ${key} (was ${status}) NOT re-requested: ${decision.refusal.code}`);
+      continue;
+    }
     console.log(`[self-heal] task ${key} (was ${status}) routed to same-node review — owner gone`);
     dirty = true;
   }
@@ -1396,7 +1420,7 @@ function decideOne(L, ctx) {
   // reports the flag; the loop-driving dispatcher judges (suggest_links + add_dependency, or
   // mark_root for a true root). Wiring/mark_root clears ov.unwired → spawnable next tick.
   const isUnwired = (t) => !!(ov.unwired && ov.unwired[t.id]);
-  const isExplicitlyBlocked = (t) => !!(ov.blocked && ov.blocked[t.id]);
+  const isExplicitlyBlocked = (t) => !!(ov.blocked && ov.blocked[t.id]) || decisionDelivery.hasTaskHold(ov, t.id);
   // Blocked tasks are excluded from the spawn pool entirely. The block is sticky (overlay flag,
   // not derived from deps) and cleared only by unblock_task — never by dep re-derivation.
   let ready = readyAll.filter((t) => !isUnwired(t) && !isExplicitlyBlocked(t) && !isStandingHarnessTask(ov, t.id));
@@ -1493,10 +1517,18 @@ function decideOne(L, ctx) {
 
 function loopDecisionContext(ws, batch = null) {
   const ov = ws ? overlayFor(ws) : overlayStore.EMPTY();
+  const graph = buildGraph(ws);
+  const before = JSON.stringify([ov.guidance, ov.decision_holds]);
+  decisionDelivery.reconcileStale(ov, Date.now(), graph);
+  decisionDelivery.syncTaskHolds(ov);
+  if (ws && before !== JSON.stringify([ov.guidance, ov.decision_holds])) {
+    overlayStore.save(ws, ov);
+    notifyChange(ws);
+  }
   const pend = overlayStore.userAttentionGuidance(ov);
   return {
     ws, ov,
-    graph: buildGraph(ws),
+    graph,
     pendingGuidance: pend.filter((g) => g.severity !== 'review'),
     reviewPending: pend.filter((g) => g.severity === 'review').length,
     batch,
@@ -1522,7 +1554,19 @@ function ensureManagedGraphLoops(ctxByWs = null) {
 // honoring its own budget/config/session, and return a batched array [{ loopId, action, ... }]. The
 // `batch` config multiplexes across loops via a shared per-tick spawn pool (max of the active loops'
 // batch settings — generous but bounded). Inactive loops are skipped. Caller persists the registry.
-function decideAll() {
+//
+// SCOPED TICKS (`opts.loopFilter` / `opts.skipWorkspaces`): a caller that can only ACT on some loops
+// may narrow which loops are ticked. This matters because decideOne is not a read — it charges the
+// loop (iterations++/spend) and LEASES the tasks it picks, so ticking a loop whose decision the
+// caller will discard steals that loop's work from its real driver for a lease TTL. The headless
+// spawn executor uses this to tick only the workspaces no interactive session is driving
+// (lib/headless-spawn.js). /next-action passes nothing and ticks everything, as before. The global
+// per-workspace sweeps below always run regardless of the filter.
+//
+// @param {object} [opts]
+//   @param {Function} [opts.loopFilter]     — (L) => boolean; loops returning falsy are not ticked.
+//   @param {Set}      [opts.skipWorkspaces] — workspaces whose loops are not ticked.
+function decideAll(opts = {}) {
   sweepStaleLoops();   // central liveness sweep (same pass): demote dead/exhausted/stalled loops first
   // Sweep across the REAL set of registered workspaces (workspaces.json), not the single daemon-
   // global state.workspace pointer (P2b). registeredWorkspaces() already unions in active-loop
@@ -1541,8 +1585,12 @@ function decideAll() {
 
   // Foreground/request loops get first chance to spend the shared spawn pool; managed graph loops
   // are the background safety net and must not preempt an explicit driver loop for the same work.
+  const loopFilter = typeof opts.loopFilter === 'function' ? opts.loopFilter : null;
+  const skipWorkspaces = opts.skipWorkspaces instanceof Set ? opts.skipWorkspaces : null;
   const active = [...loops.values()]
     .filter((L) => L.active)
+    .filter((L) => !(skipWorkspaces && L.workspace && skipWorkspaces.has(L.workspace)))
+    .filter((L) => !loopFilter || !!loopFilter(L))
     .sort((a, b) => (a.managed ? 1 : 0) - (b.managed ? 1 : 0));
   // ONE spawn pool shared across ALL loops this tick (regardless of workspace) — the daemon-wide
   // concurrency bound is about total spawned workers, not per-workspace.
@@ -1565,14 +1613,24 @@ function decideAll() {
     return c;
   }
   const out = [];
+  const liveDecisionSessions = { ...state.sessions };
+  for (const loop of active) {
+    if (!loop.session) continue;
+    const bound = liveDecisionSessions[loop.session];
+    if (bound && (bound.closedAt || bound.closed_at || bound.status === 'closed')) continue;
+    liveDecisionSessions[loop.session] = { ...(bound || {}), workspace: loop.workspace || __testWs, lastSeen: now() };
+  }
   for (const L of active) {
     const ctx = ctxFor(L.workspace || __testWs);
     const d = decideOne(L, ctx);
     const entry = { loopId: L.id, ...d };
-    // Keep unresolved dashboard decisions visible without turning them into a scheduler gate.
-    // The loop action remains authoritative; clients can render these alongside spawn/idle/stop.
-    if (ctx.pendingGuidance.length) {
-      entry.dashboard_guidance = ctx.pendingGuidance.map((g) => ({ id: g.id, question: g.question, context: g.context, trigger: g.trigger }));
+    // Decision prompts are daemon-leased to exactly one live relevant session. Persisted reminder
+    // backoff prevents repeated next_action polls from re-prompting, and no other loop sees them.
+    if (L.session) {
+      const before = JSON.stringify([ctx.ov.guidance, ctx.ov.decision_holds]);
+      const nudges = decisionDelivery.takeDueNudges(ctx.ov, L.session, liveDecisionSessions, ctx.graph, ctx.ws);
+      if (nudges.length) entry.decision_nudges = nudges;
+      if (before !== JSON.stringify([ctx.ov.guidance, ctx.ov.decision_holds])) overlayStore.save(ctx.ws, ctx.ov);
     }
     if (ctx.reviewPending > 0) {
       const pend = overlayStore.pendingGuidance(ctx.ov);
@@ -2465,7 +2523,7 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
 	    const readiness = readinessDetail(R, ws, t.key, {
 	      status: _status,
 	      judging: _judging,
-	      blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null,
+	      blocked: (ovWs.blocked && ovWs.blocked[t.key]) || (ovWs.decision_holds && ovWs.decision_holds[t.key]) || null,
 	      note: ovWs.notes[t.key] || '',
 	    });
 	    if (!ovWs.readinessRepairs) ovWs.readinessRepairs = {};
@@ -2485,7 +2543,7 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
     // `provisional` stays false (P6 strict gate — see judgingState above; timedOut is pinned false,
     // so origin's `_js.judging && _js.timedOut` is equivalent — we keep the explicit literal).
     const reviewLifecycle = overlayStore.reviewLifecycleFor(ovWs, t.key, _status);
-    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, readiness, judging: _judging, provisional: false, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: taskVecNode.vecs, vecsMeta: taskVecNode.vecsMeta, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, ...reviewLifecycle, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
+    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, readiness, judging: _judging, provisional: false, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: taskVecNode.vecs, vecsMeta: taskVecNode.vecsMeta, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, ...reviewLifecycle, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || (ovWs.decision_holds && ovWs.decision_holds[t.key]) || null };
   });
   // KEPT context edges → context_deps for overlay-only graph nodes. The structBoost reranker
   // (/search) and BFS path tier read each node's context_deps as graph adjacency. Mirror the task-side
@@ -2802,6 +2860,7 @@ const classifyRoute = require('./routes/classify');
 const uiRoute = require('./routes/ui');
 const usageRoute = require('./routes/usage');
 const subconsciousRoute = require('./routes/subconscious');
+const activityRoute = require('./routes/activity');
 
 // ctx: live access to daemon state + helpers. State fields use getters so reassignment
 // (state = {...} at /reset) is always visible. P3: there is no daemon-global workspace/overlay.
@@ -2870,6 +2929,7 @@ const ctx = {
   cache, loops, saveLoops, saveAgents,
   get bootState() { return bootState; },
   GIT_HEAD, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL, WORKSPACES_FILE, STALE_MINUTES_DEFAULT,
+  daemonLog,
   sseClients, agentsArr,
   taskTranscript, usageCached, harnessTranscriptForTask,
   touchAgent, staleClaimKeys, releaseClaim, reapAgent, sweepStaleClaims, sweepStaleLoops,
@@ -2894,7 +2954,8 @@ const ctx = {
 const routeModules = [
   mcpRoute(ctx), stateRoute(ctx), metaRoute(ctx), graphRoute(ctx), taskRoute(ctx), overlayRoute(ctx),
   gitRoute(ctx), judgeRoute(ctx), labelRoute(ctx), configRoute(ctx), analyticsRoute(ctx), onboardRoute(ctx),
-  sessionRoute(ctx), execRoute(ctx), classifyRoute(ctx), usageRoute(ctx), subconsciousRoute(ctx), uiRoute(ctx),
+  sessionRoute(ctx), execRoute(ctx), classifyRoute(ctx), usageRoute(ctx), subconsciousRoute(ctx),
+  activityRoute(ctx), uiRoute(ctx),
 ];
 
 function superviseCodexWakeDeliveryForRegisteredWorkspaces() {
@@ -2926,6 +2987,8 @@ const handler = async (req, res) => {
     const mutatingRequest = !['GET', 'HEAD', 'OPTIONS'].includes(m);
     const sensitiveRead = p === '/peek'
       || p === '/active-claim'
+      || p === '/activity'
+      || p === '/status'
       || p === '/agents'
       || p === '/events'
       || p === '/next-action'
@@ -3103,6 +3166,19 @@ if (require.main === module) {
     });
     server.listen(port, '127.0.0.1', () => {
       process.stdout.write(`orchestrator daemon on http://127.0.0.1:${port}\n`);
+      // One-line boot tuning summary: the effective knobs a post-mortem reader needs first —
+      // where state lives, where the log tees to, and the drain governor's budget/backoff.
+      try {
+        const dcfg = headlessDrain.effectiveConfig();
+        const bcfg = headlessDrain.backoffConfig();
+        process.stdout.write(
+          `[boot] tuning: pid=${process.pid} node=${process.version} head=${GIT_HEAD || '?'} data=${BASE}`
+          + ` log=${daemonLog.logPath() || 'off'} stale_minutes=${STALE_MINUTES_DEFAULT}`
+          + ` drain.max_concurrency=${dcfg.maxConcurrency} drain.max_iterations=${dcfg.maxIterations}`
+          + ` drain.token_budget=${dcfg.tokenBudget} drain.timeout_ms=${dcfg.timeoutMs}`
+          + ` backoff.base_ms=${bcfg.baseMs} backoff.cap_ms=${bcfg.capMs}\n`
+        );
+      } catch (e) { process.stderr.write(`[boot] tuning line failed: ${e && e.message || e}\n`); }
       writeDaemonPidfile(); // advertise our pid for the cross-platform singleton guard (early, pre-loadState)
 
       // Also bind IPv6 loopback so `localhost` resolves on every OS — Windows resolves it to ::1
@@ -3155,16 +3231,18 @@ if (require.main === module) {
   requestHeadlessDrainWake = headlessDrainRunner.requestWake;
 
   // Headless SPAWN executor (full-autonomy path): when a managed graph loop decides action:'spawn'
-  // and no interactive session is driving, the daemon dispatches the workers itself. The same pass
+  // and no interactive session is driving THAT WORKSPACE, the daemon dispatches the workers itself
+  // (stand-down is per-workspace, so a session open on one repo no longer strands the rest). The same pass
   // also executes drained-DAG 'plan'/'optimize' decisions by spawning a headless PLANNER child
   // ('plan' additionally requires ov.config.self_plan) — one decideAll consumer for both, so
   // decisions are never double-leased. Per-workspace opt-in via overlay config
   // `headless_driver:true` (default off). Rides the SAME pump scheduling (a second runner
   // instance) and the SAME headless-drain governor — see lib/headless-spawn.js.
-  // decide mirrors the /next-action route exactly: decideAll() then saveLoops().
+  // decide mirrors the /next-action route exactly (decideAll() then saveLoops()), but FORWARDS the
+  // executor's scoping opts so loops on session-driven workspaces are never ticked or leased here.
   const headlessSpawnExecutor = headlessSpawn.createSpawnExecutor({
     loops,
-    decide: () => { const r = decideAll(); saveLoops(); return r; },
+    decide: (o) => { const r = decideAll(o); saveLoops(); return r; },
   });
   const headlessSpawnRunner = createHeadlessDrainRunner({ headlessDrain: headlessSpawnExecutor, getState: () => state });
   requestHeadlessSpawnWake = headlessSpawnRunner.requestWake;

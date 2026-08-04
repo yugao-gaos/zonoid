@@ -294,12 +294,66 @@ function applyCausalEdges(T, taskResult, ensureTaskSnapshot) {
   return count;
 }
 
+// Apply a hand-built review patch under the lifecycle guards. Splits the patch in two:
+//   - guarded fields (review_state / review_verdict / merge_state) become a NAMED event via
+//     lifecycleMachine.eventForPatch and go through applyLifecycleEvent, so a raw caller cannot do
+//     what a named caller is refused (un-merge a merge, overwrite a settled verdict, verdict a live
+//     worker). A patch whose guarded fields describe no known transition is REFUSED, not written.
+//   - everything else (attempt pointers, request provenance, notes, merge sha/at) is bookkeeping and
+//     is written directly.
+// Records the machine's decision into `decisions` so the response can report a refusal.
+function applyRawReviewPatch(T, body, patch, decisions) {
+  const machine = overlayStore.lifecycleMachine;
+  const bookkeeping = {};
+  for (const [field, value] of Object.entries(patch || {})) {
+    if (!machine.GUARDED_FIELDS.includes(field)) bookkeeping[field] = value;
+  }
+  const guardedPatch = overlayStore.reviewPatchFromInput(bookkeeping);
+  if (Object.keys(guardedPatch).length) overlayStore.setReviewLifecycle(T.ov, body.key, guardedPatch);
+  if (!machine.hasGuardedFields(patch)) return;
+  const event = machine.eventForPatch(patch);
+  if (!event) {
+    decisions.push({
+      ok: false,
+      event: null,
+      refusal: {
+        code: 'unmapped_patch',
+        reason: 'review patch does not describe a known lifecycle transition; send lifecycle_event instead',
+        retryable: false,
+      },
+    });
+    return;
+  }
+  decisions.push(overlayStore.applyLifecycleEvent(T.ov, body.key, event, {
+    task_status: newlyReady.isTerminalStatus(body.status) ? body.status : undefined,
+    agent_id: patch.review_agent || body.agent_id,
+    reason: patch.review_reason || patch.review_note || body.reason,
+    note: patch.review_note || body.note,
+    merge_sha: patch.merge_sha,
+    merged_at: patch.merged_at,
+    review_requested_by: patch.review_requested_by,
+    review_requested_at: patch.review_requested_at,
+    legacy_judge_task_key: patch.legacy_judge_task_key,
+    reviewed_at: patch.reviewed_at,
+    force: !!body.force,
+  }));
+}
+
 function validateTerminalClaimOwner(ov, body) {
   if (!newlyReady.isTerminalStatus(body.status)) return null;
   const key = body.key;
   const claimSession = ov.claimSessions && ov.claimSessions[key];
   const currentStatus = ov.status && ov.status[key];
   if (currentStatus !== 'in_progress' && !claimSession) return null;
+  // Same-node REVIEW transitions are not work completions. A reviewer submitting a verdict on a
+  // task that is no longer in_progress is BY DESIGN a different identity from the worker that
+  // built it, so a lingering claim binding (e.g. leaked by a stale release before releaseClaim
+  // cleared bindings, or a worker whose terminal write raced the sweep) must never force the
+  // reviewer to reuse the worker's session_id/agent_id. The in_progress guard below still stands —
+  // a live build cannot be verdicted out from under its worker (lifecycle machine enforces the
+  // same invariant at the transition layer).
+  const isReviewTransition = !!(body.review && (body.review.review_verdict || body.review.review_state));
+  if (isReviewTransition && currentStatus !== 'in_progress') return null;
 
   const sid = body.session_id ? String(body.session_id) : '';
   if (!sid) {
@@ -652,18 +706,47 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (newlyReady.isTerminalStatus(b.status) && b.task_result != null) {
       applyCausalEdges(T, b.task_result, ensureTaskSnapshot);
     }
+    // REVIEW LIFECYCLE: every transition goes through the guarded state machine, never a blind
+    // merge. The status event is applied first (it reflects what the WORKER just reported), then any
+    // explicit reviewer event. Crucially, a worker completing 'tested' no longer self-approves a
+    // review that was requested for it — the machine preserves the open request, which is what makes
+    // the attempt reviewable AFTER the diff exists instead of only before it.
+    const lifecycleDecisions = [];
     if (newlyReady.isTerminalStatus(b.status)) {
       const gitInfo = T.ov.git && T.ov.git[b.key];
-      overlayStore.setReviewFromStatus(T.ov, b.key, b.status, {
-        agent_id: b.agent_id,
-        note: b.note,
-        summary: b.summary,
-        now: now(),
-        merge_state: gitInfo && gitInfo.merged ? 'merged' : undefined,
-      });
+      const statusEvent = overlayStore.lifecycleEventForStatus(b.status);
+      if (statusEvent) {
+        lifecycleDecisions.push(overlayStore.applyLifecycleEvent(T.ov, b.key, statusEvent, {
+          task_status: b.status,
+          agent_id: b.agent_id,
+          note: b.note,
+          summary: b.summary,
+          now: now(),
+          merge_state: gitInfo && gitInfo.merged ? 'merged' : undefined,
+          force: !!b.force,
+        }));
+      }
     }
+    // Explicit reviewer transition (lib/mcp-core.js submit_verdict). Named event, so the same
+    // in-flight / already-merged / already-settled guards apply to a judge's write as to a sweep's.
+    if (b.lifecycle_event) {
+      lifecycleDecisions.push(overlayStore.applyLifecycleEvent(T.ov, b.key, String(b.lifecycle_event), {
+        task_status: newlyReady.isTerminalStatus(b.status) ? b.status : undefined,
+        agent_id: b.agent_id,
+        reason: b.review_reason || b.reason || b.note,
+        note: b.note,
+        now: now(),
+        force: !!b.force,
+      }));
+    }
+    // LEGACY RAW PATCH PATHS. Older callers hand-build a review patch (a `review` object, or the
+    // fields inline on the body) instead of naming an event. They keep working, but the half of the
+    // patch that MEANS a transition (review_state / review_verdict / merge_state) is routed through
+    // the machine like everything else — otherwise this is the hole every other guard leaks through.
+    // Bookkeeping fields (attempt pointers, request provenance, notes) are not state transitions and
+    // still write directly.
     if (b.review && typeof b.review === 'object' && !Array.isArray(b.review)) {
-      overlayStore.setReviewLifecycle(T.ov, b.key, b.review);
+      applyRawReviewPatch(T, b, b.review, lifecycleDecisions);
     }
     const hasTopLevelReviewFields = [
       'review_state', 'review_verdict', 'review_note', 'review_reason', 'review_agent',
@@ -671,7 +754,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       'attempt_branch', 'attempt_worktree', 'attempt_head', 'merge_sha', 'merged_at',
       'legacy_judge_task_key',
     ].some((field) => Object.prototype.hasOwnProperty.call(b, field));
-    if (hasTopLevelReviewFields) overlayStore.setReviewLifecycle(T.ov, b.key, b);
+    if (hasTopLevelReviewFields) applyRawReviewPatch(T, b, b, lifecycleDecisions);
     overlayStore.clearSpawnLease(T.ov, b.key);   // release the spawn-dispatch lease on claim/terminal (task /3)
     if (b.max_retries != null) {
       if (!T.ov.retryConfig) T.ov.retryConfig = {};
@@ -888,6 +971,16 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (bucketCleanup) statusResp.bucket_cleanup = bucketCleanup;
     if (harnessRequeued) statusResp.harness_requeued = true;
     if (lintWarning) statusResp.warning = lintWarning;
+    // Report any REFUSED lifecycle transition. The status write itself still succeeded — only the
+    // review-lifecycle half was declined (already merged / already settled) — so this is a field on
+    // a 200, not an error. Silence here is what let late writers look like they had landed.
+    {
+      const refused = lifecycleDecisions.filter((d) => d && !d.ok).map((d) => ({
+        event: d.event, code: d.refusal && d.refusal.code, reason: d.refusal && d.refusal.reason,
+        retryable: !!(d.refusal && d.refusal.retryable),
+      }));
+      if (refused.length) statusResp.lifecycle_refused = refused;
+    }
     if (b.status === 'in_progress' && b.force) {
       const FORCE_CAP = 3;
       statusResp.force_claims_remaining = Math.max(0, FORCE_CAP - ((T.ov.forceClaims && T.ov.forceClaims[b.key]) || 0));

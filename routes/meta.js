@@ -3,6 +3,11 @@ const fs = require('fs');
 const path = require('path');
 const mcpCore = require('../lib/mcp-core');
 
+// Package identity for /version — resolved once at module load; tolerant of a broken checkout.
+const PKG_VERSION = (() => {
+  try { return require('../package.json').version || null; } catch { return null; }
+})();
+
 const NATIVE_FORMAT_HEALTH_TTL_MS = 10_000;
 const nativeFormatHealthCache = new Map();
 
@@ -26,7 +31,23 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
   if (p === '/ping') { send(res, 200, { ok: true, sessions: sessionCount() }); return true; }
 
-  if (p === '/version') { send(res, 200, { head: GIT_HEAD, bootedAt: BOOTED_AT, features: FEATURES }); return true; }
+  if (p === '/version') {
+    // Existing fields (head/bootedAt/features) are load-bearing: hooks/restart-daemon.sh compares
+    // /version.head against the on-disk HEAD to decide "restart required" — only ADD fields here.
+    const daemonLog = ctx.daemonLog || require('../lib/daemon-log');
+    send(res, 200, {
+      ok: true,
+      head: GIT_HEAD,
+      bootedAt: BOOTED_AT,
+      features: FEATURES,
+      version: PKG_VERSION,
+      node: process.version,
+      pid: process.pid,
+      uptime_s: Math.round(process.uptime()),
+      log_path: typeof daemonLog.logPath === 'function' ? daemonLog.logPath() : null,
+    });
+    return true;
+  }
 
   if (p === '/events' && m === 'GET') {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'Access-Control-Allow-Origin': '*' });

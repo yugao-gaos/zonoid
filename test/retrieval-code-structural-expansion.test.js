@@ -8,6 +8,7 @@
 // Run: node test/retrieval-code-structural-expansion.test.js
 
 const { expandCodeStructure } = require('../lib/search/memory-search');
+const { selectMemoryResults } = require('../lib/search/context-compiler');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
@@ -176,6 +177,89 @@ const seedRow = () => ({
     expandCodeStructure({ overlay: makeOverlay(), ragResults: [{ key: 'note:x', kind: 'note', tier: 'rag', via: 'rrf-bm25', score: 0.4 }], excludedKeys: new Set() }).length === 0);
   ok('structural seed is NOT itself re-expanded (via code-structural skipped)',
     expandCodeStructure({ overlay: makeOverlay(), ragResults: [{ ...seedRow(), via: 'code-structural', code_expanded: true }], excludedKeys: new Set() }).length === 0);
+}
+
+// ── 7. END TO END: structural rows survive selectMemoryResults' top-k cut ────────────────────────────
+// REGRESSION: selectMemoryResults matched only the GRAPH expansion family (`expanded` /
+// tier 'graph_expanded'). Code-structural rows carry a sub-cosine floor score, so they sort past the
+// direct top-k cut, and they then fell through the expansion pass unmatched — meaning that whenever
+// cosine retrieval already returned k or more hits (the normal case) the whole tier was discarded
+// before reaching the caller. These drive the real seam: expand, sort as memory-search does, select.
+{
+  const SEED = K('handler.js', 'handle');
+  const noteRows = (n, base) => Array.from({ length: n }, (_, i) => ({
+    key: `note:${i}`, title: `note ${i}`, summary: `note ${i}`,
+    score: base - i * 0.01, kind: 'note', tier: 'rag', via: 'rrf-bm25', path: [],
+  }));
+  // Mirror memory-search: expand into the pool, then sort by score before selection.
+  const expandAndSelect = (ragResults, k) => {
+    expandCodeStructure({ overlay: makeOverlay(), ragResults, excludedKeys: new Set() });
+    ragResults.sort((a, b) => b.score - a.score);
+    return selectMemoryResults(ragResults, k, { nodeFirst: true, query: 'handle' });
+  };
+  const structural = (rows) => rows.filter((r) => r.via === 'code-structural').map((r) => r.key);
+
+  // Direct cut FULL (8 cosine hits scoring above the seed's neighbors, k=5) — the normal case.
+  {
+    const out = expandAndSelect([seedRow(), ...noteRows(8, 0.5)], 5);
+    const surfaced = structural(out);
+    ok('structural rows survive when the direct top-k cut is already full',
+      surfaced.includes(K('util.js', 'validate')) && surfaced.includes(K('db.js', 'query'))
+      && surfaced.includes(K('route.js', 'route')));
+
+    const firstStructural = out.findIndex((r) => r.via === 'code-structural');
+    ok('structural rows are appended AFTER the direct cut, never displacing a cosine hit',
+      firstStructural === 5 && out.slice(0, 5).every((r) => r.via !== 'code-structural'));
+    ok('direct top-k is byte-for-byte the pre-fix selection (seed + the 4 top notes)',
+      out.slice(0, 5).map((r) => r.key).join(',') === [SEED, 'note:0', 'note:1', 'note:2', 'note:3'].join(','));
+    ok('no duplicate keys across direct + expanded', new Set(out.map((r) => r.key)).size === out.length);
+    ok('surfaced structural rows keep their floor score and provenance',
+      out.filter((r) => r.via === 'code-structural')
+        .every((r) => r.tier === 'code' && r.score < 0.5 && r.code_expanded === true && r.code_expanded_from === SEED));
+  }
+
+  // k larger than the pool was the ONLY case that used to work — it must still work.
+  ok('structural rows still survive when k exceeds the result count',
+    structural(expandAndSelect([seedRow(), ...noteRows(8, 0.5)], 50)).length >= 3);
+
+  // SEED-VISIBILITY GATE: a seed pushed out of the direct cut must not leak its neighbors.
+  {
+    const out = expandAndSelect([seedRow(), ...noteRows(5, 0.9)], 3);
+    ok('seed itself is outside the direct cut in this fixture', !out.slice(0, 3).some((r) => r.key === SEED));
+    ok('neighbors of an invisible seed are NOT surfaced', structural(out).length === 0);
+  }
+
+  // ADDITIVE for an ALREADY-COSINE neighbor: annotated, never duplicated, never rescored.
+  {
+    const validateHit = {
+      key: K('util.js', 'validate'), title: 'validate', summary: 'validate(x)',
+      score: 0.55, cosine: 0.55, kind: 'code_node', tier: 'code', via: 'semantic', path: [],
+    };
+    const out = expandAndSelect([seedRow(), { ...validateHit }], 2);
+    ok('annotated cosine neighbor inside the direct cut appears exactly once',
+      out.filter((r) => r.key === K('util.js', 'validate')).length === 1);
+
+    const tight = expandAndSelect([seedRow(), { ...validateHit }], 1);
+    const row = tight.filter((r) => r.key === K('util.js', 'validate'));
+    ok('annotated cosine neighbor below the cut is surfaced once, unrescored',
+      row.length === 1 && row[0].score === 0.55 && row[0].via === 'semantic' && row[0].code_expanded === true);
+  }
+
+  // NO REGRESSION for the graph expansion family sharing this pass.
+  {
+    const rows = [
+      { key: 'note:seed', title: 'seed note', score: 0.8, kind: 'note', tier: 'rag', via: 'rrf-bm25', path: [] },
+      { key: 'note:g1', title: 'g1', score: 0.001, kind: 'note', tier: 'graph_expanded', via: 'structural-context', expanded_from: 'note:seed', path: [] },
+      { key: 'note:g2', title: 'g2', score: 0.3, kind: 'note', tier: 'rag', via: 'rrf-bm25', expanded: true, expanded_from: 'note:seed', expansion_score: 0.001, expansion_via: 'structural-context', expansion_path: ['expanded_from:note:seed'] },
+      { key: 'note:orphan', title: 'orphan', score: 0.002, kind: 'note', tier: 'graph_expanded', via: 'structural-context', expanded_from: 'note:missing', path: [] },
+    ];
+    const out = selectMemoryResults(rows, 1, { nodeFirst: true, query: 'seed' });
+    const byKey = Object.fromEntries(out.map((r) => [r.key, r]));
+    ok('graph_expanded row still surfaces beyond the cut', !!byKey['note:g1']);
+    ok('annotated graph row is still remapped to the graph_expanded tier + expansion score',
+      byKey['note:g2'] && byKey['note:g2'].tier === 'graph_expanded' && byKey['note:g2'].score === 0.001);
+    ok('graph row with an invisible seed is still gated out', !byKey['note:orphan']);
+  }
 }
 
 console.log('-----');

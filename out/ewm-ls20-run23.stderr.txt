@@ -1,1 +1,0 @@
-KB note write failed for 'game ls20 coverage chunk 1 of 1': <HTTPError 404: 'Not Found'>

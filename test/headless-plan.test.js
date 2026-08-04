@@ -46,12 +46,20 @@ function makeFixture(opts = {}) {
     config: { headless_driver: true, self_plan: true, planner_cooldown_ms: 0 },
     spawnLease: {}, status: {}, planner: {},
   };
-  const calls = { decide: 0, runDrain: [], saves: [] };
+  const overlays = opts.overlays || null;   // optional per-workspace overlays (multi-workspace tests)
+  const calls = { decide: 0, decideOpts: [], runDrain: [], saves: [] };
   const governor = { iterationsUsed: 0, tokensUsed: 0, concurrentRunning: 0, backoffUntil: 0, consecutiveThrottles: 0 };
   const deps = {
     loops,
-    decide: () => { calls.decide++; return opts.decisions || []; },
-    overlayLoad: () => overlay,
+    decide: (o) => {
+      calls.decide++;
+      calls.decideOpts.push(o);
+      const d = opts.decisions || [];
+      // Mirror the daemon: a scoped decide pass only ticks/returns loops passing the filter.
+      if (!o || typeof o.loopFilter !== 'function') return d;
+      return d.filter((x) => o.loopFilter(loops.get(x.loopId)));
+    },
+    overlayLoad: (ws) => (overlays ? (overlays[ws] || null) : overlay),
     overlaySave: (ws, ov) => { calls.saves.push({ ws, ov }); },
     governor,
     acquireSlot: opts.acquireSlot || (() => ({ ok: true, release() {} })),
@@ -64,7 +72,7 @@ function makeFixture(opts = {}) {
     },
     effectiveConfig: () => ({ tokenBudget: 200000, maxIterations: 50, maxConcurrency: 2, timeoutMs: 1000 }),
   };
-  return { deps, calls, overlay, governor, loops };
+  return { deps, calls, overlay, overlays, governor, loops };
 }
 
 const planDecision = (loopId = 'm1') => [{ loopId, action: 'plan', reason: 'DAG drained; self-planning a next initiative' }];
@@ -234,7 +242,7 @@ test('optimize decision → prompt carries problem/metric/prior_verdict and the 
 // Test 4: stand-down + backend/governor gates (planner path)
 // ---------------------------------------------------------------------------
 
-test('active session-bound loop → executor stands down, no planner dispatch', async () => {
+test('session-bound loop on the SAME workspace → stands down, no planner dispatch', async () => {
   const { deps, calls } = makeFixture({
     loops: [
       { id: 'm1', active: true, managed: 'graph', session: null, workspace: WS },
@@ -247,6 +255,29 @@ test('active session-bound loop → executor stands down, no planner dispatch', 
   assert.equal(result.skipped, 'interactive_driver_active');
   assert.equal(calls.decide, 0, 'executor must not steal the interactive driver\'s decide pass');
   assert.equal(calls.runDrain.length, 0);
+});
+
+test('session-bound loop on ANOTHER workspace → the un-driven workspace still plans', async () => {
+  const WS_B = '/ws/b';
+  const plannerOverlay = () => ({
+    config: { headless_driver: true, self_plan: true, planner_cooldown_ms: 0 },
+    spawnLease: {}, status: {}, planner: {},
+  });
+  const overlays = { [WS]: plannerOverlay(), [WS_B]: plannerOverlay() };
+  const { deps, calls } = makeFixture({
+    overlays,
+    loops: [
+      { id: 'm-a', active: true, managed: 'graph', session: null, workspace: WS },
+      { id: 'm-b', active: true, managed: 'graph', session: null, workspace: WS_B },
+      { id: 's-b', active: true, managed: null, session: 'sess-b', workspace: WS_B },
+    ],
+    decisions: [...planDecision('m-a'), ...planDecision('m-b')],
+  });
+  const result = await headlessSpawn.runDueSpawns({}, deps);
+  assert.equal(result.ran, 1, 'only the un-driven workspace plans');
+  assert.equal(calls.runDrain.length, 1);
+  assert.equal(calls.runDrain[0].cwd, WS, 'planner child must run in the un-driven workspace');
+  assert.ok(!overlays[WS_B].planner.lease, 'the session-driven workspace must not take a planner lease');
 });
 
 test('api-kind backend → no_backend clean pause for the planner (documented skip)', async () => {

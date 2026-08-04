@@ -53,6 +53,13 @@ function freshModuleWithMockedSpawn(stub) {
   const orig = child_process.spawn;
   const calls = [];
   child_process.spawn = (bin, args, opts) => {
+    // The embed sidecar (lib/embed-server.js) spawns on overlay/embed module load since the
+    // code-node-embed-enrich work — it is not a drain child, and recording it fails every
+    // "no spawn" assertion for a process unrelated to the drains. Give it a fake child
+    // (embed() is null-safe when the sidecar never answers) and keep it out of `calls`.
+    if (Array.isArray(args) && args.some((a) => String(a).includes('embed-server.js'))) {
+      return makeFakeChild();
+    }
     calls.push({ bin, args, opts });
     return stub ? stub(bin, args, opts) : makeFakeChild();
   };
