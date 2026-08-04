@@ -56,6 +56,50 @@ Wake pid/fire files live under the Zonoid runtime data dir's `wake/` folder.
 `CLAUDE_PLUGIN_DATA`, or `~/.claude/orchestrator/.zonoid` is used. Durable graph
 state remains in workspace `.graph/`.
 
+## Leak reaping (daemon sweeps)
+
+Armed sleepers are detached `node -e` processes, so a lost fire (hard kill, crashed sleeper,
+daemon restart) leaks both a live process and a dangling registry row. Two sweeps run in the
+daemon's 60s cycle (`daemon.js`, inside `require.main === module`, each `setInterval(...).unref()`'d)
+and both reuse the module's single `isPidAlive` / `killPid` pair — there is no second liveness or
+kill path.
+
+**Registry.** `armWakeup` records `KEY -> {pid, fireAt, session}` in
+`<workspace>/.graph/scheduled-wakeups.json` (falls back to the runtime data dir when
+`ORCH_WORKSPACE` is unset). The sleeper deletes its own row when it fires.
+
+### Part 1 — `sweepStaleWakeups()` (always on)
+
+Reconciles every registry row against process reality:
+
+| Row state | Action |
+|---|---|
+| pid dead | prune the row (it fired + exited; the reap-on-fire write may have been lost) |
+| pid alive, `now > fireAt + GRACE` | stuck sleeper → `killPid` + prune |
+| pending, or only just past `fireAt` | leave alone |
+
+`GRACE` defaults to **5 min**, override with `ORCH_WAKEUP_GRACE_MIN`. Rows with a non-numeric
+`fireAt` are never treated as overdue — they are pruned only when their pid is dead. Returns
+`{swept, killed, pruned}`.
+
+### Part 2 — `sweepOrphanProcesses()` (opt-in, default OFF)
+
+An OS-level janitor for leaked *node* processes generally, not just sleepers. Gated behind
+`ORCH_PROCESS_JANITOR`: unset ⇒ a pure no-op returning `{enabled:false}`, having enumerated and
+killed nothing. When enabled it kills only the intersection of:
+
+1. command line matches a narrow **ephemeral allowlist** — `node --test` runners,
+   `node -e "…require('./daemon')…"` blobs, and `daemon.js` launches carrying an `ORCH_*PORT=` env; and
+2. age > `ORCH_PROCESS_JANITOR_MAX_MIN` (default **20 min**); and
+3. pid is not protected — this daemon, plus the embed/rerank sidecars (read live from their
+   pidfiles each pass, so a sidecar restart is always covered).
+
+Anything not matching rule 1 is left strictly alone, so services, editors, shells, `mcp-graph.js`,
+and the user's own node programs can never become candidates — `mcp-graph` needs no pidfile because
+its argv structurally never matches. Each kill logs pid, matched pattern, and age to stderr.
+Process enumeration is `ps -eo pid,etimes,args` on POSIX and `Get-CimInstance Win32_Process` on
+Windows; any enumeration failure returns `[]`, so a janitor that cannot see safely does nothing.
+
 ## Heartbeat nudge (classify)
 
 `POST /classify` injects a fixed heartbeat line into `additional_context` (see
