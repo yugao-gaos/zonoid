@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Install / uninstall the zonoid orchestrator daemon as a Windows scheduled task that starts at logon.
 
