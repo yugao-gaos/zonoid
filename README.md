@@ -188,6 +188,71 @@ independently — nothing is daemon-global. Each flag also remains individually 
 caps still govern autonomous work: managed loops run under the loop-autostart config and
 headless drains under the drain governor's per-boot token/concurrency budget.
 
+## Tuning (persisted, hot-reloadable)
+
+The drain/worker tuning knobs resolve **env > file > default**. The file is
+`<runtime dir>/tuning.json` (override with `ORCH_TUNING_FILE`), so a retune survives a reboot
+instead of dying with the shell that exported it.
+
+| knob | env var | default |
+| --- | --- | --- |
+| `drain_max_concurrency` | `HEADLESS_DRAIN_MAX_CONCURRENCY` | 2 |
+| `drain_token_budget` | `HEADLESS_DRAIN_TOKEN_BUDGET` | 200000 |
+| `drain_max_iterations` | `HEADLESS_DRAIN_MAX_ITERATIONS` | unbounded |
+| `drain_timeout_ms` | `HEADLESS_DRAIN_TIMEOUT_MS` | 300000 |
+| `spawn_timeout_ms` | `HEADLESS_SPAWN_TIMEOUT_MS` | 1800000 |
+| `continuous_delay_ms` | `HEADLESS_DRAIN_CONTINUOUS_DELAY_MS` | 15000 |
+| `idle_poll_ms` | `HEADLESS_DRAIN_IDLE_POLL_MS` | 120000 (+ per-runner jitter) |
+| `retry_delay_ms` | `HEADLESS_DRAIN_RETRY_DELAY_MS` | 5000 |
+| `judge_budget` | `HEADLESS_DRAIN_JUDGE_BUDGET` | 20 |
+| `judge_max_per_tick` | `HEADLESS_DRAIN_MAX_PER_TICK` | unbounded |
+| `learner_max_per_tick` | `HEADLESS_DRAIN_LEARNER_MAX_PER_TICK` | min(1, `drain_max_concurrency`) |
+
+**No knob requires a restart.** Every consumer re-resolves per use and the file parse is cached on
+mtime, so a write lands on the next pump. `GET /config/tuning` reports `restart_required: []`.
+
+```sh
+# read: effective values + which tier won each one
+node scripts/tuning.js get
+curl localhost:8787/config/tuning
+
+# write (daemon running or not) — takes effect on the next pump
+node scripts/tuning.js set drain_max_concurrency=6 drain_token_budget=5000000 \
+  spawn_timeout_ms=3600000 continuous_delay_ms=5000 idle_poll_ms=45000 retry_delay_ms=3000
+
+# or over HTTP
+curl -XPOST localhost:8787/config/tuning -d '{"set":{"drain_max_concurrency":6}}'
+
+# revert a knob to env/default
+node scripts/tuning.js unset judge_budget
+```
+
+`GET /status` carries the same view (`tuning.values` + `tuning.sources`), and the daemon prints the
+effective knobs plus the file path in its two `[boot] tuning:` lines.
+
+## Run the daemon at logon (Windows)
+
+The daemon is registered as a **scheduled task**, not a Windows service: a service runs in session 0
+with no user profile, and the daemon spawns agentic CLI backends that authenticate as the
+interactive user.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\windows-service.ps1 -Install
+powershell -ExecutionPolicy Bypass -File scripts\windows-service.ps1 -Status
+powershell -ExecutionPolicy Bypass -File scripts\windows-service.ps1 -Start
+powershell -ExecutionPolicy Bypass -File scripts\windows-service.ps1 -Uninstall
+```
+
+`-Install` is idempotent (it re-registers) and takes `-RepoPath`, `-NodePath`, `-Port` and
+`-TaskName` overrides. Output is not re-plumbed here: the daemon already tees stdout/stderr to
+`<runtime dir>/daemon.log` (size-rotated, always on).
+
+The installer can do this for you:
+
+```sh
+node bin/install.js --windows-service
+```
+
 ## Dashboard
 
 ```

@@ -18,12 +18,17 @@
  *                          returns the new active backend. A falsy provider clears the selection
  *                          (reverts to the Claude default).
  *
+ * It also serves GET/POST /config/tuning — the persisted drain/worker tuning knobs (lib/tuning.js).
+ * Those are HOST-scoped (one daemon's drain pool), so they persist to <runtime dir>/tuning.json
+ * rather than the per-workspace overlay, and take effect on the next pump without a restart.
+ *
  * Mirrors the route-module shape of routes/judge.js / routes/label.js: `(ctx) => async (...)`,
  * driven by ctx.targetOverlay/send/readBody/notifyChange. Wired into daemon.js's routeModules.
  */
 const overlayStore = require('../lib/overlay');
 const llmBackend = require('../lib/llm-backend');
 const embed = require('../lib/embed');
+const tuning = require('../lib/tuning');
 
 const NO_WORKSPACE_ERROR = 'no workspace resolved — pass workspace (body or ?workspace=)';
 
@@ -156,6 +161,40 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     llmBackend.writeBackendCredentialKey(canonical, '');
     notifyChange();
     send(res, 200, { ok: true, apiKeyDeleted: true, env: canonical });
+    return true;
+  }
+
+  // ---- /config/tuning — persisted drain/worker tuning knobs (env > tuning.json > default) ----
+  // HOST-scoped, not workspace-scoped: these govern one daemon process's drain pool, so unlike the
+  // backend/embedding selections above they deliberately do NOT require a workspace.
+  //
+  //   GET  → { ok, tuning: {knob: value}, file, file_error, restart_required: [], knobs: {…} }
+  //          `knobs` explains each value: which tier won, what each tier offered, the default.
+  //   POST → body { knob: value, … } (or { set: {…} } / { tuning: {…} }) → validates, merges into
+  //          the file, invalidates the parse cache, and returns the new GET view. Every consumer
+  //          resolves per call, so the change takes effect on the NEXT pump — no restart. A null
+  //          value CLEARS a knob back to env/default.
+  if (p === '/config/tuning' && m === 'GET') {
+    const view = tuning.describe();
+    send(res, 200, { ok: true, tuning: tuning.effective(), ...view });
+    return true;
+  }
+
+  if (p === '/config/tuning' && m === 'POST') {
+    const b = (await readBody(req)) || {};
+    // Accept a bare knob map or an explicit { set } / { tuning } envelope — the dashboard posts the
+    // envelope, curl users post the bare map.
+    const patch = (b.set && typeof b.set === 'object') ? b.set
+      : (b.tuning && typeof b.tuning === 'object') ? b.tuning
+        : b;
+    const result = tuning.write(patch);
+    if (!result.ok) {
+      send(res, 400, result);
+      return true;
+    }
+    notifyChange();
+    const view = tuning.describe();
+    send(res, 200, { ok: true, written: result.values, tuning: tuning.effective(), ...view });
     return true;
   }
 

@@ -23,6 +23,7 @@
 //   node bin/install.js --workspace DIR # target a different workspace root (default: cwd)
 //   node bin/install.js --install-dir D # orchestrator source dir (default: this repo)
 //   node bin/install.js --port 8788     # daemon port (default: 8787)
+//   node bin/install.js --windows-service # ALSO register the logon scheduled task (Windows only)
 //   node bin/install.js --dry-run       # print what would change without writing
 
 const fs = require('fs');
@@ -374,6 +375,37 @@ function registerWorkspace(workspace = WORKSPACE, port = PORT) {
 }
 
 // ── run ──────────────────────────────────────────────────────────────────────
+// ── optional: Windows logon service ──────────────────────────────────────────
+// OPT-IN (--windows-service): registers the daemon as a scheduled task that starts at logon, so a
+// reboot no longer means starting it by hand. Delegates entirely to scripts/windows-service.ps1 —
+// this is a thin invoker, not a second implementation of the task registration.
+function installWindowsService() {
+  if (!flag('--windows-service')) return { skipped: 'not requested' };
+  const script = path.join(INSTALL_DIR, 'scripts', 'windows-service.ps1');
+  if (process.platform !== 'win32') {
+    console.log('windows service: skipped (not Windows)');
+    return { skipped: 'not win32' };
+  }
+  if (!fs.existsSync(script)) {
+    console.log(`windows service: skipped (missing ${script})`);
+    return { skipped: 'missing script' };
+  }
+  const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-Install',
+    '-RepoPath', INSTALL_DIR, '-Port', PORT];
+  if (DRY) {
+    console.log(`windows service: would run powershell ${args.join(' ')}`);
+    return { skipped: 'dry-run' };
+  }
+  const res = spawnSync('powershell.exe', args, { encoding: 'utf8', windowsHide: true });
+  if (res.stdout) process.stdout.write(res.stdout);
+  if (res.status !== 0) {
+    // Non-fatal: the rest of the install is already done and valid without the logon task.
+    console.log(`windows service: registration failed (exit ${res.status})${res.stderr ? `: ${res.stderr.trim()}` : ''}`);
+    return { ok: false, status: res.status };
+  }
+  return { ok: true };
+}
+
 async function main() {
   console.log(`zonoid installer${DRY ? ' (dry-run)' : ''}`);
   console.log(`  install dir : ${INSTALL_DIR}`);
@@ -386,12 +418,16 @@ async function main() {
   installSkills();
   installPrePushTestHook(WORKSPACE);
   installClaudeInstructions(WORKSPACE);
+  installWindowsService();
   await registerWorkspace(WORKSPACE);
   if (!DRY) {
     console.log('\nDone. Notes:');
     console.log('  • Start a NEW Claude Code CLI session so it reloads .mcp.json + settings.json.');
     console.log('  • Hooks (the gate) run in the CLI only — the desktop app does not execute settings.json hooks.');
     console.log(`  • Dashboard: ${dashboardUrl()}`);
+    if (process.platform === 'win32' && !flag('--windows-service')) {
+      console.log('  • Re-run with --windows-service to start the daemon automatically at logon.');
+    }
   }
 }
 
@@ -423,5 +459,6 @@ module.exports = {
   installPrePushTestHook,
   renderClaudeInstructions,
   installClaudeInstructions,
+  installWindowsService,
   registerWorkspace,
 };
