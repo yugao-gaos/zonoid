@@ -20,6 +20,28 @@
  */
 const activity = require('../lib/activity');
 const headlessDrain = require('../lib/headless-drain');
+const tuning = require('../lib/tuning');
+
+/**
+ * Effective persisted tuning + where it came from. The governor view above reports the four knobs
+ * it happens to use; this reports EVERY knob with its winning tier, which is what makes "I set
+ * concurrency to 6, why is it 2" answerable from /status instead of a restart-and-watch-the-boot-line
+ * loop. Advisory — a failure here degrades to null, never a 500.
+ */
+function tuningView() {
+  try {
+    const d = tuning.describe();
+    return {
+      file: d.file,
+      file_error: d.file_error,
+      restart_required: d.restart_required,
+      values: tuning.effective(),
+      sources: Object.fromEntries(Object.entries(d.knobs).map(([k, v]) => [k, v.source])),
+    };
+  } catch {
+    return null;
+  }
+}
 
 function governorView() {
   try {
@@ -139,6 +161,8 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       // Full governor view: concurrency slots, iteration/token budgets, and backoff — the
       // "work is due but deliberately paused" explainer a bare backoff_until can't give.
       governor: gov,
+      // Persisted tuning: effective value + winning tier per knob, and the file backing them.
+      tuning: tuningView(),
       // In-flight jobs grouped by kind (worker/planner/judge/drain/…): the per-kind slice of
       // the same ring `workers_running` reads.
       running_by_kind: runningByKind(ws),
