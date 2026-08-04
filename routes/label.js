@@ -39,7 +39,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(null, u);
     if (!T.ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
     const targetWs = T.ws;
-    ensureHarnessLabelDrainTask(T.ov, () => { T.save(); notifyChange(); });
+    ensureHarnessLabelDrainTask(T.ov, () => { T.save(); notifyChange(T.graph_repo || T.ws); });
 
     // Compute gradable backlog: journal rows that (a) have a non-null task_key, (b) are not
     // already labeled, and (c) whose task_key resolves to a TERMINAL task.

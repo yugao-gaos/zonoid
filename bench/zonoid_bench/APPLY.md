@@ -248,5 +248,6 @@ source references.
 | `RuntimeError: Daemon did not reach phase:ready` | Node not on PATH | `node --version`; install Node.js |
 | `ValueError: workspace must be an absolute path` | Relative workspace | Use `os.path.abspath(...)` |
 | `/task/context` returns empty `dependencySummaries` | Wiring race | Sleep 3-6 s after `post_note` before `task_suggest` |
+| Smoke A2 fails with `KEPT (keepEdge): []` and non-empty `context_keys` | RAG answer succeeded, but eager-judge did not post a verified `keepEdge` | Inspect candidate verdicts and `claude -p` health; do not rescue the miss with `overlay_edge` |
 | cold arm scores as well as ON arm | Fact is world-knowledge | Choose a more obscure planted fact |
-| A2 fails (no wired edges) | EdgeJudge timed out, failed, or returned prune verdicts before posting a verified `keepEdge` | Inspect candidate verdicts and `claude -p` health, then rerun the smoke |
+| A2 fails with no candidates and no context | Autowire did not seed candidates, or the embedder was not warm yet | Check embedder warm-up/indexing and the planted fact wording; do not rescue the miss with `overlay_edge` |

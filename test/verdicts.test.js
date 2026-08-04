@@ -11,13 +11,10 @@
 //   - apply (hold): sets/refreshes a not_ready override with the reason as note.
 //   - apply (cancel): canceled override + cooperative cancel flag (existing cancel semantics).
 //   - apply (merge): records a non-destructive merge request; does not cancel or change status.
-//   - sweepStaleHolds: auto-releases a hold whose note references the completed task (full key, or
-//     same-session "/<id>" shorthand — the motivating incident's "gated behind (/14)"); flags
-//     unreferenced stale holds as severity-'review' guidance with action {kind:'stale-hold'};
-//     leaves holds with unfinished blocking deps, 'followup/' keys, re-justified holds and
-//     cross-session shorthands alone; never double-flags while a guidance item is unresolved.
-//   - resolveStaleHold: 'release' drops the override; 'keep' re-justifies (sweep stops re-flagging);
-//     any other answer keeps the gate closed.
+//   - sweepStaleHolds: auto-releases holds whose blocking deps are all done, recording whether the
+//     hold referenced the completed task or was stale because every dep is done; leaves holds with
+//     unfinished blocking deps, 'followup/' keys, and re-justified holds alone.
+//   - resolveStaleHold: legacy guidance resolver; 'release' drops the override; 'keep' re-justifies.
 //   - lintProse: warns when GO/recommend/unblock language meets a task-key-like reference with no
 //     structured verdict covering it; silent when covered, when self-referential, or when there is
 //     no verdict language; digit-only "sessions" (dates/fractions) don't count as keys.
@@ -103,22 +100,20 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
     { id: 'followup/restart-abcd', status: 'not_ready', deps: [] },
   ], ghosts: [] };
   const sh = vd.sweepStaleHolds(o, `${S}/14`, graph);
-  ok('hold referencing the completed task auto-releases (sibling shorthand)', sh.released.includes(`${S}/11`) && o.status[`${S}/11`] === undefined);
-  ok('auto-release records why (note rewritten)', o.notes[`${S}/11`].startsWith(`auto-released: hold referenced ${S}/14`));
-  ok('unreferenced stale hold is flagged, not released', sh.flagged.some((f) => f.task_key === `${S}/20`) && o.status[`${S}/20`] === 'not_ready');
-  const g = o.guidance.find((x) => x.action && x.action.kind === 'stale-hold' && x.action.task_key === `${S}/20`);
-  ok('flag is severity-review guidance with a stale-hold action', g && g.severity === 'review' && g.action.completed === `${S}/14` && g.trigger === 'stale_hold');
-  ok('hold with an open blocking dep is untouched', o.status[`${S}/30`] === 'not_ready' && !sh.flagged.some((f) => f.task_key === `${S}/30`));
-  ok('cross-session "/14" shorthand never auto-releases', o.status['othersess/3'] === 'not_ready');
-  ok('followup/ holds are skipped entirely', o.status['followup/restart-abcd'] === 'not_ready' && !sh.flagged.some((f) => f.task_key === 'followup/restart-abcd') && !o.guidance.some((x) => x.action && x.action.task_key === 'followup/restart-abcd'));
-  // Second sweep: /20's guidance is still unresolved → no duplicate flag.
+  ok('hold referencing the completed task queues a judge repair (sibling shorthand)', sh.flagged.includes(`${S}/11`) && o.status[`${S}/11`] === 'not_ready' && o.readinessRepairs[`${S}/11`]);
+  ok('judge repair records why', o.readinessRepairs[`${S}/11`].reason.startsWith(`hold referenced ${S}/14`));
+  ok('unreferenced stale hold queues once all deps are done', sh.flagged.includes(`${S}/20`) && o.status[`${S}/20`] === 'not_ready' && o.readinessRepairs[`${S}/20`]);
+  ok('unreferenced repair records all-deps-done reason', /all blocking deps are done/.test(o.readinessRepairs[`${S}/20`].reason));
+  ok('hold with an open blocking dep is untouched', o.status[`${S}/30`] === 'not_ready' && !sh.released.includes(`${S}/30`));
+  ok('cross-session "/14" shorthand still queues only because all deps are done', o.status['othersess/3'] === 'not_ready' && /all blocking deps are done/.test(o.readinessRepairs['othersess/3'].reason));
+  ok('followup/ holds are skipped entirely', o.status['followup/restart-abcd'] === 'not_ready' && !sh.flagged.includes('followup/restart-abcd') && !o.guidance.some((x) => x.action && x.action.task_key === 'followup/restart-abcd'));
   const sh2 = vd.sweepStaleHolds(o, `${S}/2`, { tasks: graph.tasks.map((t) => t.id === `${S}/2` ? { ...t, status: 'done' } : t), ghosts: [] });
-  ok('unresolved stale-hold guidance dedupes (no re-flag)', !sh2.flagged.some((f) => f.task_key === `${S}/20`) && o.guidance.filter((x) => x.action && x.action.task_key === `${S}/20`).length === 1);
+  ok('second sweep keeps stale holds in the judge repair lane', sh2.flagged.includes(`${S}/20`) && o.readinessRepairs[`${S}/20`]);
   // Full-key reference also auto-releases.
   const o2 = ov.EMPTY();
   ov.setStatus(o2, 'a/1', 'not_ready', `held pending ${S}/14 verdict`);
   const sh3 = vd.sweepStaleHolds(o2, `${S}/14`, { tasks: [{ id: 'a/1', status: 'not_ready', deps: [] }], ghosts: [] });
-  ok('full-key reference auto-releases across sessions', sh3.released.includes('a/1') && o2.status['a/1'] === undefined);
+  ok('full-key reference queues judge repair across sessions', sh3.flagged.includes('a/1') && o2.status['a/1'] === 'not_ready' && o2.readinessRepairs['a/1']);
 }
 
 // --- resolveStaleHold --------------------------------------------------------------------------
@@ -133,7 +128,7 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
   const kp = vd.resolveStaleHold(o, { kind: 'stale-hold', task_key: 's/21' }, 'keep', 'still waiting on legal');
   ok('keep re-justifies the hold', kp && kp.held === 's/21' && o.status['s/21'] === 'not_ready' && o.notes['s/21'] === 're-justified: still waiting on legal');
   const sh = vd.sweepStaleHolds(o, 's/14', { tasks: [{ id: 's/21', status: 'not_ready', deps: [] }, { id: 's/14', status: 'done', deps: [] }], ghosts: [] });
-  ok('re-justified hold is not re-flagged by the sweep', !sh.flagged.length && !sh.released.length);
+  ok('re-justified hold is not released by the sweep', !sh.flagged.length && !sh.released.length);
   ok('non-release/keep answer leaves the gate closed', vd.resolveStaleHold(o, { kind: 'stale-hold', task_key: 's/21' }, 'hmm let me think') === null && o.status['s/21'] === 'not_ready');
 }
 

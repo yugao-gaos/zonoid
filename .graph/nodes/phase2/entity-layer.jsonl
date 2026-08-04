@@ -1,2 +1,0 @@
-{"evt":"edge_promoted","from":"phase2/entity-layer","to":"phase3/hybrid-retrieval","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:23:53.354Z","weight":0.5,"by":"judge","judged":true,"origin":"blocking-dep-seed"}
-{"evt":"edge_promoted","from":"phase2/entity-layer","to":"judge/phase2-entity-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:23:53.354Z","weight":0.5,"by":"judge","judged":true,"origin":"blocking-dep-seed"}

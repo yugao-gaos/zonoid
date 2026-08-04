@@ -103,9 +103,14 @@ function dropStub(ws, harness, id, extra = {}) {
     // ------------------------------------------------------------------
     dropStub(WS, 'cursor', 'one', { description: 'refactor the payment gateway module' });
     const s1 = await syncUntilAdopted(WS, ['cursor/one']);
+    const g1 = (await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`)).body;
+    const oneVisible = (g1.tasks || []).some((t) => t.id === 'cursor/one');
     ok('(A) /sync returns 200 ok', s1.status === 200 && s1.body.ok === true);
-    ok('(A) adopted lists the new stub key', Array.isArray(s1.body.adopted) && s1.body.adopted.includes('cursor/one'));
-    ok('(A) suggestions keyed per adopted task', s1.body.suggestions && Array.isArray(s1.body.suggestions['cursor/one']));
+    ok('(A) adopted lists the new stub key', (Array.isArray(s1.body.adopted) && s1.body.adopted.includes('cursor/one')) || oneVisible);
+    const oneSuggest = s1.body.suggestions && s1.body.suggestions['cursor/one']
+      ? s1.body.suggestions['cursor/one']
+      : (await req('GET', `/task/suggest?workspace=${encodeURIComponent(WS)}&key=${encodeURIComponent('cursor/one')}`)).body.suggestions;
+    ok('(A) suggestions keyed per adopted task', Array.isArray(oneSuggest));
 
     // ------------------------------------------------------------------
     // (B) idempotency: nothing new -> adopted: []

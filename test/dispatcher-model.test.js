@@ -131,8 +131,8 @@ function runGate(sessionId, patch, extraEnv = {}) {
 test('dispatcher model — claim gate, children, trivial gate, attribution', async () => {
   PORT = await freePort();
   BASE = `http://127.0.0.1:${PORT}`;
-  dropStub('dm-a');
-  dropStub('dm-b');
+    dropStub('dm-a');
+    dropStub('dm-b');
   const KEY_A = 'local/dm-a';
   const KEY_B = 'local/dm-b';
 
@@ -141,7 +141,7 @@ test('dispatcher model — claim gate, children, trivial gate, attribution', asy
   const SID_WORKER_B = crypto.randomUUID();
 
   const child = spawn(process.execPath, [path.join(REPO, 'daemon.js')], {
-    env: { ...process.env, ORCH_DATA: SANDBOX, ZONOID_DATA: SANDBOX, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '', JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1' },
+    env: { ...process.env, ORCH_DATA: SANDBOX, ZONOID_DATA: SANDBOX, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '', JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1', ORCH_AUTOWIRE_THRESHOLD: '999' },
     stdio: 'ignore',
   });
 
@@ -155,6 +155,8 @@ test('dispatcher model — claim gate, children, trivial gate, attribution', asy
     await assertStubsVisible(r.body, [KEY_A, KEY_B]);
 
     await post('/agent/start', { agent_id: 'dispatch-main', session: SID_DISPATCHER });
+    // mark-root clears the unwired quarantine. ORCH_AUTOWIRE_THRESHOLD=999 prevents candidate
+    // context edges (which would enter the STRICT judging gate and block the claim without an LLM).
     assert.equal((await post('/mark-root', { task_key: KEY_A, reason: 'dispatch test' })).body.ok, true);
 
     // Dispatcher claim with NO worktree → refused (worktree is the claim-side security boundary).

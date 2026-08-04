@@ -71,6 +71,30 @@ available but Claude won't use them automatically.
 | `ZONOID_EMBED_LOCAL_API_STYLE` | inferred | `ollama` or `openai` for the local instruct provider. |
 | `ZONOID_EMBED_LOCAL_API_KEY` | unset | Optional bearer token for local OpenAI-compatible embedding servers. |
 | `VOYAGE_API_KEY` / `COHERE_API_KEY` / `GEMINI_API_KEY` | unset | Hosted embedding provider credentials. Missing keys make the provider return `null` and retrieval falls back lexically. |
+| `ZONOID_OLLAMA_BASE_URL` / `ORCH_OLLAMA_BASE_URL` | `http://127.0.0.1:11434/v1` | OpenAI-compatible base URL for the local Ollama backend used by backend CLI/headless API-kind runs. `OLLAMA_HOST` is also accepted and `/v1` is appended when omitted. |
+| `ORCH_OLLAMA_MODEL` | provider default | Default local Ollama model when `overlay.config.backend.model` is unset. |
+
+Hosted LLM backend keys may also live in daemon-global `<runtime-data-dir>/backend.env`. This is the
+preferred place when one daemon serves multiple projects: put values such as `ZAI_API_KEY=...` or
+`OPENROUTER_API_KEY=...` there, and keep workspace overlay config limited to provider/model
+selection. Real process environment variables still take precedence over `backend.env`.
+
+For local Ollama backend/headless runs, start Ollama, read the models reported by the daemon, then
+select the `ollama` backend with one of those model ids:
+
+```sh
+ollama serve
+curl -s 'http://localhost:8787/config/backend?workspace=/path/to/repo'
+
+curl -s -X POST http://localhost:8787/config/backend \
+  -H 'Content-Type: application/json' \
+  -d '{"workspace":"/path/to/repo","provider":"ollama","model":"qwen3.6:35b"}'
+```
+
+The Ollama backend calls the local OpenAI-compatible endpoint, defaults to
+`http://127.0.0.1:11434/v1/chat/completions`, and does not require an API key.
+The `GET /config/backend` response includes `providers[].supportedModels` for Ollama, populated
+from local `/api/tags`. If Ollama is unavailable, the list is empty and `modelListError` explains why.
 
 ## First run
 

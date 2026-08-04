@@ -1,9 +1,0 @@
-{
-  "task_key": "codex/judge-migrate-runtime-artifacts-to-zonoid-r3",
-  "agent_id": "judge-runtime-artifacts-zonoid-r3",
-  "branch": "orch/attempt/codex-judge-migrate-runtime-artifacts-to-zonoid-r3",
-  "status": "done",
-  "claimed_at": "2026-06-19T23:22:48.311Z",
-  "lease_until": "2026-06-20T00:22:48.311Z",
-  "completed_at": "2026-06-19T23:26:15.041Z"
-}

@@ -1,11 +1,12 @@
 'use strict';
 const overlayStore = require('../lib/overlay');
 const embeddingStore = require('../lib/embedding-store');
+const embedConfig = require('../lib/embed');
 const filedropGc = require('../lib/filedrop-gc');
 const judge = require('../lib/judge');
 const graphStore = require('../lib/graph-store');
 const path = require('path');
-const { noteEmbedText, noteFieldTexts, taskEmbedText } = require('../lib/node-tags');
+const { noteEmbedText, codeNodeEmbedText, noteFieldTexts, taskEmbedText } = require('../lib/node-tags');
 const newlyReady = require('../lib/newly-ready');
 const { requeueStandingHarness } = require('../lib/harness-task');
 const recallJournal = require('../lib/recall-outcome-journal');
@@ -58,8 +59,8 @@ function noteKnowledge(overlay, n) {
 }
 
 async function embedDocument(ctx, overlay, text) {
-  if (typeof ctx.embedWithMeta === 'function') return ctx.embedWithMeta(text, { mode: 'document', overlay });
-  const vec = await ctx.embed(text);
+  if (typeof ctx.embedWithMeta === 'function') return ctx.embedWithMeta({ input: text, mode: 'retrieval.document' }, { overlay });
+  const vec = await ctx.embed({ input: text, mode: 'retrieval.document' });
   return { vec, meta: null };
 }
 
@@ -106,12 +107,21 @@ function permitCoversClaim(permit, claim) {
 function ensureExecutionPermitForClaim(store, claim) {
   if (!store || !claim.sessionId || !claim.taskKey || !claim.worktree || !claim.branch) return null;
   if (typeof store.executionPermit !== 'function') return null;
+  const activeClaim = {
+    workspace: claim.workspace,
+    session_id: claim.sessionId,
+    agent_id: claim.agentId || null,
+    task_key: claim.taskKey,
+    worktree: claim.worktree,
+    branch: claim.branch,
+  };
   const read = typeof store.readExecutionPermit === 'function'
     ? store.readExecutionPermit({
       workspace: claim.workspace,
       session_id: claim.sessionId,
       agent_id: claim.agentId,
       task_key: claim.taskKey,
+      active_claim: activeClaim,
     })
     : null;
   if (read && permitCoversClaim(read.execution_permit, claim)) return read.execution_permit;
@@ -125,6 +135,8 @@ function ensureExecutionPermitForClaim(store, claim) {
     branch: claim.branch,
     scope: 'worktree',
     reason: 'auto-issued after accepted worker claim',
+    active_claim: activeClaim,
+    require_active_claim: true,
   });
   return issued && issued.ok ? issued.execution_permit : null;
 }
@@ -136,11 +148,14 @@ const TASK_RESULT_ALLOWED = new Set([
   'files_changed',
   'tests_run',
   'decisions',
+  'causal_edges',
   'metric_measurements',
   'has_metric_spec',
 ]);
 const TASK_RESULT_REQUIRED = ['version', 'status', 'summary', 'files_changed', 'tests_run', 'decisions'];
 const TASK_RESULT_STATUSES = new Set(['tested', 'failed']);
+const CAUSAL_EDGE_RELATIONS = new Set(['caused', 'fixed', 'blocked', 'depends_on', 'supports', 'contradicts']);
+const CAUSAL_EDGE_ALLOWED = new Set(['from', 'to', 'relation', 'confidence', 'evidence']);
 
 function isPlainObject(value) {
   return !!(value && typeof value === 'object' && !Array.isArray(value));
@@ -149,6 +164,35 @@ function isPlainObject(value) {
 function validateStringArray(value, field) {
   if (!Array.isArray(value)) return `${field} must be an array`;
   if (value.some((item) => typeof item !== 'string')) return `${field} must contain only strings`;
+  return null;
+}
+
+function validateCausalEdges(causalEdges) {
+  if (causalEdges == null) return null;
+  if (!Array.isArray(causalEdges)) {
+    return { error: 'invalid task_result.causal_edges: expected array', field: 'causal_edges' };
+  }
+  for (let i = 0; i < causalEdges.length; i++) {
+    const edge = causalEdges[i];
+    const field = `causal_edges[${i}]`;
+    if (!isPlainObject(edge)) return { error: 'invalid task_result.causal_edges item: expected object', field };
+    const extra = Object.keys(edge).filter((key) => !CAUSAL_EDGE_ALLOWED.has(key));
+    if (extra.length) return { error: 'invalid task_result.causal_edges item: additional fields are not allowed', field, extra };
+    const missing = ['from', 'to', 'relation'].filter((key) => !Object.prototype.hasOwnProperty.call(edge, key));
+    if (missing.length) return { error: 'invalid task_result.causal_edges item: missing required field(s)', field, missing };
+    if (typeof edge.from !== 'string' || !edge.from) return { error: 'invalid task_result.causal_edges item: from required', field: `${field}.from` };
+    if (typeof edge.to !== 'string' || !edge.to) return { error: 'invalid task_result.causal_edges item: to required', field: `${field}.to` };
+    if (!CAUSAL_EDGE_RELATIONS.has(edge.relation)) {
+      return { error: 'invalid task_result.causal_edges item: relation is not allowed', field: `${field}.relation`, allowed: [...CAUSAL_EDGE_RELATIONS], actual: edge.relation };
+    }
+    if (Object.prototype.hasOwnProperty.call(edge, 'confidence')
+      && (typeof edge.confidence !== 'number' || !Number.isFinite(edge.confidence) || edge.confidence < 0 || edge.confidence > 1)) {
+      return { error: 'invalid task_result.causal_edges item: confidence must be a number from 0 to 1', field: `${field}.confidence` };
+    }
+    if (Object.prototype.hasOwnProperty.call(edge, 'evidence') && typeof edge.evidence !== 'string') {
+      return { error: 'invalid task_result.causal_edges item: evidence must be a string', field: `${field}.evidence` };
+    }
+  }
   return null;
 }
 
@@ -192,6 +236,8 @@ function validateTaskResult(taskResult, routeStatus, hasMetricSpec) {
   if (Object.prototype.hasOwnProperty.call(taskResult, 'has_metric_spec') && typeof taskResult.has_metric_spec !== 'boolean') {
     return { error: 'invalid task_result.has_metric_spec: expected boolean', field: 'has_metric_spec' };
   }
+  const causalEdgesErr = validateCausalEdges(taskResult.causal_edges);
+  if (causalEdgesErr) return causalEdgesErr;
 
   if (hasMetricSpec && !Object.prototype.hasOwnProperty.call(taskResult, 'metric_measurements')) {
     return { error: 'invalid task_result: metric task requires task_result.metric_measurements.value', missing: 'metric_measurements' };
@@ -217,12 +263,97 @@ function validateTaskResult(taskResult, routeStatus, hasMetricSpec) {
   return null;
 }
 
+function validateCausalEdgeEndpoints(T, taskResult, acceptsTaskKey) {
+  if (!taskResult || !Array.isArray(taskResult.causal_edges)) return null;
+  for (let i = 0; i < taskResult.causal_edges.length; i++) {
+    const edge = taskResult.causal_edges[i];
+    if (!acceptsTaskKey(T, edge.from)) {
+      return { status: 404, error: `unknown task: ${edge.from}`, field: `causal_edges[${i}].from` };
+    }
+    if (!acceptsTaskKey(T, edge.to)) {
+      return { status: 404, error: `unknown task: ${edge.to}`, field: `causal_edges[${i}].to` };
+    }
+  }
+  return null;
+}
+
+function applyCausalEdges(T, taskResult, ensureTaskSnapshot) {
+  if (!taskResult || !Array.isArray(taskResult.causal_edges)) return 0;
+  let count = 0;
+  for (const edge of taskResult.causal_edges) {
+    ensureTaskSnapshot(T, edge.from);
+    ensureTaskSnapshot(T, edge.to);
+    overlayStore.addEdge(T.ov, edge.from, edge.to, null, 'context', undefined, {
+      origin: 'task-result-causal',
+      relation: edge.relation,
+      confidence: edge.confidence,
+      evidence: edge.evidence,
+    });
+    count++;
+  }
+  return count;
+}
+
+// Apply a hand-built review patch under the lifecycle guards. Splits the patch in two:
+//   - guarded fields (review_state / review_verdict / merge_state) become a NAMED event via
+//     lifecycleMachine.eventForPatch and go through applyLifecycleEvent, so a raw caller cannot do
+//     what a named caller is refused (un-merge a merge, overwrite a settled verdict, verdict a live
+//     worker). A patch whose guarded fields describe no known transition is REFUSED, not written.
+//   - everything else (attempt pointers, request provenance, notes, merge sha/at) is bookkeeping and
+//     is written directly.
+// Records the machine's decision into `decisions` so the response can report a refusal.
+function applyRawReviewPatch(T, body, patch, decisions) {
+  const machine = overlayStore.lifecycleMachine;
+  const bookkeeping = {};
+  for (const [field, value] of Object.entries(patch || {})) {
+    if (!machine.GUARDED_FIELDS.includes(field)) bookkeeping[field] = value;
+  }
+  const guardedPatch = overlayStore.reviewPatchFromInput(bookkeeping);
+  if (Object.keys(guardedPatch).length) overlayStore.setReviewLifecycle(T.ov, body.key, guardedPatch);
+  if (!machine.hasGuardedFields(patch)) return;
+  const event = machine.eventForPatch(patch);
+  if (!event) {
+    decisions.push({
+      ok: false,
+      event: null,
+      refusal: {
+        code: 'unmapped_patch',
+        reason: 'review patch does not describe a known lifecycle transition; send lifecycle_event instead',
+        retryable: false,
+      },
+    });
+    return;
+  }
+  decisions.push(overlayStore.applyLifecycleEvent(T.ov, body.key, event, {
+    task_status: newlyReady.isTerminalStatus(body.status) ? body.status : undefined,
+    agent_id: patch.review_agent || body.agent_id,
+    reason: patch.review_reason || patch.review_note || body.reason,
+    note: patch.review_note || body.note,
+    merge_sha: patch.merge_sha,
+    merged_at: patch.merged_at,
+    review_requested_by: patch.review_requested_by,
+    review_requested_at: patch.review_requested_at,
+    legacy_judge_task_key: patch.legacy_judge_task_key,
+    reviewed_at: patch.reviewed_at,
+    force: !!body.force,
+  }));
+}
+
 function validateTerminalClaimOwner(ov, body) {
   if (!newlyReady.isTerminalStatus(body.status)) return null;
   const key = body.key;
   const claimSession = ov.claimSessions && ov.claimSessions[key];
   const currentStatus = ov.status && ov.status[key];
   if (currentStatus !== 'in_progress' && !claimSession) return null;
+  // Same-node REVIEW transitions are not work completions. A reviewer submitting a verdict on a
+  // task that is no longer in_progress is BY DESIGN a different identity from the worker that
+  // built it, so a lingering claim binding (e.g. leaked by a stale release before releaseClaim
+  // cleared bindings, or a worker whose terminal write raced the sweep) must never force the
+  // reviewer to reuse the worker's session_id/agent_id. The in_progress guard below still stands —
+  // a live build cannot be verdicted out from under its worker (lifecycle machine enforces the
+  // same invariant at the transition layer).
+  const isReviewTransition = !!(body.review && (body.review.review_verdict || body.review.review_state));
+  if (isReviewTransition && currentStatus !== 'in_progress') return null;
 
   const sid = body.session_id ? String(body.session_id) : '';
   if (!sid) {
@@ -251,6 +382,37 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const acceptsTaskKey = (T, key) => graphHasKey(T.ws, key)
     || !!(T.ov.snapshots && T.ov.snapshots[key])
     || !!(T.ov.knowledge_nodes && T.ov.knowledge_nodes[key]);
+  const runReembed = async (T, opts = {}) => {
+    const force = !!opts.force;
+    const actor = opts.actor || 'reembed';
+    const expectedMeta = ctx.embeddingMeta ? ctx.embeddingMeta(T.ov) : null;
+    const isFreshVec = (vec, meta) => Array.isArray(vec) && (!expectedMeta || (ctx.vectorMatchesMeta ? ctx.vectorMatchesMeta(vec, meta, expectedMeta) : vec.length === DIMS));
+    const isFreshVecs = (vecs, metas) => Array.isArray(vecs) && vecs.length > 0
+      && (!expectedMeta || vecs.every((v, i) => ctx.vectorMatchesMeta ? ctx.vectorMatchesMeta(v, Array.isArray(metas) ? metas[i] : null, expectedMeta) : v.length === DIMS));
+    let embedded = 0, skipped = 0, failed = 0;
+    const gs = graphStore.open(path.join(T.ws, '.graph'));
+    const ts = new Date().toISOString();
+    for (const n of Object.values(T.ov.note_nodes || {})) {
+      const vecOk = isFreshVec(n.vec, n.vecMeta);
+      const vecsOk = isFreshVecs(n.vecs, n.vecsMeta);
+      if (!force && vecOk && vecsOk) { skipped++; continue; }
+      let touched = false;
+      const r = await embedDocument(ctx, T.ov, noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
+      if (r.vec) { n.vec = r.vec; n.vecMeta = r.meta || null; touched = true; graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: r.vec, vecMeta: n.vecMeta, actor, ts }); } else failed++;
+      const fieldResult = await embedDocumentFields(ctx, T.ov, noteFieldTexts({ title: n.title, summary: n.summary, knowledge: noteKnowledge(T.ov, n) }));
+      if (fieldResult.vecs.length) { n.vecs = fieldResult.vecs; n.vecsMeta = fieldResult.vecsMeta; touched = true; graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vecs_set', id: n.id, vecs: n.vecs, vecsMeta: n.vecsMeta, actor, ts }); }
+      if (touched) embedded++;
+    }
+    let tasksEmbedded = 0, tasksSkipped = 0;
+    const g = buildGraph(T.ws);
+    for (const node of g.tasks) {
+      if (overlayStore.isNonTaskNode(node)) continue;
+      if (!force && embeddingStore.taskVecFresh(T.ov, node.id, { expectedMeta, vectorMatchesMeta: ctx.vectorMatchesMeta })) { tasksSkipped++; continue; }
+      const r = await embedDocument(ctx, T.ov, taskEmbedText({ title: node.label, summary: node.summary }));
+      if (r.vec) { overlayStore.setTaskVec(T.ov, node.id, r.vec, r.meta); tasksEmbedded++; } else failed++;
+    }
+    return { activeIdentity: expectedMeta, embedded, skipped, failed, tasks: { embedded: tasksEmbedded, skipped: tasksSkipped } };
+  };
   const ensureTaskSnapshot = (T, key) => {
     if (!isAdmissibleOverlayTaskKey(key)) return;
     if (T.ov.snapshots && T.ov.snapshots[key]) return;
@@ -430,22 +592,15 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (!T.ov.forceClaims) T.ov.forceClaims = {};
       const fcCount = T.ov.forceClaims[b.key] || 0;
       if (fcCount >= FORCE_CAP) {
-        // Check for existing pending guidance item for this (session, task) — don't file duplicates.
-        const already = Array.isArray(T.ov.guidance) && T.ov.guidance.some(
-          (g) => !g.resolved && g.trigger === 'force_claim_cap' && g.action && g.action.taskKey === b.key
-        );
-        if (!already) {
-          overlayStore.addGuidance(T.ov, {
-            question: `Force-claim cap reached on task ${b.key} — agent "${b.agent_id || '(unknown)'}" has exhausted 3 force-claims. Approve on dashboard to reset.`,
-            context: `task_key: ${b.key}\nagent_id: ${b.agent_id || '(unknown)'}`,
-            trigger: 'force_claim_cap',
-            severity: 'blocking',
-            action: { kind: 'force_claim_cap', taskKey: b.key },
-          });
-          T.save(); ctx.notifyChange(T.ws);
-        }
-        const dashUrl = `http://${(req.headers && req.headers.host) || '127.0.0.1:8787'}/graph`;
-        send(res, 409, { ok: false, error: `force-claim cap reached — tell the user to approve the reset on the dashboard at ${dashUrl} (guidance gate), then retry`, approval_required: true, dashboard: dashUrl }); return true;
+        delete T.ov.forceClaims[b.key];
+        T.save(); ctx.notifyChange(T.ws);
+        send(res, 409, {
+          ok: false,
+          error: 'force-claim cap reached; reset counter and back off before retrying',
+          retryable: true,
+          backoff_required: true,
+          task_key: b.key,
+        }); return true;
       }
       T.ov.forceClaims[b.key] = fcCount + 1;
     }
@@ -458,15 +613,17 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (b.status === 'in_progress' && T.ov.unwired && T.ov.unwired[b.key]) {
       send(res, 409, { ok: false, error: 'task is unwired — if you are a worker agent, call request_guidance to escalate to your dispatcher (do NOT mark_root just to unblock yourself); if you created this task, wire it with add_dependency (blocking/context), or mark_root only if it is genuinely a standalone root' }); return true;
     }
-    // JUDGING→READY gate (task D) — ADDITIVE: refuse a claim while the task is still in the 'judging'
-    // phase (outstanding unjudged autowire candidate edges within the timeout). Its inherited context
-    // is provisional until the judge keeps/prunes those edges (eager path C is the happy case). NOT a
-    // deadlock: once the edges sit unjudged past judgingTimeoutMs the task falls back to ready and this
-    // arm no longer fires (timedOut → not judging), so a judge hiccup can never permanently block it.
+    // JUDGING→READY gate (task D / P6 STRICT) — ADDITIVE: refuse a claim while the task still carries
+    // ANY unjudged autowire candidate edge. Its inherited context is provisional until the judge
+    // keeps/prunes those edges (eager path C is the happy case). P6: this gate is STRICT — there is NO
+    // time-based release (the former judging timeout was removed). The task stays held until the
+    // candidate set actually drains; if the eager judge stalls, drain it on demand with
+    // `node scripts/judge-drain-once.js --node <task_key> --workspace <ws>` (no state is permanently
+    // un-claimable — both the eager judge and that CLI can drain it).
     if (b.status === 'in_progress' && !b.force) {
-      const _js = judge.judgingState(T.ov, b.key, Date.now(), judge.judgingTimeoutMs(T.ov), judge.judgingHardCeilingMs(T.ov));
-      if (_js.judging && !_js.timedOut) {
-        send(res, 409, { ok: false, error: 'task wirings not yet judged — this task is in the judging phase (unjudged autowire context edges); its inherited context is provisional. Wait for the eager judge to keep/prune them (it dispatches automatically), or it falls back to claimable after the judging timeout.' }); return true;
+      const _js = judge.judgingState(T.ov, b.key);
+      if (_js.judging) {
+        send(res, 409, { ok: false, error: 'task wirings not yet judged — this task is in the judging phase (unjudged autowire context edges); its inherited context is provisional. Wait for the eager judge to keep/prune them (it dispatches automatically on node-add), or drain it on demand: node scripts/judge-drain-once.js --node ' + b.key + ' --workspace <ws>. There is no time-based auto-release.' }); return true;
       }
     }
     if (b.status === 'in_progress' && T.ov.metrics && T.ov.metrics[b.key]) {
@@ -493,6 +650,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
             sessionId: claimSid,
             branch: gitInfo && gitInfo.branch,
             leaseMinutes: gitClaims.claimLeaseMinutes(T.ov),
+            strict: gitClaimMode.strict,
           });
         } catch (e) {
           gitClaim = { ok: false, error: 'git claim acquire failed', detail: String(e.stderr || e.message || e).slice(0, 500) };
@@ -515,6 +673,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const taskResultError = validateTaskResult(b.task_result, b.status, !!(T.ov.metrics && T.ov.metrics[b.key]));
       if (taskResultError) {
         send(res, 409, { ok: false, key: b.key, ...taskResultError }); return true;
+      }
+      const causalEndpointError = validateCausalEdgeEndpoints(T, b.task_result, acceptsTaskKey);
+      if (causalEndpointError) {
+        send(res, causalEndpointError.status, { ok: false, key: b.key, error: causalEndpointError.error, field: causalEndpointError.field }); return true;
       }
     }
     if (newlyReady.isTerminalStatus(b.status) && gitClaimMode.enabled) {
@@ -541,6 +703,58 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (b.status === 'canceled') { T.ov.cancel_requested[b.key] = now(); overlayStore.markForRejudge(T.ov, b.key); }
     else if ((b.force || b.reopen) && cur === 'canceled') delete T.ov.cancel_requested[b.key];
     overlayStore.setStatus(T.ov, b.key, b.status, b.note);
+    if (newlyReady.isTerminalStatus(b.status) && b.task_result != null) {
+      applyCausalEdges(T, b.task_result, ensureTaskSnapshot);
+    }
+    // REVIEW LIFECYCLE: every transition goes through the guarded state machine, never a blind
+    // merge. The status event is applied first (it reflects what the WORKER just reported), then any
+    // explicit reviewer event. Crucially, a worker completing 'tested' no longer self-approves a
+    // review that was requested for it — the machine preserves the open request, which is what makes
+    // the attempt reviewable AFTER the diff exists instead of only before it.
+    const lifecycleDecisions = [];
+    if (newlyReady.isTerminalStatus(b.status)) {
+      const gitInfo = T.ov.git && T.ov.git[b.key];
+      const statusEvent = overlayStore.lifecycleEventForStatus(b.status);
+      if (statusEvent) {
+        lifecycleDecisions.push(overlayStore.applyLifecycleEvent(T.ov, b.key, statusEvent, {
+          task_status: b.status,
+          agent_id: b.agent_id,
+          note: b.note,
+          summary: b.summary,
+          now: now(),
+          merge_state: gitInfo && gitInfo.merged ? 'merged' : undefined,
+          force: !!b.force,
+        }));
+      }
+    }
+    // Explicit reviewer transition (lib/mcp-core.js submit_verdict). Named event, so the same
+    // in-flight / already-merged / already-settled guards apply to a judge's write as to a sweep's.
+    if (b.lifecycle_event) {
+      lifecycleDecisions.push(overlayStore.applyLifecycleEvent(T.ov, b.key, String(b.lifecycle_event), {
+        task_status: newlyReady.isTerminalStatus(b.status) ? b.status : undefined,
+        agent_id: b.agent_id,
+        reason: b.review_reason || b.reason || b.note,
+        note: b.note,
+        now: now(),
+        force: !!b.force,
+      }));
+    }
+    // LEGACY RAW PATCH PATHS. Older callers hand-build a review patch (a `review` object, or the
+    // fields inline on the body) instead of naming an event. They keep working, but the half of the
+    // patch that MEANS a transition (review_state / review_verdict / merge_state) is routed through
+    // the machine like everything else — otherwise this is the hole every other guard leaks through.
+    // Bookkeeping fields (attempt pointers, request provenance, notes) are not state transitions and
+    // still write directly.
+    if (b.review && typeof b.review === 'object' && !Array.isArray(b.review)) {
+      applyRawReviewPatch(T, b, b.review, lifecycleDecisions);
+    }
+    const hasTopLevelReviewFields = [
+      'review_state', 'review_verdict', 'review_note', 'review_reason', 'review_agent',
+      'reviewed_at', 'review_requested_at', 'review_requested_by', 'merge_state',
+      'attempt_branch', 'attempt_worktree', 'attempt_head', 'merge_sha', 'merged_at',
+      'legacy_judge_task_key',
+    ].some((field) => Object.prototype.hasOwnProperty.call(b, field));
+    if (hasTopLevelReviewFields) applyRawReviewPatch(T, b, b, lifecycleDecisions);
     overlayStore.clearSpawnLease(T.ov, b.key);   // release the spawn-dispatch lease on claim/terminal (task /3)
     if (b.max_retries != null) {
       if (!T.ov.retryConfig) T.ov.retryConfig = {};
@@ -718,8 +932,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         for (const r of verdictResults) {
           if (r.action !== 'merge') continue;
           const repo = ctx.resolveRepo(r.task_key, undefined, T.ov, T.ws);
-          if (!repo || !ctx.git.isRepo(repo)) continue;
-          const mr = ctx.git.mergeBranch(repo, r.task_key, { message: `automode: merge attempt ${r.task_key} (${r.reason})` });
+          if (!repo || !(await ctx.git.isRepoAsync(repo))) continue;
+          const mr = await ctx.git.mergeBranchAsync(repo, r.task_key, { message: `automode: merge attempt ${r.task_key} (${r.reason})` });
           if (mr.merged) {
             ctx.overlayStore.setGit(T.ov, r.task_key, { merged: true, merge_sha: mr.head || null, merged_at: ctx.now() });
             r.auto_merged = true; r.merge_sha = mr.head || null;
@@ -757,6 +971,16 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (bucketCleanup) statusResp.bucket_cleanup = bucketCleanup;
     if (harnessRequeued) statusResp.harness_requeued = true;
     if (lintWarning) statusResp.warning = lintWarning;
+    // Report any REFUSED lifecycle transition. The status write itself still succeeded — only the
+    // review-lifecycle half was declined (already merged / already settled) — so this is a field on
+    // a 200, not an error. Silence here is what let late writers look like they had landed.
+    {
+      const refused = lifecycleDecisions.filter((d) => d && !d.ok).map((d) => ({
+        event: d.event, code: d.refusal && d.refusal.code, reason: d.refusal && d.refusal.reason,
+        retryable: !!(d.refusal && d.refusal.retryable),
+      }));
+      if (refused.length) statusResp.lifecycle_refused = refused;
+    }
     if (b.status === 'in_progress' && b.force) {
       const FORCE_CAP = 3;
       statusResp.force_claims_remaining = Math.max(0, FORCE_CAP - ((T.ov.forceClaims && T.ov.forceClaims[b.key]) || 0));
@@ -948,9 +1172,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     if (Array.isArray(b.wires_to)) {
       for (const taskKey of b.wires_to) {
-        overlayStore.addEdge(T.ov, 'note:' + id, taskKey, null, 'context', 1.0);
+        overlayStore.addEdge(T.ov, 'note:' + id, taskKey, null, 'context', 1.0, { origin: 'asserted', judged: true });
         const gs = T.ws ? graphStore.open(path.join(T.ws, '.graph')) : null;
-        if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'edge_added', from: 'note:' + id, to: taskKey, kind: 'context', weight: 1.0, actor: b.actor || 'record-decision', ts: Date.now() });
+        if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'edge_added', from: 'note:' + id, to: taskKey, kind: 'context', weight: 1.0, origin: 'asserted', judged: true, actor: b.actor || 'record-decision', ts: Date.now() });
       }
     }
     const sourceCluster = noteSourceCluster.buildSourceClusterForNote('note:' + id, rawNotePayload);
@@ -1008,6 +1232,23 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         }
       } catch { /* subsumption is best-effort — never block the note write */ }
     }
+    // Contradiction band (judge-mediated supersession, GATED via ZONOID_CONTRADICTION_RESOLUTION=1;
+    // default OFF). Below the 0.92 subsumption bar sit notes about the SAME subject that may be a
+    // contradiction/update OR merely complementary — cosine cannot tell them apart. So we only SEED a
+    // 'contradicts' CANDIDATE edge new->old and let the eager judge decide per edge-judge.md
+    // (supersede the older via a consolidate verdict, or keep both). Nothing is retired here without a
+    // judge verdict; the new note is NOT hidden. Best-effort: never blocks the note write.
+    if (b.vec && judge.contradictionResolutionEnabled()) {
+      try {
+        const cands = judge.findContradictionCandidates(id, b.vec, T.ov);
+        for (const { noteId, similarity } of cands) {
+          overlayStore.addEdge(T.ov, 'note:' + id, 'note:' + noteId, null, 'context',
+            Math.max(0, 1 - similarity),
+            { judged: false, by: 'subconscious', origin: 'contradiction-seed', relation: 'contradicts', score: similarity });
+        }
+        if (cands.length) overlayStore.markEagerJudge(T.ov, 'note:' + id);
+      } catch { /* contradiction seeding is best-effort — never block the note write */ }
+    }
     T.save(); notifyChange(T.ws);
     const resp = { ok: true, id, key: 'note:' + id, superseded, autowired: ingestResult.seeded, hint };
     if (sourceCluster) resp.source_cluster = { nodes: sourceCluster.nodes.length, chunks: sourceCluster.chunkCount };
@@ -1020,6 +1261,251 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       };
     }
     sendOp(res, b, 200, resp); return true;
+  }
+
+  // BULK note ingest — the concurrency path for onboarding 1k+ code symbols. The single-note handler
+  // above serializes (per-field embeds + an O(n) dup-cosine scan PER note); that degrades the daemon
+  // under inject load. This route is purpose-built for KNOWN-DISTINCT bulk symbols, so it:
+  //   - embeds every note's pooled text with embedBatch in chunks (ONE inference per chunk, not per note),
+  //   - SKIPS the near-duplicate guard entirely (bulk = distinct by construction; the O(n) scan is the
+  //     quadratic cost we're removing — stragglers remain the dup-judge's job, not the write gate's),
+  //   - bumps the epoch EXACTLY ONCE at the end (not once per note).
+  // The single-note path stays byte-identical; this is purely additive.
+  if (p === '/overlay/notes/bulk' && m === 'POST') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    if (!Array.isArray(b.notes) || !b.notes.length) { send(res, 400, { ok: false, error: 'notes[] required (non-empty array)' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const invalid = b.notes.findIndex((n) => !n || !n.title || !n.summary);
+    if (invalid !== -1) { send(res, 400, { ok: false, error: `notes[${invalid}] missing title or summary` }); return true; }
+
+    // Pooled embedding text per note — the SAME noteEmbedText the single-note path feeds to .vec, so
+    // bulk-ingested notes are retrievable/dedupable identically. Field-level .vecs are intentionally
+    // omitted here (pooled .vec is what /search gates on); keeping it to one vector per note is the
+    // point of the fast path.
+    const pooledTexts = b.notes.map((n) => noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
+
+    // embedBatch in chunks of ~48 (one MiniLM forward pass per chunk). ctx.embedBatch is injectable
+    // for tests; fall back to the real client. Each chunk result is [{ vec }], aligned to its slice.
+    const embedBatchFn = (typeof ctx.embedBatch === 'function') ? ctx.embedBatch : require('../lib/embed').embedBatch;
+    const CHUNK = 48;
+    const vecs = new Array(pooledTexts.length).fill(null);
+    for (let off = 0; off < pooledTexts.length; off += CHUNK) {
+      const slice = pooledTexts.slice(off, off + CHUNK);
+      let batch;
+      try { batch = await embedBatchFn(slice, { mode: 'retrieval.document', overlay: T.ov }); }
+      catch { batch = slice.map(() => ({ vec: null })); }
+      for (let i = 0; i < slice.length; i++) {
+        const v = batch && batch[i] && Array.isArray(batch[i].vec) ? batch[i].vec : null;
+        vecs[off + i] = v;
+      }
+    }
+
+    const meta = (typeof ctx.embeddingMeta === 'function') ? ctx.embeddingMeta(T.ov) : null;
+    const created = [];
+    for (let i = 0; i < b.notes.length; i++) {
+      const n = b.notes[i];
+      const payload = {
+        title: n.title,
+        summary: n.summary,
+        knowledge: n.knowledge,
+        category: n.category,
+        tags: n.tags,
+        vec: vecs[i],
+        vecMeta: vecs[i] ? meta : null,
+      };
+      const id = overlayStore.addNoteNode(T.ov, payload);
+      created.push('note:' + id);
+    }
+    // Exactly ONE epoch bump for the whole batch (vs one per note on the single path) — bulk is a
+    // single logical mutation for retrieval-staleness purposes.
+    overlayStore.bumpEpoch(T.ov);
+    T.save(); notifyChange(T.ws);
+    send(res, 200, { ok: true, created: created.length, keys: created, workspace: T.ws }); return true;
+  }
+
+  // BULK code-node ingest — the dedicated code-index write path (Phase 2 of the native onboarder).
+  // MIRRORS /overlay/notes/bulk exactly (batched embeds, NO dup-guard, ONE epoch bump) but writes into
+  // the SEPARATE overlay.code_nodes map via upsertCodeNode, so the dup-judge / delta / note-learner
+  // (all of which iterate note_nodes) never see these symbols. Per-node embed text is
+  //   `${name} — ${signature} in ${file}`
+  // so a symbol is semantically retrievable by name, signature shape, and location together. The
+  // single-note/knowledge-node paths stay byte-identical; this is purely additive.
+  if (p === '/overlay/code-nodes/bulk' && m === 'POST') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    if (!Array.isArray(b.nodes) || !b.nodes.length) { send(res, 400, { ok: false, error: 'nodes[] required (non-empty array)' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    // Each code node needs a name + kind (kind is the extractor's symbol kind). file may be empty for
+    // a top-level/synthetic symbol but name+kind are required to form a key and a meaningful node.
+    const invalid = b.nodes.findIndex((n) => !n || !n.name || !n.kind);
+    if (invalid !== -1) { send(res, 400, { ok: false, error: `nodes[${invalid}] missing name or kind` }); return true; }
+
+    // Pooled embedding text per symbol — name + signature + file, the direct-RAG retrieval surface.
+    const pooledTexts = b.nodes.map((n) => codeNodeEmbedText(n));
+
+    // embedBatch in chunks of ~48 (one MiniLM forward pass per chunk), identical to the notes path.
+    const embedBatchFn = (typeof ctx.embedBatch === 'function') ? ctx.embedBatch : require('../lib/embed').embedBatch;
+    const CHUNK = 48;
+    const vecs = new Array(pooledTexts.length).fill(null);
+    for (let off = 0; off < pooledTexts.length; off += CHUNK) {
+      const slice = pooledTexts.slice(off, off + CHUNK);
+      let batch;
+      try { batch = await embedBatchFn(slice, { mode: 'retrieval.document', overlay: T.ov }); }
+      catch { batch = slice.map(() => ({ vec: null })); }
+      for (let i = 0; i < slice.length; i++) {
+        const v = batch && batch[i] && Array.isArray(batch[i].vec) ? batch[i].vec : null;
+        vecs[off + i] = v;
+      }
+    }
+
+    const meta = (typeof ctx.embeddingMeta === 'function') ? ctx.embeddingMeta(T.ov) : null;
+    const created = [];
+    for (let i = 0; i < b.nodes.length; i++) {
+      const n = b.nodes[i];
+      const r = overlayStore.upsertCodeNode(T.ov, {
+        key: n.key,
+        name: n.name,
+        kind: n.kind,
+        file: n.file,
+        start_line: n.start_line,
+        end_line: n.end_line,
+        signature: n.signature,
+        summary: n.summary,
+        exported: n.exported,
+        vec: vecs[i],
+        vecMeta: vecs[i] ? meta : null,
+      });
+      if (r.ok) created.push(r.key);
+    }
+    // OPTIONAL code edges — a full onboard sends symbols + resolved AST edges together (the resolver
+    // ran client-side: lib/code-extract/resolve-edges.js). These are deterministic code↔code edges, so
+    // they go straight into the SEPARATE overlay.code_edges layer (no embed, no judge). Idempotent add.
+    let edgesAdded = 0;
+    if (Array.isArray(b.edges) && b.edges.length) {
+      const r = overlayStore.addCodeEdges(T.ov, b.edges);
+      edgesAdded = r.added.length;
+    }
+    // Exactly ONE epoch bump for the whole batch (same as notes/bulk).
+    overlayStore.bumpEpoch(T.ov);
+    T.save(); notifyChange(T.ws);
+    send(res, 200, { ok: true, created: created.length, keys: created, edges_added: edgesAdded, workspace: T.ws }); return true;
+  }
+
+  // PER-FILE code-node invalidation — the write half of incremental git-diff sync (DESIGN
+  // note-mqpzfgjlux8). Two shapes, both keyed by a repo-relative `file`:
+  //   DELETE /overlay/code-nodes { file, workspace }            — remove ALL code_nodes for that file
+  //                                                               (a DELETED source file).
+  //   POST   /overlay/code-nodes/replace { file, nodes, ws }    — remove-by-file THEN bulk-upsert the
+  //                                                               supplied nodes (a MODIFIED/ADDED file:
+  //                                                               its prior symbols are replaced wholesale
+  //                                                               so renamed/deleted symbols don't linger).
+  // Both go through removeCodeNodesForFile (emits code_node_removed via the prev-state diff on save),
+  // so the deletion survives a daemon reload. The replace path reuses the SAME embed-and-upsert flow as
+  // /overlay/code-nodes/bulk (batched MiniLM, ONE epoch bump). Additive — notes/knowledge paths untouched.
+  if (p === '/overlay/code-nodes' && m === 'DELETE') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    const file = String(b.file || u.searchParams.get('file') || '').trim();
+    if (!file) { send(res, 400, { ok: false, error: 'file required (repo-relative path)' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const { removed } = overlayStore.removeCodeNodesForFile(T.ov, file);
+    if (removed.length) overlayStore.bumpEpoch(T.ov);
+    T.save(); notifyChange(T.ws);
+    send(res, 200, { ok: true, file, deleted: removed.length, keys: removed, workspace: T.ws }); return true;
+  }
+
+  if (p === '/overlay/code-nodes/replace' && m === 'POST') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    const file = String(b.file || '').trim();
+    if (!file) { send(res, 400, { ok: false, error: 'file required (repo-relative path)' }); return true; }
+    if (!Array.isArray(b.nodes)) { send(res, 400, { ok: false, error: 'nodes[] required (array; may be empty to just clear the file)' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const invalid = b.nodes.findIndex((n) => !n || !n.name || !n.kind);
+    if (invalid !== -1) { send(res, 400, { ok: false, error: `nodes[${invalid}] missing name or kind` }); return true; }
+
+    // 1) Drop the file's prior code_nodes (wholesale replace).
+    const { removed } = overlayStore.removeCodeNodesForFile(T.ov, file);
+
+    // 2) Embed + upsert the fresh nodes — identical batching to /overlay/code-nodes/bulk.
+    const pooledTexts = b.nodes.map((n) => codeNodeEmbedText(n));
+    const embedBatchFn = (typeof ctx.embedBatch === 'function') ? ctx.embedBatch : require('../lib/embed').embedBatch;
+    const CHUNK = 48;
+    const vecs = new Array(pooledTexts.length).fill(null);
+    for (let off = 0; off < pooledTexts.length; off += CHUNK) {
+      const slice = pooledTexts.slice(off, off + CHUNK);
+      let batch;
+      try { batch = await embedBatchFn(slice, { mode: 'retrieval.document', overlay: T.ov }); }
+      catch { batch = slice.map(() => ({ vec: null })); }
+      for (let i = 0; i < slice.length; i++) {
+        const v = batch && batch[i] && Array.isArray(batch[i].vec) ? batch[i].vec : null;
+        vecs[off + i] = v;
+      }
+    }
+    const meta = (typeof ctx.embeddingMeta === 'function') ? ctx.embeddingMeta(T.ov) : null;
+    const created = [];
+    for (let i = 0; i < b.nodes.length; i++) {
+      const n = b.nodes[i];
+      const r = overlayStore.upsertCodeNode(T.ov, {
+        key: n.key, name: n.name, kind: n.kind, file: n.file,
+        start_line: n.start_line, end_line: n.end_line,
+        signature: n.signature, summary: n.summary, exported: n.exported,
+        vec: vecs[i], vecMeta: vecs[i] ? meta : null,
+      });
+      if (r.ok) created.push(r.key);
+    }
+    // OPTIONAL per-file code edges — incremental sync recomputes the changed file's AST edges and sends
+    // them alongside its symbols. Wholesale-replace exactly this file's code edges (mirrors the node
+    // replace above). Absent `edges` ⇒ leave the file's existing code edges untouched (back-compat:
+    // a caller that only updates nodes does not clobber edges).
+    let edgesReplaced = null;
+    if (Array.isArray(b.edges)) {
+      const er = overlayStore.replaceCodeEdgesForFile(T.ov, file, b.edges);
+      edgesReplaced = { removed: er.removed, added: er.added.length };
+    }
+    overlayStore.bumpEpoch(T.ov);
+    T.save(); notifyChange(T.ws);
+    const resp = { ok: true, file, deleted: removed.length, created: created.length, keys: created, workspace: T.ws };
+    if (edgesReplaced) resp.edges = edgesReplaced;
+    send(res, 200, resp); return true;
+  }
+
+  // PER-FILE code-EDGE invalidation — the edge analogue of the code-node routes above (DESIGN: code
+  // edges are keyed by from_file, so per-file replace/remove mirrors the node layer during git-diff
+  // sync). Both go through the overlay's code_edges layer (emits code_edge_added/removed via the
+  // prev-state diff on save), so the change survives a daemon reload. Deterministic edges — NO embed,
+  // NO judge. These exist for callers that update edges SEPARATELY from nodes; the common path folds
+  // edges into /overlay/code-nodes/{bulk,replace} above.
+  //   DELETE /overlay/code-edges          { file, workspace }          — remove ALL code edges FROM file
+  //   POST   /overlay/code-edges/replace  { file, edges, workspace }   — replace ALL code edges FROM file
+  if (p === '/overlay/code-edges' && m === 'DELETE') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    const file = String(b.file || u.searchParams.get('file') || '').trim();
+    if (!file) { send(res, 400, { ok: false, error: 'file required (repo-relative path)' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const { removed } = overlayStore.removeCodeEdgesForFile(T.ov, file);
+    T.save(); notifyChange(T.ws);
+    send(res, 200, { ok: true, file, deleted: removed, workspace: T.ws }); return true;
+  }
+
+  if (p === '/overlay/code-edges/replace' && m === 'POST') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    const file = String(b.file || '').trim();
+    if (!file) { send(res, 400, { ok: false, error: 'file required (repo-relative path)' }); return true; }
+    if (!Array.isArray(b.edges)) { send(res, 400, { ok: false, error: 'edges[] required (array; may be empty to just clear the file)' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const er = overlayStore.replaceCodeEdgesForFile(T.ov, file, b.edges);
+    T.save(); notifyChange(T.ws);
+    send(res, 200, { ok: true, file, deleted: er.removed, created: er.added.length, workspace: T.ws }); return true;
   }
 
   if (p === '/overlay/gate' && m === 'POST') {
@@ -1170,39 +1656,42 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const body2 = await readBody(req).catch(() => ({}));
     const T = targetOverlay(body2, u);
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
-    const force2 = body2 && body2.force;
-    const expectedMeta = ctx.embeddingMeta ? ctx.embeddingMeta(T.ov) : null;
-    const isFreshVec = (vec, meta) => Array.isArray(vec) && (!expectedMeta || (ctx.vectorMatchesMeta ? ctx.vectorMatchesMeta(vec, meta, expectedMeta) : vec.length === DIMS));
-    const isFreshVecs = (vecs, metas) => Array.isArray(vecs) && vecs.length > 0
-      && (!expectedMeta || vecs.every((v, i) => ctx.vectorMatchesMeta ? ctx.vectorMatchesMeta(v, Array.isArray(metas) ? metas[i] : null, expectedMeta) : v.length === DIMS));
-    let embedded = 0, skipped = 0, failed = 0;
-    // P3: resolve the graph-store per request workspace (no daemon-global state.graphStore).
-    const gs2 = graphStore.open(path.join(T.ws, '.graph'));
-    const ts2 = new Date().toISOString();
-    for (const n of Object.values(T.ov.note_nodes || {})) {
-      // Skip only when BOTH the pooled `.vec` and the field-level `.vecs` set are already present at
-      // full DIMS (and not forced) — so existing single-vec notes get upgraded to multivec.
-      const vecOk2 = isFreshVec(n.vec, n.vecMeta);
-      const vecsOk2 = isFreshVecs(n.vecs, n.vecsMeta);
-      if (!force2 && vecOk2 && vecsOk2) { skipped++; continue; }
-      let touched = false;
-      const r = await embedDocument(ctx, T.ov, noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
-      if (r.vec) { n.vec = r.vec; n.vecMeta = r.meta || null; touched = true; graphStore.appendEvent(gs2, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: r.vec, vecMeta: n.vecMeta, actor: 'reembed', ts: ts2 }); } else failed++;
-      const fieldResult = await embedDocumentFields(ctx, T.ov, noteFieldTexts({ title: n.title, summary: n.summary, knowledge: noteKnowledge(T.ov, n) }));
-      if (fieldResult.vecs.length) { n.vecs = fieldResult.vecs; n.vecsMeta = fieldResult.vecsMeta; touched = true; graphStore.appendEvent(gs2, 'note:' + n.id, { evt: 'note_vecs_set', id: n.id, vecs: n.vecs, vecsMeta: n.vecsMeta, actor: 'reembed', ts: ts2 }); }
-      if (touched) embedded++;
-    }
-    let tasksEmbedded = 0, tasksSkipped = 0;
-    const g2 = buildGraph(T.ws);
-    for (const node of g2.tasks) {
-      if (overlayStore.isNonTaskNode(node)) continue;
-      if (!force2 && embeddingStore.taskVecFresh(T.ov, node.id, { expectedMeta, vectorMatchesMeta: ctx.vectorMatchesMeta })) { tasksSkipped++; continue; }
-      const r = await embedDocument(ctx, T.ov, taskEmbedText({ title: node.label, summary: node.summary }));
-      if (r.vec) { overlayStore.setTaskVec(T.ov, node.id, r.vec, r.meta); tasksEmbedded++; } else failed++;
-    }
+    const result = await runReembed(T, { force: body2 && body2.force, actor: 'reembed' });
     overlayStore.save(T.ws, T.ov);
     notifyChange(T.ws);
-    send(res, 200, { ok: true, embedded, skipped, failed, tasks: { embedded: tasksEmbedded, skipped: tasksSkipped } }); return true;
+    send(res, 200, { ok: true, ...result }); return true;
+  }
+
+  if (p === '/overlay/embedding-provider/swap' && m === 'POST') {
+    const body3 = await readBody(req).catch(() => ({}));
+    const T = targetOverlay(body3, u);
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const before = ctx.embeddingMeta ? ctx.embeddingMeta(T.ov) : null;
+    if (!body3 || !body3.provider) { send(res, 400, { ok: false, error: 'provider required' }); return true; }
+    const valid = embedConfig.validateEmbeddingConfig(body3);
+    if (!valid.ok) { send(res, 400, valid); return true; }
+    const dryRun = body3.dry_run === true;
+    const workOverlay = dryRun ? JSON.parse(JSON.stringify(T.ov || {})) : T.ov;
+    overlayStore.setEmbeddingConfig(workOverlay, valid.config);
+    const workTarget = { ...T, ov: workOverlay };
+    const after = ctx.embeddingMeta ? ctx.embeddingMeta(workOverlay) : null;
+    const plan = embeddingStore.planVectorInvalidation(workOverlay, { expectedMeta: after });
+    const shouldReembed = body3.reembed !== false && !dryRun;
+    let migration = null;
+    if (shouldReembed) migration = await runReembed(workTarget, { force: true, actor: 'provider-swap' });
+    if (!dryRun) {
+      overlayStore.save(T.ws, workOverlay);
+      notifyChange(T.ws);
+    }
+    send(res, 200, {
+      ok: true,
+      previousIdentity: before,
+      activeIdentity: after,
+      active: embedConfig.normalizeEmbeddingConfig(workOverlay),
+      plan,
+      reembedded: shouldReembed,
+      migration,
+    }); return true;
   }
 
   if (p === '/supersede' && m === 'POST') {

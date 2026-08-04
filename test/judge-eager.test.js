@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Plain Node test for the EAGER event-triggered judge dispatch (task C) — no framework; matches
+// Plain Node test for the EAGER event-triggered judge queue (task C) — no framework; matches
 // test/capacity-fill.test.js / judge-queue.test.js style. Run: node test/judge-eager.test.js —
 // exits non-zero on any failed assertion. Requiring daemon.js does NOT start a server.
 //
@@ -10,17 +10,17 @@
 //       candidate edge-set is fully judged (drained) — a node never re-dispatches once resolved.
 //     - buildQueueForNode returns ONLY the unverified context edges incident to the node (whole
 //       edge-set, one dispatch covers all), stably ordered, excluding clusters/orphans.
-//   DISPATCH (daemon.decideOne):
-//     - a marked node makes the heartbeat emit action:'judge_eager' with nodes:[key] (the PRIMARY
-//       judge trigger) — NOT the periodic judge_edges — within ONE tick (no periodic wait).
-//     - one dispatch per node's full edge-set (nodes carries node keys, not per-edge items).
-//     - a creation BURST respects the concurrency cap (judgeParallelCap): excess nodes stay marked.
-//     - eager runs AHEAD of the periodic drain; tasks still win headroom first.
-//     - no eager marks → falls back to the periodic judge_edges exactly as before.
+//   DAEMON-OWNED DRAIN (lib/headless-drain):
+//     - /next-action does NOT emit judge_eager/judge_edges actions; visible loops stay task-only.
+//     - the headless drain claims eager nodes by lease, then runs node-scoped /judge/next?node work.
+//     - one drain claim covers each node's full edge-set (node keys, not per-edge items).
+//     - a creation BURST can be capped by the drain pump; excess nodes stay unleased for a later tick.
+//     - periodic backlog remains due work for headless-drain, not a foreground loop action.
 'use strict';
 const ov = require('../lib/overlay');
 const judge = require('../lib/judge');
 const daemon = require('../daemon.js');
+const hd = require('../lib/headless-drain');
 const {
   HARNESS_JUDGE_DRAIN_KEY,
   HARNESS_LABEL_DRAIN_KEY,
@@ -145,18 +145,30 @@ function eagerOverlay(n, budgetPerRun = 6) {
     d.tasks[0].key === 's/user-ready');
 }
 
-// === one eager node → judge_eager THIS tick (not periodic judge_edges) =========================
+// === one eager node stays off /next-action; headless-drain claims it ===========================
 {
-  daemon.__setOverlayForTest(eagerOverlay(1));
+  const o = eagerOverlay(1);
+  daemon.__setOverlayForTest(o);
   const L = makeLoop();
   const d = daemon.decideOne(L, ctxFor(makeGraph(0, 0)));
-  ok('one eager node → action judge_eager (primary, not judge_edges)', d.action === 'judge_eager');
-  ok('judge_eager carries the node key', Array.isArray(d.nodes) && d.nodes.length === 1 && d.nodes[0] === 's/e0');
-  ok('judge_eager budget = budgetPerRun', d.budget === 6);
-  ok('one eager node with spare headroom does NOT also schedule periodic judge for the same edge', !d.judge);
+  ok('one eager node → no visible judge action', d.action !== 'judge_eager' && d.action !== 'judge_edges' && !d.eager && !d.judge);
+  ok('one eager node with no task work lets the loop drain/stop', d.action === 'stop');
+  ok('next-action did not consume the eager mark', o.eagerJudge && o.eagerJudge['s/e0'] === 1);
+
+  let saved = 0;
+  const due = hd.claimDueJudgeWork('/irrelevant', {
+    overlayLoad: () => o,
+    overlaySave: () => { saved++; },
+    overlayStore: ov,
+    judgeLib: judge,
+  }, { leaseOwner: 'test-drain', leaseTtlMs: 60000 });
+  ok('headless drain claims the eager node', due.eagerNodes.length === 1 && due.eagerNodes[0] === 's/e0');
+  ok('headless drain leases the claimed node', o.eagerJudgeLease && o.eagerJudgeLease['s/e0'] && o.eagerJudgeLease['s/e0'].loopId === 'test-drain');
+  ok('periodic depth excludes the leased eager edge', due.periodic === false && due.depth === 0);
+  ok('claim persists the lease when a save seam is supplied', saved === 1);
 }
 
-// === ONE dispatch per node's full edge-set: a node with MANY edges = ONE node entry ============
+// === ONE claim per node's full edge-set: a node with MANY edges = ONE node entry ===============
 {
   const o = ov.EMPTY();
   o.epoch = 1; o.config = { ...o.config, judge: { budgetPerRun: 6 } };
@@ -166,46 +178,42 @@ function eagerOverlay(n, budgetPerRun = 6) {
     { from: 's/fat', to: 'note:b', kind: 'context', judged: false },
     { from: 's/fat', to: 'note:c', kind: 'context', judged: false },
   ];
-  daemon.__setOverlayForTest(o);
-  const L = makeLoop();
-  const d = daemon.decideOne(L, ctxFor(makeGraph(0, 0)));
-  ok('fat node = ONE node entry (not one per edge)', d.action === 'judge_eager' && d.nodes.length === 1 && d.nodes[0] === 's/fat');
+  const due = hd.claimDueJudgeWork('/irrelevant', {
+    overlayLoad: () => o,
+    overlayStore: ov,
+    judgeLib: judge,
+  }, { leaseOwner: 'test-drain', leaseTtlMs: 60000 });
+  ok('fat node = ONE node entry (not one per edge)', due.eagerNodes.length === 1 && due.eagerNodes[0] === 's/fat');
   // and the node-scoped queue would hand a judge all 3 edges in one dispatch
   ok('node-scoped queue covers the whole 3-edge set', judge.buildQueueForNode(o, 's/fat').length === 3);
 }
 
-// === BURST respects the concurrency cap: 10 nodes minted, cap=6 → 6 dispatched, 4 stay marked ===
+// === BURST respects the drain claim cap: 10 nodes minted, cap=6 → 6 leased, 4 stay available =====
 {
   const o = eagerOverlay(10);
-  daemon.__setOverlayForTest(o);
-  const L = makeLoop({ config: { judgeParallelCap: 6 } });
-  const d = daemon.decideOne(L, ctxFor(makeGraph(0, 0)));
-  ok('burst of 10 → judge_eager', d.action === 'judge_eager');
-  ok('burst capped at judgeParallelCap=6 nodes', d.nodes.length === 6);
-  // 6 are dispatched and leased; 4 remain unleased. eagerJudgeNodes skips leased nodes,
+  const due = hd.claimDueJudgeWork('/irrelevant', {
+    overlayLoad: () => o,
+    overlayStore: ov,
+    judgeLib: judge,
+  }, { leaseOwner: 'test-drain', leaseTtlMs: 60000, maxEagerNodes: 6 });
+  ok('burst claim returns eager nodes', due.eagerNodes.length === 6);
+  ok('burst capped at maxEagerNodes=6', Object.keys(o.eagerJudgeLease || {}).length === 6);
+  // 6 are leased; 4 remain unleased. eagerJudgeNodes skips leased nodes,
   // so the next tick sees 4 dispatchable (excess). The eagerJudge marks themselves stay (10 total).
   ok('excess nodes stay marked for next tick', Object.keys(o.eagerJudge || {}).length === 10);
   ok('excess unleased nodes available next tick', judge.eagerJudgeNodes(o).length === 4);
 }
 
-// === burst clamped by HEADROOM too (running workers eat slots) =================================
-{
-  daemon.__setOverlayForTest(eagerOverlay(10));
-  const L = makeLoop();   // judgeParallelCap 6, maxConcurrency 10
-  const d = daemon.decideOne(L, ctxFor(makeGraph(9, 0)));  // headroom 1
-  ok('headroom 1 → only 1 eager node dispatched', d.action === 'judge_eager' && d.nodes.length === 1);
-}
-
-// === eager is PRIMARY: with BOTH a ready task and eager nodes, spawn carries eager (tasks win) ===
+// === with BOTH a ready task and eager nodes, /next-action spawns tasks only =====================
 {
   daemon.__setOverlayForTest(eagerOverlay(3));
   const L = makeLoop();
   const d = daemon.decideOne(L, ctxFor(makeGraph(0, 2)));   // 2 ready tasks
   ok('both: action spawn (tasks win headroom)', d.action === 'spawn' && d.tasks.length === 2);
-  ok('both: spawn carries eager directive', d.eager && d.eager.nodes.length === 3);
+  ok('both: spawn carries no visible judge directive', !d.eager && !d.judge);
 }
 
-// === NO eager marks → periodic judge_edges fallback (unchanged behavior) ========================
+// === NO eager marks → periodic backlog is headless-drain due work, not a loop action ============
 {
   const o = ov.EMPTY();
   o.epoch = 1; o.config = { ...o.config, judge: { budgetPerRun: 6 } };
@@ -215,7 +223,12 @@ function eagerOverlay(n, budgetPerRun = 6) {
   daemon.__setOverlayForTest(o);
   const L = makeLoop();
   const d = daemon.decideOne(L, ctxFor(makeGraph(0, 0)));
-  ok('no eager marks → falls back to periodic judge_edges', d.action === 'judge_edges' && d.parallel === 5);
+  ok('no eager marks → no visible periodic judge action', d.action !== 'judge_edges' && !d.judge);
+  const due = hd.findDueJudgeWork('/irrelevant', {
+    overlayLoad: () => o,
+    judgeLib: judge,
+  });
+  ok('periodic backlog remains due for headless drain', due.periodic === true && due.depth === 5);
 }
 
 console.log('-----');

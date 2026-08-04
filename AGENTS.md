@@ -32,26 +32,29 @@ multi-file change), the main agent should **not implement inline**. Instead:
 subagents: it is unenforced (unlike the write gate), so smaller worker models reliably drop it,
 and workers lack the structural context (e.g. which sibling tasks collide on the same files).
 
-**Pairing a judge task is the dispatcher's duty, too.** When dispatching a **substantive impl
-task**, the dispatcher ALSO creates a **judge task** wired `blocking` (blocked_by) that impl task,
-**before** dispatching the impl — so the judge goes `ready` automatically the moment the impl
-completes and the loop spawns it. This reuses the existing DAG-gate trigger (a task blocked_by its
-deps goes ready when they finish); no new trigger machinery. The judge task must be **skill-tagged
-in its handoff/prompt** — the daemon does not know skills, so the skill selection rides the prompt
-exactly like impl workers: the judge worker invokes **`self-learn-judge` in single-attempt review
-mode** against the impl's attempt branch (`orch/attempt/<impl-key>`). In that mode the review IS the
-verdict — it fetches the attempt diff (`get_attempt_diff`), applies the code-review rubric
-(correctness, scope discipline, dead/redundant code, test presence/quality, style) and either
-APPROVES (hold-merge verdict — the loop records but does not merge by default) or KICKS BACK
-(`set_status` failed + a wired `record_decision`). The judge **NEVER force-merges**: merge is
-`git merge --no-ff` and auto-aborts on conflict, escalating rather than forcing. **Complexity
-gate:** this auto-judge applies to substantive multi-file work only — genuinely trivial edits (a
-one-liner, a doc tweak, a config change) skip it, the same triviality carve-out as the inline-edit
-rule below.
+**Review is state on the implementation task, not a visible judge task.** For substantive impl
+tasks, the dispatcher requests same-node review when preparing the implementation assignment; it
+does **not** create a separate user-visible judge node or a blocking judge edge. On the same-node
+path, pass `create_judge:false` and a review request flag such as `judge_requested:true`; compatibility
+inputs like `judge_task_key` are audit aliases only and should resolve to `judge_task_key:null`,
+`review_task_key:<impl-key>`, and review fields on the implementation task. The implementation node
+carries `review_state`, `review_requested_at/by`, `review_verdict`, `review_agent`, and `merge_state`
+alongside its attempt branch/worktree.
+
+Daemon-owned headless drains own review queue execution. They may launch internal audit/review jobs,
+but normal `/ready`, `/state`, and dashboard frontier views hide those internal drains and show compact
+review/merge cues on the implementation node instead. The review still uses the code-review rubric
+(correctness, scope discipline, dead/redundant code, test presence/quality, style) and reports the
+verdict through `subconscious_assignment submit_verdict`: APPROVE updates same-node review state and
+attempt merge state; KICK_BACK marks the implementation task failed/blocked for rework. Review jobs
+**NEVER force-merge**: merge is `git merge --no-ff` and auto-aborts on conflict, escalating rather
+than forcing. **Complexity gate:** same-node review applies to substantive multi-file work only —
+genuinely trivial edits (a one-liner, a doc tweak, a config change) skip it, the same triviality
+carve-out as the inline-edit rule below.
 
 **Substantial work gets a two-tier feature branch; the dispatcher stays on main.** This is a
-dispatcher-decides call, on the same complexity axis as the judge gate above. When the dispatcher
-judges a unit of work **substantial** (a multi-task feature, not a lone edit), it groups the tasks
+dispatcher-decides call, on the same complexity axis as the review gate above. When the dispatcher
+classifies a unit of work as **substantial** (a multi-task feature, not a lone edit), it groups the tasks
 under a **feature branch** instead of letting each attempt fork off main:
 
 1. `create_feature(key)` opens `orch/feature/<slug>` + a feature worktree (overlay records
@@ -59,13 +62,12 @@ under a **feature branch** instead of letting each attempt fork off main:
 2. The decomposed tasks are grouped under the feature: `configure_task repo_path=<feature worktree>`,
    and workers are dispatched with `branch_task base=orch/feature/<slug>` so each attempt forks off
    the **stable feature branch**, not main.
-3. **Tier-1 (cheap, automatic):** the single-attempt code-judge **auto-merges** each approved
-   attempt into the feature branch — same judge as above, but under a feature an APPROVE merges
-   attempt→feature rather than holding (the merge is cheap and reversible; a flat task still holds
-   for main).
+3. **Tier-1 (cheap, automatic):** same-node review **auto-merges** each approved
+   attempt into the feature branch — same review path as above, but under a feature the merge target is
+   the stable feature branch, making the merge cheap and reversible.
 4. **Tier-2 (consequential, gated):** when the feature is complete and reviewed, the **dispatcher**
    makes the deliberate `merge_feature(key)` call (feature→main). This step is **never automatic** —
-   it is the dispatcher-only gated decision, the way feature→main is never the judge's call.
+   it is the dispatcher-only gated decision, the way feature→main is never the review worker's call.
 
 **Why two tiers:** forking attempts off a stable feature branch sidesteps the conflict class where
 **main drifts under concurrent agents mid-feature** — attempts integrate against a base that holds
@@ -93,7 +95,7 @@ one-liner session can stay on main; and the **dispatcher** posture above is unch
 code — it stays on main to coordinate N features).
 
 For **trivial / single-task** work, skip the feature tier entirely and use today's flat
-attempt→main flow — the same triviality carve-out as the inline-edit and judge rules.
+attempt→main flow — the same triviality carve-out as the inline-edit and review rules.
 
 **Hand the worker a typed `handoff_envelope`, not prose duties.** Instead of restating the
 worker's duties verbatim in English, the dispatcher builds the slotted `handoff_envelope` defined
@@ -106,10 +108,11 @@ note summaries) as inline base context. `files_in_scope[]` is the advisory file-
 `return_contract` is a `$ref` to `task_result` so the worker knows the exact shape to return.
 Building the envelope (including resolving `context_deps`) is the dispatcher's job — same rationale
 as wiring: workers lack the structural context. The worker still owns exactly three graph duties —
-`start_task` before any write, `git add -A && git commit` all changes onto the `orch/attempt/<key>`
-branch BEFORE complete_task (an uncommitted worktree leaves the attempt tip == base, making a later
-`merge_attempt` a silent no-op), `complete_task` with a tight summary at the end — but now reads
-them off the envelope's slots, not prose. (Workers still pass `wires_to=[task_key]` on any
+`subconscious_assignment accept` before any write, `git add -A && git commit` all changes onto the
+`orch/attempt/<key>` branch BEFORE completing the assignment (an uncommitted worktree leaves the
+attempt tip == base, making a later merge a silent no-op), and `subconscious_assignment complete`
+with a tight summary at the end — but now reads them off the envelope's slots, not prose.
+(Workers still pass `wires_to=[task_key]` on any
 `record_decision` they make mid-task — note provenance is the one wiring only the worker knows.)
 
 **Worker registration rides the assignment claim, not the start hook.** The `SubagentStart` hook does NOT
@@ -117,11 +120,11 @@ fire for `run_in_background` Agent-tool spawns, so a background worker never car
 `agent_tool_spawn:true`. No extra registration field is needed in the envelope:
 `subconscious_assignment accept` routes to the same `/overlay/status` in_progress path as raw
 `start_task` and **self-registers the worker on claim**. The `/overlay/status` in_progress handler treats a claim
-that bears an `agent_id` AND is backed by a registered worktree (proof `branch_task` ran — the
-dispatcher never calls it) as a legitimate hook-less worker, registers it, and allows the claim.
+that bears an `agent_id` AND is backed by a registered worktree (proof `subconscious_assignment prepare`
+allocated the worktree) as a legitimate hook-less worker, registers it, and allows the claim.
 The registered worktree is the security boundary: a claim with no worktree is still refused. So the
-`branch_task` → `start_task` order IS the registration — nothing else to carry. When `start_task`
-accepts a registered worker claim, the daemon also mints or renews the scoped Subconscious execution
+`prepare` → `accept` order IS the registration — nothing else to carry. When the daemon
+accepts a registered worker claim, it also mints or renews the scoped Subconscious execution
 permit for that claim; normal workers must not add a separate manual permit step before writing.
 
 Do the work inline only for genuinely trivial edits (a one-liner, a doc tweak, a config change).

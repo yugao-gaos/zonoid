@@ -9,23 +9,24 @@ const judge = require('../lib/judge');
 const { listDispatcherChildren } = require('../lib/dispatcher-children');
 const { attributionMeta } = require('../lib/dispatcher-attribution');
 const gitClaims = require('../lib/git-claims');
+const git = require('../lib/git');
 
 // Auto-resolve a guidance escalation by spawning an Opus CLI process.
 // Returns the trimmed answer string, or null if Opus is unavailable or fails.
 // No --dangerously-skip-permissions: this is a plain Q&A call, no tools needed.
 async function resolveViaOpusCli({ question, context, workspace }) {
   const bin = resolveClaudeBin();
-  if (!bin) return null;
+  if (!bin || !workspace) return null;
   const prompt = `You are the autonomous decision-maker for the Zonoid orchestrator. An agent needs a decision to proceed.\n\nQUESTION: ${question}${context ? `\n\nCONTEXT: ${context}` : ''}\n\nProvide a concise, actionable answer the agent can use directly.`;
   try {
-    const result = await runDrain({ bin, args: ['-p', prompt, '--model', 'claude-opus-4-8', '--output-format', 'text'], cwd: workspace || process.cwd(), timeoutMs: 120000 });
+    const result = await runDrain({ bin, args: ['-p', prompt, '--model', 'claude-opus-5', '--output-format', 'text'], cwd: workspace, timeoutMs: 120000 });
     if (result.spawnError || result.timedOut || result.exitCode !== 0) return null;
     return result.stdout.trim() || null;
   } catch { return null; }
 }
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
-  const { send, readBody, notifyChange, buildGraph, state, targetOverlay,
+  const { send, readBody, notifyChange, buildGraph, state, targetOverlay, resolveRepo, now,
     stopSignalFor, agentsArr, loops, saveLoops, ESCALATION_DEFAULTS, OPTIMIZE_DEFAULTS } = ctx;
 
   if (p === '/active-claim') {
@@ -110,6 +111,15 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     send(res, 200, sig ? { stop: true, ...sig } : { stop: false }); return true;
   }
 
+  // Read the workspace config (the persisted overlay.config map). The native onboarder's incremental
+  // sync uses this to resolve a repo's lastIndexedCommit before diffing — POST /config persists it,
+  // GET /config reads it back. Workspace-scoped via ?workspace=; returns {} for an unknown workspace.
+  if (p === '/config' && m === 'GET') {
+    const T = targetOverlay(null, u);
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass ?workspace=' }); return true; }
+    send(res, 200, { ok: true, workspace: T.ws, config: T.ov.config || {} }); return true;
+  }
+
   if (p === '/config' && m === 'POST') {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
@@ -118,10 +128,32 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (bad) { send(res, 400, { ok: false, error: `test_cmds keys must be absolute repo paths: got "${bad}"` }); return true; }
       for (const [rp, cmd] of Object.entries(b.test_cmds)) overlayStore.setTestCmd(T.ov, rp, cmd);
     }
+    // Code-index sync watermark (native onboarder). { key, commit } advances the per-repo
+    // lastIndexedCommit the incremental git-diff sync diffs from; a falsy commit clears it. Stored
+    // under overlay.config.lastIndexedCommit (config is persisted), so this round-trips with no new wiring.
+    if (b.last_indexed_commit && typeof b.last_indexed_commit === 'object') {
+      const { key, commit } = b.last_indexed_commit;
+      if (!key) { send(res, 400, { ok: false, error: 'last_indexed_commit.key required' }); return true; }
+      overlayStore.setLastIndexedCommit(T.ov, key, commit);
+    }
     if (b.require_review != null) T.ov.config.require_review = !!b.require_review;
     if (b.self_plan != null) T.ov.config.self_plan = !!b.self_plan;
     if (b.cost_gate != null) T.ov.config.cost_gate = !!b.cost_gate;
     if (b.automode != null) T.ov.config.automode = !!b.automode;
+    if (b.headless_driver != null) T.ov.config.headless_driver = !!b.headless_driver;
+    // Atomic full-autonomy toggle ("orch auto"): { auto:true|false } expands server-side to the
+    // three autonomy flags (self_plan + automode + headless_driver) so every surface — the
+    // conversation hook, the dashboard toggle, plain curl — stays atomic through this one code
+    // path. The individual flags above remain independently settable; auto simply overwrites them
+    // as a group. Applied AFTER the individual fields so { auto:true, automode:false } cannot
+    // produce a half-enabled state.
+    if (b.auto != null) {
+      if (!T.ws) { send(res, 400, { ok: false, error: 'auto requires a resolved workspace — pass workspace' }); return true; }
+      const on = !!b.auto;
+      T.ov.config.self_plan = on;
+      T.ov.config.automode = on;
+      T.ov.config.headless_driver = on;
+    }
     if (b.claim_mode != null) {
       const mode = gitClaims.normalizeClaimMode(b.claim_mode);
       if (!mode.valid) { send(res, 400, { ok: false, error: 'claim_mode must be "git", "git-strict", "strict", "local", or empty' }); return true; }
@@ -145,7 +177,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       T.ov.config.optimize = cur;
     }
     T.save();
-    send(res, 200, { ok: true, config: T.ov.config }); return true;
+    // On enabling headless autonomy, ensure the managed graph loop exists promptly instead of
+    // waiting for the daemon's 60s ensure interval. Best-effort and optional: unit tests drive
+    // this route with a fake ctx that has no loop machinery.
+    if ((b.auto === true || b.headless_driver === true) && typeof ctx.ensureManagedGraphLoops === 'function') {
+      try { ctx.ensureManagedGraphLoops(); } catch { /* advisory */ }
+    }
+    send(res, 200, { ok: true, workspace: T.ws, config: T.ov.config }); return true;
   }
 
   if (p === '/guidance' && m === 'POST') {
@@ -190,10 +228,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         // enters the pending queue and never pauses the loop. The verdict is already journaled.
         const provenance = { key: r.topKey, title: r.appliedNote && (r.appliedNote.title || r.appliedNote.label) || null, summary: r.appliedNote && r.appliedNote.summary || null };
         const answer = provenance.summary || provenance.title || '';
-        const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes });
+        const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes, request_session: b.session_id || u.searchParams.get('session') });
         overlayStore.annotateGuidance(T.ov, id, { predicted: true, predictedFrom: provenance, gateReason: r.reason });
         overlayStore.resolveGuidance(T.ov, id, answer);
-        T.save(); notifyChange();
+        T.save(); notifyChange(T.graph_repo || T.ws);
         send(res, 200, { ok: true, id, predicted: true, answer, appliedNote: provenance, reason: r.reason }); return true;
       }
       // ANSWERED-DOWNSTREAM (EL-2/D, fix Mode-1 over-escalation): the preference pass said ASK, but
@@ -206,10 +244,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const ds = await answeredDownstream(ctx, T.ws, { decision, flags, tags: b.tags, seam: 'guidance' });
       if (ds) {
         if (ds.provenance.key) recalledNotes = [String(ds.provenance.key).replace(/^note:/, '')];
-        const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes });
+        const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes, request_session: b.session_id || u.searchParams.get('session') });
         overlayStore.annotateGuidance(T.ov, id, { predicted: true, predictedFrom: ds.provenance, gateReason: ds.reason });
         overlayStore.resolveGuidance(T.ov, id, ds.answer);
-        T.save(); notifyChange();
+        T.save(); notifyChange(T.graph_repo || T.ws);
         send(res, 200, { ok: true, id, predicted: true, answer: ds.answer, appliedNote: ds.provenance, reason: ds.reason }); return true;
       }
       // r.decision === 'ask' AND no downstream answer → fall through to the normal escalation below.
@@ -223,18 +261,19 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (effectiveSeverity !== 'review' && T.ov.config && T.ov.config.automode) {
       const opusAnswer = await resolveViaOpusCli({ question: b.question, context: b.context, workspace: T.ws });
       if (opusAnswer) {
-        const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes });
+        const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes, request_session: b.session_id || u.searchParams.get('session') });
         overlayStore.annotateGuidance(T.ov, id, { predicted: true, predictedFrom: { title: 'Opus CLI (automode)' }, gateReason: 'automode: escalated to Opus CLI for autonomous decision' });
         overlayStore.resolveGuidance(T.ov, id, opusAnswer);
-        T.save(); notifyChange();
+        T.save(); notifyChange(T.graph_repo || T.ws);
         send(res, 200, { ok: true, id, predicted: true, answer: opusAnswer }); return true;
       }
       // Opus failed (unavailable, timeout) → fall through to normal blocking escalation.
     }
 
-    const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes });
-    if (effectiveSeverity !== 'review') { for (const L of loops.values()) L.active = false; saveLoops(); }
-    T.save(); notifyChange();
+    const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes, request_session: b.session_id || u.searchParams.get('session') });
+    // Hold only the originating task. Other ready work and loops keep running; dependents remain
+    // gated naturally because their prerequisite cannot complete until this decision resolves.
+    T.save(); notifyChange(T.graph_repo || T.ws);
     send(res, 200, { ok: true, id }); return true;
   }
 
@@ -242,9 +281,16 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(null, u);  // honors ?workspace= via targetOverlay
     const settled = judge.resolveSettledClusterGuidance(T.ov);
     const ambiguous = judge.resolveAmbiguousClusterGuidance(T.ov);
-    if (settled.length || ambiguous.length) { T.save(); notifyChange(); }
-    const all = overlayStore.pendingGuidance(T.ov);
-    send(res, 200, { pending: all.filter((g) => g.severity !== 'review'), review: all.filter((g) => g.severity === 'review') }); return true;
+    if (settled.length || ambiguous.length) { T.save(); notifyChange(T.graph_repo || T.ws); }
+    const userAttention = overlayStore.userAttentionGuidance(T.ov);
+    const internal = overlayStore.internalGuidance(T.ov);
+    send(res, 200, {
+      pending: userAttention.filter((g) => g.severity !== 'review'),
+      review: userAttention.filter((g) => g.severity === 'review'),
+      user_attention: userAttention,
+      internal,
+      internal_count: internal.length,
+    }); return true;
   }
 
   if (p === '/guidance/resolve' && m === 'POST') {
@@ -253,6 +299,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!b.id) { send(res, 400, { ok: false, error: 'id required' }); return true; }
     const item = Array.isArray(T.ov.guidance) ? T.ov.guidance.find((g) => g.id === b.id) : null;
     if (!item) { send(res, 404, { ok: false, error: 'unknown guidance id' }); return true; }
+    if (item.resolved) {
+      send(res, 200, { ok: true, id: item.id, already_resolved: true, answer: item.answer, resolvedAt: item.resolvedAt, pending: overlayStore.pendingGuidance(T.ov).length });
+      return true;
+    }
     const action = item.action || null;
     const result = { ok: true };
     if (action && action.kind === 'dup-cluster' && (b.decision === 'consolidate' || b.decision === 'distinct')) {
@@ -305,6 +355,27 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const sr = verdicts.resolveStaleHold(T.ov, action, b.decision, b.answer);
       if (sr) Object.assign(result, sr);
       overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : b.decision);
+    } else if (action && action.kind === 'stale-verdict' && (b.decision === 'merge' || b.decision === 'dismiss')) {
+      if (b.decision === 'merge' && action.task_key) {
+        const repo = resolveRepo(action.task_key, null, T.ov, T.ws);
+        if (repo && (await git.isRepoAsync(repo))) {
+          const mr = await git.mergeBranchAsync(repo, action.task_key, {});
+          if (mr.merged) {
+            const mergedAt = now();
+            overlayStore.setGit(T.ov, action.task_key, { merged: true, merge_sha: mr.head || null, merged_at: mergedAt });
+            overlayStore.applyLifecycleEvent(T.ov, action.task_key, 'merge_landed', { merge_sha: mr.head || null, merged_at: mergedAt });
+            overlayStore.setStatus(T.ov, action.task_key, 'done');
+            result.merged = true; result.merge_sha = mr.head || null;
+          } else {
+            result.merged = false; result.conflict = !!mr.conflict;
+            result.error = (mr && (mr.error || mr.reason)) || null;
+          }
+        } else {
+          result.merged = false; result.error = 'target repo not available';
+        }
+      }
+      overlayStore.resolveGuidance(T.ov, b.id, b.decision);
+      result.decision = b.decision;
     } else if (action && action.kind === 'force_claim_cap') {
       // Dashboard-only approval: reset the force-claim counter for this task so the agent can retry.
       if (T.ov.forceClaims && action.taskKey) delete T.ov.forceClaims[action.taskKey];
@@ -324,9 +395,19 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     const healed = followups.healOrphanHolds(T.ov);
     if (healed.length) result.healed_orphan_holds = healed;
-    T.save(); notifyChange();
+    T.save(); notifyChange(T.graph_repo || T.ws);
     result.pending = overlayStore.pendingGuidance(T.ov).length;
     send(res, 200, result); return true;
+  }
+
+  if (p === '/session/close' && m === 'POST') {
+    const b = await readBody(req);
+    const sessionId = b.session_id || b.session;
+    if (!sessionId) { send(res, 400, { ok: false, error: 'session_id required' }); return true; }
+    const closed = require('../lib/session-bindings').closeSession(state.sessions, String(sessionId));
+    for (const L of loops.values()) if (L.session === String(sessionId)) L.active = false;
+    saveLoops();
+    send(res, 200, { ok: true, closed, session_id: String(sessionId) }); return true;
   }
 
   return false;

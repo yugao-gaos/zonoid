@@ -70,6 +70,13 @@ const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ws-r
 const mk = (...p) => { const d = path.join(SANDBOX, ...p); fs.mkdirSync(d, { recursive: true }); return d; };
 const touchDir = (parent, name) => { const d = path.join(parent, name); fs.mkdirSync(d, { recursive: true }); return d; };
 const touchFile = (parent, name, content = '') => { const f = path.join(parent, name); fs.writeFileSync(f, content); return f; };
+const linkWorktree = (primaryRepo, worktreeRoot, name) => {
+  const gitRoot = touchDir(primaryRepo, '.git');
+  const gitdir = touchDir(touchDir(gitRoot, 'worktrees'), name);
+  touchFile(worktreeRoot, '.git', `gitdir: ${gitdir}\n`);
+  touchFile(gitdir, 'commondir', '../..\n');
+  return gitdir;
+};
 
 try {
   // ── repoRoot: .graph preferred ──────────────────────────────────────────────
@@ -97,7 +104,7 @@ try {
   const realRepo = mk('realRepo');
   touchDir(realRepo, '.graph');
   const worktree = touchDir(realRepo, 'wt-attempt');
-  touchFile(worktree, '.git', 'gitdir: /some/where/.git/worktrees/wt-attempt\n');
+  linkWorktree(realRepo, worktree, 'wt-attempt');
   ok('repoRoot excludes a gitdir-FILE worktree (no .graph) and walks up to the real repo',
     reg.repoRoot(worktree) === fs.realpathSync(realRepo));
   // A dir nested inside the worktree also resolves up past the worktree to the real repo.
@@ -105,14 +112,52 @@ try {
   ok('repoRoot from inside a worktree resolves to the real graph-bearing repo',
     reg.repoRoot(inWorktree) === fs.realpathSync(realRepo));
 
-  // ── repoRoot: standalone worktree (gitdir-FILE) is NEVER treated as a repo root ──
-  // The gitdir-FILE+no-.graph dir must not register as a repo; repoRoot resolves PAST it. (We assert
-  // "not this dir" rather than strict null because the OS tmp tree may have an unrelated .graph
-  // ancestor on some machines — the contract under test is the worktree EXCLUSION, not the ancestor.)
+  // A linked worktree can contain `.graph` because graph history is tracked. Its `.git` FILE must
+  // take precedence over that copied marker: resolve through gitdir/commondir to the primary
+  // checkout instead of registering the disposable worktree as a second graph repo.
+  const linkedPrimary = mk('linkedPrimary');
+  touchDir(linkedPrimary, '.graph');
+  const linkedGitDir = mk('linkedPrimary', '.git', 'worktrees', 'tracked-graph');
+  touchFile(linkedGitDir, 'commondir', '../..\n');
+  const linkedWorktree = mk('external-worktrees', 'tracked-graph');
+  touchDir(linkedWorktree, '.graph');
+  touchFile(linkedWorktree, '.git', `gitdir: ${linkedGitDir}\n`);
+  ok('repoRoot maps a linked worktree with tracked .graph to its primary checkout',
+    reg.repoRoot(linkedWorktree) === fs.realpathSync(linkedPrimary));
+  const nestedLinked = touchDir(linkedWorktree, 'src');
+  ok('repoRoot maps a nested path in a tracked-graph worktree to its primary checkout',
+    reg.repoRoot(nestedLinked) === fs.realpathSync(linkedPrimary));
+
+  // A valid gitdir file without `commondir` is a standalone/nested repository, not a linked
+  // worktree. It must remain distinct from its containing graph repo.
+  const nestedHost = mk('nested-host');
+  touchDir(nestedHost, '.graph');
+  const nestedRepo = touchDir(nestedHost, 'vendor-submodule');
+  const nestedGitDir = mk('nested-host', '.git', 'modules', 'vendor-submodule');
+  touchFile(nestedRepo, '.git', `gitdir: ${nestedGitDir}\n`);
+  ok('repoRoot keeps a nested gitdir repository without commondir distinct',
+    reg.repoRoot(nestedRepo) === fs.realpathSync(nestedRepo));
+  ok('repoRoot keeps paths inside a nested gitdir repository distinct',
+    reg.repoRoot(touchDir(nestedRepo, 'pkg')) === fs.realpathSync(nestedRepo));
+
+  // A separate-git-dir primary cannot be inferred from `<commonDir>/..`; use the registered repo
+  // list to match the shared common-dir deterministically.
+  const separatePrimary = mk('separate-primary');
+  const separateCommon = mk('separate-common');
+  touchFile(separatePrimary, '.git', `gitdir: ${separateCommon}\n`);
+  const separateWt = mk('external-worktrees', 'separate-common');
+  const separateWtGit = mk('separate-common', 'worktrees', 'linked');
+  touchFile(separateWtGit, 'commondir', '../..\n');
+  touchFile(separateWt, '.git', `gitdir: ${separateWtGit}\n`);
+  ok('repoRoot uses registered repos to resolve a separate-git-dir linked worktree',
+    reg.repoRoot(separateWt, { registeredRepos: [separatePrimary] }) === fs.realpathSync(separatePrimary));
+
+  // ── repoRoot: malformed gitdir-FILE is NEVER treated as a repo root ────────────
+  // A malformed `.git` file must not register as a repo or borrow a neighboring `.graph`.
   const orphan = mk('orphanArea');
   const orphanWt = touchDir(orphan, 'lonewt');
-  touchFile(orphanWt, '.git', 'gitdir: /elsewhere\n');
-  ok('repoRoot never returns a gitdir-FILE worktree dir itself (excluded)',
+  touchFile(orphanWt, '.git', 'not a gitdir pointer\n');
+  ok('repoRoot never returns a malformed gitdir-FILE directory itself',
     reg.repoRoot(orphanWt) !== fs.realpathSync(orphanWt));
 
   // ── repoRoot: a markerless dir is NEVER returned as its own root ────────────────
@@ -232,6 +277,18 @@ try {
   // first-writer-wins on a dup repo across workspaces
   const dupReg = { version: 2, workspaces: { wsX: { repos: ['/r/shared'] }, wsY: { repos: ['/r/shared'] } } };
   ok('repoToWorkspace first-writer-wins on duplicate repo', reg.repoToWorkspace(dupReg).get('/r/shared') === 'wsX');
+
+  // A pre-v2 absolute-path workspace key may coexist with a later human name. Keep both entries in
+  // history, but expose the human name as the canonical reverse lookup even when legacy was first.
+  const legacyAndNamed = { version: 2, workspaces: {
+    '/r/shared': { repos: ['/r/shared'] },
+    product: { repos: ['/r/shared'] },
+  } };
+  const preferred = reg.repoToWorkspace(legacyAndNamed);
+  ok('repoToWorkspace prefers a human workspace ID over a duplicate absolute-path key',
+    preferred.get('/r/shared') === 'product');
+  ok('repoToWorkspace preference does not delete legacy registry history',
+    Object.prototype.hasOwnProperty.call(legacyAndNamed.workspaces, '/r/shared'));
 
   // ── addRepo: create new workspace + idempotency ──────────────────────────────────
   const addFile = path.join(SANDBOX, 'add.json');

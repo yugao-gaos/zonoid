@@ -19,8 +19,12 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const child_process = require('node:child_process');
 const { EventEmitter } = require('node:events');
+const os = require('node:os');
+const fs = require('node:fs');
+const pathMod = require('node:path');
 
 const backend = require('../lib/llm-backend');
+const EMPTY_BACKEND_DATA_DIR = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'zonoid-empty-backend-env-'));
 
 // ---- in-process mock helpers (api-backend path) ------------------------------------------------
 
@@ -39,7 +43,7 @@ function makeFakeHttp(responder) {
       requests.push(rec);
       const req = new EventEmitter();
       req.write = (chunk) => { rec.body += chunk; };
-      req.setTimeout = () => {};
+      req.setTimeout = (ms) => { rec.timeoutMs = ms; };
       req.destroy = (err) => { req.emit('error', err || new Error('destroyed')); };
       req.end = () => {
         setImmediate(() => {
@@ -79,6 +83,9 @@ async function assertNoChildProcess(fn) {
 // runner's ambient environment. Returns a restore() that puts the originals back.
 function withEnv(overrides) {
   const keys = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'OPENROUTER_API_KEY', 'OPENROUTER_KEY',
+    'ZAI_API_KEY', 'GLM_API_KEY', 'ZHIPUAI_API_KEY', 'BIGMODEL_API_KEY',
+    'ZONOID_OLLAMA_BASE_URL', 'ORCH_OLLAMA_BASE_URL', 'OLLAMA_HOST', 'ORCH_OLLAMA_MODEL',
+    'ORCH_DATA', 'ZONOID_DATA', 'CLAUDE_PLUGIN_DATA',
     'ZONOID_CLAUDE_BIN', 'CLAUDE_BIN',
     // Codex/Cursor agentic-cli provider env (bin overrides + auth keys).
     'CODEX_BIN', 'CODEX_API_KEY', 'OPENAI_API_KEY', 'CODEX_HOME',
@@ -89,6 +96,11 @@ function withEnv(overrides) {
   for (const k of keys) saved[k] = process.env[k];
   for (const k of keys) delete process.env[k];
   for (const [k, v] of Object.entries(overrides || {})) process.env[k] = v;
+  if (!overrides || (!Object.prototype.hasOwnProperty.call(overrides, 'ORCH_DATA')
+    && !Object.prototype.hasOwnProperty.call(overrides, 'ZONOID_DATA')
+    && !Object.prototype.hasOwnProperty.call(overrides, 'CLAUDE_PLUGIN_DATA'))) {
+    process.env.ORCH_DATA = EMPTY_BACKEND_DATA_DIR;
+  }
   return function restore() {
     for (const k of keys) {
       if (saved[k] === undefined) delete process.env[k];
@@ -98,21 +110,31 @@ function withEnv(overrides) {
 }
 
 // --- registry: lookup of seeded first-party providers ------------------------------------------
-test('registry: claude + openrouter providers are seeded and looked up by id', () => {
+test('registry: claude + hosted API providers are seeded and looked up by id', () => {
   const claude = backend.getProvider('claude');
   const openrouter = backend.getProvider('openrouter');
+  const zai = backend.getProvider('zai');
+  const ollama = backend.getProvider('ollama');
   assert.ok(claude, 'claude provider registered');
   assert.equal(claude.id, 'claude');
   assert.equal(claude.kind, 'agentic-cli');
   assert.ok(openrouter, 'openrouter provider registered');
   assert.equal(openrouter.kind, 'api');
+  assert.ok(zai, 'standalone Z.AI GLM provider registered');
+  assert.equal(zai.kind, 'api');
+  assert.equal(zai.defaultModel, 'glm-5.2');
+  assert.ok(ollama, 'local Ollama provider registered');
+  assert.equal(ollama.kind, 'api');
+  assert.equal(ollama.defaultModel, backend.OLLAMA_DEFAULT_MODEL);
   assert.equal(backend.getProvider('does-not-exist'), null, 'unknown id returns null');
 });
 
-test('registry: listProviders includes both seeded providers', () => {
+test('registry: listProviders includes seeded providers', () => {
   const ids = backend.listProviders().map((p) => p.id);
   assert.ok(ids.includes('claude'));
   assert.ok(ids.includes('openrouter'));
+  assert.ok(ids.includes('zai'));
+  assert.ok(ids.includes('ollama'));
 });
 
 // --- registry: register / replace / validation -------------------------------------------------
@@ -282,6 +304,22 @@ test('getActiveBackend: honors a valid provider override and carries the model t
   assert.equal(r.model, 'anthropic/claude-3.5');
 });
 
+test('getActiveBackend: selects standalone Z.AI GLM when configured', () => {
+  const r = backend.getActiveBackend({ config: { backend: { provider: 'zai', model: 'glm-5.2' } } });
+  assert.equal(r.providerId, 'zai');
+  assert.equal(r.provider.kind, 'api');
+  assert.equal(r.provider.defaultModel, backend.ZAI_DEFAULT_MODEL);
+  assert.equal(r.model, 'glm-5.2');
+});
+
+test('getActiveBackend: selects local Ollama when configured', () => {
+  const r = backend.getActiveBackend({ config: { backend: { provider: 'ollama', model: 'llama3.1:8b' } } });
+  assert.equal(r.providerId, 'ollama');
+  assert.equal(r.provider.kind, 'api');
+  assert.equal(r.provider.defaultModel, backend.OLLAMA_DEFAULT_MODEL);
+  assert.equal(r.model, 'llama3.1:8b');
+});
+
 test('getActiveBackend: unknown provider id falls back to Claude (soft fallback, no throw)', () => {
   const r = backend.getActiveBackend({ config: { backend: { provider: 'totally-unregistered' } } });
   assert.equal(r.providerId, 'claude');
@@ -301,6 +339,57 @@ test('api provider: isAuthed reflects OPENROUTER_API_KEY presence', () => {
   } finally { restore(); }
 });
 
+test('api provider: Z.AI isAuthed reflects ZAI_API_KEY and GLM aliases', () => {
+  let restore = withEnv({});
+  try {
+    assert.equal(backend.zaiProvider.isAuthed(), false);
+  } finally { restore(); }
+
+  restore = withEnv({ ZAI_API_KEY: 'zai-test' });
+  try {
+    assert.equal(backend.zaiProvider.isAuthed(), true, 'ZAI_API_KEY -> authed');
+  } finally { restore(); }
+
+  restore = withEnv({ GLM_API_KEY: 'glm-test' });
+  try {
+    assert.equal(backend.zaiProvider.isAuthed(), true, 'GLM_API_KEY alias -> authed');
+  } finally { restore(); }
+});
+
+test('api provider: Ollama isAuthed is true without API keys', () => {
+  const restore = withEnv({});
+  try {
+    assert.equal(backend.ollamaProvider.isAuthed(), true);
+    assert.equal(backend.ollamaProvider.apiKeyEnv, undefined);
+  } finally { restore(); }
+});
+
+test('api provider: hosted API keys can come from daemon-global backend.env', async () => {
+  const dataDir = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'zonoid-backend-env-'));
+  fs.writeFileSync(pathMod.join(dataDir, backend.BACKEND_CREDENTIAL_ENV_FILE), [
+    'OPENROUTER_API_KEY=global-openrouter',
+    'ZAI_API_KEY=global-zai',
+    '',
+  ].join('\n'));
+  const restore = withEnv({ ORCH_DATA: dataDir });
+  try {
+    assert.equal(backend.backendCredentialEnvPath(), pathMod.join(dataDir, 'backend.env'));
+    assert.equal(backend.openRouterProvider.isAuthed(), true, 'OpenRouter key resolves from global backend.env');
+    assert.equal(backend.zaiProvider.isAuthed(), true, 'Z.AI key resolves from global backend.env');
+
+    const fake = makeFakeHttp((opts) => {
+      assert.equal(opts.hostname, 'api.z.ai');
+      assert.equal(opts.headers.Authorization, 'Bearer global-zai');
+      return { status: 200, body: { choices: [{ message: { content: 'from global key' } }] } };
+    });
+    const out = await backend.callZaiApi({ messages: [{ role: 'user', content: 'hi' }], httpsModule: fake });
+    assert.equal(out.text, 'from global key');
+  } finally {
+    restore();
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
 // --- API provider: callApi (IN-PROCESS HTTPS, no child process) --------------------------------
 test('api provider: callApi does an IN-PROCESS HTTPS call and returns { text, usage } (no spawn)', async () => {
   const restore = withEnv({ OPENROUTER_API_KEY: 'or-key' });
@@ -312,17 +401,131 @@ test('api provider: callApi does an IN-PROCESS HTTPS call and returns { text, us
     assert.equal(opts.headers.Authorization, 'Bearer or-key');
     const sent = JSON.parse(body);
     assert.equal(sent.model, 'gpt-test');
+    assert.deepEqual(sent.response_format, { type: 'json_object' });
     assert.ok(Array.isArray(sent.messages) && sent.messages.length >= 1);
     return { status: 200, body: { choices: [{ message: { content: 'hello world' } }], usage: { total_tokens: 12 } } };
   });
   try {
     const out = await assertNoChildProcess(() => backend.callApi({
-      messages: [{ role: 'user', content: 'hi' }], model: 'gpt-test', httpsModule: fake,
+      messages: [{ role: 'user', content: 'hi' }],
+      model: 'gpt-test',
+      responseFormat: { type: 'json_object' },
+      httpsModule: fake,
     }));
     assert.equal(out.text, 'hello world', 'parses choices[0].message.content');
     assert.deepEqual(out.usage, { total_tokens: 12 }, 'carries usage through');
     assert.equal(fake.requests.length, 1, 'exactly one HTTPS request was made (in-process)');
   } finally { restore(); }
+});
+
+test('api provider: callZaiApi targets Z.AI directly with glm-5.2 default (no OpenRouter, no spawn)', async () => {
+  const restore = withEnv({ ZAI_API_KEY: 'zai-key' });
+  const fake = makeFakeHttp((opts, body) => {
+    assert.equal(opts.hostname, 'api.z.ai');
+    assert.equal(opts.path, '/api/paas/v4/chat/completions');
+    assert.equal(opts.method, 'POST');
+    assert.equal(opts.headers.Authorization, 'Bearer zai-key');
+    assert.equal(opts.headers['Accept-Language'], 'en-US,en');
+    const sent = JSON.parse(body);
+    assert.equal(sent.model, 'glm-5.2');
+    assert.ok(Array.isArray(sent.messages) && sent.messages.length >= 1);
+    return { status: 200, body: { choices: [{ message: { content: 'glm direct' } }], usage: { total_tokens: 9 } } };
+  });
+  try {
+    const out = await assertNoChildProcess(() => backend.callZaiApi({
+      messages: [{ role: 'user', content: 'hi' }], httpsModule: fake,
+    }));
+    assert.equal(out.text, 'glm direct');
+    assert.deepEqual(out.usage, { total_tokens: 9 });
+    assert.equal(fake.requests.length, 1, 'exactly one direct Z.AI HTTPS request was made');
+  } finally { restore(); }
+});
+
+test('api provider: callOllamaApi targets the local OpenAI-compatible endpoint with no Authorization header', async () => {
+  const restore = withEnv({ ZONOID_OLLAMA_BASE_URL: 'http://127.0.0.1:11434/v1' });
+  const fake = makeFakeHttp((opts, body) => {
+    assert.equal(opts.hostname, '127.0.0.1');
+    assert.equal(opts.port, 11434);
+    assert.equal(opts.path, '/v1/chat/completions');
+    assert.equal(opts.method, 'POST');
+    assert.equal(opts.headers.Authorization, undefined);
+    const sent = JSON.parse(body);
+    assert.equal(sent.model, 'llama3.1:8b');
+    assert.ok(Array.isArray(sent.messages) && sent.messages.length >= 1);
+    return { status: 200, body: { choices: [{ message: { content: 'local reply' } }], usage: { total_tokens: 5 } } };
+  });
+  try {
+    const out = await assertNoChildProcess(() => backend.callOllamaApi({
+      messages: [{ role: 'user', content: 'hi' }], model: 'llama3.1:8b', httpsModule: fake,
+    }));
+    assert.equal(out.text, 'local reply');
+    assert.deepEqual(out.usage, { total_tokens: 5 });
+    assert.equal(fake.requests.length, 1, 'exactly one local HTTP request was made');
+  } finally { restore(); }
+});
+
+test('api provider: callOllamaApi accepts OLLAMA_HOST and appends /v1 when needed', async () => {
+  const restore = withEnv({ OLLAMA_HOST: 'localhost:11435' });
+  const fake = makeFakeHttp((opts, body) => {
+    assert.equal(opts.hostname, 'localhost');
+    assert.equal(opts.port, 11435);
+    assert.equal(opts.path, '/v1/chat/completions');
+    const sent = JSON.parse(body);
+    assert.equal(sent.model, backend.OLLAMA_DEFAULT_MODEL);
+    return { status: 200, body: { choices: [{ message: { content: 'from host' } }] } };
+  });
+  try {
+    const out = await backend.callOllamaApi({ messages: [{ role: 'user', content: 'hi' }], httpsModule: fake });
+    assert.equal(out.text, 'from host');
+  } finally { restore(); }
+});
+
+test('api provider: listOllamaModels reads local /api/tags dynamically', async () => {
+  const restore = withEnv({ ZONOID_OLLAMA_BASE_URL: 'http://127.0.0.1:11434/v1' });
+  const fake = makeFakeHttp((opts) => {
+    assert.equal(opts.hostname, '127.0.0.1');
+    assert.equal(opts.port, 11434);
+    assert.equal(opts.path, '/api/tags');
+    assert.equal(opts.method, 'GET');
+    return {
+      status: 200,
+      body: {
+        models: [
+          { name: 'qwen3.6:35b', size: 23000000000, modified_at: '2026-06-28T01:00:00Z' },
+          { model: 'qwen-coding:latest' },
+        ],
+      },
+    };
+  });
+  try {
+    const models = await backend.listOllamaModels({ httpModule: fake });
+    assert.deepEqual(models, [
+      { id: 'qwen3.6:35b', size: 23000000000, modifiedAt: '2026-06-28T01:00:00Z' },
+      { id: 'qwen-coding:latest', size: undefined, modifiedAt: undefined },
+    ]);
+  } finally { restore(); }
+});
+
+test('api provider: listOpenRouterModels reads OpenRouter /models dynamically', async () => {
+  const fake = makeFakeHttp((opts) => {
+    assert.equal(opts.hostname, 'openrouter.ai');
+    assert.equal(opts.path, '/api/v1/models');
+    assert.equal(opts.method, 'GET');
+    return {
+      status: 200,
+      body: {
+        data: [
+          { id: 'anthropic/claude-sonnet-4-6', name: 'Claude Sonnet 4.6', context_length: 200000 },
+          { id: 'openai/gpt-5' },
+        ],
+      },
+    };
+  });
+  const models = await backend.listOpenRouterModels({ httpsModule: fake });
+  assert.deepEqual(models, [
+    { id: 'anthropic/claude-sonnet-4-6', name: 'Claude Sonnet 4.6', contextLength: 200000 },
+    { id: 'openai/gpt-5', name: undefined, contextLength: undefined },
+  ]);
 });
 
 test('api provider: callApi rejects with ApiBackendError on a missing key (no spawn, no request)', async () => {
@@ -359,6 +562,26 @@ test('api provider: openRouterProvider.callApi delegates to the in-process callA
   } finally { restore(); }
 });
 
+test('api provider: zaiProvider.callApi delegates to the direct Z.AI call', async () => {
+  const restore = withEnv({ ZAI_API_KEY: 'zai-key' });
+  const fake = makeFakeHttp(() => ({ status: 200, body: { choices: [{ message: { content: 'via-zai-provider' } }] } }));
+  try {
+    const out = await backend.zaiProvider.callApi({ messages: [{ role: 'user', content: 'x' }], httpsModule: fake });
+    assert.equal(out.text, 'via-zai-provider');
+    assert.equal(fake.requests[0].opts.hostname, 'api.z.ai');
+  } finally { restore(); }
+});
+
+test('api provider: ollamaProvider.callApi delegates to the local Ollama call', async () => {
+  const restore = withEnv({ ORCH_OLLAMA_BASE_URL: 'http://localhost:11434/v1' });
+  const fake = makeFakeHttp(() => ({ status: 200, body: { choices: [{ message: { content: 'via-ollama-provider' } }] } }));
+  try {
+    const out = await backend.ollamaProvider.callApi({ messages: [{ role: 'user', content: 'x' }], httpsModule: fake });
+    assert.equal(out.text, 'via-ollama-provider');
+    assert.equal(fake.requests[0].opts.hostname, 'localhost');
+  } finally { restore(); }
+});
+
 // --- API provider: runJudgeLoop (IN-PROCESS judge loop, no child process) ----------------------
 test('api provider: runJudgeLoop walks /judge/next → callApi → /judge/verdict in-process (no spawn)', async () => {
   // Fake the daemon http: GET /judge/next returns one edge item; POST /judge/verdict acks applied.
@@ -391,6 +614,112 @@ test('api provider: runJudgeLoop walks /judge/next → callApi → /judge/verdic
   // The verdicts parsed from the model reply were forwarded to the daemon.
   const postReq = fakeHttp.requests.find((r) => r.opts.method === 'POST');
   assert.deepEqual(JSON.parse(postReq.body).verdicts, [{ pruneEdge: { from: 'note:a', to: 't1' } }]);
+});
+
+test('api provider: task-decision verdicts preserve queued source_action', async () => {
+  const fakeHttp = makeFakeHttp((opts) => {
+    if (opts.method === 'GET' && /\/judge\/next/.test(opts.path)) {
+      return {
+        status: 200,
+        body: {
+          idle: false,
+          items: [{
+            kind: 'task-decision',
+            id: 'decision:merge:t1',
+            task_key: 't1',
+            task: { key: 't1' },
+            action: 'merge',
+          }],
+        },
+      };
+    }
+    if (opts.method === 'POST' && /\/judge\/verdict/.test(opts.path)) {
+      return { status: 200, body: { ok: true, applied: { taskDecisions: 1 } } };
+    }
+    return { status: 404, body: {} };
+  });
+  const fakeCallApi = async () => ({
+    text: '{"verdicts":[{"taskDecision":{"task_key":"t1","action":"cancel","reason":"stale"}}]}',
+    usage: null,
+  });
+
+  const result = await backend.runJudgeLoop({
+    daemonUrl: 'http://localhost:8787',
+    budget: 1,
+    httpModule: fakeHttp,
+    callApiFn: fakeCallApi,
+  });
+
+  assert.equal(result.exitCode, 0);
+  const postReq = fakeHttp.requests.find((r) => r.opts.method === 'POST');
+  assert.deepEqual(JSON.parse(postReq.body).verdicts, [{
+    taskDecision: {
+      task_key: 't1',
+      action: 'cancel',
+      reason: 'stale',
+      source_action: 'merge',
+    },
+  }]);
+});
+
+test('api provider: runJudgeLoop applies caller timeout to daemon GET and POST calls', async () => {
+  const fakeHttp = makeFakeHttp((opts) => {
+    if (opts.method === 'GET' && /\/judge\/next/.test(opts.path)) {
+      return { status: 200, body: { idle: false, items: [{ kind: 'edge', id: 'e1', from: { key: 'note:a' }, to: { key: 't1' } }] } };
+    }
+    if (opts.method === 'POST' && /\/judge\/verdict/.test(opts.path)) {
+      return { status: 200, body: { ok: true, applied: { pruned: 1 } } };
+    }
+    return { status: 404, body: {} };
+  });
+  const fakeCallApi = async () => ({ text: '{"verdicts":[{"pruneEdge":{"from":"note:a","to":"t1"}}]}', usage: null });
+
+  const result = await backend.runJudgeLoop({
+    daemonUrl: 'http://localhost:8787',
+    budget: 1,
+    timeoutMs: 123456,
+    httpModule: fakeHttp,
+    callApiFn: fakeCallApi,
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.deepEqual(fakeHttp.requests.map((r) => r.timeoutMs), [123456, 123456]);
+});
+
+test('api provider: runZaiJudgeLoop uses glm-5.2 as the default model', async () => {
+  const fakeHttp = makeFakeHttp((opts) => {
+    if (opts.method === 'GET' && /\/judge\/next/.test(opts.path)) {
+      return { status: 200, body: { idle: false, items: [{ kind: 'edge', id: 'e1' }] } };
+    }
+    return { status: 404, body: {} };
+  });
+  const callApiCalls = [];
+  const fakeCallApi = async (o) => { callApiCalls.push(o); return { text: '{"verdicts":[]}', usage: null }; };
+
+  const result = await assertNoChildProcess(() => backend.runZaiJudgeLoop({
+    daemonUrl: 'http://localhost:8787', httpModule: fakeHttp, callApiFn: fakeCallApi,
+  }));
+  assert.equal(result.exitCode, 0);
+  assert.equal(callApiCalls.length, 1);
+  assert.equal(callApiCalls[0].model, 'glm-5.2');
+});
+
+test('api provider: runOllamaJudgeLoop uses the Ollama default model', async () => {
+  const fakeHttp = makeFakeHttp((opts) => {
+    if (opts.method === 'GET' && /\/judge\/next/.test(opts.path)) {
+      return { status: 200, body: { idle: false, items: [{ kind: 'edge', id: 'e1' }] } };
+    }
+    return { status: 404, body: {} };
+  });
+  const callApiCalls = [];
+  const fakeCallApi = async (o) => { callApiCalls.push(o); return { text: '{"verdicts":[]}', usage: null }; };
+
+  const result = await assertNoChildProcess(() => backend.runOllamaJudgeLoop({
+    daemonUrl: 'http://localhost:8787', httpModule: fakeHttp, callApiFn: fakeCallApi,
+  }));
+  assert.equal(result.exitCode, 0);
+  assert.equal(callApiCalls.length, 1);
+  assert.equal(callApiCalls[0].model, backend.OLLAMA_DEFAULT_MODEL);
 });
 
 test('api provider: runJudgeLoop on an idle queue returns exit 0 without calling callApi or POSTing', async () => {
@@ -437,10 +766,6 @@ test('api provider: runJudgeLoop requires a daemonUrl (clean failure result, not
 // them at a real temp file for the "installed" case and clearing them for the "not-installed" case
 // (bare-name fallback ⇒ isAvailable false, no throw). withEnv() manages those keys so the runner's
 // ambient PATH/creds can't make these flaky.
-
-const os = require('node:os');
-const fs = require('node:fs');
-const pathMod = require('node:path');
 
 // A real temp file that exists on disk, so an env-override bin resolves AND fs.existsSync() is true.
 const INSTALLED_BIN = pathMod.join(os.tmpdir(), `zonoid-fake-cli-${process.pid}`);
@@ -505,6 +830,16 @@ test('codex provider: isAvailable true for an existing override bin, false (no t
     assert.doesNotThrow(() => { val = backend.codexProvider.isAvailable(); });
     // The runner host has no `codex` on PATH (verified at impl time); assert the not-installed contract.
     assert.equal(val, false, 'no override + no PATH hit ⇒ isAvailable false');
+  } finally { restore(); }
+});
+
+test('codex provider: buildInvocation supplies a launchd-safe PATH with node', () => {
+  const restore = withEnv({ CODEX_BIN: INSTALLED_BIN, PATH: '' });
+  try {
+    const inv = backend.codexProvider.buildInvocation({ prompt: 'judge one item' });
+    const parts = String(inv.env.PATH || '').split(pathMod.delimiter);
+    assert.ok(parts.includes(pathMod.dirname(process.execPath)), 'PATH includes current node directory');
+    assert.ok(parts.includes('/usr/bin'), 'PATH keeps system env lookup available');
   } finally { restore(); }
 });
 
@@ -611,6 +946,16 @@ test('cursor provider: isAvailable true for an existing override bin, false (no 
     let val;
     assert.doesNotThrow(() => { val = backend.cursorProvider.isAvailable(); });
     assert.equal(val, false, 'no override + no PATH hit ⇒ isAvailable false');
+  } finally { restore(); }
+});
+
+test('cursor provider: buildInvocation supplies a launchd-safe PATH with node', () => {
+  const restore = withEnv({ CURSOR_BIN: INSTALLED_BIN, PATH: '' });
+  try {
+    const inv = backend.cursorProvider.buildInvocation({ prompt: 'judge one item' });
+    const parts = String(inv.env.PATH || '').split(pathMod.delimiter);
+    assert.ok(parts.includes(pathMod.dirname(process.execPath)), 'PATH includes current node directory');
+    assert.ok(parts.includes('/usr/bin'), 'PATH keeps system env lookup available');
   } finally { restore(); }
 });
 

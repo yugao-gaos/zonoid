@@ -1,8 +1,0 @@
-{
-  "task_key": "codex/graph-loop-owner-watchdog",
-  "agent_id": "worker-graph-loop-owner-watchdog-codex-20260621",
-  "branch": "orch/attempt/codex-graph-loop-owner-watchdog",
-  "status": "claimed",
-  "claimed_at": "2026-06-21T01:37:23.627Z",
-  "lease_until": "2026-06-21T02:37:23.627Z"
-}

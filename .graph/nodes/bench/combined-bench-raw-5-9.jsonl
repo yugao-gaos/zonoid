@@ -1,3 +1,0 @@
-{"evt":"edge_removed","from":"bench/combined-bench-raw-5-9","to":"bench/bench-trial-32-9","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:24:18.679Z"}
-{"evt":"edge_removed","from":"bench/combined-bench-raw-5-9","to":"bench/combined-bench-3-3","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:24:18.679Z"}
-{"evt":"edge_removed","from":"bench/combined-bench-raw-5-9","to":"bench/combined-bench-0-0","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:24:18.679Z"}

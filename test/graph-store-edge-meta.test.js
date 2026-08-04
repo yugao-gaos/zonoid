@@ -57,6 +57,27 @@ const findEdge = (g, from, to) => (g.edges || []).find((e) => e.from === from &&
   fs.rmSync(dir, { recursive: true });
 }
 
+// ── causal task-result edge metadata survives graph-store replay ────────────────────────────────
+{
+  const dir   = tmpDir();
+  const store = gs.open(dir);
+
+  gs.appendEvent(store, 'task/a', {
+    evt: 'edge_added', actor: 'a', from: 'task/a', to: 'task/b',
+    kind: 'context', origin: 'task-result-causal', relation: 'fixed',
+    confidence: 0.75, evidence: 'regression test passed',
+  });
+
+  const g = gs.loadGraph(store);
+  const causal = findEdge(g, 'task/a', 'task/b');
+  ok('reloaded causal edge keeps relation',           causal && causal.relation === 'fixed');
+  ok('reloaded causal edge keeps origin',             causal && causal.origin === 'task-result-causal');
+  ok('reloaded causal edge keeps confidence',         causal && causal.confidence === 0.75);
+  ok('reloaded causal edge keeps evidence',           causal && causal.evidence === 'regression test passed');
+
+  fs.rmSync(dir, { recursive: true });
+}
+
 // ── checkpoint/compaction round-trip carries the metadata ──────────────────────────────────────
 {
   const dir   = tmpDir();

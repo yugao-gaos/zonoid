@@ -8,6 +8,10 @@ token
 # Per-machine runtime state (not source)
 .zonoid/
 overlay/
+# ...but lib/overlay/ is SOURCE, not runtime state. The bare `overlay/` rule above swallowed it, so
+# every new module there had to be force-added (schema.js and store.js were) — and a file that is
+# merely forgotten instead is lost silently.
+!lib/overlay/
 sessions/
 worktrees/
 scheduled-tasks/
@@ -38,6 +42,9 @@ models/
 /.claude/scheduled_tasks.lock
 _README.bak
 .graph/daemon.port
+# Build staging — never commit (ollama binaries, large artifacts)
+staging/
+
 # Invalidated v1-v7 bench results (oracle contamination — not shipped)
 bench/results.jsonl
 bench/results-v2.jsonl
@@ -70,11 +77,45 @@ wake/
 scratch/*
 !scratch/cursor-hook-capture.sh
 
+# Self-learn edge-judge / judge-drain agent scratch that historically littered the repo root.
+# The skill (skills/self-learn/references/edge-judge.md) now mandates scratch/edge-judge/ + cleanup;
+# these root-anchored patterns are a belt-and-suspenders net so stray dumps never pollute git status.
+/edge_*
+/edgejudge_*
+/ej_*
+/.ej_*
+/.ej-*
+/judge_*
+/jnext_*
+/jq_*
+/verdict_*
+/orphan*
+/*_thisrun*.json
+/*_thisrun*.txt
+/*_run[0-9]*.json
+/*_run[0-9]*.txt
+/*_dump.json
+/*_dump.txt
+/.tmp-*
+
 # Internal business/strategy docs — co-located but NEVER shipped publicly
 business/
 
 # Editor backups
 .cursor/*.bak
+*.bak
+
+# Path-bug / misnamed dump artifacts (e.g. an endpoint dump whose name collapsed a
+# C:\Windows\Temp\peek.json path into one cwd filename; or graph/HTML dumps left at root)
+/*WindowsTemp*
+/tmp_graph.json
+/tmp_*.json
+
+# Root-level bench dumps (the bench/ subdir variants are already ignored above;
+# these root twins slipped past — generated, reproducible, not source)
+/bench-*results*.json
+/bench-*results*.jsonl
+/bench-results-report.*
 
 # File-drop task mint stubs (adopted into .graph on first sight; not source)
 tasks/
@@ -88,3 +129,6 @@ bench/agent-memory/report.md
 bench/agent-memory/results.jsonl
 bench/agent-memory/checkpoints/
 bench/agent-memory/fixture_results.jsonl
+
+# Generated runtime and experiment artifacts (never commit)
+/out/

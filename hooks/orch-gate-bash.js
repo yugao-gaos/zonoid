@@ -88,7 +88,14 @@ const PORT = k.PORT;
       scopes.push({ branch, wt, permit });
     }
     if (scopes.length) {
-      if (!targets.length) k.allow();
+      // Valid permit, but the write pattern yielded NO extractable target (e.g. an inline
+      // python write to a computed/variable path, a write to an already-open handle, or dd
+      // of=$VAR). We cannot confirm the write lands inside the worktree, so fail CLOSED rather
+      // than trust the permit blindly — otherwise a claimed worker could escape its worktree
+      // via `python -c "open(p,'w')"`. The worker can re-issue the write in a verifiable form.
+      if (!targets.length) {
+        k.deny('orch-gate: this shell command writes a file but the gate could not extract a concrete target path (computed/variable path, a write to an already-open handle, or dd of=$VAR), so it cannot verify the write stays inside your worktree. Use a literal path (e.g. open("./rel","w"), or a redirect/tee to an explicit file), or run the write from a committed script — the orchestrator can verify those.');
+      }
       for (const target of targets) {
         if (!target || policy.isPathExempt(target)) continue;
         const matched = scopes.some((scope) =>

@@ -59,7 +59,7 @@ async function waitForPing(port, ms = 8000) {
 function spawnDaemon(port, sandbox, extra = {}) {
   return spawn(process.execPath, [path.join(REPO, 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: sandbox, ORCH_PORT: String(port), ...extra },
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
 }
 
@@ -235,9 +235,13 @@ srv.listen(${gatePort}, '127.0.0.1', () => { process.stdout.write('ready\\n'); }
     fs.writeFileSync(path.join(clWs, '.graph', 'checkpoint.json'), JSON.stringify({ nodes: {}, edges: [] }));
 
     const clChild = spawnDaemon(clPort, clSandbox, { ZONOID_SKIP_LIVE: '1' });
+    const clDaemonOut = [];
+    clChild.stdout.on('data', d => clDaemonOut.push(d.toString()));
+    clChild.stderr.on('data', d => clDaemonOut.push(d.toString()));
     try {
       ok('classify: daemon up', await waitForPing(clPort));
       await req(clPort, 'POST', '/workspace', { path: clWs, force: true });
+      await new Promise(r => setTimeout(r, 500));
 
       const payload = JSON.stringify({
         conversation_id: conv,
@@ -251,6 +255,14 @@ srv.listen(${gatePort}, '127.0.0.1', () => { process.stdout.write('ready\\n'); }
         ZONOID_ROOT: REPO,
       });
       ok('classify: hook exits 0', cr.status === 0);
+      // Debug: try hooks/classify.sh directly (bypassing adapter)
+      const HOOK_CLASSIFY = path.join(REPO, 'hooks', 'classify.sh');
+      const traceEnv = { ORCH_PORT: String(clPort), CLAUDE_PLUGIN_DATA: clSandbox };
+      const whichCurl = spawnSync('bash', ['-c', 'which curl; curl --version 2>&1 | head -1'], { encoding: 'utf8', env: hookEnv([], { ...traceEnv, PATH: process.env.PATH }) });
+      console.log('DBG_CURL:', whichCurl.stdout.trim(), '|| ERR:', whichCurl.stderr.trim().slice(0, 200));
+      const lh = spawnSync('bash', ['-c', `curl -s --max-time 2 localhost:${clPort}/ping; echo " EXIT=$?"`], { encoding: 'utf8', env: hookEnv([], { ...traceEnv, PATH: process.env.PATH }) });
+      console.log('DBG_LOCALHOST:', lh.stdout.slice(0, 200), 'ERR:', lh.stderr.slice(0, 200));
+      if (!/additionalContext/.test(cr.stdout)) console.log('DBG_CL:', JSON.stringify({ status: cr.status, stdout: cr.stdout.slice(0, 300), stderr: cr.stderr.slice(0, 300) }));
       ok('classify: additionalContext in stdout', /additionalContext/.test(cr.stdout));
 
       let out;
@@ -292,7 +304,7 @@ srv.listen(${gatePort}, '127.0.0.1', () => { process.stdout.write('ready\\n'); }
       ok('costflow: 200 response', cf.status === 200);
       ok('costflow: human input from cursor transcript', cf.body.human && cf.body.human.tokens > 0);
       ok('costflow: session catchalls present', cf.body.sessions && cf.body.sessions.count >= 1);
-      ok('costflow: totals include transcript output', cf.body.totals && cf.body.totals.output_tokens >= 400);
+      ok('costflow: totals include transcript output', cf.body.usage_totals && cf.body.usage_totals.output_tokens >= 400);
     } finally {
       cfChild.kill('SIGTERM');
       fs.rmSync(path.dirname(projDir), { recursive: true, force: true });

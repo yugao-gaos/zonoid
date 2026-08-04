@@ -21,8 +21,10 @@ multi-file change), the main agent should **not implement inline**. Instead:
 1. Decompose into native tasks (`TaskCreate`) and register them in the orchestrator graph.
 2. After creating a task, call `suggest_links` and add `context`/`blocking` edges so it wires
    into existing/completed work instead of becoming an orphan root node.
-3. **Dispatch the actual work to a background subagent** (`Agent` tool, `run_in_background: true`)
-   that claims the task (`start_task`) and reports back (`complete_task`).
+3. Ask Subconscious for the routine assignment surface (`subconscious_assignment prepare`), then
+   **dispatch the actual work to a background subagent** (`Agent` tool, `run_in_background: true`)
+   that accepts the assignment (`subconscious_assignment accept`) and reports back
+   (`subconscious_assignment complete`).
 4. Keep the **main thread free** to orchestrate and talk to the user — never block it on a build.
 
 **Wiring is the dispatcher's duty, not the worker's.** Whoever creates a task wires it
@@ -30,26 +32,29 @@ multi-file change), the main agent should **not implement inline**. Instead:
 subagents: it is unenforced (unlike the write gate), so smaller worker models reliably drop it,
 and workers lack the structural context (e.g. which sibling tasks collide on the same files).
 
-**Pairing a judge task is the dispatcher's duty, too.** When dispatching a **substantive impl
-task**, the dispatcher ALSO creates a **judge task** wired `blocking` (blocked_by) that impl task,
-**before** dispatching the impl — so the judge goes `ready` automatically the moment the impl
-completes and the loop spawns it. This reuses the existing DAG-gate trigger (a task blocked_by its
-deps goes ready when they finish); no new trigger machinery. The judge task must be **skill-tagged
-in its handoff/prompt** — the daemon does not know skills, so the skill selection rides the prompt
-exactly like impl workers: the judge worker invokes **`self-learn-judge` in single-attempt review
-mode** against the impl's attempt branch (`orch/attempt/<impl-key>`). In that mode the review IS the
-verdict — it fetches the attempt diff (`get_attempt_diff`), applies the code-review rubric
-(correctness, scope discipline, dead/redundant code, test presence/quality, style) and either
-APPROVES (hold-merge by default — records the verdict without merging; in **automode** (`config.automode=true`) include `{action:"merge", task_key:"<impl_key>", reason:"APPROVE"}` in the `complete_task` verdicts array so the daemon auto-merges the attempt) or KICKS BACK
-(`set_status` failed + a wired `record_decision`). The judge **NEVER force-merges**: merge is
-`git merge --no-ff` and auto-aborts on conflict, escalating rather than forcing. **Complexity
-gate:** this auto-judge applies to substantive multi-file work only — genuinely trivial edits (a
-one-liner, a doc tweak, a config change) skip it, the same triviality carve-out as the inline-edit
-rule below.
+**Review is state on the implementation task, not a visible judge task.** For substantive impl
+tasks, the dispatcher requests same-node review when preparing the implementation assignment; it
+does **not** create a separate user-visible judge node or a blocking judge edge. On the same-node
+path, pass `create_judge:false` and a review request flag such as `judge_requested:true`; compatibility
+inputs like `judge_task_key` are audit aliases only and should resolve to `judge_task_key:null`,
+`review_task_key:<impl-key>`, and review fields on the implementation task. The implementation node
+carries `review_state`, `review_requested_at/by`, `review_verdict`, `review_agent`, and `merge_state`
+alongside its attempt branch/worktree.
+
+Daemon-owned headless drains own review queue execution. They may launch internal audit/review jobs,
+but normal `/ready`, `/state`, and dashboard frontier views hide those internal drains and show compact
+review/merge cues on the implementation node instead. The review still uses the code-review rubric
+(correctness, scope discipline, dead/redundant code, test presence/quality, style) and reports the
+verdict through `subconscious_assignment submit_verdict`: APPROVE updates same-node review state and
+attempt merge state; KICK_BACK marks the implementation task failed/blocked for rework. Review jobs
+**NEVER force-merge**: merge is `git merge --no-ff` and auto-aborts on conflict, escalating rather
+than forcing. **Complexity gate:** same-node review applies to substantive multi-file work only —
+genuinely trivial edits (a one-liner, a doc tweak, a config change) skip it, the same triviality
+carve-out as the inline-edit rule below.
 
 **Substantial work gets a two-tier feature branch; the dispatcher stays on main.** This is a
-dispatcher-decides call, on the same complexity axis as the judge gate above. When the dispatcher
-judges a unit of work **substantial** (a multi-task feature, not a lone edit), it groups the tasks
+dispatcher-decides call, on the same complexity axis as the review gate above. When the dispatcher
+classifies a unit of work as **substantial** (a multi-task feature, not a lone edit), it groups the tasks
 under a **feature branch** instead of letting each attempt fork off main:
 
 1. `create_feature(key)` opens `orch/feature/<slug>` + a feature worktree (overlay records
@@ -57,13 +62,12 @@ under a **feature branch** instead of letting each attempt fork off main:
 2. The decomposed tasks are grouped under the feature: `configure_task repo_path=<feature worktree>`,
    and workers are dispatched with `branch_task base=orch/feature/<slug>` so each attempt forks off
    the **stable feature branch**, not main.
-3. **Tier-1 (cheap, automatic):** the single-attempt code-judge **auto-merges** each approved
-   attempt into the feature branch — same judge as above, but under a feature an APPROVE merges
-   attempt→feature rather than holding (the merge is cheap and reversible; a flat task still holds
-   for main).
+3. **Tier-1 (cheap, automatic):** same-node review **auto-merges** each approved
+   attempt into the feature branch — same review path as above, but under a feature the merge target is
+   the stable feature branch, making the merge cheap and reversible.
 4. **Tier-2 (consequential, gated):** when the feature is complete and reviewed, the **dispatcher**
    makes the deliberate `merge_feature(key)` call (feature→main). This step is **never automatic** —
-   it is the dispatcher-only gated decision, the way feature→main is never the judge's call.
+   it is the dispatcher-only gated decision, the way feature→main is never the review worker's call.
 
 **Why two tiers:** forking attempts off a stable feature branch sidesteps the conflict class where
 **main drifts under concurrent agents mid-feature** — attempts integrate against a base that holds
@@ -91,7 +95,7 @@ one-liner session can stay on main; and the **dispatcher** posture above is unch
 code — it stays on main to coordinate N features).
 
 For **trivial / single-task** work, skip the feature tier entirely and use today's flat
-attempt→main flow — the same triviality carve-out as the inline-edit and judge rules.
+attempt→main flow — the same triviality carve-out as the inline-edit and review rules.
 
 **Hand the worker a typed `handoff_envelope`, not prose duties.** Instead of restating the
 worker's duties verbatim in English, the dispatcher builds the slotted `handoff_envelope` defined
@@ -104,35 +108,40 @@ note summaries) as inline base context. `files_in_scope[]` is the advisory file-
 `return_contract` is a `$ref` to `task_result` so the worker knows the exact shape to return.
 Building the envelope (including resolving `context_deps`) is the dispatcher's job — same rationale
 as wiring: workers lack the structural context. The worker still owns exactly three graph duties —
-`start_task` before any write, `git add -A && git commit` all changes onto the `orch/attempt/<key>`
-branch BEFORE complete_task (an uncommitted worktree leaves the attempt tip == base, making a later
-`merge_attempt` a silent no-op), `complete_task` with a tight summary at the end — but now reads
-them off the envelope's slots, not prose. (Workers still pass `wires_to=[task_key]` on any
+`subconscious_assignment accept` before any write, `git add -A && git commit` all changes onto the
+`orch/attempt/<key>` branch BEFORE completing the assignment (an uncommitted worktree leaves the
+attempt tip == base, making a later merge a silent no-op), and `subconscious_assignment complete`
+with a tight summary at the end — but now reads them off the envelope's slots, not prose. (Workers still pass `wires_to=[task_key]` on any
 `record_decision` they make mid-task — note provenance is the one wiring only the worker knows.)
 
-**Worker registration rides the claim, not the start hook.** The `SubagentStart` hook does NOT
+**Worker registration rides the assignment claim, not the start hook.** The `SubagentStart` hook does NOT
 fire for `run_in_background` Agent-tool spawns, so a background worker never carries
-`agent_tool_spawn:true`. No extra registration field is needed in the envelope: `start_task`
-**self-registers the worker on claim**. The `/overlay/status` in_progress handler treats a claim
-that bears an `agent_id` AND is backed by a registered worktree (proof `branch_task` ran — the
-dispatcher never calls it) as a legitimate hook-less worker, registers it, and allows the claim.
+`agent_tool_spawn:true`. No extra registration field is needed in the envelope:
+`subconscious_assignment accept` routes to the same `/overlay/status` in_progress path as raw
+`start_task` and **self-registers the worker on claim**. The `/overlay/status` in_progress handler treats a claim
+that bears an `agent_id` AND is backed by a registered worktree (proof `subconscious_assignment prepare`
+allocated the worktree) as a legitimate hook-less worker, registers it, and allows the claim.
 The registered worktree is the security boundary: a claim with no worktree is still refused. So the
-`branch_task` → `start_task` order IS the registration — nothing else to carry.
+`prepare` → `accept` order IS the registration — nothing else to carry.
 
 Do the work inline only for genuinely trivial edits (a one-liner, a doc tweak, a config change).
 Where the hooks are installed (`node bin/install.js`), a PreToolUse exit-2 gate hard-blocks **both**
 `Edit`/`Write` tools and `Bash` file-write commands — agents must claim a task before editing. For
-Claude Code the gate runs as Node (`hooks/orch-gate.js` + `hooks/orch-gate-bash.js`, invoked via
-`node` so it works on Windows/macOS/Linux); the Cursor/Codex adapters and the test suite drive the
-shell core (`hooks/orch-gate.sh` + `hooks/orch-gate-bash.sh`) — keep the two in sync. This gate fires
+the gate is single-source Node: enforcement lives in `hooks/orch-gate.js` + `hooks/orch-gate-bash.js`
+plus the shared `hooks/lib/gate-policy.js`, invoked via `node` so it works on Windows/macOS/Linux. The
+POSIX entrypoints (`hooks/orch-gate.sh` + `hooks/orch-gate-bash.sh`) are now thin wrappers that
+`exec node …` the same `.js` — there is no separate shell reimplementation to keep in sync. This gate fires
 in ANY harness that runs settings.json hooks — confirmed in both the Claude Code CLI **and** the
 desktop app — so it is instruction-level only where the hooks are not wired.
 Users opt out per-conversation with `orch off`.
 
-**Gate contract for subagents:** call `mcp__orchestrator-graph__branch_task(task_key)` **first**
-to create an isolated worktree (`orch/attempt/<key>`), then `mcp__orchestrator-graph__start_task(task_key, agent_id)`.
-The daemon rejects `start_task` if no worktree is registered — order is enforced. All file writes
-must happen inside the worktree; the gate hard-blocks subagent writes on any other branch.
+**Gate contract for subagents:** normal workers receive a prepared assignment from
+`mcp__orchestrator-graph__subconscious_assignment(action:"prepare")`, then call
+`mcp__orchestrator-graph__subconscious_assignment(action:"accept", task_key, agent_id, session_id)`.
+The prepare action allocates the isolated worktree (`orch/attempt/<key>`) and the accept action
+claims through the existing `/overlay/status` path, so the same permit minting and write gate remain
+the source of truth. All file writes must happen inside the worktree; the gate hard-blocks subagent
+writes on any other branch.
 `ORCH_GATE_OFF=1` as an inline env prefix does **not** work from subagents — the hook runs as a
 separate process. Never bypass via workarounds (rsync, fabricated claims, etc.); claim properly.
 
@@ -211,3 +220,67 @@ Set via dashboard Settings → "Full Automode" toggle, or `POST /config { automo
 { "action": "merge", "task_key": "<impl_task_key>", "reason": "APPROVE: <one-line rationale>" }
 ```
 On KICK BACK: call `set_status(impl_task_key, "failed")` — no merge verdict.
+
+## Orch auto (one-switch full autonomy)
+
+`orch auto` is the atomic per-workspace switch that turns on everything the daemon needs to
+advance the task graph with ZERO interactive sessions. It sets three overlay config flags as a
+group; `orch auto off` clears all three:
+
+| flag | effect |
+| --- | --- |
+| `self_plan` | daemon planner may run `plan` on a drained DAG (headless planner drain) |
+| `automode` | Opus CLI auto-answers `request_guidance` escalations + auto-merge on judge APPROVE + review-verdict drain eligibility |
+| `headless_driver` | daemon executes spawn/plan/optimize decisions and review verdicts headlessly (lib/headless-spawn.js + review-verdict drain) |
+
+Surfaces (all funnel through ONE server-side code path — `POST /config { auto: true|false }`,
+which expands to the three flags):
+
+- **Conversation:** say `orch auto` / `orch auto off` (handled by the classify hook, same
+  pattern as `orch on`/`orch off`; the workspace is resolved from the conversation's cwd).
+- **Dashboard:** Settings → "Orch Auto (full autonomy)" toggle, next to Full Automode. A mixed
+  state (only some flags on) shows unchecked with a "partial" hint.
+- **HTTP:** `POST /config { workspace, auto: true }`. The response reports the resulting config.
+
+**Scope is per-workspace:** the flags live in each workspace's overlay config — every registered
+workspace toggles independently; nothing is daemon-global. The three flags also remain
+individually settable (`POST /config { self_plan: true }` etc.); `auto` just writes them as a
+group. Budget caps still apply under full autonomy: the managed graph loop runs under
+loop-autostart `AUTOSTART_CONFIG` (token budget / iterations / batch / concurrency) and headless
+drains under the headless-drain governor (per-boot token budget / drain concurrency).
+
+## Autonomy activity feed (`GET /activity`)
+
+Headless work leaves no graph trace *while it runs* — a spawned worker, planner, judge,
+review-verdict, learner, or label drain only shows up once it settles a node. Previously its sole
+record was a `process.stdout` line, which survives only if the daemon happened to be started with
+output redirection. `lib/activity.js` is the fix: a **bounded in-memory ring** (default 500 events,
+`ORCH_ACTIVITY_CAPACITY`) plus a **live in-flight registry**, written by `lib/headless-spawn.js` and
+`lib/headless-drain.js`.
+
+- **Ring for "now", archive for "today".** The ring answers what is happening and dies with the
+  process. Every SETTLED event is also appended to a size-capped, single-generation-rotated
+  `activity.jsonl` in the runtime dir (`ORCH_ACTIVITY_LOG`, `ORCH_ACTIVITY_LOG_MAX_BYTES`), so
+  restart-spanning questions ("how many merges landed today?") still have an answer. Running rows
+  are never archived — a half-open pair is exactly what a restart makes meaningless. Under the test
+  runner (`ZONOID_SKIP_LIVE=1`) the implicit runtime-dir default is disabled entirely: drain/spawn
+  tests drive the same instrumented code paths, and without that guard a suite run writes hundreds
+  of synthetic rows into the real archive and `GET /status` reports fabricated counts. An explicit
+  `ORCH_ACTIVITY_LOG` still wins, which is how the archive's own tests exercise it.
+- **`GET /activity`** (`routes/activity.js`) returns `running[]` (each with live `elapsed_ms`),
+  `events[]` (newest first), and the two things that explain an EMPTY feed: `autonomy` (the
+  workspace's self_plan/automode/headless_driver flags) and `governor` (headless concurrency /
+  budget / rate-limit backoff). Query params: `workspace`, `limit`, `since`, `kind`.
+- **`GET /status`** is the lightweight digest for CLI/report use — no event list to parse:
+  `{ workers_running, drains_running, reviews_pending, merges_today, last_planner_run,
+  backoff_until, autonomy }`.
+- **Incremental polling:** every event carries a monotonic `seq`. Poll with `since=<last seq>` for
+  only what is new, and compare `dropped` across polls to detect ring overflow.
+- **Pump-level conditions are edge-triggered.** Backoff entered/cleared and `no_backend` pauses go
+  through `activity.recordChange(signal, signature, …)`, which writes only when the value changes —
+  a level-triggered emit would flood the ring with one identical row per pump tick.
+- **Never throws.** Every exported entry point swallows its own failures (inert handle / empty
+  list): a drain that crashes because its activity row could not be written is strictly worse than
+  a drain with no activity row.
+- **Dashboard:** an "Auto" status-dock counter shows live headless jobs at a glance; clicking it
+  opens the Autonomy section of the activity popup with the running + recent feed.

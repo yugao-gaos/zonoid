@@ -27,7 +27,7 @@ const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-rdta
 process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
 const overlayStore = require('../lib/overlay');
 const filedrop = require('../lib/filedrop-tasks');
-const { makeCall } = require('../lib/mcp-core');
+const { makeCall, _test: mcpCoreTest } = require('../lib/mcp-core');
 
 // Reuse the already-downloaded embedding weights if present, so /overlay/note doesn't try a
 // network download from the sandboxed (empty) model cache. Absent ⇒ embed() degrades to null.
@@ -95,6 +95,9 @@ async function testMakeCall() {
   ok('POST body still carries workspace', JSON.parse(seen[3].body).workspace === WS_A);
   const bare = makeCall(port, null);   // no pinned workspace ⇒ untouched paths (daemon self-call)
   ok('no-workspace client leaves GET path alone', typeof bare === 'function');
+  ok('ordinary MCP calls keep the short timeout', mcpCoreTest.requestTimeoutMs('GET', '/state', null) === mcpCoreTest.REQUEST_TIMEOUT_MS);
+  ok('assignment prepare gets the slow timeout', mcpCoreTest.requestTimeoutMs('POST', '/subconscious/assignment', { action: 'prepare' }) === mcpCoreTest.SLOW_REQUEST_TIMEOUT_MS);
+  ok('git worktree operations get the slow timeout', mcpCoreTest.requestTimeoutMs('POST', '/git/branch', { key: 'x/1' }) === mcpCoreTest.SLOW_REQUEST_TIMEOUT_MS);
 }
 
 (async () => {

@@ -1,9 +1,0 @@
-{
-  "task_key": "followup/harness-label-drain",
-  "agent_id": "dispatcher-frontier-closeout",
-  "branch": "orch/attempt/followup-harness-label-drain",
-  "status": "done",
-  "claimed_at": "2026-06-18T15:13:18.477Z",
-  "lease_until": "2026-06-18T16:13:18.477Z",
-  "completed_at": "2026-06-19T13:49:31.473Z"
-}

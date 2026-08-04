@@ -58,12 +58,14 @@ try {
   ok('blocking edge stores no weight even if passed', be && be.weight === undefined && be.kind === undefined);
   ok('edgeWeight is null for blocking edge', ov.edgeWeight(be) === null);
 
-  // upgrade blocking -> context on re-add sets the weight
+  // same-endpoint blocking and context edges coexist: scheduling plus retrieval context
   let o5 = ov.EMPTY();
   ov.addEdge(o5, 'i', 'j', null, 'blocking');
   ov.addEdge(o5, 'i', 'j', null, 'context', 0.7);
-  const ue = o5.edges.find((x) => x.from === 'i');
-  ok('blocking upgraded to context picks up weight', ue.kind === 'context' && ue.weight === 0.7);
+  const be2 = o5.edges.find((x) => x.from === 'i' && x.to === 'j' && !x.kind);
+  const ce2 = o5.edges.find((x) => x.from === 'i' && x.to === 'j' && x.kind === 'context');
+  ok('blocking edge remains blocking when same-endpoint context is added', be2 && be2.weight === undefined);
+  ok('same-endpoint context edge picks up weight', ce2 && ce2.weight === 0.7);
 
   // --- add_dependency MCP tool passes weight through to /overlay/edge ---
   const addDep = TOOLS.find((t) => t.name === 'add_dependency');

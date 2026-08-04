@@ -92,7 +92,7 @@ function makeCtx(overlay, extraCtxFields = {}) {
     cache: { agg: new Map(), aggAt: new Map() },
     loops: new Map(),
     saveLoops: () => {},
-    judge: { judgingState: () => ({ judging: false, timedOut: false }), judgingTimeoutMs: () => 30000 },
+    judge: { judgingState: () => ({ judging: false, timedOut: false }) },
     // configure_task (git/repo) path:
     resolveRepo: () => null,
     validateMetricSpec: () => null,

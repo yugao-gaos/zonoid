@@ -22,6 +22,7 @@ task-graph cost flow, and self-learning.
 | [KB Injection Lifts Agent Solve Rate](quality-gain/) | OFF 50% → ON 80% on held-out benchmark (n=20 each arm, +30pp) | June 2026 |
 | [Measuring Autonomous Leverage: Autonomy Score and Productive Token %](autonomy-score/) | Strict (git-verified, output-only): 72× autonomy, 75.4% productive; lenient self-report gave 103.5×/92% | June 2026 |
 | [Whole-Product Token Economy: Orchestrator ON vs OFF on Context-Required Tasks](token-economy/) | ON 7.5× cheaper + solved (27/27), OFF failed within budget — whole-product result | June 2026 |
+| [Code-Navigation Retrieval Token Economy: Onboarded KB vs External Code-Graph Tools](code-retrieval-economy/) | Onboarded subconscious beats codebase-memory-mcp on fair deliver-code (0.583 vs 0.551 recall, 1656 vs 2554 tok); cmm > graphify among AST tools | June 2026 |
 
 ---
 

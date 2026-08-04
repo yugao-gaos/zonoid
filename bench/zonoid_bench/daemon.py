@@ -43,6 +43,7 @@ import json
 import os
 import pathlib
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -290,15 +291,12 @@ def start(
         # Without this, the embedded daemon's drain loop blocks indefinitely
         # when there are no tasks — observed to hang bench runs for hours.
         "ORCH_HEADLESS_DRAINS": "0",
-        # Drop the production cosine floor so the eager-judge sees all top-K reranked candidates
-        # instead of a hard cosine cutoff. Cost is bounded by TASK_CREATE_FANOUT (5 per kind)
-        # and the ORCH_AUTOWIRE_K cap (top-K pre-filter before fan-out). Production daemon stays
-        # at its default (env not set). Bench uses ~0 to maximise recall for the eager-judge to
-        # arbitrate.
-        "ORCH_AUTOWIRE_THRESHOLD": os.environ.get("ORCH_AUTOWIRE_THRESHOLD", "0.0"),
-        # Top-K cosine candidates passed to the fan-out before the per-kind TASK_CREATE_FANOUT cap
-        # applies. Bounds cost: at most K cosine scores + fan-out cap kept edges, not all 114 notes.
-        "ORCH_AUTOWIRE_K":         os.environ.get("ORCH_AUTOWIRE_K", "20"),
+        # NOTE: the bench no longer overrides ORCH_AUTOWIRE_THRESHOLD or ORCH_AUTOWIRE_K. P2 dropped
+        # the production cosine floor to 0 (daemon.js SEMANTIC_AUTOWIRE_THRESHOLD defaults to 0 — top-
+        # per-kind candidates are seeded unconditionally and the eager-judge arbitrates) and leaves K
+        # uncapped (cost bounded by TASK_CREATE_FANOUT=5 per kind). The bench INHERITS these production
+        # defaults so it measures the real production autowire policy, not a bench-special one. Only
+        # ORCH_PORT / CLAUDE_PLUGIN_DATA isolation + the headless-drain off-switch remain bench-set.
     }
 
     # node must be on PATH; this is a hard requirement (see §3 of design doc).
@@ -309,14 +307,22 @@ def start(
             "using the embedded daemon."
         )
 
+    # On Windows, put the daemon in its OWN process group so stop() can deliver a
+    # CTRL_BREAK_EVENT (the only way to trigger the daemon's graceful SIGINT/SIGTERM
+    # handler from a parent). Without CREATE_NEW_PROCESS_GROUP, GenerateConsoleCtrlEvent
+    # cannot target the child and stop() must fall back to TerminateProcess — which exits
+    # the daemon with code 1 (looks like a mid-run crash in logs, though it is just a hard
+    # teardown). The flag is Windows-only; on POSIX, terminate() already sends SIGTERM,
+    # which the daemon handles gracefully (clean exit 0), so no flag is needed there.
+    popen_kwargs = {}
+    if sys.platform == "win32":
+        popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
     proc = subprocess.Popen(
         [node_exe, daemon_js],
         env=env,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
-        # Keep the child alive independently of this Python process on Unix;
-        # on Windows Popen already does not create a new process group by
-        # default, so no extra flag needed.
+        **popen_kwargs,
     )
 
     base_url = f"http://127.0.0.1:{port}"
@@ -389,38 +395,73 @@ def _bind_workspace(base_url: str, workspace: str, timeout: float = 15.0) -> Non
 
 
 def stop(handle: DaemonHandle, timeout: float = TERMINATE_TIMEOUT) -> int:
-    """Terminate the daemon cleanly.
+    """Shut the daemon down GRACEFULLY, falling back to a hard kill only if it hangs.
 
-    Sends SIGTERM (terminate on Windows), waits *timeout* seconds, then
-    sends SIGKILL / TerminateProcess if the process has not exited.
+    The daemon installs a clean SIGINT/SIGTERM handler (daemon.js) that releases its
+    ports and exits 0. We want that path so teardown does NOT look like a mid-run crash:
+
+      - POSIX: proc.terminate() delivers SIGTERM → the daemon's handler runs → exit 0.
+      - Windows: proc.terminate() is TerminateProcess (a HARD kill → exit 1), which the
+        prior implementation used unconditionally. That exit-1 was repeatedly misread as
+        the daemon "crashing mid-drain". Instead we send CTRL_BREAK_EVENT to the daemon's
+        process group (it was started with CREATE_NEW_PROCESS_GROUP), which Node delivers
+        as SIGINT/SIGBREAK → the daemon's graceful handler → exit 0. Only if it does not
+        exit within *timeout* do we fall back to terminate()/kill().
 
     Parameters
     ----------
     handle:
         The DaemonHandle returned by start().
     timeout:
-        Seconds to wait after terminate() before kill().
+        Seconds to wait for graceful exit before the hard-kill fallback.
 
     Returns
     -------
     int
-        The process exit code (may be negative on Unix when killed by signal).
+        The process exit code. 0 on a clean graceful shutdown; non-zero (1 on Windows)
+        only when the daemon had to be force-killed after ignoring the graceful signal.
     """
     proc = handle.proc
     if proc.poll() is not None:
-        # Already exited (e.g. crashed).
+        # Already exited (e.g. it really did crash, or a prior stop()).
         return proc.returncode  # type: ignore[return-value]
 
-    proc.terminate()
-    try:
-        proc.wait(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.wait()
+    graceful = False
+    if sys.platform == "win32":
+        # Deliver CTRL_BREAK to the daemon's own process group → Node SIGINT/SIGBREAK
+        # handler → clean exit 0. Best-effort: if signalling fails, fall through to kill.
+        try:
+            proc.send_signal(signal.CTRL_BREAK_EVENT)
+            proc.wait(timeout=timeout)
+            graceful = True
+        except subprocess.TimeoutExpired:
+            graceful = False
+        except (OSError, ValueError):
+            graceful = False
+    else:
+        # POSIX: terminate() == SIGTERM, which the daemon handles gracefully.
+        try:
+            proc.terminate()
+            proc.wait(timeout=timeout)
+            graceful = True
+        except subprocess.TimeoutExpired:
+            graceful = False
+
+    if proc.poll() is None:
+        # Graceful signal ignored / timed out → hard kill (this is what yields exit 1 on
+        # Windows). terminate() first (TerminateProcess on Windows / SIGTERM on POSIX),
+        # then kill() as a last resort.
+        try:
+            proc.terminate()
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
 
     code = proc.returncode
+    how = "graceful" if graceful and code == 0 else "forced (graceful shutdown timed out/unavailable)"
     print(
-        f"[daemon.py] daemon pid={proc.pid} exited with code={code}",
+        f"[daemon.py] daemon pid={proc.pid} stopped, code={code} [{how}]",
         file=sys.stderr,
     )
     return code

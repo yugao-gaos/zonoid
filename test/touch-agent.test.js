@@ -137,7 +137,7 @@ const ok = (label, cond) => {
   }
 
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '', JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1' },
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '', ZONOID_EMBED_PROVIDER: 'voyage', VOYAGE_API_KEY: '', JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1' },
     stdio: 'ignore',
   });
 
@@ -154,7 +154,7 @@ const ok = (label, cond) => {
     await req('POST', '/sync', { workspace: WS });
 
     // Wire a task so start_task claim succeeds (unwired quarantine would 409 otherwise).
-    await req('POST', '/overlay/edge', { workspace: WS, from: 'local/root', to: 'local/touch-probe', kind: 'blocking' });
+    await req('POST', '/overlay/edge', { workspace: WS, from: 'local/root', to: 'local/touch-probe', kind: 'context' });
     await req('POST', '/overlay/status', { workspace: WS, key: 'local/touch-probe', status: 'ready' });
     await waitForNotJudging('local/touch-probe');
     // Register as a standard subagent (distinct subagent_session) + attempt worktree, so the
@@ -200,7 +200,7 @@ const ok = (label, cond) => {
     // ── Gate: Agent-tool spawn (no distinct subagent_session) CAN claim via arm (b) ──
     // This is the regression target: touchAgent now persists agent_tool_spawn, so the overlay
     // claim gate arm (b) (a.agent_tool_spawn && a.agent_id === b.agent_id) can match.
-    await req('POST', '/overlay/edge', { workspace: WS, from: 'local/root', to: 'local/spawn-probe', kind: 'blocking' });
+    await req('POST', '/overlay/edge', { workspace: WS, from: 'local/root', to: 'local/spawn-probe', kind: 'context' });
     await req('POST', '/overlay/status', { workspace: WS, key: 'local/spawn-probe', status: 'ready' });
     await waitForNotJudging('local/spawn-probe');
     await req('POST', '/git/worktree', { workspace: WS, key: 'local/spawn-probe', repo_path: WS });
@@ -219,7 +219,7 @@ const ok = (label, cond) => {
     // No /git/worktree call here: the worktree is the claim-side security boundary, so a claim with
     // NO registered worktree is refused even when it carries an agent_id + session_id. (Registering
     // a worktree would trip the self-register-on-claim fallback and the claim would be ALLOWED.)
-    await req('POST', '/overlay/edge', { workspace: WS, from: 'local/root', to: 'local/disp-probe', kind: 'blocking' });
+    await req('POST', '/overlay/edge', { workspace: WS, from: 'local/root', to: 'local/disp-probe', kind: 'context' });
     await req('POST', '/overlay/status', { workspace: WS, key: 'local/disp-probe', status: 'ready' });
     await req('POST', '/agent/start', { workspace: WS, agent_id: 'plain-disp', task: 'local/disp-probe', session: 'disp2-sid' });
     const dispClaim = await req('POST', '/overlay/status', {

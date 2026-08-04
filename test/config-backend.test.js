@@ -24,7 +24,13 @@ const path = require('path');
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'cfg-backend-')));
 process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
 const overlayStore = require('../lib/overlay');
+const llmBackend = require('../lib/llm-backend');
 const makeConfigRoute = require('../routes/config');
+
+llmBackend.openRouterProvider.listModels = async () => [
+  { id: 'anthropic/claude-sonnet-4-6', name: 'Claude Sonnet 4.6' },
+  { id: 'openai/gpt-5', name: 'GPT-5' },
+];
 
 // A fresh sandboxed workspace per call so tests don't leak overlay state into each other.
 function freshWorkspace() {
@@ -71,8 +77,8 @@ test('overlay: config.backend persists across save → load (round-trip on disk)
 test('overlay: setEmbeddingConfig writes config.embedding; getEmbeddingConfig reads it back', () => {
   const ov = overlayStore.EMPTY();
   assert.equal(overlayStore.getEmbeddingConfig(ov), null, 'unset ⇒ null (= MiniLM default)');
-  overlayStore.setEmbeddingConfig(ov, { provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024 });
-  assert.deepEqual(overlayStore.getEmbeddingConfig(ov), { provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024 });
+  overlayStore.setEmbeddingConfig(ov, { provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024, tuned_model_id: 'tenant-a' });
+  assert.deepEqual(overlayStore.getEmbeddingConfig(ov), { provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024, tuned_model_id: 'tenant-a' });
   overlayStore.setEmbeddingConfig(ov, {});
   assert.equal(overlayStore.getEmbeddingConfig(ov), null, 'falsy provider clears selection');
 });
@@ -118,7 +124,7 @@ test('config routes require an explicit workspace and do not read/write EMPTY ov
     ['/config/backend', 'GET', {}, U],
     ['/config/backend', 'POST', { __body: { provider: 'openrouter' } }, U],
     ['/config/embedding', 'GET', {}, UE],
-    ['/config/embedding', 'POST', { __body: { provider: 'voyage', model: 'voyage-4-lite' } }, UE],
+    ['/config/embedding', 'POST', { __body: { provider: 'voyage', model: 'voyage-multimodal-3.5' } }, UE],
   ];
   for (const [pathName, method, req, url] of cases) {
     const { route, captured } = makeCtx(null);
@@ -139,25 +145,88 @@ test('config routes require an explicit workspace and do not read/write EMPTY ov
 test('GET /config/backend: defaults to claude when unset, lists providers with readiness flags', async () => {
   const ws = freshWorkspace();
   const { route, captured } = makeCtx(ws);
-  const handled = await route('/config/backend', 'GET', {}, {}, U, null);
-  assert.equal(handled, true, 'route handled the GET');
-  assert.equal(captured.code, 200);
-  assert.equal(captured.body.ok, true);
-  // Unset selection ⇒ active provider defaults to 'claude'.
-  assert.equal(captured.body.active.provider, 'claude', 'active defaults to claude when unset');
-  assert.equal(captured.body.active.model, null, 'no model when unset');
-  // Providers are annotated with readiness.
-  const ids = captured.body.providers.map((p) => p.id);
-  assert.ok(ids.includes('claude'), 'claude provider listed');
-  assert.ok(ids.includes('openrouter'), 'openrouter provider listed');
-  const claude = captured.body.providers.find((p) => p.id === 'claude');
-  assert.equal(claude.kind, 'agentic-cli');
-  assert.equal(typeof claude.isAvailable, 'boolean', 'agentic-cli provider reports isAvailable boolean');
-  assert.equal(typeof claude.isAuthed, 'boolean', 'provider reports isAuthed boolean');
-  const openrouter = captured.body.providers.find((p) => p.id === 'openrouter');
-  assert.equal(openrouter.kind, 'api');
-  assert.equal(openrouter.isAvailable, null, 'api providers report isAvailable=null (no local binary)');
-  assert.equal(typeof openrouter.isAuthed, 'boolean', 'api provider still reports isAuthed');
+  const savedListModels = llmBackend.ollamaProvider.listModels;
+  llmBackend.ollamaProvider.listModels = async () => [{ id: 'qwen3.6:35b' }, { id: 'qwen-coding:latest' }];
+  try {
+    const handled = await route('/config/backend', 'GET', {}, {}, U, null);
+    assert.equal(handled, true, 'route handled the GET');
+    assert.equal(captured.code, 200);
+    assert.equal(captured.body.ok, true);
+    // Unset selection ⇒ active provider defaults to 'claude'.
+    assert.equal(captured.body.active.provider, 'claude', 'active defaults to claude when unset');
+    assert.equal(captured.body.active.model, null, 'no model when unset');
+    // Providers are annotated with readiness.
+    const ids = captured.body.providers.map((p) => p.id);
+    assert.ok(ids.includes('claude'), 'claude provider listed');
+    assert.ok(ids.includes('openrouter'), 'openrouter provider listed');
+    assert.ok(ids.includes('zai'), 'standalone Z.AI GLM provider listed');
+    assert.ok(ids.includes('ollama'), 'local Ollama provider listed');
+    const claude = captured.body.providers.find((p) => p.id === 'claude');
+    assert.equal(claude.kind, 'agentic-cli');
+    assert.equal(typeof claude.isAvailable, 'boolean', 'agentic-cli provider reports isAvailable boolean');
+    assert.equal(typeof claude.isAuthed, 'boolean', 'provider reports isAuthed boolean');
+    const openrouter = captured.body.providers.find((p) => p.id === 'openrouter');
+    assert.equal(openrouter.kind, 'api');
+    assert.equal(typeof openrouter.defaultModel, 'string', 'providers may expose a default model');
+    assert.equal(openrouter.isAvailable, null, 'api providers report isAvailable=null (no local binary)');
+    assert.equal(typeof openrouter.isAuthed, 'boolean', 'api provider still reports isAuthed');
+    assert.deepEqual(openrouter.supportedModels.map((m) => m.id), ['anthropic/claude-sonnet-4-6', 'openai/gpt-5']);
+    const zai = captured.body.providers.find((p) => p.id === 'zai');
+    assert.equal(zai.kind, 'api');
+    assert.equal(zai.defaultModel, 'glm-5.2', 'Z.AI provider advertises the GLM 5.2 default model');
+    assert.equal(zai.isAvailable, null, 'api providers report isAvailable=null (no local binary)');
+    assert.equal(typeof zai.isAuthed, 'boolean', 'api provider still reports isAuthed');
+    const ollama = captured.body.providers.find((p) => p.id === 'ollama');
+    assert.equal(ollama.kind, 'api');
+    assert.equal(ollama.defaultModel, llmBackend.OLLAMA_DEFAULT_MODEL, 'Ollama provider advertises its local default model');
+    assert.equal(ollama.isAvailable, null, 'api providers report isAvailable=null (no local binary)');
+    assert.equal(ollama.isAuthed, true, 'Ollama requires no API key');
+    assert.equal(ollama.apiKeyEnv, null, 'Ollama exposes no API key env');
+    assert.deepEqual(ollama.supportedModels.map((m) => m.id), ['qwen3.6:35b', 'qwen-coding:latest']);
+    assert.equal(ollama.modelListError, null);
+  } finally {
+    llmBackend.ollamaProvider.listModels = savedListModels;
+  }
+});
+
+test('GET /config/backend: Ollama model listing degrades to an empty list when unavailable', async () => {
+  const ws = freshWorkspace();
+  const { route, captured } = makeCtx(ws);
+  const savedListModels = llmBackend.ollamaProvider.listModels;
+  llmBackend.ollamaProvider.listModels = async () => { throw new Error('Ollama is not running'); };
+  try {
+    await route('/config/backend', 'GET', {}, {}, U, null);
+    const ollama = captured.body.providers.find((p) => p.id === 'ollama');
+    assert.deepEqual(ollama.supportedModels, []);
+    assert.match(ollama.modelListError, /not running/);
+  } finally {
+    llmBackend.ollamaProvider.listModels = savedListModels;
+  }
+});
+
+test('GET /config/backend: API readiness can read daemon-global backend.env', async () => {
+  const saved = {
+    ZAI_API_KEY: process.env.ZAI_API_KEY,
+    GLM_API_KEY: process.env.GLM_API_KEY,
+    ZHIPUAI_API_KEY: process.env.ZHIPUAI_API_KEY,
+    BIGMODEL_API_KEY: process.env.BIGMODEL_API_KEY,
+  };
+  const backendEnv = path.join(SANDBOX, 'backend.env');
+  for (const k of Object.keys(saved)) delete process.env[k];
+  fs.writeFileSync(backendEnv, 'ZAI_API_KEY=global-zai-for-config\n');
+  try {
+    const ws = freshWorkspace();
+    const { route, captured } = makeCtx(ws);
+    await route('/config/backend', 'GET', {}, {}, U, null);
+    const zai = captured.body.providers.find((p) => p.id === 'zai');
+    assert.equal(zai.isAuthed, true, 'Z.AI provider is authed from daemon-global backend.env');
+  } finally {
+    try { fs.unlinkSync(backendEnv); } catch { /* ignore */ }
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
 });
 
 test('GET /config/backend: reflects a previously-set selection', async () => {
@@ -180,17 +249,31 @@ test('GET /config/backend: reflects a previously-set selection', async () => {
 test('POST /config/backend: sets a known provider and persists it', async () => {
   const ws = freshWorkspace();
   const { route, captured } = makeCtx(ws);
-  const req = { __body: { provider: 'openrouter', model: 'anthropic/claude-3.5' } };
+  const req = { __body: { provider: 'zai', model: 'glm-5.2' } };
   const handled = await route('/config/backend', 'POST', req, {}, U, null);
   assert.equal(handled, true, 'route handled the POST');
   assert.equal(captured.code, 200);
   assert.equal(captured.body.ok, true);
-  assert.equal(captured.body.active.provider, 'openrouter');
-  assert.equal(captured.body.active.model, 'anthropic/claude-3.5');
+  assert.equal(captured.body.active.provider, 'zai');
+  assert.equal(captured.body.active.model, 'glm-5.2');
   assert.ok(captured.notified >= 1, 'notifyChange called on a successful write');
   // Persisted to the overlay on disk.
   const reloaded = overlayStore.load(ws);
-  assert.deepEqual(overlayStore.getBackendConfig(reloaded), { provider: 'openrouter', model: 'anthropic/claude-3.5' });
+  assert.deepEqual(overlayStore.getBackendConfig(reloaded), { provider: 'zai', model: 'glm-5.2' });
+});
+
+test('POST /config/backend: sets Ollama without requiring an API key', async () => {
+  const ws = freshWorkspace();
+  const { route, captured } = makeCtx(ws);
+  const req = { __body: { provider: 'ollama', model: 'llama3.1:8b' } };
+  const handled = await route('/config/backend', 'POST', req, {}, U, null);
+  assert.equal(handled, true, 'route handled the POST');
+  assert.equal(captured.code, 200);
+  assert.equal(captured.body.ok, true);
+  assert.equal(captured.body.active.provider, 'ollama');
+  assert.equal(captured.body.active.model, 'llama3.1:8b');
+  const reloaded = overlayStore.load(ws);
+  assert.deepEqual(overlayStore.getBackendConfig(reloaded), { provider: 'ollama', model: 'llama3.1:8b' });
 });
 
 test('POST /config/backend: REJECTS an unknown provider id with 400 (no write)', async () => {
@@ -222,6 +305,133 @@ test('POST /config/backend: a falsy provider clears the selection (back to claud
   assert.equal(overlayStore.getBackendConfig(reloaded), null, 'selection cleared on disk');
 });
 
+// ---------------------------------------------------------------------------
+// (b2) POST /config/backend/key → WRITE-ONLY API-key management + lib round-trip
+// ---------------------------------------------------------------------------
+
+const ZAI_ENV_NAMES = ['ZAI_API_KEY', 'GLM_API_KEY', 'ZHIPUAI_API_KEY', 'BIGMODEL_API_KEY'];
+
+test('lib/llm-backend: writeBackendCredentialKey writes backend.env (0o600) and round-trips', () => {
+  const saved = {};
+  for (const k of ZAI_ENV_NAMES) { saved[k] = process.env[k]; delete process.env[k]; }
+  const backendEnv = llmBackend.backendCredentialEnvPath();
+  try { fs.unlinkSync(backendEnv); } catch { /* ensure clean */ }
+  try {
+    const r = llmBackend.writeBackendCredentialKey('ZAI_API_KEY', 'sk-xyz');
+    assert.equal(r.ok, true);
+    assert.equal(r.set, true);
+    assert.equal(r.env, 'ZAI_API_KEY');
+    assert.equal(llmBackend.readBackendCredentialEnv()['ZAI_API_KEY'], 'sk-xyz', 'key round-trips through backend.env');
+    const mode = fs.statSync(backendEnv).mode & 0o777;
+    assert.equal(mode, 0o600, 'backend.env is written with restrictive 0o600 perms');
+  } finally {
+    try { fs.unlinkSync(backendEnv); } catch { /* ignore */ }
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
+
+test('POST /config/backend/key {zai, sk-test} => 200 apiKeySet; GET => zai.isAuthed===true', async () => {
+  const saved = {};
+  for (const k of ZAI_ENV_NAMES) { saved[k] = process.env[k]; delete process.env[k]; }
+  const backendEnv = path.join(SANDBOX, 'backend.env');
+  try { fs.unlinkSync(backendEnv); } catch { /* ensure clean */ }
+  try {
+    const ws = freshWorkspace();
+    const { route, captured } = makeCtx(ws);
+    const handled = await route('/config/backend/key', 'POST', { __body: { provider: 'zai', key: 'sk-test' } }, {}, U, null);
+    assert.equal(handled, true, 'route handled the key POST');
+    assert.equal(captured.code, 200);
+    assert.equal(captured.body.ok, true);
+    assert.equal(captured.body.apiKeySet, true, 'response confirms the key was set');
+    assert.equal(captured.body.env, 'ZAI_API_KEY', 'canonical env name returned');
+    assert.equal(captured.body.key, undefined, 'key value is NEVER echoed back');
+    // Re-GET: the zai provider now reads authed from the daemon-global backend.env.
+    const ctx2 = makeCtx(ws);
+    await ctx2.route('/config/backend', 'GET', {}, {}, U, null);
+    const zai = ctx2.captured.body.providers.find((p) => p.id === 'zai');
+    assert.equal(zai.isAuthed, true, 'zai.isAuthed flips to true after the key is set');
+  } finally {
+    try { fs.unlinkSync(backendEnv); } catch { /* ignore */ }
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
+
+test('DELETE /config/backend/key {zai} => 200 apiKeyDeleted; GET => zai.isAuthed===false', async () => {
+  const saved = {};
+  for (const k of ZAI_ENV_NAMES) { saved[k] = process.env[k]; delete process.env[k]; }
+  const backendEnv = path.join(SANDBOX, 'backend.env');
+  try { fs.unlinkSync(backendEnv); } catch { /* ensure clean */ }
+  try {
+    const ws = freshWorkspace();
+    const { route, captured } = makeCtx(ws);
+    llmBackend.writeBackendCredentialKey('ZAI_API_KEY', 'sk-test');
+    await route('/config/backend/key', 'DELETE', { __body: { provider: 'zai' } }, {}, U, null);
+    assert.equal(captured.code, 200);
+    assert.equal(captured.body.ok, true);
+    assert.equal(captured.body.apiKeyDeleted, true, 'response confirms the key was deleted');
+    assert.equal(captured.body.env, 'ZAI_API_KEY', 'canonical env name returned');
+    const ctx2 = makeCtx(ws);
+    await ctx2.route('/config/backend', 'GET', {}, {}, U, null);
+    const zai = ctx2.captured.body.providers.find((p) => p.id === 'zai');
+    assert.equal(zai.isAuthed, false, 'zai.isAuthed flips to false after the key is deleted');
+  } finally {
+    try { fs.unlinkSync(backendEnv); } catch { /* ignore */ }
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
+
+test('POST /config/backend/key {claude, x} => 400 (CLI-authed, no apiKeyEnv)', async () => {
+  const ws = freshWorkspace();
+  const { route, captured } = makeCtx(ws);
+  await route('/config/backend/key', 'POST', { __body: { provider: 'claude', key: 'x' } }, {}, U, null);
+  assert.equal(captured.code, 400, 'agentic-cli provider rejects the key write');
+  assert.equal(captured.body.ok, false);
+  assert.match(captured.body.error, /does not use an API key/i);
+});
+
+test('POST /config/backend/key {zai, ""} => 400 (empty key rejected)', async () => {
+  const ws = freshWorkspace();
+  const { route, captured } = makeCtx(ws);
+  await route('/config/backend/key', 'POST', { __body: { provider: 'zai', key: '' } }, {}, U, null);
+  assert.equal(captured.code, 400, 'empty key is rejected');
+  assert.equal(captured.body.ok, false);
+  assert.match(captured.body.error, /key is required/i);
+});
+
+test('POST /config/backend/key {nope} => 400 (unknown provider)', async () => {
+  const ws = freshWorkspace();
+  const { route, captured } = makeCtx(ws);
+  await route('/config/backend/key', 'POST', { __body: { provider: 'nope', key: 'x' } }, {}, U, null);
+  assert.equal(captured.code, 400, 'unknown provider is rejected');
+  assert.equal(captured.body.ok, false);
+  assert.match(captured.body.error, /unknown backend provider/i);
+});
+
+test('GET /config/backend: annotates apiKeyEnv per provider (api=array, cli=null)', async () => {
+  const ws = freshWorkspace();
+  const { route, captured } = makeCtx(ws);
+  await route('/config/backend', 'GET', {}, {}, U, null);
+  const openrouter = captured.body.providers.find((p) => p.id === 'openrouter');
+  assert.ok(Array.isArray(openrouter.apiKeyEnv), 'openrouter apiKeyEnv is an array');
+  assert.ok(openrouter.apiKeyEnv.includes('OPENROUTER_API_KEY'), 'openrouter apiKeyEnv includes the canonical name');
+  const claude = captured.body.providers.find((p) => p.id === 'claude');
+  assert.equal(claude.apiKeyEnv, null, 'agentic-cli provider has no apiKeyEnv (null)');
+  const zai = captured.body.providers.find((p) => p.id === 'zai');
+  assert.ok(Array.isArray(zai.apiKeyEnv), 'zai apiKeyEnv is an array');
+  assert.ok(zai.apiKeyEnv.includes('ZAI_API_KEY'), 'zai apiKeyEnv includes the canonical name');
+  const ollama = captured.body.providers.find((p) => p.id === 'ollama');
+  assert.equal(ollama.apiKeyEnv, null, 'ollama provider has no apiKeyEnv (null)');
+});
+
 test('GET /config/embedding: defaults to MiniLM and lists narrowed providers', async () => {
   const ws = freshWorkspace();
   const { route, captured } = makeCtx(ws);
@@ -243,17 +453,17 @@ test('GET /config/embedding: defaults to MiniLM and lists narrowed providers', a
 test('POST /config/embedding: sets a known narrowed provider and persists it', async () => {
   const ws = freshWorkspace();
   const { route, captured } = makeCtx(ws);
-  const req = { __body: { provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024 } };
+  const req = { __body: { provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024 } };
   const handled = await route('/config/embedding', 'POST', req, {}, UE, null);
   assert.equal(handled, true, 'route handled the POST');
   assert.equal(captured.code, 200);
   assert.equal(captured.body.ok, true);
   assert.equal(captured.body.active.provider, 'voyage');
-  assert.equal(captured.body.active.model, 'voyage-4-lite');
+  assert.equal(captured.body.active.model, 'voyage-multimodal-3.5');
   assert.equal(captured.body.active.dimensions, 1024);
   assert.ok(captured.notified >= 1, 'notifyChange called on a successful write');
   const reloaded = overlayStore.load(ws);
-  assert.deepEqual(overlayStore.getEmbeddingConfig(reloaded), { provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024 });
+  assert.deepEqual(overlayStore.getEmbeddingConfig(reloaded), { provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024 });
 });
 
 test('POST /config/embedding: rejects generic OpenAI embeddings and unknown models', async () => {

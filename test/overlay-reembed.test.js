@@ -8,6 +8,7 @@ const os = require('os');
 const path = require('path');
 const ov = require('../lib/overlay');
 const graphStore = require('../lib/graph-store');
+const { embeddingMeta, vectorMatchesMeta } = require('../lib/embed');
 const { noteEmbedText, noteFieldTexts } = require('../lib/node-tags');
 
 const TMP_WS = fs.mkdtempSync(path.join(os.tmpdir(), 'overlay-reembed-'));
@@ -20,7 +21,8 @@ const ok = (label, cond) => {
 };
 
 const DIMS = 384;
-const FAKE_VEC = Array.from({ length: DIMS }, (_, i) => i / DIMS);
+const fakeVec = (dims = DIMS) => Array.from({ length: dims }, (_, i) => i / dims);
+const FAKE_VEC = fakeVec(DIMS);
 
 const NOTE = {
   id: 'abc123',
@@ -50,7 +52,7 @@ const EXPECTED_FIELD_TEXTS = noteFieldTexts({
 // title + summary + 2 knowledge entries = 4 field texts.
 const EXPECTED_FIELD_COUNT = EXPECTED_FIELD_TEXTS.length;
 
-function makeCtx(overlay, embedFn) {
+function makeCtx(overlay, embedFn, graphTasks = []) {
   let lastSent = null;
   const embedCalls = [];
   const gs = graphStore.open(path.join(TMP_WS, '.graph'));
@@ -66,7 +68,7 @@ function makeCtx(overlay, embedFn) {
     sendOp(res, b, status, body) { lastSent = { status, body }; },
     readBody: async () => ({}),
     notifyChange: () => {},
-    buildGraph: () => ({ tasks: [] }),
+    buildGraph: () => ({ tasks: graphTasks }),
     targetOverlay: () => ({ ov: overlay, ws: TMP_WS, save: () => {} }),
     opReplay: () => false,
     cosine: () => 0,
@@ -74,6 +76,14 @@ function makeCtx(overlay, embedFn) {
       embedCalls.push(text);
       return embedFn ? embedFn(text) : FAKE_VEC;
     },
+    embedWithMeta: async (request) => {
+      embedCalls.push(request && typeof request === 'object' ? request.input : request);
+      const meta = embeddingMeta(overlay, { mode: request && request.mode });
+      const vec = embedFn ? embedFn(request) : fakeVec(meta.dimensions || DIMS);
+      return { vec, meta };
+    },
+    embeddingMeta,
+    vectorMatchesMeta,
     knowledgeText: () => '',
     snapshotNative: () => {},
     now: () => new Date().toISOString(),
@@ -171,6 +181,44 @@ function makeCtx(overlay, embedFn) {
     const result = getLastSent();
     ok('reembed(no force) skips a fully-embedded note', result && result.body && result.body.skipped === 1 && result.body.embedded === 0);
     ok('reembed(no force) does not call embed for a skipped note', embedCalls.length === 0);
+  }
+
+  // provider swap validates/stores the target identity and force-overwrites stale note/task vectors
+  {
+    const o = ov.EMPTY();
+    const staleMeta = embeddingMeta(o);
+    o.note_nodes = { [NOTE.id]: { ...NOTE, vec: FAKE_VEC, vecMeta: staleMeta, vecs: EXPECTED_FIELD_TEXTS.map(() => FAKE_VEC), vecsMeta: EXPECTED_FIELD_TEXTS.map(() => staleMeta) } };
+    ov.setTaskVec(o, 'sess/1', FAKE_VEC, staleMeta);
+    const task = { id: 'sess/1', label: 'Embedding migration task', summary: 'Rebuild task vector after provider swap.', kind: 'task' };
+    const { ctx, getLastSent } = makeCtx(o, null, [task]);
+    ctx.readBody = async () => ({ provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024, reembed: true });
+    const route = overlayRoute(ctx);
+    await route('/overlay/embedding-provider/swap', 'POST', { method: 'POST', headers: {} }, {}, { searchParams: { get: () => null } }, null);
+    const result = getLastSent();
+    const active = embeddingMeta(o);
+    const n = o.note_nodes[NOTE.id];
+    ok('provider swap returns 200', result && result.status === 200);
+    ok('provider swap reports identity change', result && result.body && result.body.previousIdentity.provider === 'minilm' && result.body.activeIdentity.provider === 'voyage');
+    ok('provider swap stores active embedding config', o.config && o.config.embedding && o.config.embedding.provider === 'voyage' && o.config.embedding.dimensions === 1024);
+    ok('provider swap overwrites stale pooled note vector metadata', vectorMatchesMeta(n.vec, n.vecMeta, active));
+    ok('provider swap overwrites stale note field vector metadata', Array.isArray(n.vecsMeta) && n.vecsMeta.every((m) => m && m.identity === active.identity));
+    ok('provider swap overwrites stale task vector metadata', vectorMatchesMeta(o.taskVecs['sess/1'][0], o.taskVecMeta['sess/1'][0], active));
+    ok('provider swap reports forced migration counts', result.body.reembedded === true && result.body.migration.embedded === 1 && result.body.migration.tasks.embedded === 1);
+  }
+
+  // provider swap dry-run previews identity/plan without mutating config or vectors
+  {
+    const o = ov.EMPTY();
+    o.note_nodes = { [NOTE.id]: { ...NOTE, vec: FAKE_VEC } };
+    const { ctx, getLastSent } = makeCtx(o);
+    ctx.readBody = async () => ({ provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024, dry_run: true });
+    const route = overlayRoute(ctx);
+    await route('/overlay/embedding-provider/swap', 'POST', { method: 'POST', headers: {} }, {}, { searchParams: { get: () => null } }, null);
+    const result = getLastSent();
+    ok('provider swap dry-run returns 200', result && result.status === 200);
+    ok('provider swap dry-run previews active identity', result.body.activeIdentity.provider === 'voyage' && result.body.reembedded === false);
+    ok('provider swap dry-run does not persist embedding config', !o.config || !o.config.embedding);
+    ok('provider swap dry-run does not overwrite note vector', o.note_nodes[NOTE.id].vecMeta === undefined && o.note_nodes[NOTE.id].vec === FAKE_VEC);
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

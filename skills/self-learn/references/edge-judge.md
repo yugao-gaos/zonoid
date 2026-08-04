@@ -29,6 +29,21 @@ Respect the budget — at most N items per tick, no fan-out. The cursor + epoch 
 restart, so a long backlog (e.g. the ~273 blind note edges from the old autowire pass) is chewed
 through incrementally, a handful per tick, across many ticks.
 
+## Mechanics — never litter the repo root
+
+You run as an agent whose cwd is the repo root, driving `/judge/next` + `/judge/verdict` over HTTP.
+Keeping the working tree clean is a **hard rule**, not a nicety (prior runs dumped 100+ stray
+`edge_*` / `judge_*` / `jnext_*` files into the repo root and never cleaned up):
+
+- **Prefer no files at all.** Read `/judge/next` straight into your reasoning, and POST the verdict
+  with the JSON piped via a stdin heredoc rather than a saved payload file:
+  `curl -s -X POST "$DAEMON/judge/verdict" -H 'content-type: application/json' --data @- <<'JSON' … JSON`
+- **If you must stage a payload or capture a response to a file, use the git-ignored sandbox
+  `scratch/edge-judge/`** (create it if needed) — NEVER the repo root. `scratch/` is already
+  gate-exempt and ignored by git, so it is the correct home for any intermediate.
+- **Delete your scratch before the tick ends.** Leave behind no `edge_*`, `judge_*`, `jnext_*`,
+  `jq_*`, `verdict_*`, or `orphan*` files anywhere in the working tree.
+
 ## Item kinds
 
 `/judge/next` returns these kinds:
@@ -104,6 +119,26 @@ When both endpoints are tasks, a `keep` is not the whole verdict — also decide
   retired (canceled + supersede edge) and a replan reconciles cleanly instead of leaving an orphan
   duplicate. Use the `neighborhood`/`supersedeChain` to confirm they're the SAME work, not two real
   steps. Conservative: when unsure it's a dup, keep the edge as `context` and do NOT supersede.
+
+### Contradiction-candidate edges (`origin: contradiction-seed`, `relation: contradicts`)
+
+These are note→note `context` edges seeded automatically when a new note lands in the high-cosine
+band *just below* subsumption versus an older CURRENT note (same subject, not a near-duplicate). The
+edge points **`from` = the NEWER note → `to` = the OLDER note**. Cosine flagged them as *related*; YOU
+decide whether they actually **conflict**:
+
+- **True update/contradiction — the newer REPLACES the older.** The two notes make CONFLICTING claims
+  about the SAME subject and the newer one makes the older's claim FALSE/STALE (e.g. "marker at
+  cols19-23" → "marker at cols50-52"; "ACTION1 = DOWN" → corrected "ACTION1 = UP"). Emit
+  **`consolidate` `{ keep: <newer note>, supersede: [<older note>] }`** — this retires the older note
+  via `supersedeNote` (stamps `validTo`; as-of reversible; history kept). The NEWER note is the keeper.
+- **Complementary — NOT a conflict.** The notes describe DIFFERENT facets of a shared subject that are
+  both still true (e.g. "ACTION1 = UP" + "ACTION3 = LEFT"; a rule + a separate special case). **`pruneEdge`**
+  the contradiction candidate and KEEP BOTH notes. The seed was a cosine false-positive.
+- **Conservative default.** When unsure whether the newer truly *replaces* the older vs merely relates
+  to it, **prune and keep both**. Only supersede when the older claim is clearly made wrong/stale by
+  the newer — never on topic-similarity alone. (Determine newer/older from `created_at`/`validFrom`;
+  the edge already orients newer→older.)
 
 ### Dedup criteria (dup-cluster items)
 

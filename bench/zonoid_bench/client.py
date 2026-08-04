@@ -12,11 +12,14 @@ POST /overlay/note      — write a note (no ``force``; lets autowire + dup-guar
 GET  /search            — semantic/lexical search, workspace-scoped, tiered results
 GET  /judge/next        — eager-judge: pull a node's unjudged autowire candidate edge-set
 POST /judge/verdict     — post edge/dup verdicts; body MUST be wrapped {workspace, verdicts:[...]}
+POST /judge/drain       — drive the PRODUCTION sync judge to drain a node to idle (the de-ported
+                          judge path: NO bench LLM; reuses lib/headless-drain.runJudgeDrainSync)
 GET  /task/context      — read frozen DAG context for a node
 POST /overlay/status    — update a node's status
 POST /workspace         — bind the daemon's LIVE state.workspace (eager-judge prerequisite)
 GET  /task/suggest      — suggest_links (cross-encoder ceScore ranked candidates)
 POST /overlay/edge      — create/upsert a DAG edge (createEdge workaround; see §6 note)
+POST /sync              — adopt file-drop task stubs into the daemon graph
 warm_up                 — pre-pay embedding-model cold start
 
 Load-bearing daemon findings (verified; encoded as code + asserts)
@@ -269,6 +272,15 @@ def post_status(
     return _http_post(f"{_base(base_url)}/overlay/status", body, timeout)
 
 
+def sync(
+    base_url: str,
+    workspace: str,
+    timeout: int = 120,
+) -> dict[str, Any]:
+    """POST /sync — force adoption of file-drop task stubs for *workspace*."""
+    return _http_post(f"{_base(base_url)}/sync", {"workspace": workspace}, timeout)
+
+
 def task_suggest(
     base_url: str,
     task_key: str,
@@ -338,6 +350,47 @@ def judge_next(
         return {"items": [], "idle": True, "total": 0, "error": str(exc)}
 
 
+def judge_drain(
+    base_url: str,
+    node: str,
+    workspace: str,
+    budget: int = 20,
+    timeout: int = 120,
+) -> dict[str, Any]:
+    """POST /judge/drain?node=&budget=&workspace= — drive the PRODUCTION sync judge for *node*.
+
+    This is the de-ported judge path: instead of the bench pulling /judge/next, running its own LLM
+    edge-judge, and posting /judge/verdict, it makes ONE call to the production endpoint that drains
+    the node's whole unjudged autowire candidate edge-set to idle (or the budget/round ceiling) by
+    REUSING the in-process production judge (lib/headless-drain.runJudgeDrainSync →
+    resolveJudgeBackend → provider.runJudgeLoop). There is NO judge LLM in the bench: the prompt,
+    keep/prune rubric, /judge/next pull, and /judge/verdict write all live in production.
+
+    node       — the probe key whose candidate edges to drain (the /judge/next?node= target).
+    workspace  — the (absolute) bench workspace; the daemon must be LIVE-bound to it for the eager
+                 read to resolve (note-mqgwrh5a63x). Passed in the body; node/budget ride the query.
+    budget     — per-round adjudication budget (the daemon clamps to 1..50).
+
+    Returns the raw daemon response dict:
+      {"ok": True, "workspace", "node", "judged", "kept", "pruned", "idle", "rounds", ...}
+    On error returns {"ok": False, "idle": True, "error": "..."} so callers never crash.
+    """
+    # Finding #1: workspace must be absolute (the body carries it for targetOverlay resolution).
+    if not (workspace.startswith("/") or (len(workspace) >= 2 and workspace[1] == ":")):
+        raise ValueError(
+            f"workspace must be an absolute filesystem path (finding #1), got: {workspace!r}"
+        )
+    # node + budget ride the query-string (the route reads u.searchParams first, then body); the
+    # workspace rides the body so targetOverlay(b, u) resolves the right overlay.
+    qs = urllib.parse.urlencode({"node": node, "budget": budget})
+    url = f"{_base(base_url)}/judge/drain?{qs}"
+    body: dict[str, Any] = {"workspace": workspace}
+    try:
+        return _http_post(url, body, timeout)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "idle": True, "judged": 0, "kept": 0, "pruned": 0, "error": str(exc)}
+
+
 def set_workspace(
     base_url: str,
     path: str,
@@ -405,6 +458,86 @@ def overlay_edge(
     if from_workspace is not None:
         body["fromWorkspace"] = from_workspace
     return _http_post(f"{_base(base_url)}/overlay/edge", body, timeout)
+
+
+def search_context(
+    base_url: str,
+    workspace: str,
+    task_key: str,
+    query: str | None = None,
+    k: int | None = None,
+    max_rounds: int | None = None,
+    agent_id: str = "zonoid_bench_arms",
+    use_grader: bool | None = True,
+    timeout: int = 120,
+) -> dict[str, Any]:
+    """POST /subconscious/search-context — the PRODUCTION agentic+grader retrieval path.
+
+    This is the byte-identical production retrieval surface: the route calls
+    ``store.searchContext`` on ``defaultSubconsciousStore`` (graderEnabled:true), which runs the
+    adaptive multi-round agentic search loop and invokes the LLM grader per round
+    (lib/subconscious/index.js ``searchContext`` → ``runAgenticContextSearches`` → ``gradeSearchRound``).
+    The ONE-SHOT ``GET /search`` path (client.search) does NOT exercise the grader — this does.
+
+    Request body (only the fields ``searchContext`` actually reads — see lib/subconscious/index.js):
+      - workspace   : absolute workspace path (finding #1).
+      - agent_id    : the searcher identity (required by searchContext).
+      - task_key    : the probe whose task-scoped agentic context to retrieve.
+      - query       : the search query (the question); also fed as ``situation``. searchContext
+                      derives the planner query from intent/situation/query.
+      - k           : max selected context items (clamped 1..20 server-side).
+      - max_rounds  : max adaptive search rounds.
+      - agentic_context / search_context : set true for parity with the assignment route's gate
+                      (harmless here — the POST /subconscious/search-context route always calls
+                      searchContext directly — but kept so the intent is explicit on the wire).
+      - use_grader  : force the grader ON (default True) so the grader path runs regardless of how
+                      the daemon wired its store default; pass False to opt a single call out.
+
+    Returns the parsed ``subconscious_context`` envelope (a dict) on success, which carries:
+      - ``context_deps`` : the selected context items [{key, title, summary, relevance_score, ...}].
+      - ``context``      : the raw selected results (each has key/title/summary/score/tier).
+      - ``context_task_keys`` : the selected keys.
+      - ``grader``       : {enabled, rounds, aggregate, kept_keys, last_verdict, ...} when the grader
+                           ran (the ACCEPTANCE evidence that the agentic+grader loop fired).
+      - ``verdict``      : "relevant_context" | "abstain_no_context".
+    On error / non-200 returns {} so callers degrade to an empty context rather than crashing.
+    """
+    # Finding #1: workspace must be absolute (the body carries it for targetOverlay resolution).
+    if not (workspace.startswith("/") or (len(workspace) >= 2 and workspace[1] == ":")):
+        raise ValueError(
+            f"workspace must be an absolute filesystem path (finding #1), got: {workspace!r}"
+        )
+    body: dict[str, Any] = {
+        "workspace": workspace,
+        "agent_id": agent_id,
+        "task_key": task_key,
+        # Make the agentic intent explicit on the wire (parity with the assignment-route gate).
+        "agentic_context": True,
+        "search_context": True,
+    }
+    if query is not None:
+        body["query"] = query
+        body["situation"] = query
+        body["intent"] = query
+    if k is not None:
+        body["k"] = k
+    if max_rounds is not None:
+        body["max_rounds"] = max_rounds
+    if use_grader is not None:
+        body["use_grader"] = bool(use_grader)
+    try:
+        resp = _http_post(f"{_base(base_url)}/subconscious/search-context", body, timeout)
+    except Exception as exc:  # noqa: BLE001 — best-effort; caller degrades to empty context.
+        print(f"[client] search_context failed (non-fatal): {exc}", file=__import__("sys").stderr)
+        return {}
+    if not isinstance(resp, dict) or resp.get("ok") is False:
+        return {}
+    # The route sends the whole searchContext result; the envelope is under subconscious_context,
+    # but the top level also carries context_deps/context_task_keys/grader for convenience.
+    envelope = resp.get("subconscious_context")
+    if isinstance(envelope, dict):
+        return envelope
+    return resp
 
 
 # ---------------------------------------------------------------------------
@@ -548,6 +681,18 @@ class ZonoidClient:
             timeout=timeout or self.timeout,
         )
 
+    def sync(
+        self,
+        workspace: str | None = None,
+        timeout: int | None = None,
+    ) -> dict[str, Any]:
+        """POST /sync — force adoption of file-drop task stubs."""
+        return sync(
+            self.base_url,
+            self._ws(workspace),
+            timeout=timeout or self.timeout,
+        )
+
     def task_suggest(
         self,
         task_key: str,
@@ -575,6 +720,27 @@ class ZonoidClient:
             node,
             budget=budget,
             workspace=workspace or self.workspace,
+            timeout=timeout or self.timeout,
+        )
+
+    def judge_drain(
+        self,
+        node: str,
+        budget: int = 20,
+        workspace: str | None = None,
+        timeout: int | None = None,
+    ) -> dict[str, Any]:
+        """POST /judge/drain — drive the PRODUCTION sync judge to drain *node* to idle.
+
+        Single call replacing the old pull(/judge/next)→EdgeJudge→post(/judge/verdict) loop: the
+        bench runs NO judge LLM; production's runJudgeDrainSync does the keep/prune adjudication.
+        Returns {ok, judged, kept, pruned, idle, rounds, ...}.
+        """
+        return judge_drain(
+            self.base_url,
+            node,
+            self._ws(workspace),
+            budget=budget,
             timeout=timeout or self.timeout,
         )
 
@@ -611,6 +777,34 @@ class ZonoidClient:
             kind=kind,
             weight=weight,
             from_workspace=from_workspace,
+            timeout=timeout or self.timeout,
+        )
+
+    def search_context(
+        self,
+        task_key: str,
+        query: str | None = None,
+        k: int | None = None,
+        max_rounds: int | None = None,
+        agent_id: str = "zonoid_bench_arms",
+        use_grader: bool | None = True,
+        workspace: str | None = None,
+        timeout: int | None = None,
+    ) -> dict[str, Any]:
+        """POST /subconscious/search-context — production agentic+grader retrieval envelope.
+
+        The grader-exercising retrieval surface (vs. the one-shot GET /search of self.search).
+        Returns the ``subconscious_context`` envelope dict (context_deps / context / grader / ...).
+        """
+        return search_context(
+            self.base_url,
+            self._ws(workspace),
+            task_key,
+            query=query,
+            k=k,
+            max_rounds=max_rounds,
+            agent_id=agent_id,
+            use_grader=use_grader,
             timeout=timeout or self.timeout,
         )
 

@@ -10,7 +10,8 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 
 const {
-  isAutoMode, hasActiveSessionLoop, maybeAutostartLoop, AUTOSTART_CONFIG,
+  resolveAutoLoopMode, isAutoMode, hasActiveSessionLoop, maybeAutostartLoop, AUTOSTART_CONFIG,
+  ensureManagedGraphLoop,
 } = require('../lib/loop-autostart');
 const { classifyHeuristic } = require('../lib/prompt-heuristic');
 const { assembleClassifyResponse } = require('../lib/classify-assemble');
@@ -46,6 +47,18 @@ test('isAutoMode: bypassPermissions and acceptEdits are auto; default/plan are n
 test('isAutoMode: ORCH_AUTO_LOOP env fallback forces auto regardless of permission_mode', () => {
   assert.ok(isAutoMode({ permissionMode: 'default', autoLoopEnv: true }));
   assert.ok(isAutoMode({ autoLoopEnv: true }));
+});
+
+test('resolveAutoLoopMode: adapter-neutral auto_mode forces auto regardless of client permission names', () => {
+  assert.ok(resolveAutoLoopMode({ autoMode: true, permissionMode: 'manual' }));
+  assert.ok(resolveAutoLoopMode({ autoMode: '1', permissionMode: 'ask' }));
+  assert.ok(!resolveAutoLoopMode({ autoMode: false, permissionMode: 'manual' }));
+});
+
+test('resolveAutoLoopMode: client capabilities auto_execute is the universal adapter contract', () => {
+  assert.ok(resolveAutoLoopMode({ clientCapabilities: { auto_execute: true }, permissionMode: 'manual' }));
+  assert.ok(resolveAutoLoopMode({ clientCapabilities: { auto_execute: 'true' } }));
+  assert.ok(!resolveAutoLoopMode({ clientCapabilities: { auto_execute: false }, permissionMode: 'manual' }));
 });
 
 // ---- maybeAutostartLoop ---------------------------------------------------
@@ -93,6 +106,22 @@ test('no autostart when not auto, when no ready tasks, or when no sessionId', ()
   assert.strictEqual(maybeAutostartLoop({ ctx: makeCtx(), sessionId: 's', autoMode: false, hasReady: true }), null);
   assert.strictEqual(maybeAutostartLoop({ ctx: makeCtx(), sessionId: 's', autoMode: true, hasReady: false }), null);
   assert.strictEqual(maybeAutostartLoop({ ctx: makeCtx(), sessionId: null, autoMode: true, hasReady: true }), null);
+});
+
+test('managed graph autostart ignores disposable worktree workspaces', () => {
+  const ctx = makeCtx();
+  const graph = { tasks: [{ id: 'codex/ready', status: 'ready' }] };
+  const overlay = { blocked: {} };
+  for (const workspace of [
+    '/repo/.zonoid/worktrees/hash/task',
+    '/repo/worktrees/hash/task',
+    '/Users/me/.local/share/opencode/worktree/hash/task',
+  ]) {
+    const result = ensureManagedGraphLoop({ ctx, workspace, graph, overlay });
+    assert.strictEqual(result.created, false);
+    assert.strictEqual(result.loop, null);
+  }
+  assert.strictEqual(ctx.loops.size, 0);
 });
 
 // ---- assembler integration ------------------------------------------------

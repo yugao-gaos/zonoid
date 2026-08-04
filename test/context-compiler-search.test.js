@@ -6,6 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { compileSearchContext } = require('../lib/search/context-compiler');
+const { buildContextRetrievalHandle, compressNaturalLanguage, resolveContextHandle } = require('../lib/search/context-compression');
 const recallJournal = require('../lib/recall-outcome-journal');
 
 let pass = 0;
@@ -443,6 +444,163 @@ test('conversational query keeps structural graph expansion beyond direct k', as
   assert(expandedKeys.has('knowledge:source_section:guide#section-1'), 'expected source parent to survive slicing');
   assert(expandedKeys.has('note:sibling'), 'expected exact-source sibling fact to survive slicing');
   assert(expanded.every((item) => item.expanded_from === 'note:seed'));
+});
+
+test('reversible context compression is default-off for full content search results', async () => {
+  const longSummary = `alpha reversible context ${'detail '.repeat(100)}final provenance sentence`;
+  const graph = {
+    tasks: [
+      node('note:long', 'Long reversible context note', {
+        kind: 'note',
+        summary: longSummary,
+      }),
+    ],
+  };
+
+  const body = await runSearch(graph, { q: 'alpha reversible context', k: '1', full_content: '1' });
+  const hit = body.results.find((item) => item.key === 'note:long');
+
+  assert(hit, 'expected long note result');
+  assert.equal(body.context_compression, undefined);
+  assert.equal(hit.ccr, undefined);
+  assert.equal(hit.content, longSummary.slice(0, 1200));
+});
+
+test('reversible context compression preserves keys provenance and retrieval handles', async () => {
+  const longSummary = `alpha reversible context ${'retrievable provenance detail '.repeat(35)}tail marker`;
+  const graph = {
+    tasks: [
+      node('task/target', 'Compression target', {
+        status: 'ready',
+        context_deps: ['note:long'],
+        context_weights: { 'note:long': 0.9 },
+        provisional: false,
+      }),
+      node('note:long', 'Long reversible context note', {
+        kind: 'note',
+        summary: longSummary,
+      }),
+    ],
+  };
+
+  const body = await runSearch(graph, {
+    q: 'alpha reversible context',
+    task_key: 'task/target',
+    k: '1',
+    full_content: '1',
+    reversible_context: '1',
+  });
+  const hit = body.results.find((item) => item.key === 'note:long');
+
+  assert(hit, 'expected direct context result');
+  assert.equal(hit.key, 'note:long');
+  assert.equal(hit.kind, 'note');
+  assert.equal(hit.tier, 'dag');
+  assert.equal(hit.via, 'context');
+  assert.deepEqual(hit.path, ['context_dep of task/task/target']);
+  assert(hit.content.includes('[CCR omitted '), 'expected reversible compression marker');
+  assert(hit.content.includes('tail marker'), 'expected tail context to survive compression');
+  assert.equal(hit.ccr.reversible, true);
+  assert.equal(hit.ccr.handle.key, 'note:long');
+  assert.equal(hit.ccr.handle.tool, 'search_knowledge');
+  assert.equal(hit.ccr.handle.field, 'content');
+  assert.equal(hit.ccr.handle.tier, 'dag');
+  assert.equal(hit.ccr.handle.via, 'context');
+  assert.match(hit.ccr.handle.ccr_id, /^ccr:/);
+  assert.equal(hit.ccr.handle.original_chars, longSummary.length);
+  assert(hit.ccr.handle.compressed_chars < hit.ccr.handle.original_chars);
+  assert.equal(body.context_compression.enabled, true);
+  assert.equal(body.context_compression.mode, 'reversible_context');
+  assert.equal(body.context_compression.compressed_entries, 1);
+  assert(body.context_compression.before_tokens > body.context_compression.after_tokens);
+  assert.equal(body.context_compression.saved_tokens, body.context_compression.before_tokens - body.context_compression.after_tokens);
+  assert.deepEqual(body.context_compression.handles.map((handle) => handle.key), ['note:long']);
+
+  const resolved = resolveContextHandle(hit.ccr.handle, graph, {});
+  assert.equal(resolved.ok, true);
+  assert.equal(resolved.key, 'note:long');
+  assert.equal(resolved.field, 'content');
+  assert.equal(resolved.kind, 'note');
+  assert.equal(resolved.content, longSummary);
+});
+
+test('reversible context compression compacts prose before CCR while resolver preserves original', async () => {
+  const longSummary = [
+    'alpha caveman context',
+    'You should make sure to utilize the existing helper in order to implement a solution for the assignment.',
+    'It is important to keep `/src/exact/path.js`, `exactSymbolName`, and https://example.test/docs unchanged.',
+    'Additionally, the reason is because the worker really only needs the shortest useful briefing.',
+    'tail marker',
+  ].join(' ');
+  const graph = {
+    tasks: [
+      node('note:compact', 'Compact prose note', {
+        kind: 'note',
+        summary: longSummary + ' '.repeat(10) + 'detail '.repeat(80),
+      }),
+    ],
+  };
+
+  const body = await runSearch(graph, {
+    q: 'alpha caveman context',
+    k: '1',
+    full_content: '1',
+    reversible_context: '1',
+  });
+  const hit = body.results.find((item) => item.key === 'note:compact');
+
+  assert(hit, 'expected compacted note result');
+  assert(body.context_compression.prose_compacted_entries >= 1);
+  assert(!hit.content.includes('You should make sure to utilize'), 'expected filler prose to be compacted before CCR');
+  assert(hit.content.includes('/src/exact/path.js'), 'expected paths to survive compaction');
+  assert(hit.content.includes('`exactSymbolName`'), 'expected inline code to survive compaction');
+  assert(hit.content.includes('https://example.test/docs'), 'expected URLs to survive compaction');
+  assert(compressNaturalLanguage('You should utilize the helper in order to fix it.').includes('use helper to fix it.'));
+
+  const resolved = resolveContextHandle(hit.ccr.handle, graph, {});
+  assert.equal(resolved.ok, true);
+  assert(resolved.content.includes('You should make sure to utilize'), 'resolver returns original uncompressed prose');
+});
+
+test('CCR resolver returns original task fields by key and field', async () => {
+  const taskSummary = `task reversible context ${'implementation detail '.repeat(30)}task tail marker`;
+  const graph = {
+    tasks: [
+      node('task/long', 'Long resolver task', {
+        summary: taskSummary,
+      }),
+    ],
+  };
+  const handle = buildContextRetrievalHandle({ key: 'task/long', kind: 'task' }, 'summary', taskSummary.length, 10);
+
+  const resolved = resolveContextHandle(handle, graph, {});
+
+  assert.equal(resolved.ok, true);
+  assert.equal(resolved.key, 'task/long');
+  assert.equal(resolved.field, 'summary');
+  assert.equal(resolved.kind, 'task');
+  assert.equal(resolved.title, 'Long resolver task');
+  assert.equal(resolved.content, taskSummary);
+});
+
+test('CCR resolver returns original overlay source chunk content by key and field', async () => {
+  const chunk = `source reversible context ${'chunk evidence '.repeat(40)}source tail marker`;
+  const graph = { tasks: [node('note:source', 'Source note', { kind: 'note' })] };
+  const overlay = {
+    knowledge: {
+      'note:source': [{ value: chunk }],
+    },
+  };
+  const handle = buildContextRetrievalHandle({ key: 'note:source#k0', kind: 'knowledge' }, 'content', chunk.length, 10);
+
+  const resolved = resolveContextHandle(handle, graph, overlay);
+
+  assert.equal(resolved.ok, true);
+  assert.equal(resolved.key, 'note:source#k0');
+  assert.equal(resolved.field, 'content');
+  assert.equal(resolved.kind, 'knowledge');
+  assert.equal(resolved.source, 'note:source');
+  assert.equal(resolved.content, chunk);
 });
 
 (async () => {

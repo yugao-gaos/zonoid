@@ -66,10 +66,12 @@ Called only when `seeded > 0`. Stamps `overlay.eagerJudge[key]` and `overlay.jud
 
 After `markEagerJudge`, the node enters the **judging** lifecycle phase:
 
-- `buildGraph` reads `judgingState(overlay, key, now, timeout)` for each task.
-- A task with unresolved weight-0 edges within the timeout window reports `judging:true` and its effective status is forced to `not_ready` — it cannot be claimed yet.
+- `buildGraph` reads `judgingState(overlay, key)` for each task. The gate is **strict and clockless** (P6): readiness depends solely on whether unjudged candidate edges remain.
+- A task with any unresolved weight-0 autowire edge reports `judging:true` and its effective status is forced to `not_ready` — it cannot be claimed yet. There is **no time-based auto-release**: the task holds until the candidate set actually drains (`provisional` is therefore always false).
 - The heartbeat calls `eagerJudgeNodes(overlay)` to find pending marks and dispatches a judge agent per node (budget-clamped). The judge calls `/judge/next?node=<key>` to receive the node's unverified edge batch, then issues verdict calls to keep or prune each edge.
-- Once all candidate edges are adjudicated (or timeout `JUDGING_TIMEOUT_MS` = 10 min elapses), the `judging` flag clears and the task becomes `ready`. Timed-out survivors are flagged `provisional` rather than silently trusted.
+- Once all candidate edges are adjudicated, the `judging` flag clears and the task becomes `ready`.
+- **Recovery (no deadlock):** if the eager judge stalls, the node never releases on its own — drain it on demand with `node scripts/judge-drain-once.js --node <key> --workspace <ws>` (or `POST /judge/drain?node=<key>`), which runs the same in-process judge synchronously to idle. Both the eager judge and this CLI can always drain a held node, so no node is ever stuck not-ready with no way to judge it.
+- *(Separate, unchanged):* the **per-call** judge timeout that SIGKILLs a hung judge round keeps the surviving candidate edges unjudged/provisional for the next drain to re-judge — that is the edge-level retry behavior, distinct from this node-readiness gate.
 
 ---
 

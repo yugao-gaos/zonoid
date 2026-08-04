@@ -96,6 +96,64 @@ const SUMMARY = 'ensure stripe refund pipeline retries are idempotent and never 
   ok('task fan-out capped at 5', taskEdges.length <= 5);
 }
 
+// --- SOURCE-CHUNK lane (RECALL fix): the answer-bearing chunk is seeded RELIABLY ------------------
+// Even when MANY real tasks out-rank the evidence chunk, the chunk gets its OWN bounded lane (it does
+// NOT compete with tasks for the task cut). Direction: chunk -> anchor (chunk is provider).
+// The chunk floor is read at module load, so the asserting runs are ISOLATED child processes that
+// set ORCH_SOURCE_CHUNK_SEED_THRESHOLD before requiring the module.
+{
+  const { execFileSync } = require('node:child_process');
+  const script = `
+    process.env.ORCH_RERANK = '0';
+    process.env.ORCH_SOURCE_CHUNK_SEED_THRESHOLD = '0.05';
+    const ov = require('./lib/overlay');
+    const { autowireNewTaskWholeGraph } = require('./daemon');
+    (async () => {
+      const g = { tasks: [
+        { id: 'knowledge:source_chunk:refund#note-evidence:chunk-1', label: 'refund pipeline evidence chunk 1', summary: 'stripe refund pipeline idempotency retry evidence', kind: 'source_chunk', status: 'knowledge', context_deps: [], deps: [] },
+      ] };
+      for (let i = 0; i < 8; i++) g.tasks.push({ id: 't/' + i, label: 'refund pipeline retry task ' + i, summary: 'stripe refund pipeline retry idempotent task ' + i, status: 'ready', context_deps: [], deps: [] });
+      const overlay = ov.EMPTY();
+      await autowireNewTaskWholeGraph(overlay, g, 's/anchor', 'refund pipeline retry safety task', 'ensure stripe refund pipeline retries are idempotent and never double-refund', null, 0.05);
+      const chunkEdge = overlay.edges.find((e) => e.from === 'knowledge:source_chunk:refund#note-evidence:chunk-1' && e.to === 's/anchor');
+      const taskEdges = overlay.edges.filter((e) => e.from === 's/anchor' && String(e.to).startsWith('t/'));
+      const out = { chunkSeeded: !!chunkEdge, chunkIsProvider: !!chunkEdge && chunkEdge.from.startsWith('knowledge:source_chunk:'), chunkWeight0: !!chunkEdge && chunkEdge.weight === 0, chunkJudgedFalse: !!chunkEdge && chunkEdge.judged === false, taskCount: taskEdges.length };
+      process.stdout.write(JSON.stringify(out));
+      process.exit(0); // daemon.js registers load-time intervals; force exit so the child doesn't hang
+    })();
+  `;
+  const out = JSON.parse(execFileSync(process.execPath, ['-e', script], { cwd: require('path').join(__dirname, '..'), encoding: 'utf8' }));
+  ok('SOURCE-CHUNK seeded reliably amid 8 higher-ranked tasks', out.chunkSeeded);
+  ok('SOURCE-CHUNK edge is chunk -> anchor (chunk is provider)', out.chunkIsProvider);
+  ok('SOURCE-CHUNK edge weight 0 (retrieval-invisible)', out.chunkWeight0);
+  ok('SOURCE-CHUNK edge judged:false (surfaces on /judge/next)', out.chunkJudgedFalse);
+  ok('real tasks still seeded in their own lane (chunk did not steal budget)', out.taskCount === 5);
+}
+
+// Isolated child: an OFF-TOPIC anchor whose nearest chunk is below the floor seeds ZERO chunks (gate).
+{
+  const { execFileSync } = require('node:child_process');
+  const script = `
+    process.env.ORCH_RERANK = '0';
+    process.env.ORCH_SOURCE_CHUNK_SEED_THRESHOLD = '0.30';
+    const ov = require('./lib/overlay');
+    const { autowireNewTaskWholeGraph } = require('./daemon');
+    (async () => {
+      const g = { tasks: [
+        { id: 'knowledge:source_chunk:vault#note-evidence:chunk-1', label: 'database credential rotation evidence', summary: 'vault cron rotation kms secret rotation evidence', kind: 'source_chunk', status: 'knowledge', context_deps: [], deps: [] },
+      ] };
+      const overlay = ov.EMPTY();
+      // Anchor about refunds; chunk is about vault rotation — lexical overlap ~0, below 0.30 floor.
+      await autowireNewTaskWholeGraph(overlay, g, 's/anchor', 'refund pipeline retry safety task', 'ensure stripe refund pipeline retries are idempotent', null, 0.30);
+      const chunkEdges = overlay.edges.filter((e) => String(e.from).startsWith('knowledge:source_chunk:'));
+      process.stdout.write(JSON.stringify({ chunkEdges: chunkEdges.length }));
+      process.exit(0); // force exit (load-time intervals keep the loop alive otherwise)
+    })();
+  `;
+  const out = JSON.parse(execFileSync(process.execPath, ['-e', script], { cwd: require('path').join(__dirname, '..'), encoding: 'utf8' }));
+  ok('OFF-TOPIC anchor seeds ZERO chunks (dedicated floor gates noise)', out.chunkEdges === 0);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
 })();

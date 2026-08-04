@@ -10,6 +10,9 @@
 //   - judgedAtEpoch gates re-pull: a note judged at the current epoch drops out of the queue until
 //     epoch grows; bumping epoch makes it eligible again.
 'use strict';
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const ov = require('../lib/overlay');
 const judge = require('../lib/judge');
 
@@ -186,6 +189,31 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
   ok('judgeQueueDepth matches buildQueue length', judge.judgeQueueDepth(o) === q.length);
 }
 
+// --- task-decision verdicts are acknowledged so they do not requeue forever --------------------
+{
+  const o = ov.EMPTY();
+  o.notes['s/merge-me'] = 'merge requested by judge: approved by reviewer';
+  let q = judge.buildQueue(o);
+  ok('merge-request note creates a task-decision item', q.some((i) => i.kind === 'task-decision' && i.id === 'decision:merge:s/merge-me'));
+  o.judgedTaskDecisions = {};
+  judge.stampTaskDecision(o.judgedTaskDecisions, 's/merge-me', 'merge');
+  q = judge.buildQueue(o);
+  ok('stamped task-decision drops out even if source note remains', !q.some((i) => i.kind === 'task-decision' && i.id === 'decision:merge:s/merge-me'));
+}
+
+// --- task-decision acknowledgments persist through overlay save/load ----------------------------
+{
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'judge-task-decision-ack-'));
+  const o = ov.EMPTY();
+  o.notes['s/merge-me'] = 'merge requested by judge: approved by reviewer';
+  o.judgedTaskDecisions = {};
+  judge.stampTaskDecision(o.judgedTaskDecisions, 's/merge-me', 'merge');
+  ov.save(ws, o);
+  const reloaded = ov.load(ws);
+  ok('task-decision ack survives overlay save/load', reloaded.judgedTaskDecisions['decision:merge:s/merge-me'] === true);
+  ok('reloaded ack suppresses the task-decision item', !judge.buildQueue(reloaded).some((i) => i.kind === 'task-decision' && i.id === 'decision:merge:s/merge-me'));
+}
+
 // --- nextSlice priority-vs-cursor: the live drain regression -----------------------------------
 // Exact live failure: 9 dup-cluster items + ~490 edge items, cursor at 166, budget 20.
 // Old behaviour: slice walked queue[166..186] → 20 edges, 0 dup-clusters (clusters are at [0..8]).
@@ -338,6 +366,93 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
   ov.bumpEpoch(o);
   const queue2 = judge.buildQueue(o);
   ok('epoch-wrap: queue unchanged after epoch bump (edges are epoch-independent)', queue2.length === 5);
+}
+
+// --- readiness repairs are priority judge items ------------------------------------------------
+{
+  const o = ov.EMPTY(); o.epoch = 1;
+  o.readinessRepairs = {
+    'task/blocked': { task_key: 'task/blocked', kind: 'canceled_dependency', dependency: 'task/old', dependency_status: 'canceled' },
+  };
+  o.edges = [{ from: 'note:src', to: 'note:dst', kind: 'context', judged: false }];
+  const q = judge.buildQueue(o);
+  ok('readiness repair appears in judge queue', q.some((i) => i.kind === 'readiness-repair' && i.task_key === 'task/blocked'));
+  ok('readiness repair preserves blocker kind separately', q.find((i) => i.kind === 'readiness-repair').readiness_kind === 'canceled_dependency');
+  const slice = judge.nextSlice(q, 0, 1);
+  ok('readiness repair is priority over edge tail', slice.items.length === 1 && slice.items[0].kind === 'readiness-repair');
+  ok('readiness repair priority does not advance tail cursor', slice.cursorAfter === 0);
+}
+
+// --- follow-up triage guidance is a priority judge item ----------------------------------------
+{
+  const o = ov.EMPTY(); o.epoch = 1;
+  o.guidance = [
+    { id: 'g-follow', resolved: false, question: 'Approve restart?', context: 'Restart after build', action: { kind: 'follow-up', task_key: 'followup/restart-abcd', when: null } },
+    { id: 'g-human', resolved: false, question: 'Human-owned approval', context: '', action: { kind: 'follow-up', task_key: 'followup/manual-abcd', judge_eligible: false } },
+  ];
+  o.edges = [{ from: 'note:src', to: 'note:dst', kind: 'context', judged: false }];
+  const q = judge.buildQueue(o);
+  ok('follow-up triage appears in judge queue', q.some((i) => i.kind === 'followup-triage' && i.task_key === 'followup/restart-abcd' && i.guidance_id === 'g-follow'));
+  ok('human-owned follow-up guidance is not judge queued', !q.some((i) => i.task_key === 'followup/manual-abcd'));
+  const slice = judge.nextSlice(q, 0, 1);
+  ok('follow-up triage is priority over edge tail', slice.items.length === 1 && slice.items[0].kind === 'followup-triage');
+  ok('follow-up triage priority does not advance tail cursor', slice.cursorAfter === 0);
+}
+
+// --- review / merge / kick-back / discard / cancel decisions are priority judge items -----------
+{
+  const o = ov.EMPTY(); o.epoch = 1;
+  ov.setReviewLifecycle(o, 'task/review', { review_state: 'requested', merge_state: 'review_pending', attempt_branch: 'orch/attempt/review' });
+  ov.setReviewLifecycle(o, 'task/merge', { review_state: 'approved', review_verdict: 'APPROVE', merge_state: 'pending', attempt_branch: 'orch/attempt/merge' });
+  ov.setReviewLifecycle(o, 'task/kick', { review_state: 'rejected', review_verdict: 'KICK_BACK', merge_state: 'blocked' });
+  o.notes['task/discard'] = 'discard requested by judge/1: obsolete attempt';
+  o.notes['task/cancel'] = 'canceled by judge/1: superseded';
+  o.edges = [{ from: 'note:src', to: 'note:dst', kind: 'context', judged: false }];
+  const q = judge.buildQueue(o);
+  ok('review decision appears in judge queue', q.some((i) => i.kind === 'task-decision' && i.task_key === 'task/review' && i.action === 'review'));
+  ok('merge decision appears in judge queue without merging', q.some((i) => i.kind === 'task-decision' && i.task_key === 'task/merge' && i.action === 'merge' && i.attempt_branch === 'orch/attempt/merge'));
+  ok('kick-back decision appears in judge queue', q.some((i) => i.kind === 'task-decision' && i.task_key === 'task/kick' && i.action === 'kick_back'));
+  ok('discard decision note appears in judge queue', q.some((i) => i.kind === 'task-decision' && i.task_key === 'task/discard' && i.action === 'discard'));
+  ok('cancel decision note appears in judge queue', q.some((i) => i.kind === 'task-decision' && i.task_key === 'task/cancel' && i.action === 'cancel'));
+  ok('judgeQueueDepth counts task decisions', judge.judgeQueueDepth(o) === q.length);
+  const slice = judge.nextSlice(q, 0, 1);
+  ok('task decision is priority over edge tail', slice.items.length === 1 && slice.items[0].kind === 'task-decision');
+  ok('task decision priority does not advance tail cursor', slice.cursorAfter === 0);
+  ok('same-node review state remains on implementation task', o.reviews['task/merge'].merge_state === 'pending' && !o.reviews['task/merge-judge']);
+}
+
+// --- judge item registry contract: every emitted kind has projection + verdict coverage ---------
+{
+  const o = ov.EMPTY(); o.epoch = 1;
+  ov.setReviewLifecycle(o, 'task/review', { review_state: 'requested', attempt_branch: 'orch/attempt/review' });
+  o.readinessRepairs = {
+    'task/blocked': { task_key: 'task/blocked', kind: 'canceled_dependency', dependency: 'task/old', dependency_status: 'canceled' },
+  };
+  o.guidance = [
+    { id: 'g-follow', resolved: false, question: 'Approve restart?', context: 'Restart after build', action: { kind: 'follow-up', task_key: 'followup/restart-abcd', when: null } },
+  ];
+  const cloneA = new Array(384).fill(0); cloneA[0] = 1;
+  const cloneB = new Array(384).fill(0); cloneB[0] = 1; cloneB[1] = 0.001;
+  const cloneBNorm = Math.hypot(cloneB[0], cloneB[1]); cloneB[0] /= cloneBNorm; cloneB[1] /= cloneBNorm;
+  o.note_nodes = {
+    c1: { id: 'c1', title: 'Clone 1', summary: '', validTo: null, vec: cloneA },
+    c2: { id: 'c2', title: 'Clone 2', summary: '', validTo: null, vec: cloneB },
+    orphan: { id: 'orphan', title: 'Orphan', summary: '', validTo: null, vec: null },
+  };
+  o.edges = [
+    { from: 'note:c1', to: 'task:connected', kind: 'context', judged: true },
+    { from: 'note:c2', to: 'task:connected', kind: 'context', judged: true },
+    { from: 'note:src', to: 'note:dst', kind: 'context', judged: false },
+  ];
+  const queue = judge.buildQueue(o);
+  ok('judge item registry covers emitted queue kinds', judge.assertJudgeItemContracts(queue) === true);
+  const emittedKinds = Array.from(new Set(queue.map((i) => i.kind)));
+  ok('registry contract includes projection marker for emitted kinds',
+    emittedKinds.every((kind) => judge.judgeItemContract(kind) && judge.judgeItemContract(kind).project === true));
+  ok('registry contract includes verdict support or read-only marking for emitted kinds',
+    emittedKinds.every((kind) => judge.judgeItemHasVerdictSupport(kind)));
+  ok('registry contract fails closed for unknown kinds',
+    (() => { try { judge.assertJudgeItemContracts([{ kind: 'new-kind', id: 'x' }]); return false; } catch { return true; } })());
 }
 
 console.log('-----');

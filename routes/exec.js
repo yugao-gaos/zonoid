@@ -184,7 +184,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (sessionId && b.transcript_path) {
       bindSession(sessionId, { transcript: b.transcript_path, workspace: b.workspace || null, harness: b.harness });
     }
-    notifyChange();
+    notifyChange(b.workspace || null);
     return send(res, 200, { ok: true });
   }
   if (p === '/agent/done' && m === 'POST') {
@@ -203,7 +203,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (st === 'in_progress' && T.ov.assignee[key] === b.agent_id
           && releaseClaim(key, `auto-released: agent '${b.agent_id}' stopped without completing`, T.ov, null, T.ws)) released++;
     if (usageSlice || released) T.save();
-    notifyChange();
+    notifyChange(T.graph_repo || T.ws);
     return send(res, 200, { ok: true, released, usage: usageSlice ? { agent_id: b.agent_id, task_key: usageSlice.task_key || null } : null });
   }
 
@@ -234,7 +234,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!agentId) return send(res, 404, { ok: false, error: 'no agent for that agent_id/task_key' });
     T.ov.stop_requested[agentId] = now();
     T.save();
-    notifyChange();
+    notifyChange(T.graph_repo || T.ws);
     return send(res, 200, { ok: true, agent_id: agentId, stop_requested: T.ov.stop_requested[agentId] });
   }
   // A worker polls this to learn whether it should cooperatively stop.

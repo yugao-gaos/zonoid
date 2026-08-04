@@ -3,17 +3,51 @@ const fs = require('fs');
 const path = require('path');
 const mcpCore = require('../lib/mcp-core');
 
+// Package identity for /version — resolved once at module load; tolerant of a broken checkout.
+const PKG_VERSION = (() => {
+  try { return require('../package.json').version || null; } catch { return null; }
+})();
+
+const NATIVE_FORMAT_HEALTH_TTL_MS = 10_000;
+const nativeFormatHealthCache = new Map();
+
+function nativeFormatHealth(harness, workspace) {
+  if (!workspace) return null;
+  const hit = nativeFormatHealthCache.get(workspace);
+  const nowMs = Date.now();
+  if (hit && nowMs - hit.ts < NATIVE_FORMAT_HEALTH_TTL_MS) return hit.value;
+  const value = harness.tasks.formatHealth(workspace);
+  nativeFormatHealthCache.set(workspace, { ts: nowMs, value });
+  return value;
+}
+
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
-  const { send, readBody, notifyChange, buildGraph, state, setState, setWorkspace,
+  const { send, readBody, notifyChange, state, setState, setWorkspace,
     GIT_HEAD, BOOTED_AT, FEATURES, sseClients, overlayStore, harness, analytics,
     analyticsState, analyticsFlush, PUBLIC, loops, taskTranscript, usageCached,
-    staleClaimKeys, releaseClaim, reapAgent, saveAgents, cache, targetOverlay, MCP_CALL,
-    embedStatus, respCacheGet, respCachePut, isTruthy, frontier, agentsArr, sessionCount,
+    staleClaimKeys, releaseClaim, reapAgent, saveAgents, cache, targetOverlay, buildGraph,
+    embedStatus, isTruthy, sessionCount,
     WORKSPACES_FILE, graphStore, loadRegistry, repoToWorkspace, repoRoot } = ctx;
 
   if (p === '/ping') { send(res, 200, { ok: true, sessions: sessionCount() }); return true; }
 
-  if (p === '/version') { send(res, 200, { head: GIT_HEAD, bootedAt: BOOTED_AT, features: FEATURES }); return true; }
+  if (p === '/version') {
+    // Existing fields (head/bootedAt/features) are load-bearing: hooks/restart-daemon.sh compares
+    // /version.head against the on-disk HEAD to decide "restart required" — only ADD fields here.
+    const daemonLog = ctx.daemonLog || require('../lib/daemon-log');
+    send(res, 200, {
+      ok: true,
+      head: GIT_HEAD,
+      bootedAt: BOOTED_AT,
+      features: FEATURES,
+      version: PKG_VERSION,
+      node: process.version,
+      pid: process.pid,
+      uptime_s: Math.round(process.uptime()),
+      log_path: typeof daemonLog.logPath === 'function' ? daemonLog.logPath() : null,
+    });
+    return true;
+  }
 
   if (p === '/events' && m === 'GET') {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'Access-Control-Allow-Origin': '*' });
@@ -22,26 +56,6 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const ka = setInterval(() => { try { res.write(': ka\n\n'); } catch { /* */ } }, 25000);
     req.on('close', () => { clearInterval(ka); sseClients.delete(res); });
     return true;
-  }
-
-  if (p === '/mcp') {
-    const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, GET, OPTIONS', 'Access-Control-Allow-Headers': 'content-type, mcp-session-id, mcp-protocol-version, x-orch-workspace', 'Access-Control-Expose-Headers': 'mcp-session-id' };
-    if (m === 'OPTIONS') { res.writeHead(204, cors); res.end(); return true; }
-    if (m === 'GET') { res.writeHead(200, { ...cors, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' }); res.write(': connected\n\n'); return true; }
-    if (m === 'POST') {
-      const msg = await readBody(req);
-      const session = req.headers['mcp-session-id'] || null;
-      const rpcArgs = msg && msg.params && msg.params.arguments;
-      const rpcWorkspace = rpcArgs && typeof rpcArgs.workspace === 'string' ? rpcArgs.workspace : null;
-      const reqWorkspace = u.searchParams.get('workspace') || req.headers['x-orch-workspace'] || rpcWorkspace || null;
-      const call = reqWorkspace ? mcpCore.makeCall(Number(process.env.ORCH_PORT || 8787), reqWorkspace) : MCP_CALL;
-      const resp = await mcpCore.handleRpc(msg, { call, uiHtml: mcpCore.uiHtml, session, workspace: reqWorkspace || undefined });
-      if (resp === undefined) { res.writeHead(202, cors); res.end(); return true; }
-      res.writeHead(200, { ...cors, 'Content-Type': 'application/json', 'Mcp-Session-Id': 'orchestrator', 'Connection': 'close' });
-      res.end(JSON.stringify(resp));
-      return true;
-    }
-    send(res, 405, { error: 'method not allowed' }); return true;
   }
 
   if (p === '/reset' && m === 'POST') {
@@ -81,7 +95,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         }
       }
     } else {
-      const sweepOv = staleMins !== (ovWs.config.stale_minutes ?? 10)
+      const sweepOv = staleMins !== (ovWs.config.stale_minutes ?? (ctx.STALE_MINUTES_DEFAULT ?? 60))
         ? { ...ovWs, config: { ...ovWs.config, stale_minutes: staleMins } } : ovWs;
       for (const { key, agentId, mins } of staleClaimKeys(sweepOv, state.agents, nowMs)) {
         const tp = taskTranscript(key, null, true, stWsSweep);
@@ -93,13 +107,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
     }
     if (agentsDirty) saveAgents();
-    if (released) { overlayStore.save(ws, ovWs); notifyChange(); cache.agg.delete(ws); cache.aggAt.delete(ws); }
+    if (released) { overlayStore.save(ws, ovWs); notifyChange(ws); cache.agg.delete(ws); cache.aggAt.delete(ws); }
     send(res, 200, { ok: true, released }); return true;
   }
 
   if (p === '/workspace' && m === 'POST') {
     const b = await readBody(req);
-    if (!b.path) { send(res, 400, { ok: false, error: 'path required' }); return true; }
+    const requestedGraphRepo = b.graph_repo || b.path;
+    if (!requestedGraphRepo) { send(res, 400, { ok: false, error: 'graph_repo required (deprecated alias: path)' }); return true; }
     // P3: setWorkspace REGISTERS + BINDS the workspace (no global default to flip), so the old
     // "skip when a different workspace is already pinned" guard is gone — each call just registers
     // and binds its own path.
@@ -113,7 +128,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // creates its .graph). We only substitute repoRoot's result when it CLIMBED to a STRICT ANCESTOR
     // — i.e. b.path is genuinely nested inside an existing repo — so a fresh top-level workspace dir is
     // never silently re-homed onto a stray ancestor marker.
-    const resolvedRoot = repoRoot(b.path);
+    const resolvedRoot = repoRoot(requestedGraphRepo);
     const norm = (s) => {
       const resolved = path.resolve(s).replace(/[/\\]+$/, '');
       try { return fs.realpathSync(resolved).replace(/[/\\]+$/, ''); }
@@ -130,12 +145,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const os = require('os');
     const containers = new Set([norm(os.tmpdir()), norm(os.homedir())]);
     const climbed = resolvedRoot
-      && norm(resolvedRoot) !== norm(b.path)
+      && norm(resolvedRoot) !== norm(requestedGraphRepo)
       && !containers.has(norm(resolvedRoot))
       && path.dirname(norm(resolvedRoot)) !== norm(resolvedRoot); // not the fs root
-    const repoRootPath = climbed ? resolvedRoot : b.path;
-    setWorkspace(repoRootPath, { ...b, path: repoRootPath, workspace: b.workspace });
-    send(res, 200, { ok: true, workspace: repoRootPath }); return true;
+    const repoRootPath = climbed ? resolvedRoot : requestedGraphRepo;
+    const workspaceId = b.workspace_id || b.workspace || path.basename(repoRootPath);
+    setWorkspace(repoRootPath, { ...b, path: repoRootPath, workspace: workspaceId });
+    send(res, 200, { ok: true, workspace_id: workspaceId, graph_repo: repoRootPath, workspace: repoRootPath }); return true;
   }
 
   if (p === '/workspace/add-repo' && m === 'POST') {
@@ -144,12 +160,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // its repo root, registers via the registry (idempotent, atomic v2 write), and warms the same
     // per-repo machinery setWorkspace does so the repo is immediately usable (overlay + merge driver).
     const b = await readBody(req);
-    if (!b.workspace || typeof b.workspace !== 'string') { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
-    if (!b.repo || typeof b.repo !== 'string') { send(res, 400, { ok: false, error: 'repo required' }); return true; }
-    const repoPath = repoRoot(b.repo) || b.repo;
+    const workspaceId = b.workspace_id || b.workspace;
+    if (!workspaceId || typeof workspaceId !== 'string') { send(res, 400, { ok: false, error: 'workspace_id required (deprecated alias: workspace)' }); return true; }
+    const requestedGraphRepo = b.graph_repo || b.repo;
+    if (!requestedGraphRepo || typeof requestedGraphRepo !== 'string') { send(res, 400, { ok: false, error: 'graph_repo required (deprecated alias: repo)' }); return true; }
+    const repoPath = repoRoot(requestedGraphRepo) || requestedGraphRepo;
     try {
       fs.mkdirSync(ctx.BASE, { recursive: true });
-      require('../lib/workspace-registry').addRepo(WORKSPACES_FILE, { workspace: b.workspace, repo: repoPath });
+      require('../lib/workspace-registry').addRepo(WORKSPACES_FILE, { workspace: workspaceId, repo: repoPath });
     } catch (e) { send(res, 500, { ok: false, error: String(e && e.message || e) }); return true; }
     // Warm overlay + merge driver for the repo (same side-effects setWorkspace performs), so the
     // freshly registered repo is ready for graph ops without a separate /workspace bind.
@@ -159,8 +177,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       graphStore.initGitAttributes(repoPath);
       ctx.git.ensureMergeDriver(repoPath);
     } catch { /* best effort warm — registration already persisted */ }
-    notifyChange();
-    send(res, 200, { ok: true, workspace: b.workspace, repo: repoPath }); return true;
+    notifyChange(repoPath);
+    send(res, 200, { ok: true, workspace_id: workspaceId, graph_repo: repoPath, workspace: workspaceId, repo: repoPath }); return true;
   }
 
   if (p === '/analytics/tool-call' && m === 'POST') {
@@ -185,7 +203,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // P3: no global current workspace. `workspace`/`native_format` reflect the OPTIONAL ?workspace=
     // the dashboard passes (null when absent — health is otherwise workspace-agnostic).
     const hwWs = u.searchParams.get('workspace') || null;
-    send(res, 200, { ok: true, phase: boot.phase, step: boot.step, progress: boot.progress, bootedAt: BOOTED_AT, head: GIT_HEAD, workspace: hwWs, sessions: sessionCount(), loops: loopHealth, embedding: embedStatus(), native_format: hwWs ? harness.tasks.formatHealth(hwWs) : null }); return true;
+    send(res, 200, { ok: true, phase: boot.phase, step: boot.step, progress: boot.progress, bootedAt: BOOTED_AT, head: GIT_HEAD, workspace: hwWs, sessions: sessionCount(), loops: loopHealth, embedding: embedStatus(), native_format: nativeFormatHealth(harness, hwWs) }); return true;
   }
 
   if (p === '/ready') {
@@ -207,46 +225,6 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       ready = ready.filter((t) => descendants.has(t.id) && !seeds.has(t.id));
     }
     send(res, 200, { ready: ready.map((t) => ({ key: t.id, label: t.label })) }); return true;
-  }
-
-  if (p === '/state') {
-    const stWs = u.searchParams.get('workspace');
-    if (!stWs) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
-    const stKey = `state|${stWs}|${u.searchParams.get('scope') || ''}|${u.searchParams.get('compact') || ''}|${u.searchParams.get('include_archived') || ''}|arch1`;
-    const stHit = respCacheGet(stWs, stKey);
-    if (stHit !== undefined) { send(res, 200, stHit); return true; }
-    const T = targetOverlay(null, u);
-    const ws = T.ws;
-    const g = buildGraph(ws);
-    const edgesOut = T.ov.edges.map((e) => (e.kind === 'context' ? { ...e, weight: overlayStore.edgeWeight(e) } : e));
-    const includeArchived = isTruthy(u.searchParams.get('include_archived'));
-    const cfgDays = Number((T.ov.config || {}).archive_after_days);
-    const windowMs = includeArchived ? Infinity : (cfgDays > 0 ? cfgDays : frontier.DEFAULT_ARCHIVE_DAYS) * 864e5;
-    const keep = frontier.frontierKeep(g.tasks);
-    const arch = isFinite(windowMs) ? frontier.archivedIds(g.tasks, { windowMs, keep }) : new Set();
-    const archivedTasks = arch.size ? frontier.archivedTaskList(g.tasks, arch) : null;
-    if (u.searchParams.get('scope') === 'frontier') {
-      const f = frontier.projectFrontier(g.tasks, g.ghosts, edgesOut, { windowMs });
-      const body = { workspace: ws, scope: 'frontier', tasks: f.tasks, ghosts: f.ghosts, edges: f.edges, summary: { ...g.summary, archived: f.archived, frontier_kept: f.tasks.length } };
-      if (archivedTasks) body.archived_tasks = archivedTasks;
-      send(res, 200, respCachePut(stWs, stKey, body)); return true;
-    }
-    let tasks = g.tasks;
-    const archived = arch.size;
-    if (archived) tasks = tasks.filter((t) => !arch.has(t.id));
-    const summary = { ...g.summary, archived };
-    const archField = archivedTasks ? { archived_tasks: archivedTasks } : {};
-    if (u.searchParams.get('compact')) {
-      const slim = tasks.map((t) => {
-        const o = { id: t.id, label: t.label, status: t.status, deps: t.deps };
-        if (t.kind) o.kind = t.kind;
-        if (t.agent_id) o.assignee = t.agent_id;
-        if (t.git && t.git.merged) o.merged = true;
-        return o;
-      });
-      send(res, 200, respCachePut(stWs, stKey, { workspace: ws, compact: true, tasks: slim, ghosts: g.ghosts, edges: edgesOut, summary, ...archField })); return true;
-    }
-    send(res, 200, respCachePut(stWs, stKey, { workspace: ws, tasks, ghosts: g.ghosts, edges: edgesOut, routes: state.routes, agents: agentsArr().filter((a) => a.workspace === ws), summary, config: T.ov.config || {}, ...archField })); return true;
   }
 
   if (p === '/workspaces' && m === 'GET') {

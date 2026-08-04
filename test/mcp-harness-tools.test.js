@@ -76,6 +76,21 @@ async function waitForPing(ms = 8000) {
   ok('default surface includes subconscious_search_context', defaultList.result.tools.some((t) => t.name === 'subconscious_search_context'));
   ok('default surface includes subconscious_idea_scheduler', defaultList.result.tools.some((t) => t.name === 'subconscious_idea_scheduler'));
   ok('default surface includes subconscious_assignment', defaultList.result.tools.some((t) => t.name === 'subconscious_assignment'));
+  ok('default surface includes internal_lanes diagnostic', defaultList.result.tools.some((t) => t.name === 'internal_lanes'));
+
+  const graphTool = TOOLS.find((t) => t.name === 'get_graph');
+  ok('get_graph schema exposes opt-in internal diagnostics', graphTool && graphTool.inputSchema.properties.include_internal && graphTool.inputSchema.properties.include_internal.type === 'boolean');
+  let graphCall = null;
+  await graphTool.run({ scope: 'all', compact: true, include_internal: true }, (method, path) => {
+    graphCall = { method, path };
+    return { ok: true };
+  });
+  ok('get_graph forwards include_internal only when requested', graphCall && graphCall.method === 'GET' && graphCall.path.includes('include_internal=1'));
+
+  const internalLanesTool = TOOLS.find((t) => t.name === 'internal_lanes');
+  ok('internal_lanes diagnostic is read-only', internalLanesTool && internalLanesTool.description.includes('Read-only diagnostic'));
+  const lanesProjection = await internalLanesTool.run({}, () => ({ internal_lanes: { version: 1, summary: { total: 0 }, items: [] } }));
+  ok('internal_lanes returns projection payload', lanesProjection && lanesProjection.version === 1 && lanesProjection.summary.total === 0 && Array.isArray(lanesProjection.items));
 
   const startTaskTool = TOOLS.find((t) => t.name === 'start_task');
   ok('start_task schema has session_id', startTaskTool && startTaskTool.inputSchema.properties.session_id && startTaskTool.inputSchema.properties.session_id.type === 'string');
@@ -278,24 +293,27 @@ async function waitForPing(ms = 8000) {
 
   assignmentCalls.length = 0;
   const approveOut = await assignmentTool.run({ action: 'submit_verdict', verdict: 'APPROVE', workspace: WS, task_key: 'local/task', judge_task_key: 'local/task-judge', reason: 'passes' }, assignmentCall);
-  ok('subconscious_assignment submit_verdict APPROVE calls merge internally',
-    assignmentCalls.some((call) => call.path === '/git/merge' && call.body.key === 'local/task') &&
-    approveOut.ok === true);
-  ok('subconscious_assignment submit_verdict APPROVE completes judge when supplied',
-    assignmentCalls.some((call) => call.path === '/overlay/status' && call.body.key === 'local/task-judge' && call.body.status === 'done'));
+  ok('subconscious_assignment submit_verdict APPROVE records approval without merging',
+    !assignmentCalls.some((call) => call.path === '/git/merge') &&
+    approveOut.ok === true &&
+    approveOut.next_action === 'merge_attempt');
+  ok('subconscious_assignment submit_verdict APPROVE keeps review on implementation node',
+    approveOut.judge_task_key === null &&
+    approveOut.review_task_key === 'local/task' &&
+    approveOut.legacy_judge_task_key === 'local/task-judge' &&
+    !assignmentCalls.some((call) => call.path === '/overlay/status' && call.body.key === 'local/task-judge'));
 
   assignmentCalls.length = 0;
   const failedApproveOut = await assignmentTool.run({ action: 'submit_verdict', verdict: 'APPROVE', workspace: WS, task_key: 'local/missing', judge_task_key: 'local/missing-judge', reason: 'passes' }, (method, path, body) => {
     assignmentCalls.push({ method, path, body });
-    if (path === '/git/merge') return { merged: false, reason: 'branch not found for local/missing' };
-    return { ok: true, status: body && body.status };
+    return path === '/overlay/status'
+      ? { error: 'status write failed' }
+      : { ok: true, status: body && body.status };
   });
-  ok('subconscious_assignment submit_verdict APPROVE fails when merge reports not merged',
+  ok('subconscious_assignment submit_verdict APPROVE fails when approval status write fails',
     failedApproveOut.ok === false &&
-    failedApproveOut.error === 'branch not found for local/missing' &&
-    failedApproveOut.merge &&
-    failedApproveOut.merge.merged === false);
-  ok('subconscious_assignment submit_verdict APPROVE does not complete judge after failed merge',
+    failedApproveOut.error === 'status write failed');
+  ok('subconscious_assignment submit_verdict APPROVE does not write a visible judge after failed approval',
     !assignmentCalls.some((call) => call.path === '/overlay/status' && call.body.key === 'local/missing-judge'));
 
   assignmentCalls.length = 0;
@@ -304,6 +322,11 @@ async function waitForPing(ms = 8000) {
     !assignmentCalls.some((call) => call.path === '/git/merge') && kickBackOut.ok === true);
   ok('subconscious_assignment submit_verdict KICK_BACK marks implementation failed',
     assignmentCalls.some((call) => call.path === '/overlay/status' && call.body.key === 'local/task' && call.body.status === 'failed'));
+  ok('subconscious_assignment submit_verdict KICK_BACK keeps review on implementation node',
+    kickBackOut.judge_task_key === null &&
+    kickBackOut.review_task_key === 'local/task' &&
+    kickBackOut.legacy_judge_task_key === 'local/task-judge' &&
+    !assignmentCalls.some((call) => call.path === '/overlay/status' && call.body.key === 'local/task-judge'));
 
   const judgeNextTool = TOOLS.find((t) => t.name === 'get_judge_next');
   ok('get_judge_next is on default MCP surface', !!judgeNextTool);
@@ -320,6 +343,8 @@ async function waitForPing(ms = 8000) {
   ok('submit_judge_verdict is on default MCP surface', !!judgeVerdictTool);
   ok('submit_judge_verdict schema exposes verdicts and edge actions',
     judgeVerdictTool && judgeVerdictTool.inputSchema.properties.verdicts && judgeVerdictTool.inputSchema.properties.keepEdge && judgeVerdictTool.inputSchema.properties.pruneEdge);
+  ok('submit_judge_verdict schema exposes taskDecision',
+    judgeVerdictTool && judgeVerdictTool.inputSchema.properties.taskDecision);
   let capturedJudgeVerdict = null;
   await judgeVerdictTool.run({ verdicts: [{ pruneEdge: { from: 'note:a', to: 'local/y' } }] }, (method, path, body) => {
     capturedJudgeVerdict = { method, path, body };

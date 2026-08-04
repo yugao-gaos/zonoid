@@ -66,8 +66,33 @@ ok('null targetVec -> all candidates lexical', lexAll.length > 0 && lexAll.every
   ok('autowire keeps near-parallel (semantic >= bar)', tos.has('s/par'));
   ok('autowire drops orthogonal (cosine 0)', !tos.has('s/ortho'));
   ok('autowire: every edge is note->candidate, context', overlay.edges.every((e) => e.from === 'note:t' && e.kind === 'context'));
-  // tilted at 0.80 is above the 0.55 bar -> kept; novec lexical score also high -> kept; cap 5 not hit.
+  // tilted at 0.80 is above the 0 bar (floor dropped) -> kept; novec lexical score also high -> kept; cap 5 not hit.
   ok('autowire keeps tilted (0.80 >= bar)', tos.has('s/tilt'));
+}
+
+// 7. P2 regression: sub-0.55 candidate is NOW seeded (floor dropped to 0; eager-judge arbitrates).
+//    Before P2 the 0.55 floor silently filtered cosine=0.50 nodes; now they reach /judge/next.
+//    halfX has cosine(eX, halfX) = 0.50 — sub-0.55 but > 0, so score>0 survives, floor=0 keeps it.
+{
+  const halfX = [0.5, 0.866, 0, 0];  // cosine(eX, halfX) = 0.50 — sub-0.55, above 0
+  const subFloor = { id: 's/sub055', label: 'nothing in common', summary: 'no shared tokens at all', status: 'ready', kind: 'task', vec: halfX, context_deps: [], deps: [] };
+  const gSub = { tasks: [subFloor] };
+  // Verify cosine value is sub-0.55
+  const scoredSub = scoreMatchesSemantic(gSub, target, targetVec);
+  const subMatch = scoredSub.find((m) => m.key === 's/sub055');
+  ok('sub-0.55 candidate has cosine between 0 and 0.55', subMatch && subMatch.score > 0 && subMatch.score < 0.55);
+
+  // With old 0.55 floor: autowireNoteProvider(overlay, gSub, ..., 0.55) would seed 0 edges.
+  const overlayOld = ov.EMPTY();
+  const addedOld = autowireNoteProvider(overlayOld, gSub, 'note:t', TITLE, SUMMARY, targetVec, 0.55);
+  ok('sub-0.55 candidate was filtered by old 0.55 floor (no edge seeded)', addedOld === 0);
+
+  // With new floor=0 (SEMANTIC_AUTOWIRE_THRESHOLD): the candidate is seeded for the eager-judge.
+  const overlayNew = ov.EMPTY();
+  const addedNew = autowireNoteProvider(overlayNew, gSub, 'note:t', TITLE, SUMMARY, targetVec, SEMANTIC_AUTOWIRE_THRESHOLD);
+  ok('sub-0.55 candidate NOW seeded with floor=0 (eager-judge arbitrates)', addedNew === 1);
+  ok('seeded sub-0.55 edge is weight-0 (retrieval-invisible until judge)', overlayNew.edges.length === 1 && overlayNew.edges[0].weight === 0);
+  ok('seeded sub-0.55 edge carries judged:false (surfaces on /judge/next)', overlayNew.edges[0].judged === false);
 }
 
 console.log('-----');

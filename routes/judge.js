@@ -1,6 +1,8 @@
 'use strict';
 const overlayStore = require('../lib/overlay');
 const judge = require('../lib/judge');
+const headlessDrain = require('../lib/headless-drain');
+const { applyStructuredContextCompression } = require('../lib/search/context-compression');
 const graphStore = require('../lib/graph-store');
 const { computeNoteUsageEvidence, scoreNoteNecessity, WIN_RATE_THRESHOLD } = require('../lib/recall-outcome-journal');
 const { nodeVecs, embeddingMeta } = require('../lib/embed');
@@ -19,6 +21,19 @@ function getPredictEdge() {
   } catch { _predictEdge = undefined; }
   return _predictEdge || null;
 }
+
+// Task-decision action -> lifecycle EVENT. The single place an advertised action becomes a real
+// transition; anything absent here is refused (and NOT retired) instead of silently falling through.
+// Actions are normalized to snake_case lowercase before lookup.
+const TASK_DECISION_EVENTS = Object.freeze({
+  approve: 'review_approve',
+  kick_back: 'review_kick_back',
+  reject: 'review_kick_back',
+  merge: 'review_merge_request',
+  discard: 'review_discard',
+  cancel: 'review_cancel',
+  escalate: 'review_escalate',
+});
 
 // Promotion state cache: null = unchecked; refresh at most every 60s.
 let _promotionState = null;
@@ -142,7 +157,7 @@ function ensureHarnessJudgeDrainTask(ov, save) {
 
 const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, notifyChange, buildGraph, state, targetOverlay,
-    noteRagCandidates } = ctx;
+    noteRagCandidates, filedrop } = ctx;
 
   // PROMOTION QUEUE: autowire context edges are seeded at weight 0 (retrieval-invisible). An `edge`
   // item here is an unjudged autowire edge awaiting confirmation; a keepEdge verdict PROMOTES it
@@ -180,9 +195,10 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         const neighborhood = judge.expandNeighborhood(T.ov, it.to, nodeOfE, { adjacency: nbAdj });
         const supersedeChain = judge.supersedeChain(T.ov, it.to);
         const taskTask = !isNK(it.from) && !isNK(it.to);
-        return { kind: 'edge', id: it.id, from: detail(it.from), to: detail(it.to), neighborhood: neighborhood.nodes, neighborhoodTruncated: neighborhood.truncated, supersedeChain, taskTask };
+        return { kind: 'edge', id: it.id, from: detail(it.from), to: detail(it.to), neighborhood: neighborhood.nodes, neighborhoodTruncated: neighborhood.truncated, supersedeChain, taskTask, allowed_actions: judge.judgeItemAllowedActions('edge') };
       });
-      send(res, 200, { epoch: T.ov.epoch || 0, workspace: ws, budget, node: eagerNode, eager: true, idle: eagerItems.length === 0, total: nodeItems.length, items: eagerItems }); return true;
+      const contextCompression = applyStructuredContextCompression(eagerItems);
+      send(res, 200, { epoch: T.ov.epoch || 0, workspace: ws, budget, node: eagerNode, eager: true, idle: eagerItems.length === 0, total: nodeItems.length, items: eagerItems, context_compression: contextCompression }); return true;
     }
     const queue = judge.buildQueue(T.ov);
     const slice = judge.nextSlice(queue, T.ov.judgeCursor || 0, budget);
@@ -199,8 +215,53 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     const isNoteKey = (k) => typeof k === 'string' && k.startsWith('note:');
     // Reuse ONE adjacency build across all edge items in this slice (positive-weight context edges).
     const nbAdjacency = judge.buildContextAdjacency(T.ov);
-    const items = slice.items.map((it) => {
-      if (it.kind === 'edge') {
+	    const items = slice.items.map((it) => {
+	      if (it.kind === 'readiness-repair') {
+	        const task = detail(it.task_key);
+	        const dep = it.dependency ? detail(it.dependency) : null;
+	        return {
+	          kind: 'readiness-repair',
+	          id: it.id,
+	          task,
+	          readiness_kind: it.readiness_kind || null,
+	          dependency: dep,
+	          dependency_key: it.dependency || null,
+	          dependency_status: it.dependency_status || null,
+	          reason: it.reason || null,
+	          allowed_actions: judge.judgeItemAllowedActions('readiness-repair'),
+	        };
+	      }
+	      if (it.kind === 'followup-triage') {
+	        const task = detail(it.task_key);
+	        return {
+	          kind: 'followup-triage',
+	          id: it.id,
+	          guidance_id: it.guidance_id || null,
+	          task,
+	          reason: it.reason || null,
+	          when: it.when || null,
+	          bucket: it.bucket || null,
+	          allowed_actions: judge.judgeItemAllowedActions('followup-triage'),
+	        };
+	      }
+	      if (it.kind === 'task-decision') {
+	        const task = detail(it.task_key);
+	        return {
+	          kind: 'task-decision',
+	          id: it.id,
+	          task,
+	          task_key: it.task_key,
+	          action: it.action || null,
+	          reason: it.reason || null,
+	          review_state: it.review_state || null,
+	          review_verdict: it.review_verdict || null,
+	          merge_state: it.merge_state || null,
+	          attempt_branch: it.attempt_branch || null,
+	          attempt_worktree: it.attempt_worktree || null,
+	          allowed_actions: judge.judgeItemAllowedActions('task-decision'),
+	        };
+	      }
+	      if (it.kind === 'edge') {
         // The candidate edge is anchor(from) → N(to). Adjudicate N WITH structure: expand N's
         // weighted neighborhood + its supersede chain so the agent reasons over context, not the
         // endpoint alone. task→task candidates additionally carry kind/dup classification flags.
@@ -211,6 +272,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
           kind: 'edge', id: it.id, from: detail(it.from), to: detail(it.to),
           neighborhood: neighborhood.nodes, neighborhoodTruncated: neighborhood.truncated,
           supersedeChain, taskTask,
+          allowed_actions: judge.judgeItemAllowedActions('edge'),
         };
       }
       if (it.kind === 'dup-cluster') {
@@ -218,7 +280,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
           const n = T.ov.note_nodes[String(k).replace(/^note:/, '')];
           return n ? { key: k, title: n.title, summary: String(n.summary || '').slice(0, 300), created_at: n.created_at || null } : { key: k, title: k, summary: '', created_at: null, missing: true };
         });
-        return { kind: 'dup-cluster', id: it.id, keys: it.keys, notes, pending_dup: !!it.pending_dup };
+        return { kind: 'dup-cluster', id: it.id, keys: it.keys, notes, pending_dup: !!it.pending_dup, allowed_actions: judge.judgeItemAllowedActions('dup-cluster') };
       }
       if (it.kind === 'decay') {
         const noteId = String(it.noteId || it.id).replace(/^note:/, '');
@@ -236,6 +298,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
           confidence: it.confidence,
           reasons: it.reasons || [],
           action: it.action,
+          allowed_actions: judge.judgeItemAllowedActions('decay'),
         };
       }
       if (it.kind === 'reinforce') {
@@ -250,35 +313,42 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
           winRate: it.winRate,
           total: it.total,
           action: it.action,
+          allowed_actions: judge.judgeItemAllowedActions('reinforce'),
         };
       }
       const note = byId.get(it.id) || { id: it.id, label: it.id, summary: '', vec: null };
       const expectedMeta = ctx.embeddingMeta ? ctx.embeddingMeta(T.ov) : embeddingMeta(T.ov);
       const candidates = noteRagCandidates(T.ov, g, it.id, note.label, note.summary, note.vec, 8, { expectedMeta, targetVecMeta: note.vecMeta || null })
         .map((c) => ({ key: c.key, title: c.title, summary: c.summary, score: c.score, status: c.status, via: c.via }));
-      return { kind: 'orphan', id: it.id, note: detail(it.id), candidates };
+      return { kind: 'orphan', id: it.id, note: detail(it.id), candidates, allowed_actions: judge.judgeItemAllowedActions('orphan') };
     });
     if (!slice.idle && slice.cursorAfter !== (T.ov.judgeCursor || 0)) {
       T.ov.judgeCursor = slice.cursorAfter;
       T.save();
     }
+    const contextCompression = applyStructuredContextCompression(items);
     send(res, 200, {
       epoch: T.ov.epoch || 0,
       workspace: ws,
       budget, idle: slice.idle, total: slice.total,
       cursorBefore: slice.cursorBefore, cursorAfter: slice.cursorAfter,
       items,
+      context_compression: contextCompression,
     }); return true;
   }
 
   if (p === '/judge/verdict' && m === 'POST') {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
-    const verdicts = Array.isArray(b.verdicts) ? b.verdicts : (b.createEdge || b.keepEdge || b.pruneEdge || b.consolidate || b.surfaceCluster || b.markJudged || b.item ? [b] : []);
+	    const verdicts = Array.isArray(b.verdicts) ? b.verdicts : (b.createEdge || b.keepEdge || b.pruneEdge || b.consolidate || b.surfaceCluster || b.markJudged || b.repairTask || b.taskDecision || b.item ? [b] : []);
     const epoch = T.ov.epoch || 0;
     if (!T.ov.judgedAtEpoch) T.ov.judgedAtEpoch = {};
     if (!T.ov.judgedClusters) T.ov.judgedClusters = {};
     const applied = { created: 0, kept: 0, pruned: 0, surfaced: 0, judged: 0, consolidated: 0, superseded: 0, repointed: 0, clustersJudged: 0 };
+    // Machine-readable "why nothing happened" rows for refused task decisions. A zero counter is
+    // otherwise indistinguishable from an under-reporting apply (see the applied-counters OVERRIDE
+    // note), so refusals are reported explicitly rather than inferred.
+    const refusals = [];
     const byId = new Map(buildGraph(T.ws).tasks.map(function(t){return [t.id,t];}));
     // The edge's creation cosine lives in `score` (autowire seeds it there with weight 0); fall back to
     // `weight` for hand-asserted edges. Read it BEFORE a prune deletes the edge, else it's gone.
@@ -289,14 +359,183 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     // LEGACY FALLBACK: by:'autowire' + note source ⇒ semantic; by:'autowire' + both endpoints tasks ⇒
     // lexical; otherwise asserted. A node id starting 'note:' marks a note endpoint.
     const isNote = (id) => typeof id === 'string' && id.startsWith('note:');
-    const edgeOrigin = (e) => {
+	    const edgeOrigin = (e) => {
       if (e && typeof e.origin === 'string') return e.origin;
       if (e && e.by === 'autowire') return isNote(e.from) ? 'autowire-semantic' : 'autowire-lexical';
       return 'asserted';
-    };
-    const findEdge = (from, to, kind) => T.ov.edges.find((x) => x.from === from && x.to === to && (kind == null || x.kind === kind));
-    for (const v of verdicts) {
-      if (v && v.createEdge && v.createEdge.from && v.createEdge.to) {
+	    };
+	    const findEdge = (from, to, kind) => T.ov.edges.find((x) => x.from === from && x.to === to && (kind == null || x.kind === kind));
+	    const removeBlockingDependency = (taskKey, depKey) => {
+	      let changed = 0;
+	      const beforeEdges = T.ov.edges.length;
+	      T.ov.edges = T.ov.edges.filter((e) => !(e.from === depKey && e.to === taskKey && (e.kind == null || e.kind === 'blocking')));
+	      changed += beforeEdges - T.ov.edges.length;
+	      const snap = T.ov.snapshots && T.ov.snapshots[taskKey];
+	      if (snap && Array.isArray(snap.blockedBy)) changed += overlayStore.removeSnapshotBlockedBy(T.ov, taskKey, depKey);
+	      if (filedrop && typeof filedrop.removeBlockedBy === 'function') changed += filedrop.removeBlockedBy(T.ws, taskKey, depKey);
+	      return changed;
+	    };
+	    const clearRepair = (taskKey) => {
+	      if (T.ov.readinessRepairs && T.ov.readinessRepairs[taskKey]) delete T.ov.readinessRepairs[taskKey];
+	    };
+	    const resolveFollowupGuidance = (guidanceId, answer) => {
+	      if (!guidanceId || !Array.isArray(T.ov.guidance)) return;
+	      const g = T.ov.guidance.find((item) => item.id === guidanceId);
+	      if (!g || g.resolved) return;
+	      overlayStore.resolveGuidance(T.ov, guidanceId, answer);
+	    };
+	    for (const v of verdicts) {
+	      if (v && v.taskDecision && v.taskDecision.task_key && v.taskDecision.action) {
+	        const taskKey = String(v.taskDecision.task_key);
+	        const action = String(v.taskDecision.action).toLowerCase().replace(/[\s-]+/g, '_');
+	        const sourceAction = v.taskDecision.source_action
+	          ? String(v.taskDecision.source_action).toLowerCase().replace(/[\s-]+/g, '_')
+	          : action;
+	        const reason = String(v.taskDecision.reason || 'task decision verdict');
+	        const now = new Date().toISOString();
+	        if (!T.ov.judgedTaskDecisions) T.ov.judgedTaskDecisions = {};
+	        // EVERY task decision goes through the ONE guarded transition authority
+	        // (lib/overlay/lifecycle-machine.js) BEFORE any state is touched. It owns the in-flight
+	        // guard (a verdict on a live worker's attempt is judging an empty diff), the
+	        // merged-is-absorbing guard, and the settled-verdict guard. An action with no event
+	        // mapping is REFUSED here instead of falling off the end of an else-if chain — the old
+	        // chain silently retired such items with zero state change (observed live with the
+	        // advertised-but-unimplemented "review" action).
+	        const liveStatus = (byId.get(taskKey) || {}).status || null;
+	        const event = TASK_DECISION_EVENTS[action] || null;
+	        const decision = event
+	          ? overlayStore.applyLifecycleEvent(T.ov, taskKey, event, {
+	            task_status: liveStatus, agent_id: 'judge', reason, now,
+	          })
+	          : {
+	            ok: false,
+	            refusal: {
+	              code: 'unknown_action',
+	              reason: `no handler for task decision action '${action}'; expected one of ${Object.keys(TASK_DECISION_EVENTS).join(', ')}`,
+	              retryable: false,
+	            },
+	          };
+	        // Retire the item ONLY when the decision landed, or when it was refused because the state
+	        // is genuinely settled (re-offering those would loop). A timing refusal ('in_flight') and
+	        // an unrecognized action both leave the item UNSTAMPED so it can be re-judged — the stamp
+	        // is permanent (judgedTaskDecisions is never cleared by an epoch bump).
+	        const refusal = decision.ok ? null : decision.refusal;
+	        const retireOnRefusal = !!refusal && (refusal.code === 'already_merged' || refusal.code === 'already_reviewed');
+	        if (refusal) {
+	          applied.refused = (applied.refused || 0) + 1;
+	          if (refusal.retryable) applied.skippedInFlight = (applied.skippedInFlight || 0) + 1;
+	          refusals.push({ task_key: taskKey, action, code: refusal.code, reason: refusal.reason, retryable: refusal.retryable, retired: retireOnRefusal });
+	          // 'in_flight' keeps its established audit token; newer refusal codes get their own.
+	          const auditVerdict = refusal.code === 'in_flight'
+	            ? `task:${action}_skipped_in_flight`
+	            : `task:${action}_refused_${refusal.code}`;
+	          judge.appendVerdict(T.ws, { epoch, verdict: auditVerdict, from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'approve') {
+	          applied.taskDecisions = (applied.taskDecisions || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:approve', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'kick_back' || action === 'reject') {
+	          overlayStore.setStatus(T.ov, taskKey, 'failed', `judge kick-back: ${reason}`);
+	          applied.taskDecisions = (applied.taskDecisions || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:kick_back', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'merge') {
+	          applied.taskDecisions = (applied.taskDecisions || 0) + 1;
+	          applied.mergeRequested = (applied.mergeRequested || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:merge_request', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'discard') {
+	          T.ov.notes[taskKey] = `discard decision applied by judge: ${reason}`.slice(0, 280);
+	          applied.taskDecisions = (applied.taskDecisions || 0) + 1;
+	          applied.discarded = (applied.discarded || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:discard', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'cancel') {
+	          overlayStore.setStatus(T.ov, taskKey, 'canceled', `cancel decision applied by judge: ${reason}`);
+	          T.ov.cancel_requested[taskKey] = now;
+	          applied.taskDecisions = (applied.taskDecisions || 0) + 1;
+	          applied.canceled = (applied.canceled || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:cancel', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'escalate') {
+	          overlayStore.addGuidance(T.ov, {
+	            question: `Resolve task decision for ${taskKey}`,
+	            context: reason,
+	            trigger: 'task_decision',
+	            severity: 'blocking',
+	            action: { kind: 'task-decision', task_key: taskKey, source_action: v.taskDecision.source_action || null },
+	          });
+	          applied.escalated = (applied.escalated || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:escalate', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        }
+	        if (!refusal || retireOnRefusal) judge.stampTaskDecision(T.ov.judgedTaskDecisions, taskKey, sourceAction);
+	      }
+	      if (v && v.followupTriage && v.followupTriage.task_key && v.followupTriage.action) {
+	        const taskKey = String(v.followupTriage.task_key);
+	        const action = String(v.followupTriage.action);
+	        const guidanceId = v.followupTriage.guidance_id ? String(v.followupTriage.guidance_id) : null;
+	        const reason = String(v.followupTriage.reason || 'follow-up triage verdict');
+	        const followups = require('../lib/followups');
+	        const guidance = guidanceId && Array.isArray(T.ov.guidance) ? T.ov.guidance.find((g) => g.id === guidanceId) : null;
+	        const guidanceAction = guidance && guidance.action && guidance.action.kind === 'follow-up'
+	          ? guidance.action
+	          : { kind: 'follow-up', task_key: taskKey };
+	        if (action === 'approve') {
+	          const fr = followups.resolveGate(T.ov, guidanceAction, 'approve');
+	          resolveFollowupGuidance(guidanceId, reason);
+	          applied.repaired = (applied.repaired || 0) + 1;
+	          applied.followupsApproved = (applied.followupsApproved || 0) + 1;
+	          if (fr && fr.released) applied.released = (applied.released || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'followup:approve', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'reject') {
+	          const fr = followups.resolveGate(T.ov, guidanceAction, 'reject');
+	          resolveFollowupGuidance(guidanceId, reason);
+	          applied.repaired = (applied.repaired || 0) + 1;
+	          applied.followupsRejected = (applied.followupsRejected || 0) + 1;
+	          if (fr && fr.canceled) applied.canceled = (applied.canceled || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'followup:reject', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'escalate') {
+	          if (!Array.isArray(T.ov.guidance)) T.ov.guidance = [];
+	          const existing = T.ov.guidance.some((g) => !g.resolved && g.action && g.action.kind === 'follow-up' && g.action.task_key === taskKey && g.action.judge_eligible === false);
+	          if (!existing) {
+	            T.ov.guidance.push({ id: `gate/followup-human-${Date.now().toString(36)}`, question: `Approve follow-up ${taskKey}?`, context: reason, trigger: 'follow_up', severity: 'blocking', ts: new Date().toISOString(), resolved: false, action: { kind: 'follow-up', task_key: taskKey, guidance_id: guidanceId, judge_eligible: false } });
+	            applied.escalated = (applied.escalated || 0) + 1;
+	          }
+	          resolveFollowupGuidance(guidanceId, 'escalated to user guidance');
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'followup:escalate', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        }
+	      }
+	      if (v && v.repairTask && v.repairTask.task_key && v.repairTask.action) {
+	        const taskKey = String(v.repairTask.task_key);
+	        const action = String(v.repairTask.action);
+	        const depKey = v.repairTask.dependency ? String(v.repairTask.dependency) : (T.ov.readinessRepairs && T.ov.readinessRepairs[taskKey] && T.ov.readinessRepairs[taskKey].dependency);
+	        const reason = String(v.repairTask.reason || 'readiness repair verdict');
+	        if (action === 'remove_dependency' && depKey) {
+	          const removed = removeBlockingDependency(taskKey, depKey);
+	          if (removed > 0) {
+	            clearRepair(taskKey);
+	            applied.repaired = (applied.repaired || 0) + 1;
+	            applied.removedDeps = (applied.removedDeps || 0) + removed;
+	            judge.appendVerdict(T.ws, { epoch, verdict: 'repair:remove_dependency', from: depKey, to: taskKey, edgeKind: 'blocking', cosine: null, by: 'judge' });
+	          }
+	        } else if (action === 'release_hold') {
+	          if (T.ov.status && T.ov.status[taskKey] === 'not_ready') delete T.ov.status[taskKey];
+	          clearRepair(taskKey);
+	          applied.repaired = (applied.repaired || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'repair:release_hold', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'cancel_task') {
+	          overlayStore.setStatus(T.ov, taskKey, 'canceled', reason);
+	          T.ov.cancel_requested[taskKey] = new Date().toISOString();
+	          clearRepair(taskKey);
+	          applied.repaired = (applied.repaired || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'repair:cancel_task', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'escalate') {
+	          if (!Array.isArray(T.ov.guidance)) T.ov.guidance = [];
+	          const existing = T.ov.guidance.some((g) => !g.resolved && g.action && g.action.kind === 'readiness-repair' && g.action.task_key === taskKey);
+	          if (!existing) {
+	            T.ov.guidance.push({ id: `gate/readiness-repair-${Date.now().toString(36)}`, question: `Resolve readiness repair for ${taskKey}`, context: reason, trigger: 'readiness_repair', ts: new Date().toISOString(), resolved: false, action: { kind: 'readiness-repair', task_key: taskKey, dependency: depKey || null } });
+	            applied.escalated = (applied.escalated || 0) + 1;
+	          }
+	          clearRepair(taskKey);
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'repair:escalate', from: taskKey, to: depKey || null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        }
+	      }
+	      if (v && v.createEdge && v.createEdge.from && v.createEdge.to) {
         const before = T.ov.edges.length;
         overlayStore.addEdge(T.ov, v.createEdge.from, v.createEdge.to, null, 'context', v.createEdge.weight);
         const e = T.ov.edges.find((x) => x.from === v.createEdge.from && x.to === v.createEdge.to && x.kind === 'context');
@@ -503,8 +742,33 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     for (const k of Object.keys(T.ov.judgingSince || {})) {
       if (judge.unverifiedEdgesForNode(T.ov, k).length === 0) overlayStore.clearJudgingSince(T.ov, k);
     }
-    T.save(); notifyChange();
-    send(res, 200, { ok: true, epoch, applied, edges: T.ov.edges.length }); return true;
+    T.save(); notifyChange(T.graph_repo || T.ws);
+    send(res, 200, { ok: true, epoch, applied, refusals, edges: T.ov.edges.length }); return true;
+  }
+
+  // POST /judge/drain?node=<key>&budget=<N>&sync=1[&workspace=<ws>]
+  // SYNCHRONOUS, node-scoped, budget-bounded judge drain. Drives the node's unjudged autowire
+  // candidate edge-set to idle (or the budget/round ceiling) in ONE request, REUSING the in-process
+  // judge (lib/headless-drain.runJudgeDrainSync → resolveJudgeBackend → provider.runJudgeLoop, the
+  // kind:'api' Node-http judge) — same prompt (buildJudgePrompt), same /judge/next?node= + verdict
+  // path the eager drain uses, NO second judge implementation. The drain is bounded by the SAME
+  // per-call timeout the background drain applies, so the async drain's hang class cannot return; it
+  // does NOT touch the background-drain governor. Returns { judged, kept, pruned, idle }.
+  if (p === '/judge/drain' && m === 'POST') {
+    const b = await readBody(req);
+    const T = targetOverlay(b, u);
+    if (!T.ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
+    const node = u.searchParams.get('node') || b.node;
+    if (!node) { send(res, 400, { ok: false, error: 'node required' }); return true; }
+    // budget clamps 1..50 in runJudgeDrainSync (same as buildJudgePrompt); read it loosely here.
+    const rawBudget = u.searchParams.get('budget') != null ? u.searchParams.get('budget') : b.budget;
+    const budget = rawBudget != null ? (parseInt(rawBudget, 10) || undefined) : undefined;
+    const out = await headlessDrain.runJudgeDrainSync({ workspaceRoot: T.ws, node: String(node), budget });
+    send(res, 200, {
+      ok: true, workspace: T.ws, node: String(node),
+      judged: out.judged, kept: out.kept, pruned: out.pruned, idle: out.idle,
+      rounds: out.rounds, ...(out.skipped ? { skipped: out.skipped } : {}),
+    }); return true;
   }
 
   // POST /judge/rejudge-edges
@@ -539,7 +803,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
       // Already-marked edges count as success (idempotent).
       else marked++;
     }
-    if (marked > 0) { T.save(); notifyChange(); }
+    if (marked > 0) { T.save(); notifyChange(T.graph_repo || T.ws); }
     send(res, 200, { ok: true, marked, skipped, total: sigs.length }); return true;
   }
 
@@ -548,7 +812,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(null, u);
     if (!T.ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
     const ws = T.ws;
-    ensureHarnessJudgeDrainTask(T.ov, () => { T.save(); notifyChange(); });
+    ensureHarnessJudgeDrainTask(T.ov, () => { T.save(); notifyChange(T.graph_repo || T.ws); });
     const queue = judge.buildQueue(T.ov);
     const depth = queue.length;
     const dupClusters = queue.filter((i) => i.kind === 'dup-cluster').length;

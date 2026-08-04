@@ -179,6 +179,26 @@ const conserved = (flow, total) => near(flow.totals.productive + flow.totals.tra
   ok('catchall+split: zero-own catch-all adds nothing to waste', !flow.waste.some((w) => w.task.startsWith('session:') && w.trapped > 1e-6));
 }
 
+// --- 11) task-specific usage records in a shared transcript are not collapsed ------------------
+{
+  const tasks = [
+    { id: 'T1', transcript: '/t/shared.jsonl', window: { start: '2026-06-10T10:00:00Z', end: '2026-06-10T10:10:00Z' } },
+    { id: 'T2', transcript: '/t/shared.jsonl', window: { start: '2026-06-10T10:10:00Z', end: '2026-06-10T10:20:00Z' } },
+  ];
+  const taskSpecific = { T1: 100, T2: 300 };
+  const own = splitSessionTokens(tasks, (tp, claim) => {
+    if (claim && taskSpecific[claim.id]) return { total: taskSpecific[claim.id], task_specific: true };
+    return { total: 1000 };
+  });
+  ok('split: per-task records sharing a transcript keep their own totals', own.get('T1') === 100 && own.get('T2') === 300);
+
+  const mixed = splitSessionTokens(tasks, (tp, claim) => {
+    if (claim && claim.id === 'T1') return { total: 100, task_specific: true };
+    return { total: 1000 };
+  });
+  ok('split: unclaimed group remainder still splits to non-specific members', mixed.get('T1') === 100 && mixed.get('T2') === 900);
+}
+
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

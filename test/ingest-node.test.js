@@ -39,6 +39,7 @@ function cosine(a, b) {
 }
 const embedStub = {
   embed: async (t) => stubEmbed(t),
+  embedWithMeta: async (t) => ({ vec: stubEmbed(t && typeof t === 'object' && 'input' in t ? t.input : t), meta: null }),
   cosine,
   nodeVecs: () => [],
   maxCosine: () => 0,

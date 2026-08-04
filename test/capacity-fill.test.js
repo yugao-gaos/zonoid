@@ -1,17 +1,14 @@
 #!/usr/bin/env node
-// Plain Node test for decideOne's CAPACITY-FILL + PARALLEL judge logic in daemon.js (no framework;
+// Plain Node test for decideOne's CAPACITY-FILL task-spawn logic in daemon.js (no framework;
 // matches test/judge-queue.test.js style). Run: node test/capacity-fill.test.js — exits non-zero on
 // any failed assertion. Uses the exported test hooks (decideOne, __setOverlayForTest); requiring the
 // module does NOT start a server (server only runs under require.main === module).
 //
-// Properties under test (the headroom→parallelism contract):
+// Properties under test (the headroom→task-spawn contract):
 //   - headroom = maxConcurrency − running; spawn clamps take ≤ headroom (never past concurrency).
-//   - tasks WIN: ready tasks fill headroom first; judge fans into LEFTOVER slots only.
-//   - judgeSlots = min(headroom − spawnedThisTick, queueDepth, judgeParallelCap).
-//   - a heartbeat with BOTH ready tasks AND queue returns spawn tasks AND judge:{parallel,budget}.
-//   - running ≥ maxConcurrency → 0 slots → no judge directive.
-//   - token-budget clamp reduces parallel to what remaining budget affords (≈ estPerTick each), and
-//     charges L.spent so the loop still stops at tokenBudget.
+//   - judge/review queues are daemon-owned internal drains and never appear as visible loop actions.
+//   - a heartbeat with BOTH ready tasks AND queue returns spawn tasks only.
+//   - running ≥ maxConcurrency → 0 task slots → idle, still no judge directive.
 'use strict';
 const ov = require('../lib/overlay');
 const daemon = require('../daemon.js');
@@ -47,64 +44,32 @@ function makeLoop(over = {}) {
 }
 function ctxFor(g) { return { graph: g, pendingGuidance: [], batch: { remaining: 999 } }; }
 
-// === running 0, deep queue → judge parallel = min(10, depth, 6) = 6 ===========================
+// === pure judge backlog is internal: no visible judge action ==================================
 {
   daemon.__setOverlayForTest(makeOverlay(20));
   const L = makeLoop();
-  const d = daemon.decideOne(L, ctxFor(makeGraph(0, 0)));   // no ready tasks → pure judge
-  ok('running0 deep queue → judge_edges', d.action === 'judge_edges');
-  ok('running0 → parallel = min(10,20,6) = 6', d.parallel === 6);
-  ok('running0 → budget = budgetPerRun (6)', d.budget === 6);
+  const d = daemon.decideOne(L, ctxFor(makeGraph(0, 0)));
+  ok('running0 deep queue → no judge_edges action', d.action !== 'judge_edges' && d.action !== 'judge_eager');
+  ok('running0 deep queue → no judge directive', d.judge == null && d.eager == null);
+  ok('pure internal judge backlog lets loop drain/stop', d.action === 'stop');
 }
 
-// === running 3 → headroom 7 → parallel = min(7, depth, 6) = 6 ==================================
-{
-  daemon.__setOverlayForTest(makeOverlay(20));
-  const L = makeLoop();
-  const d = daemon.decideOne(L, ctxFor(makeGraph(3, 0)));
-  ok('running3 → parallel = min(7,20,6) = 6', d.action === 'judge_edges' && d.parallel === 6);
-}
-
-// === running 9 → headroom 1 → parallel = 1 (clamped by headroom, below the cap) ===============
-{
-  daemon.__setOverlayForTest(makeOverlay(20));
-  const L = makeLoop();
-  const d = daemon.decideOne(L, ctxFor(makeGraph(9, 0)));
-  ok('running9 → parallel = min(1,20,6) = 1', d.action === 'judge_edges' && d.parallel === 1);
-}
-
-// === running ≥ maxConcurrency → 0 slots → NO judge directive ==================================
+// === running ≥ maxConcurrency → 0 task slots → idle, NO judge directive ========================
 {
   daemon.__setOverlayForTest(makeOverlay(20));
   const L = makeLoop();
   const d = daemon.decideOne(L, ctxFor(makeGraph(10, 0)));
-  ok('running10 (=cap) → no judge_edges', d.action !== 'judge_edges' && d.judge == null);
+  ok('running10 (=cap) → no judge_edges', d.action !== 'judge_edges' && d.judge == null && d.eager == null);
   ok('running10 with work in flight → idle', d.action === 'idle');
 }
 {
   daemon.__setOverlayForTest(makeOverlay(20));
   const L = makeLoop();
   const d = daemon.decideOne(L, ctxFor(makeGraph(12, 0)));  // over the cap
-  ok('running12 (>cap) → no judge_edges', d.action !== 'judge_edges' && d.judge == null);
+  ok('running12 (>cap) → no judge_edges', d.action !== 'judge_edges' && d.judge == null && d.eager == null);
 }
 
-// === judgeSlots cap at judgeParallelCap (small cap dominates) ==================================
-{
-  daemon.__setOverlayForTest(makeOverlay(20));
-  const L = makeLoop({ config: { judgeParallelCap: 2 } });
-  const d = daemon.decideOne(L, ctxFor(makeGraph(0, 0)));
-  ok('judgeParallelCap=2 caps parallel at 2 (min(10,20,2))', d.action === 'judge_edges' && d.parallel === 2);
-}
-
-// === queue depth dominates when shallow (min picks depth) =====================================
-{
-  daemon.__setOverlayForTest(makeOverlay(3));
-  const L = makeLoop();
-  const d = daemon.decideOne(L, ctxFor(makeGraph(0, 0)));
-  ok('shallow queue depth=3 → parallel = min(10,3,6) = 3', d.action === 'judge_edges' && d.parallel === 3);
-}
-
-// === empty queue → no judge directive → falls through to drained/stop ==========================
+// === empty queue → falls through to drained/stop ===============================================
 {
   daemon.__setOverlayForTest(makeOverlay(0));
   const L = makeLoop();
@@ -112,29 +77,25 @@ function ctxFor(g) { return { graph: g, pendingGuidance: [], batch: { remaining:
   ok('empty queue → not judge_edges', d.action !== 'judge_edges' && d.judge == null);
 }
 
-// === BOTH: ready tasks AND queue → spawn tasks AND judge:{parallel,budget} =====================
+// === BOTH: ready tasks AND queue → spawn tasks only ===========================================
 {
-  // running 2, ready 3, deep queue, cap room. headroom = 8. spawn take = min(batch8, pool, 8) = 3
-  // (only 3 ready). spawnedThisTick = 3. judgeSlots = min(8−3=5, depth20, cap6) = 5.
+  // running 2, ready 3, deep queue, cap room. headroom = 8. spawn take = min(batch8, pool, 8) = 3.
   daemon.__setOverlayForTest(makeOverlay(20));
   const L = makeLoop();
   const d = daemon.decideOne(L, ctxFor(makeGraph(2, 3)));
   ok('both: action is spawn', d.action === 'spawn');
   ok('both: spawns the 3 ready tasks', d.tasks && d.tasks.length === 3);
-  ok('both: attaches judge directive', !!d.judge);
-  ok('both: judge.parallel = min(8−3, 20, 6) = 5', d.judge && d.judge.parallel === 5);
-  ok('both: judge.budget = budgetPerRun (6)', d.judge && d.judge.budget === 6);
+  ok('both: no visible judge directive', d.judge == null && d.eager == null);
 }
 
-// === tasks WIN: ready fills headroom first, judge gets the remainder ==========================
+// === ready tasks fill the task headroom without attaching judge work ===========================
 {
   // running 0, ready 9 (more than batch). batch=8 so take = min(8, pool, headroom10) = 8.
-  // spawnedThisTick = 8. judgeSlots = min(10−8=2, depth20, cap6) = 2.
   daemon.__setOverlayForTest(makeOverlay(20));
   const L = makeLoop();
   const d = daemon.decideOne(L, ctxFor(makeGraph(0, 9)));
-  ok('tasks-win: spawns batch of 8', d.action === 'spawn' && d.tasks.length === 8);
-  ok('tasks-win: judge gets leftover 2 slots (min(10−8,20,6))', d.judge && d.judge.parallel === 2);
+  ok('ready batch: spawns batch of 8', d.action === 'spawn' && d.tasks.length === 8);
+  ok('ready batch: no visible judge directive', d.judge == null && d.eager == null);
 }
 {
   // ready fully consumes headroom → no leftover slots → spawn with NO judge directive.
@@ -154,32 +115,18 @@ function ctxFor(g) { return { graph: g, pendingGuidance: [], batch: { remaining:
   ok('spawn clamped to headroom=2 (not batch=8)', d.action === 'spawn' && d.tasks.length === 2);
 }
 
-// === token-budget clamp REDUCES parallel to what budget affords ===============================
+// === loop STILL STOPS at tokenBudget with internal judge work pending ==========================
 {
-  // estPerTick 800. Set tokenBudget so that after the tick's own estPerTick charge, remaining affords
-  // only ~2 efforts. spent starts 0; decideOne charges +800 → spent 800. tokenBudget = 800 + 2*800 =
-  // 2400 → remaining 1600 → affordable = floor(1600/800) = 2. judgeSlots clamps 6 → 2.
-  daemon.__setOverlayForTest(makeOverlay(20));
-  const L = makeLoop({ config: { tokenBudget: 2400, estPerTick: 800 } });
-  const d = daemon.decideOne(L, ctxFor(makeGraph(0, 0)));
-  ok('budget clamp: parallel reduced to 2 (affordable)', d.action === 'judge_edges' && d.parallel === 2);
-  ok('budget clamp: L.spent charges all K efforts (800 + 2*800 = 2400)', L.spent === 2400);
-}
-
-// === loop STILL STOPS at tokenBudget with judge work pending ==================================
-{
-  // After the clamp above charged spent to the budget, the NEXT tick's guard must flip to stop.
   daemon.__setOverlayForTest(makeOverlay(20));
   const L = makeLoop({ config: { tokenBudget: 2400, estPerTick: 800 }, spent: 2400 });
   const d = daemon.decideOne(L, ctxFor(makeGraph(0, 0)));
-  // decideOne adds another estPerTick (→3200 > 2400) → cap guard fires BEFORE the judge logic.
+  // decideOne adds another estPerTick (→3200 > 2400) → cap guard fires before any task logic.
   ok('budget exhausted → action stop (not judge_edges)', d.action === 'stop' && /budget/.test(d.reason));
   ok('exhausted loop deactivated', L.active === false);
 }
 
-// === tiny budget that affords ZERO efforts → no judge directive ===============================
+// === tiny budget with internal judge work → no visible judge directive =========================
 {
-  // tokenBudget barely above one estPerTick: after the tick charge, remaining < estPerTick → affordable 0.
   daemon.__setOverlayForTest(makeOverlay(20));
   const L = makeLoop({ config: { tokenBudget: 1000, estPerTick: 800 } });  // spent→800, remaining 200, afford 0
   const d = daemon.decideOne(L, ctxFor(makeGraph(0, 0)));

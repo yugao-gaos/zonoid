@@ -1,11 +1,10 @@
 #!/usr/bin/env node
-// Tests for the force-claim hard cap (3 per task) and dashboard-only approval reset.
+// Tests for the force-claim hard cap (3 per task) and automated backoff reset.
 //
 // Covers:
 //   (a) force claims 1-3 succeed with decreasing force_claims_remaining
-//   (b) 4th force claim refused (409, approval_required:true) and a guidance item filed
-//   (c) no duplicate guidance on repeated over-cap attempts
-//   (d) counter reset via /guidance/resolve re-allows force claims
+//   (b) 4th force claim refused (409, retryable/backoff) without dashboard guidance
+//   (c) cap reset automatically re-allows force claims
 //   (e) normal (non-force) claims are NOT capped and do not regress
 //
 // Spawns a sandboxed daemon on a private port. Run: node test/force-claim-cap.test.js
@@ -126,41 +125,20 @@ test('force-claim cap', async () => {
     assert.equal(r.body.ok, true, 'force claim 3: ok');
     assert.equal(r.body.force_claims_remaining, 0, 'force claim 3: 0 remaining');
 
-    // ── (b) 4th force claim refused with approval_required:true + guidance filed ─
+    // ── (b) 4th force claim refused with automated backoff/reset, no dashboard guidance ─
     r = await forceClaim(TASK_FORCE, 'agent-delta');
     assert.equal(r.status, 409, '4th force claim: 409');
     assert.equal(r.body.ok, false, '4th force claim: not ok');
-    assert.equal(r.body.approval_required, true, '4th force claim: approval_required:true');
+    assert.equal(r.body.retryable, true, '4th force claim: retryable:true');
+    assert.equal(r.body.backoff_required, true, '4th force claim: backoff_required:true');
 
-    // Guidance item must have been filed.
+    // No user guidance item is filed for mechanical force-claim recovery.
     const gResp = await get(`/guidance?workspace=${encodeURIComponent(WS)}`);
     assert.equal(gResp.status, 200, 'guidance GET: 200');
-    const pending = gResp.body.pending || [];
-    const capItem = pending.find((g) => g.trigger === 'force_claim_cap' && g.action && g.action.taskKey === TASK_FORCE);
-    assert.ok(capItem, 'force_claim_cap guidance item filed');
-    assert.equal(capItem.action.kind, 'force_claim_cap', 'guidance action kind correct');
+    const capItems = (gResp.body.user_attention || []).filter((g) => g.trigger === 'force_claim_cap');
+    assert.equal(capItems.length, 0, 'force_claim_cap does not enter user guidance');
 
-    // ── (c) no duplicate guidance on repeated over-cap attempts ─────────────
-    r = await forceClaim(TASK_FORCE, 'agent-epsilon');
-    assert.equal(r.status, 409, '5th force claim: 409');
-    r = await forceClaim(TASK_FORCE, 'agent-zeta');
-    assert.equal(r.status, 409, '6th force claim: 409');
-    const gResp2 = await get(`/guidance?workspace=${encodeURIComponent(WS)}`);
-    const capItems2 = (gResp2.body.pending || []).filter((g) => g.trigger === 'force_claim_cap' && g.action && g.action.taskKey === TASK_FORCE);
-    assert.equal(capItems2.length, 1, 'no duplicate guidance items filed');
-
-    // ── (d) counter reset via dashboard answer route re-allows force claims ─
-    const resolveR = await post('/guidance/resolve', { id: capItem.id, decision: 'approved', workspace: WS });
-    assert.equal(resolveR.status, 200, 'guidance resolve: 200');
-    assert.equal(resolveR.body.ok, true, 'guidance resolve: ok');
-    assert.equal(resolveR.body.reset_task_key, TASK_FORCE, 'resolve echoes reset_task_key');
-
-    // Guidance item should now be resolved (not pending).
-    const gResp3 = await get(`/guidance?workspace=${encodeURIComponent(WS)}`);
-    const capStillPending = (gResp3.body.pending || []).some((g) => g.id === capItem.id);
-    assert.equal(capStillPending, false, 'guidance item resolved after approve');
-
-    // Force claims should work again (counter reset to 0).
+    // Force claims should work again because the cap reset automatically.
     r = await forceClaim(TASK_FORCE, 'agent-eta');
     assert.equal(r.status, 200, 'force claim after reset: 200');
     assert.equal(r.body.ok, true, 'force claim after reset: ok');

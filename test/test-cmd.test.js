@@ -38,6 +38,10 @@ try {
   overlay.setTestCmd(ov, REPO, '');
   ok('empty cmd clears the entry', ov.config.test_cmds[REPO] === undefined && overlay.testCmdFor(ov, REPO) === null);
   ok('clearing one repo leaves the other', overlay.testCmdFor(ov, OTHER) === 'bash test/smoke.sh');
+  overlay.setTestCmd(ov, REPO, 'python3 bench/zonoid_bench/smoke.py');
+  ok('stale bench smoke command is not stored as a routine test gate', ov.config.test_cmds[REPO] === undefined && overlay.testCmdFor(ov, REPO) === null);
+  ov.config.test_cmds[REPO] = 'python3 bench/zonoid_bench/smoke.py';
+  ok('legacy stored bench smoke command reads as unset', overlay.testCmdFor(ov, REPO) === null);
 
   // --- save / load persistence (nested under config, alongside the rest of the config) ---
   overlay.setTestCmd(ov, REPO, 'npm test');

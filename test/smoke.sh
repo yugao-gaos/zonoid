@@ -5,16 +5,14 @@
 # Run: bash test/smoke.sh
 set -u
 cd "$(dirname "$0")/.." || exit 1
-
 PORT=${ORCH_SMOKE_PORT:-8799}; pass=0; fail=0; DPID=""
 SMOKE_ROOT=$(mktemp -d /tmp/orch-smoke.XXXXXX)
 SMOKE_LOG="$SMOKE_ROOT/daemon.log"
 SSE_OUT="$SMOKE_ROOT/sse.out"
-export CLAUDE_PLUGIN_DATA="$SMOKE_ROOT/data"
-
+export CLAUDE_PLUGIN_DATA="$SMOKE_ROOT/data"      # isolate overlay/loop/workspace from production
 chk(){ if [ "$2" = "$3" ]; then echo "PASS  $1"; pass=$((pass+1)); else echo "FAIL  $1 (got '$2' want '$3')"; fail=$((fail+1)); fi; }
 boot(){
-  ORCH_AUTOWIRE_THRESHOLD=2 ORCH_PORT=$PORT node "$PWD/daemon.js" >>"$SMOKE_LOG" 2>&1 & DPID=$!
+  ORCH_AUTOWIRE_THRESHOLD=999 ORCH_PORT=$PORT node "$PWD/daemon.js" >>"$SMOKE_LOG" 2>&1 & DPID=$!
   for i in $(seq 1 120); do
     curl -s --max-time 0.5 "localhost:$PORT/health" 2>/dev/null | jq -e '.phase=="ready"' >/dev/null 2>&1 && return
     sleep 0.25
@@ -36,6 +34,8 @@ body_with_ws(){
 }
 g(){ curl -s "localhost:$PORT/$(with_ws "$1")"; }
 jpost(){ local path="$1"; shift; local body; body=$(body_with_ws "$path" "$1"); curl -s -H 'content-type: application/json' -XPOST "localhost:$PORT/$(with_ws "$path")" -d "$body"; }
+# One heartbeat tick for the GIVEN loop. Eager judge ticks are housekeeping; skip them when a smoke
+# assertion is testing the loop's user-visible spawn/plan/optimize/stop decision.
 next_loop_decision(){ g next-action | jq -c --arg id "$1" '.loops[]|select(.loopId==$id)' | head -n1; }
 loop_decision(){
   local id="$1" dec="" action="" last='{"action":"missing"}'
@@ -59,6 +59,18 @@ wait_loop_action(){
   done
   printf '%s\n' "$last"
 }
+wait_any_loop_action(){
+  local want="$1" resp="" dec="" action="" last='{"action":"missing"}'
+  for i in $(seq 1 60); do
+    resp=$(g next-action)
+    dec=$(printf '%s' "$resp" | jq -c --arg want "$want" '.loops[]|select(.action==$want)' | head -n1)
+    [ -n "$dec" ] && { printf '%s\n' "$dec"; return; }
+    dec=$(printf '%s' "$resp" | jq -c '.loops[0] // {"action":"missing"}')
+    last="$dec"; action=$(printf '%s' "$dec" | jq -r .action)
+    case "$action" in judge_eager|judge_edges) sleep 0.25;; *) sleep 0.25;; esac
+  done
+  printf '%s\n' "$last"
+}
 ldec(){ local id="$1" f="$2"; loop_decision "$id" | jq -r "$f"; }
 encoded_ws(){ node -e "console.log(require('./lib/native-tasks').encodeWorkspace(process.argv[1]))" "$1"; }
 session_id(){ printf "%s-%012x" "$1" "$$"; }
@@ -70,7 +82,7 @@ mkdir -p "$CLAUDE_PLUGIN_DATA"; lsof -ti tcp:$PORT 2>/dev/null | xargs kill -9 2
 WS="$SMOKE_ROOT/ws"; mkdir -p "$WS"
 S=$(session_id "99999999-0000-0000-0000")
 PROJ="$HOME/.claude/projects/$(encoded_ws "$WS")"; T="$HOME/.claude/tasks/$S"
-rm -rf "$PROJ" "$T"
+rm -rf "$PROJ" "$T"   # clear native-task state for this run's unique workspace/session
 mkdir -p "$PROJ" "$T"; : > "$PROJ/$S.jsonl"
 echo '{"id":"1","subject":"a","status":"pending","blockedBy":[]}'    > "$T/1.json"
 echo '{"id":"2","subject":"b","status":"pending","blockedBy":["1"]}' > "$T/2.json"
@@ -123,13 +135,13 @@ chk "b ready after a done"      "$(wait_ready_label b)"                         
 
 # SSE emits on a mutation
 ( curl -sN --max-time 2 "localhost:$PORT/$(with_ws events)" > "$SSE_OUT" 2>&1 ) & sleep 0.4
-jpost overlay/status "$(b_status "$S/2" ready)" >/dev/null; sleep 0.5
+jpost overlay/status "$(b_status "$S/2" ready)" >/dev/null; sleep 0.5   # mutation triggers SSE; leaves b ready
 chk "SSE pushed on change"      "$([ "$(grep -c 'data: changed' "$SSE_OUT")" -ge 2 ] && echo yes || echo no)" "yes"
 
 # edge add then remove (re-parallelize): add a context edge, then remove it
 jpost overlay/edge "$(printf '{"from":"%s","to":"%s","kind":"context"}' "$S/1" "$S/2")" >/dev/null
 chk "edge added"                "$(g state | jq '[.edges[]|select(.kind=="context")]|length')" "1"
-chk "edge removed"              "$(jpost overlay/edge/remove "$(printf '{"from":"%s","to":"%s"}' "$S/1" "$S/2")" | jq -r .removed)" "1"
+chk "edge removed"              "$(jpost overlay/edge/remove "$(printf '{"from":"%s","to":"%s","kind":"context"}' "$S/1" "$S/2")" | jq -r .removed)" "1"
 chk "edges empty after remove"  "$(g state | jq '[.edges[]|select(.kind=="context")]|length')" "0"
 
 # concurrency: cancel-wins-over-heartbeat + optimistic compare-and-set (409 on stale)
@@ -156,6 +168,8 @@ chk "stop unknown task -> 404"  "$(jpost agent/stop '{"task_key":"no/such"}' | j
 # safe claim (CAS on ownership): canceled refused, double-claim refused, force takes over
 CK="$S/cas"
 native_task cas cas
+g "task/detail?key=$(urlenc "$CK")" >/dev/null
+jpost mark-root "$(printf '{"task_key":"%s","reason":"smoke safe-claim root"}' "$CK")" >/dev/null
 jpost overlay/status "$(b_status "$CK" canceled)" >/dev/null
 chk "claim canceled refused"    "$(jpost overlay/status "$(printf '{"key":"%s","status":"in_progress","agent_id":"ax","session_id":"%s"}' "$CK" "$S")" | jq -r '.error!=null')" "true"
 CK2="$S/cas2"
@@ -169,6 +183,7 @@ jpost overlay/status "$(printf '{"key":"%s","status":"canceled","agent_id":"ay",
 
 # enforced cooperative-stop: /should-stop maps session->task->agent; PreToolUse hook denies (exit 2).
 HK="$PWD/hooks/orch-stop.sh"; HS=$S/hook; HA=hookw
+# associate the claim with our smoke session by writing it onto a native task in session $S
 echo '{"id":"hook","subject":"h","status":"pending","blockedBy":[]}' > "$T/hook.json"; sleep 1.2
 prepare_claim_worktree "$HS"
 jpost overlay/status "$(printf '{"key":"%s","status":"in_progress","agent_id":"%s","session_id":"%s"}' "$HS" "$HA" "$S")" >/dev/null
@@ -189,7 +204,7 @@ native_task loopspawn loopspawn
 LK="$S/loopspawn"
 g "task/detail?key=$(urlenc "$LK")" >/dev/null
 jpost mark-root "$(printf '{"task_key":"%s","reason":"smoke loop spawn root"}' "$LK")" >/dev/null
-LID=$(jpost loop/start '{"maxIterations":50}' | jq -r .loopId)
+LID=$(jpost loop/start '{"maxIterations":500}' | jq -r .loopId)
 LDEC=$(wait_loop_action "$LID" spawn)
 chk "next-action spawns"        "$(echo "$LDEC" | jq -r .action)"                "spawn"
 ITER=$(g "loop/status?loopId=$LID" | jq -r .iterations)
@@ -208,43 +223,51 @@ jpost config '{"self_plan":false}' >/dev/null
 chk "drained, no self_plan -> stop" "$(wait_loop_action "$LID" stop | jq -r .action)" "stop"
 
 # optimize-loop control: a DONE problem carrying a metric spec + a judge verdict, DAG drained.
-jpost loop/start "$(printf '{"loopId":"%s","maxIterations":50,"tokenBudget":500000}' "$LID")" >/dev/null
+jpost loop/start "$(printf '{"loopId":"%s","maxIterations":500,"tokenBudget":500000}' "$LID")" >/dev/null
 chk "optimize knobs stored"     "$(jpost config '{"optimize":{"epsilon":1,"diminishing_rounds":3}}' | jq -r '.config.optimize.diminishing_rounds')" "3"
 OPSPEC='{"metric":"p95_latency_ms","direction":"min","measure_command":"echo 150","parse":"last_number","target":120}'
 jpost task/metric "$(printf '{"key":"%s","spec":%s}' "$S/1" "$OPSPEC")" >/dev/null
 jpost overlay/knowledge "$(printf '{"key":"%s","item":{"type":"note","value":{"winner":"%s","metric_value":150,"guardrails_ok":true,"improvement":"-50ms"}}}' "$S/1" "$S/1")" >/dev/null
-OPA=$(wait_loop_action "$LID" optimize)
+OPA=$(wait_loop_action "$LID" optimize)   # ONE non-judge tick; this loop's decision
 chk "drained+unmet metric -> optimize" "$(echo "$OPA" | jq -r .action)"          "optimize"
 chk "optimize carries the problem"     "$(echo "$OPA" | jq -r .problem)"          "$S/1"
 chk "optimize feeds prior verdict"     "$(echo "$OPA" | jq -r .prior_verdict.metric_value)" "150"
 chk "no new verdict -> no re-iterate"  "$(ldec "$LID" '.action!="optimize"')" "true"
 jpost overlay/knowledge "$(printf '{"key":"%s","item":{"type":"note","value":{"winner":"%s","metric_value":118,"guardrails_ok":true}}}' "$S/1" "$S/1")" >/dev/null
-jpost loop/start "$(printf '{"loopId":"%s","maxIterations":50,"tokenBudget":500000}' "$LID")" >/dev/null
+jpost loop/start "$(printf '{"loopId":"%s","maxIterations":500,"tokenBudget":500000}' "$LID")" >/dev/null   # re-arm: the no-re-iterate tick stopped the loop, and /next-action skips inactive loops
 chk "new verdict at target -> converged->stop" "$(wait_loop_action "$LID" stop | jq -r .action)"  "stop"
-jpost task/metric "$(printf '{"key":"%s"}' "$S/1")" >/dev/null
+jpost task/metric "$(printf '{"key":"%s"}' "$S/1")" >/dev/null   # clear metric so later sections start clean
 jpost loop/stop "$(printf '{"loopId":"%s"}' "$LID")" >/dev/null
 
-# cooperative self-stop: arm the loop to a session, flag a stop on its claimed task's agent.
+# cooperative self-stop: arm the loop to a session, flag a stop on its claimed task's agent,
+# and confirm the in-process heartbeat self-exits WITHIN ONE iteration (loop.active -> false).
 SS=$(session_id "88888888-0000-0000-0000"); SSP="$HOME/.claude/projects/$(encoded_ws "$WS")"; SST="$HOME/.claude/tasks/$SS"
 mkdir -p "$SSP" "$SST"; : > "$SSP/$SS.jsonl"
 echo '{"id":"1","subject":"loopwork","status":"pending","blockedBy":[]}' > "$SST/1.json"; sleep 1.2
 prepare_claim_worktree "$SS/1"
 jpost overlay/status "$(printf '{"key":"%s","status":"in_progress","agent_id":"loopw","session_id":"%s"}' "$SS/1" "$SS")" >/dev/null
+# register the worker so the session reads as LIVE — sweepStaleLoops demotes a session-bound loop
+# whose session has no running agent (sessionIsLive) before the heartbeat ever ticks it
 jpost agent/start "$(printf '{"agent_id":"loopw","task":"%s","session":"%s"}' "$SS/1" "$SS")" >/dev/null
-LID2=$(jpost loop/start "$(printf '{"maxIterations":50,"session":"%s"}' "$SS")" | jq -r .loopId)
+LID2=$(jpost loop/start "$(printf '{"maxIterations":500,"session":"%s"}' "$SS")" | jq -r .loopId)
 chk "loop armed w/ session"     "$(g "loop/status?loopId=$LID2" | jq -r .session)" "$SS"
+# work is in flight ($SS/1 claimed in_progress) -> heartbeat idles, not stops
 L2DEC=$(loop_decision "$LID2")
 chk "armed loop ticks normally" "$(printf '%s' "$L2DEC" | jq -r '.action!="stop"')" "true"
-jpost agent/stop '{"agent_id":"loopw"}' >/dev/null
+jpost agent/stop '{"agent_id":"loopw"}' >/dev/null     # simulate cooperative stop
+# hook path is actor-keyed: the worker's own agent_id sees the stop; a driver poll (no agent) does not
 chk "should-stop sees flag"     "$(g "should-stop?session=$SS&agent=loopw" | jq -r .stop)" "true"
+# the in-process heartbeat is session-scoped, so it still self-exits on its claimed agent's stop
 chk "loop self-exits on stop"   "$(wait_loop_action "$LID2" stop | jq -r .reason)" "cooperative stop"
 chk "loop.active cleared"       "$(g "loop/status?loopId=$LID2" | jq -r .active)" "false"
 jpost overlay/status "$(printf '{"key":"%s","status":"canceled","agent_id":"loopw","session_id":"%s"}' "$SS/1" "$SS")" >/dev/null
 rm -rf "$SST" "$SSP/$SS.jsonl"
 
-# bootstrap grace regression: a brand-new session-bound loop is still ticked once.
+# bootstrap grace regression: a BRAND-NEW session-bound loop has no RUNNING agent and no touched
+# claim until its first spawn, so sessionIsLive reads false on the first tick. sweepStaleLoops must
+# NOT demote it as session-dead inside the grace window — next-action must still tick it.
 SG=$(session_id "77777777-0000-0000-0000")
-LID3=$(jpost loop/start "$(printf '{"maxIterations":50,"session":"%s"}' "$SG")" | jq -r .loopId)
+LID3=$(jpost loop/start "$(printf '{"maxIterations":500,"session":"%s"}' "$SG")" | jq -r .loopId)
 chk "fresh session-bound loop is ticked (not swept)" "$(ldec "$LID3" .loopId)" "$LID3"
 chk "no session-dead sweep during bootstrap grace"   "$(g "loop/status?loopId=$LID3" | jq -r .sweptReason)" "null"
 jpost loop/stop "$(printf '{"loopId":"%s"}' "$LID3")" >/dev/null
@@ -322,7 +345,10 @@ chk "benchmark still set after rejects" "$(g 'task/detail?key='"$BK" | jq -r .be
 chk "clear benchmark (empty)"    "$(jpost task/benchmark "$(printf '{"key":"%s"}' "$BK")" | jq -r '.ok and (.benchmark==null)')" "true"
 chk "benchmark cleared on node"  "$(g 'task/detail?key='"$BK" | jq -r '.benchmark==null')" "true"
 
-# loop workspace PIN: a loop carries the workspace it was started for and survives restarts.
+# loop workspace PIN: a loop carries the workspace it was started for (mcp-core injects the calling
+# session's pin as body.workspace) and the heartbeat decides it against THAT graph — even after
+# another session flips the daemon-global /workspace pointer. Regression: the heartbeat used the
+# GLOBAL workspace, saw the other workspace's empty graph, and demoted a live loop with "DAG drained".
 WA="$SMOKE_ROOT/wa"; WB="$SMOKE_ROOT/wb"; mkdir -p "$WA" "$WB"
 SA=$(session_id "77777777-0000-0000-0001")
 PA="$HOME/.claude/projects/$(encoded_ws "$WA")"; TA="$HOME/.claude/tasks/$SA"
@@ -331,7 +357,7 @@ echo '{"id":"1","subject":"pinned-work","status":"pending","blockedBy":[]}' > "$
 jpost workspace "$(printf '{"path":"%s"}' "$WA")" >/dev/null
 g "task/detail?key=$(urlenc "$SA/1")&workspace=$(urlenc "$WA")" >/dev/null
 jpost mark-root "$(jq -nc --arg key "$SA/1" --arg ws "$WA" '{task_key:$key,reason:"smoke pinned root",workspace:$ws}')" >/dev/null
-LIDP=$(jpost loop/start "$(jq -nc --arg ws "$WA" '{maxIterations:50,workspace:$ws}')" | jq -r .loopId)
+LIDP=$(jpost loop/start "$(jq -nc --arg ws "$WA" '{maxIterations:500,workspace:$ws}')" | jq -r .loopId)
 chk "loop captured workspace pin" "$(g "loop/status?loopId=$LIDP" | jq -r .workspace)" "$WA"
 jpost workspace "$(printf '{"path":"%s"}' "$WB")" >/dev/null
 chk "workspace B state reachable" "$(g "state?workspace=$(urlenc "$WB")" | jq -r .workspace)" "$WB"
@@ -356,7 +382,7 @@ DW="$SMOKE_ROOT/drift"; DS=$(session_id "66666666-0000-0000-0000")
 DP="$HOME/.claude/projects/$(encoded_ws "$DW")"; DT="$HOME/.claude/tasks/$DS"
 mkdir -p "$DW" "$DP" "$DT"; : > "$DP/$DS.jsonl"
 echo 'NOT JSON' > "$DT/1.json"; sleep 1.7
-chk "drift -> health unhealthy" "$(g "health?workspace=$(urlenc "$DW")" | jq -r .native_format.healthy)" "false"
+chk "drift -> health unhealthy" "$(g "health?workspace=$(urlenc "$DW")" | jq -r .native_format.healthy)"     "false"
 rm -rf "$DT" "$DP"
 
 stop

@@ -9,6 +9,7 @@ const usage = require('../lib/harness-usage');
 const stub = require('../lib/adapters/stub');
 const opencode = require('../lib/adapters/opencode');
 const claude = require('../lib/adapters/claude');
+const codex = require('../lib/adapters/codex');
 const { splitSessionTokens } = require('../lib/costflow');
 
 let pass = 0, fail = 0;
@@ -80,6 +81,29 @@ const ok = (label, cond) => {
   ok('opencode normalizeReported prices model', slice.cost.usd > 0 && !!slice.cost.by_model['gpt-5-codex']);
   const sampled = opencode.usage.sample(null, { reported_usage: { output_tokens: 7, model: 'gpt-5-codex' } });
   ok('opencode sample accepts reported_usage', sampled.usage.output_tokens === 7 && sampled.cost.usd > 0);
+}
+
+{
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-usage-'));
+  const prevHome = process.env.CODEX_HOME;
+  const fullId = '2026-06-22T09-58-03-019eef9f-bc70-7541-8f76-379400ff71e1';
+  const suffix = '019eef9f-bc70-7541-8f76-379400ff71e1';
+  const rolloutDir = path.join(tmp, 'sessions', '2026', '06', '22');
+  const rolloutPath = path.join(rolloutDir, `rollout-${fullId}.jsonl`);
+  try {
+    process.env.CODEX_HOME = tmp;
+    fs.mkdirSync(rolloutDir, { recursive: true });
+    fs.writeFileSync(rolloutPath, '{}\n');
+    const listed = codex.transcripts.listSessionTranscripts();
+    ok('codex lists rollout JSONL files', listed.length === 1 && listed[0].id === fullId && listed[0].path === rolloutPath);
+    ok('codex maps rollout by full id', codex.transcripts.sessionTranscriptPath(null, fullId) === rolloutPath);
+    ok('codex maps rollout by UUID suffix', codex.transcripts.sessionTranscriptPath(null, suffix) === rolloutPath);
+    ok('codex maps rollout when main transcript is already known', codex.transcripts.sessionTranscriptPath(rolloutPath, suffix) === rolloutPath);
+  } finally {
+    if (prevHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = prevHome;
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 }
 
 {

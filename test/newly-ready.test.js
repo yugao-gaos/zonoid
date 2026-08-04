@@ -99,8 +99,8 @@ function dropStub(harness, id, extra = {}) {
     await req('POST', '/sync', { workspace: WS });
 
     await req('POST', '/mark-root', { workspace: WS, task_key: 'h/blocker', reason: 'test root' });
-    await req('POST', '/overlay/edge', { workspace: WS, from: 'h/blocker', to: 'h/blocked', kind: 'blocking' });
-    await req('POST', '/overlay/edge', { workspace: WS, from: 'h/blocker', to: 'h/bystander', kind: 'blocking' });
+    await req('POST', '/overlay/edge', { workspace: WS, from: 'h/blocker', to: 'h/blocked', kind: 'context' });
+    await req('POST', '/overlay/edge', { workspace: WS, from: 'h/blocker', to: 'h/bystander', kind: 'context' });
     await waitForNotJudging('h/blocker');
     await waitForNotJudging('h/blocked');
     await waitForNotJudging('h/bystander');
