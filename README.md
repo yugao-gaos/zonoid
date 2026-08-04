@@ -228,6 +228,12 @@ deliberately excluded from the count (they dwarf real input+output by orders of 
 trip any human-scale ceiling within a single worker run). The deterministic review-merge sweep still
 runs while paused — it spends no tokens, so reviewed work never strands on its attempt branch.
 
+The **per-day** ceiling is the one that is on by default. The older `drain_token_budget` knob caps
+the drain pool **per daemon boot**, and that counter never resets while the daemon runs — so it is
+now **unbounded unless you set it** (it previously defaulted to 200000, a fraction of a single
+agentic child, and only stayed harmless because nothing incremented the counter it gates). Set it if
+you want a hard per-boot backstop; the review-merge sweep keeps running if you hit it.
+
 `GET /status` reports both:
 
 ```sh
@@ -245,7 +251,7 @@ instead of dying with the shell that exported it.
 | knob | env var | default |
 | --- | --- | --- |
 | `drain_max_concurrency` | `HEADLESS_DRAIN_MAX_CONCURRENCY` | 2 |
-| `drain_token_budget` | `HEADLESS_DRAIN_TOKEN_BUDGET` | 200000 |
+| `drain_token_budget` | `HEADLESS_DRAIN_TOKEN_BUDGET` | unbounded (see below) |
 | `drain_max_iterations` | `HEADLESS_DRAIN_MAX_ITERATIONS` | unbounded |
 | `drain_timeout_ms` | `HEADLESS_DRAIN_TIMEOUT_MS` | 300000 |
 | `spawn_timeout_ms` | `HEADLESS_SPAWN_TIMEOUT_MS` | 1800000 |

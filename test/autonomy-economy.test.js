@@ -398,6 +398,104 @@ async function pumpTests() {
     assert.equal(changed.calls.runDrain.length, 1);
   });
 
+  await atest('dispatch reads the overlay AFTER decide, so a decide-pass write is not reverted', async () => {
+    // decideOne WRITES the overlay during the decide pass — it leases every task it picks, and its
+    // cost_gate path blocks the task + appends guidance and saves. overlay save() rewrites every
+    // LOCAL_FIELD, so a pump that dispatched from a PRE-decide snapshot would both miss the fresh
+    // foreign lease (double-dispatch) and revert the cost_gate write when it persisted its own.
+    let persisted = {
+      config: { headless_driver: true, self_plan: true, planner_cooldown_ms: 0 },
+      spawnLease: {}, status: {}, planner: {}, autonomySpend: {}, epoch: 0,
+    };
+    const loops = new Map([['m1', { id: 'm1', active: true, managed: 'graph', session: null, workspace: WS }]]);
+    const ran = [];
+    const deps = {
+      loops,
+      decide: () => {
+        persisted.spawnLease.t1 = { loopId: 'other-driver', leaseExpiry: Date.now() + 60_000 };
+        persisted.guidance = ['cost_gate: loop over budget'];
+        return [{ loopId: 'm1', action: 'spawn', tasks: [{ key: 't1', label: 'T' }] }];
+      },
+      overlayLoad: () => JSON.parse(JSON.stringify(persisted)),
+      overlaySave: (_ws, ov) => { persisted = ov; },
+      governor: { iterationsUsed: 0, tokensUsed: 0, concurrentRunning: 0, backoffUntil: 0, consecutiveThrottles: 0 },
+      acquireSlot: () => ({ ok: true, release() {} }),
+      resolveMcpConfig: () => null,
+      recordOutcome: () => {},
+      backendLib: { getActiveBackend: () => ({ provider: mockProvider(), providerId: 'mock', model: 'm' }) },
+      runDrain: async (spec) => { ran.push(spec); return { exitCode: 0, stdout: '', stderr: '', timedOut: false, spawnError: null }; },
+      effectiveConfig: () => ({ tokenBudget: Infinity, maxIterations: 50, maxConcurrency: 2, timeoutMs: 1000 }),
+    };
+    const r = await headlessSpawn.runDueSpawns({}, deps);
+    assert.equal(ran.length, 0, 'a task another driver leased during the decide pass must not be dispatched');
+    assert.equal(r.skipped, 'lease_held');
+    assert.deepEqual(persisted.guidance, ['cost_gate: loop over budget'],
+      'the pump must not persist a pre-decide snapshot over the decide pass writes');
+  });
+
+  test('drain_token_budget is UNBOUNDED unless set — metering must not park the pumps for a boot', () => {
+    // The per-boot counter never resets while the daemon runs, and one agentic child reports ~1M
+    // input+output; the old 200000 default only looked harmless because nothing incremented the
+    // counter it gates. The standing ceiling is the per-DAY one, which resets at midnight.
+    const tuning = require('../lib/tuning');
+    const headlessDrain = require('../lib/headless-drain');
+    const saved = process.env.HEADLESS_DRAIN_TOKEN_BUDGET;
+    delete process.env.HEADLESS_DRAIN_TOKEN_BUDGET;
+    try {
+      assert.equal(tuning.get('drain_token_budget'), Number.POSITIVE_INFINITY);
+      assert.equal(headlessDrain.effectiveConfig().tokenBudget, Number.POSITIVE_INFINITY);
+      assert.ok(autonomyBudget.DEFAULT_DAILY_TOKEN_BUDGET > 0, 'the per-day ceiling is the one that is on by default');
+    } finally {
+      if (saved === undefined) delete process.env.HEADLESS_DRAIN_TOKEN_BUDGET;
+      else process.env.HEADLESS_DRAIN_TOKEN_BUDGET = saved;
+    }
+  });
+
+  await atest('an EXHAUSTED per-boot token budget still lands approved merges', async () => {
+    // An operator-set per-boot cap parks the pump until the next restart. The deterministic
+    // review-merge sweep spends no tokens, so it must still run — otherwise approved attempts
+    // strand on their branches for the whole boot (the same starvation the at-capacity carve-out
+    // was added to fix).
+    const headlessDrain = require('../lib/headless-drain');
+    const overlayStore = require('../lib/overlay');
+    const os = require('os');
+    const fs = require('fs');
+    const path = require('path');
+
+    const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-perboot-'));
+    const key = 'codex/approved-attempt';
+    const ov = overlayStore.load(ws);
+    ov.config = { automode: true, autonomy_daily_token_budget: 0 };  // per-DAY ceiling off: isolate the per-boot one
+    overlayStore.setStatus(ov, key, 'tested');
+    overlayStore.setReviewLifecycle(ov, key, {
+      review_state: 'approved', review_verdict: 'APPROVE', merge_state: 'pending',
+    });
+    overlayStore.save(ws, ov);
+
+    const savedEnv = process.env.HEADLESS_DRAIN_TOKEN_BUDGET;
+    const savedGov = { ...headlessDrain._governor };
+    process.env.HEADLESS_DRAIN_TOKEN_BUDGET = '1000';
+    const calls = [];
+    try {
+      headlessDrain._governor.tokensUsed = 5000;   // one metered child already blew past the cap
+      const r = await headlessDrain.runDueDrains({ workspace: ws }, null, {
+        reviewMergeDeps: {
+          mergeTask: async (c) => { calls.push(['merge', c.key]); return { merged: true, head: 'deadbee' }; },
+          promoteTask: async (c, m) => { calls.push(['promote', c.key, m.head]); return { ok: true }; },
+        },
+      });
+      assert.deepEqual(calls, [['merge', key], ['promote', key, 'deadbee']],
+        'the token cap must not strand an approved attempt on its branch');
+      assert.ok(r.ran >= 1);
+      assert.notEqual(r.skipped, 'token_budget_exhausted');
+    } finally {
+      if (savedEnv === undefined) delete process.env.HEADLESS_DRAIN_TOKEN_BUDGET;
+      else process.env.HEADLESS_DRAIN_TOKEN_BUDGET = savedEnv;
+      Object.assign(headlessDrain._governor, savedGov);
+      try { fs.rmSync(ws, { recursive: true, force: true }); } catch { /* best-effort */ }
+    }
+  });
+
   await atest('runDueDrains: an over-ceiling workspace pauses with skipped:daily_budget', async () => {
     const headlessDrain = require('../lib/headless-drain');
     const overlayStore = require('../lib/overlay');

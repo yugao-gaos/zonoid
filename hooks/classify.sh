@@ -53,9 +53,12 @@ if printf '%s' "$low" | grep -Eq '(^|[[:space:]])@?orch[[:space:]]+auto([[:space
     WSOUT=$(printf '%s' "$AUTO_RESP" | jq -r '.workspace // empty' 2>/dev/null)
     FLAGS="self_plan=$(printf '%s' "$CFG" | jq -r '.self_plan // false') automode=$(printf '%s' "$CFG" | jq -r '.automode // false') headless_driver=$(printf '%s' "$CFG" | jq -r '.headless_driver // false')"
     if [ "$AUTO" = true ]; then
-      # Budget caps mirror lib/loop-autostart AUTOSTART_CONFIG and lib/headless-drain
-      # HEADLESS_DRAIN_CONFIG (hooks/classify.js reads them live; bash cannot) — keep in sync.
-      MSG="[Orchestrator] Full autonomy ON for ${WSOUT:-$CWD} ($FLAGS). The daemon now plans on a drained DAG (self_plan), executes spawn/plan/optimize + review verdicts headlessly (headless_driver), and auto-answers escalations + auto-merges approved attempts (automode). Budget caps: managed loop 5000000 tokens / 6250 iterations / batch 4 / 6 concurrent workers; headless drains 200000 tokens per daemon boot / 2 concurrent drain children. Disable with \"orch auto off\"."
+      # Budget caps mirror lib/loop-autostart AUTOSTART_CONFIG, lib/autonomy-budget
+      # DEFAULT_DAILY_TOKEN_BUDGET, and lib/headless-drain concurrency (hooks/classify.js reads
+      # them live; bash cannot) — keep in sync. The per-boot drain_token_budget is deliberately
+      # NOT advertised: it is unbounded unless an operator sets it, and bash cannot tell whether
+      # this host set it. The standing ceiling to report is the per-workspace DAILY one.
+      MSG="[Orchestrator] Full autonomy ON for ${WSOUT:-$CWD} ($FLAGS). The daemon now plans on a drained DAG (self_plan), executes spawn/plan/optimize + review verdicts headlessly (headless_driver), and auto-answers escalations + auto-merges approved attempts (automode). Budget caps: 20000000 autonomy tokens per day (resets at midnight); managed loop 5000000 tokens / 6250 iterations / batch 4 / 6 concurrent workers; headless drains 2 concurrent drain children. Disable with \"orch auto off\"."
     else
       MSG="[Orchestrator] Full autonomy OFF for ${WSOUT:-$CWD} ($FLAGS). Headless spawn/plan/review drains stand down; interactive dispatch resumes. Re-enable with \"orch auto\"."
     fi

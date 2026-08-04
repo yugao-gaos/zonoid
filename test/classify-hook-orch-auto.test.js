@@ -90,7 +90,13 @@ const emitted = (r) => { try { return JSON.parse(r.stdout).hookSpecificOutput.ad
     ok('js: confirmation names all three flags',
       /self_plan=true/.test(msg) && /automode=true/.test(msg) && /headless_driver=true/.test(msg));
     ok('js: confirmation names loop budget caps (AUTOSTART_CONFIG)', /5000000 tokens/.test(msg) && /6250 iterations/.test(msg));
-    ok('js: confirmation names drain governor caps', /200000 tokens per daemon boot/.test(msg) && /2 concurrent drain children/.test(msg));
+    // The ceiling that is ON BY DEFAULT is the per-workspace DAILY one; the per-boot
+    // drain_token_budget is unbounded unless an operator sets it, so the confirmation must not
+    // advertise the retired 200000 default as if it still bounded the run.
+    ok('js: confirmation names the DAILY autonomy ceiling', /20000000 autonomy tokens per day/.test(msg));
+    ok('js: confirmation names drain concurrency', /2 concurrent drain children/.test(msg));
+    ok('js: confirmation does NOT advertise the retired per-boot default',
+      !/200000 tokens per daemon boot/.test(msg));
   }
 
   // (A2) 'orch auto off' → auto:false + OFF confirmation
@@ -167,7 +173,12 @@ exit 0
     ok('sh: confirmation says autonomy ON', /Full autonomy ON/.test(r.stdout));
     ok('sh: confirmation names all three flags',
       /self_plan=true/.test(r.stdout) && /automode=true/.test(r.stdout) && /headless_driver=true/.test(r.stdout));
+    // The bash mirror is a hand-synced static string; hold it to the same contract as the js hook
+    // so the two cannot drift back apart on the number that actually bounds a run.
     ok('sh: confirmation names budget caps', /5000000 tokens/.test(r.stdout) && /2 concurrent drain children/.test(r.stdout));
+    ok('sh: confirmation names the DAILY autonomy ceiling', /20000000 autonomy tokens per day/.test(r.stdout));
+    ok('sh: confirmation does NOT advertise the retired per-boot default',
+      !/200000 tokens per daemon boot/.test(r.stdout));
   }
 
   // (B2) 'orch auto off' → auto:false + OFF confirmation
