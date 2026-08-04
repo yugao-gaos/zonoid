@@ -162,6 +162,17 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       else if (mode.mode === 'local') T.ov.config.claim_mode = 'local';
       else delete T.ov.config.claim_mode;
     }
+    // Daily token ceiling for the WHOLE autonomy surface (workers + planners + judges + reviews),
+    // per workspace per calendar day — lib/autonomy-budget. 0 disables the ceiling; a negative or
+    // non-numeric value is rejected rather than silently disabling it.
+    if (b.autonomy_daily_token_budget != null) {
+      const n = Number(b.autonomy_daily_token_budget);
+      if (!Number.isFinite(n) || n < 0) {
+        send(res, 400, { ok: false, error: 'autonomy_daily_token_budget must be a number >= 0 (0 disables the ceiling)' });
+        return true;
+      }
+      T.ov.config.autonomy_daily_token_budget = n;
+    }
     if (b.claim_lease_minutes != null) T.ov.config.claim_lease_minutes = Number(b.claim_lease_minutes);
     if (b.stale_minutes != null) T.ov.config.stale_minutes = Number(b.stale_minutes);
     if (b.archive_after_days != null) T.ov.config.archive_after_days = Number(b.archive_after_days);

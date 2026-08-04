@@ -41,10 +41,16 @@ const k = require('./lib/hookkit');
     const flags = `self_plan=${!!cfg.self_plan} automode=${!!cfg.automode} headless_driver=${!!cfg.headless_driver}`;
     if (autoOn) {
       const { AUTOSTART_CONFIG } = require('../lib/loop-autostart');
-      const { HEADLESS_DRAIN_CONFIG } = require('../lib/headless-drain');
+      const { effectiveConfig } = require('../lib/headless-drain');
+      const { dailyTokenBudget } = require('../lib/autonomy-budget');
+      const drainCfg = effectiveConfig();
+      // The per-boot drain token cap is opt-in (unbounded unless set), so only mention it when it
+      // is actually armed — the standing bound to report is the per-workspace DAILY ceiling.
+      const perBoot = Number.isFinite(drainCfg.tokenBudget) ? `${drainCfg.tokenBudget} tokens per daemon boot / ` : '';
+      const daily = dailyTokenBudget({ config: cfg });
       k.emitContext('UserPromptSubmit',
         `[Orchestrator] Full autonomy ON for ${resp.workspace || ws} (${flags}). The daemon now plans on a drained DAG (self_plan), executes spawn/plan/optimize + review verdicts headlessly (headless_driver), and auto-answers escalations + auto-merges approved attempts (automode). ` +
-        `Budget caps: managed loop ${AUTOSTART_CONFIG.tokenBudget} tokens / ${AUTOSTART_CONFIG.maxIterations} iterations / batch ${AUTOSTART_CONFIG.batch} / ${AUTOSTART_CONFIG.maxConcurrency} concurrent workers; headless drains ${HEADLESS_DRAIN_CONFIG.tokenBudget} tokens per daemon boot / ${HEADLESS_DRAIN_CONFIG.maxConcurrency} concurrent drain children. Disable with "orch auto off".`);
+        `Budget caps: ${daily > 0 ? `${daily} autonomy tokens per day (resets at midnight)` : 'daily autonomy ceiling DISABLED'}; managed loop ${AUTOSTART_CONFIG.tokenBudget} tokens / ${AUTOSTART_CONFIG.maxIterations} iterations / batch ${AUTOSTART_CONFIG.batch} / ${AUTOSTART_CONFIG.maxConcurrency} concurrent workers; headless drains ${perBoot}${drainCfg.maxConcurrency} concurrent drain children. Disable with "orch auto off".`);
     }
     k.emitContext('UserPromptSubmit',
       `[Orchestrator] Full autonomy OFF for ${resp.workspace || ws} (${flags}). Headless spawn/plan/review drains stand down; interactive dispatch resumes. Re-enable with "orch auto".`);
