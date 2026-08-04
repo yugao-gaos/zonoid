@@ -1,1 +1,13 @@
+# Graph state is daemon-written, append-only JSONL. On merge, keep our side rather than
+# raising conflicts in machine-generated files that no human resolves.
+#
+# Requires, once per clone:  git config merge.ours.driver true
+# Git has no built-in "ours" low-level merge driver (only text/binary/union), so without that
+# config this attribute silently degrades to a normal text merge and still conflicts.
+#
+# Note: neither pattern covers the root `.graph` submodule gitlink itself. Git resolves
+# submodule gitlinks internally and never dispatches them to a custom merge driver, so a
+# gitlink conflict there must be resolved by picking a graph commit (see CONTRIBUTING.md,
+# ".graph repository and checkpoints").
 .graph/** merge=ours
+**/.graph/** merge=ours
