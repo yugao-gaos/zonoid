@@ -17,6 +17,7 @@ const http = require('http');
 const os = require('os');
 const path = require('path');
 const { writeCurlStub, hookEnv } = require('./helpers/curl-stub');
+const { bashExe } = require('./helpers/bash');
 
 const HOOK_JS = path.resolve(__dirname, '..', 'hooks', 'classify.js');
 const HOOK_SH = path.resolve(__dirname, '..', 'hooks', 'classify.sh');
@@ -145,7 +146,7 @@ exit 0
   );
   function runShHook(input) {
     if (fs.existsSync(BODY_OUT)) fs.rmSync(BODY_OUT);
-    const r = spawnSync('bash', [HOOK_SH], {
+    const r = spawnSync(bashExe(), [HOOK_SH], {
       input, encoding: 'utf8',
       env: hookEnv([stubDir], { CLAUDE_PLUGIN_DATA: TMP }),
     });

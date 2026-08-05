@@ -1455,7 +1455,10 @@ test('api-kind active backend ⇒ judge spawns API worker, not provider invocati
     assert.equal(result.skipped, null, 'judge ran ⇒ not skipped');
     const workerArgs = calls.map((c) => {
       assert.equal(c.bin, process.execPath, 'api worker uses the current Node runtime');
-      assert.match(c.args[0], /scripts\/api-judge-worker\.js$/, 'api worker script is spawned');
+      // The spawn arg is built with path.join, so it carries NATIVE separators — backslashes on
+      // Windows. Normalize before matching rather than asserting a POSIX-only spelling; the
+      // assertion itself (which script, in which directory) is unchanged.
+      assert.match(c.args[0].replace(/\\/g, '/'), /scripts\/api-judge-worker\.js$/, 'api worker script is spawned');
       return JSON.parse(c.args[1]);
     });
     const nodes = workerArgs.map((a) => a.node || null);

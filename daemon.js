@@ -96,6 +96,16 @@ function authed(req, u) {
 const cache = { agg: new Map(), aggAt: new Map(), usage: new Map(), usageAt: new Map() };
 const AGG_TTL = 1500, USAGE_TTL = 4000;
 
+// Graph snapshot cache (shared by buildGraph + readGraphSnapshot) — see buildGraph for the why.
+// Declared HERE, beside the aggregate cache, because the two must be invalidated TOGETHER: the
+// projection buildGraph caches is computed FROM the native/file-drop aggregate, so an aggregate that
+// changed without an overlay write (a dropped stub, an edited native task file) leaves the snapshot
+// stale even though its own overlay-mtime stamp still matches. Use invalidateAggregate() /
+// invalidateAllAggregates() for those: they drop this cache too. (Mutation routes that clear
+// cache.agg directly are safe as-is — they SAVE the overlay first, which bumps the mtime this cache
+// is stamped on, so it invalidates itself. Only the no-overlay-write paths need the helpers.)
+const snapCache = new Map();   // ws -> { graph, stamp }
+
 // Response cache for the expensive read endpoints (/state, /costflow): dashboards + heartbeats
 // poll both, and every call rebuilds the whole graph (buildGraph) / recomputes SCC+flow. A short
 // TTL bounds the recompute cost; EVERY overlay mutation invalidates immediately — notifyChange()
@@ -188,9 +198,22 @@ function aggregateCached(ws) {
   return v;
 }
 
+// Single choke point for "the native/file-drop aggregate for this workspace may have changed".
+// Drops the graph snapshot too: buildGraph's cache is stamped on the OVERLAY mtime only, so a pure
+// aggregate change (new stub file, edited native task) would otherwise keep serving the projection
+// built before it. Observed as: POST /sync adopting nothing and a renamed native task never echoing.
 function invalidateAggregate(ws) {
   cache.agg.delete(ws);
   cache.aggAt.delete(ws);
+  snapCache.delete(ws);
+}
+
+// Same, for the watchers that cannot attribute a change to one workspace.
+function invalidateAllAggregates() {
+  cache.agg.clear();
+  cache.aggAt.clear();
+  snapCache.clear();
+  respCache.clear();
 }
 
 // (P3) The Phase-1 workspace-fallback observability seam (warnWorkspaceFallback) has been REMOVED:
@@ -289,9 +312,9 @@ function usageCached(p) {
   cache.usage.set(p, v); cache.usageAt.set(p, now);
   return v;
 }
-claudeHarness.tasks.watch(() => { cache.agg.clear(); cache.aggAt.clear(); respCache.clear(); }); // Claude native task dir
+claudeHarness.tasks.watch(invalidateAllAggregates); // Claude native task dir
 // filedrop.watch below covers designated-folder stubs
-filedrop.watch(() => { cache.agg.clear(); cache.aggAt.clear(); respCache.clear(); });      // designated-folder stub drops surface without /sync
+filedrop.watch(invalidateAllAggregates);            // designated-folder stub drops surface without /sync
 
 const ACTION_STATUSES = ['in_progress', 'tested', 'done', 'failed', 'canceled'];
 const ALL_STATUSES = ['not_ready', 'ready', ...ACTION_STATUSES];
@@ -2091,7 +2114,7 @@ function sweepFiledropStubs(ws) {
   const result = filedropGc.sweepWorkspaceStubs(ws, ov, { dryRun: false });
   if (result.adopted.length || result.removed.length) {
     overlayStore.save(ws, ov); refreshOverlayStamp(ws);
-    cache.agg.delete(ws); cache.aggAt.delete(ws);
+    invalidateAggregate(ws);
   }
   return result;
 }
@@ -2401,7 +2424,7 @@ function reconcileGraphBeforeProjection(ws, ovWs) {
   // Release dead/abandoned claims BEFORE reading native, busting the aggregate cache so a reverted
   // native status is reflected in this same build (not one poll later). Sweeps the TARGET
   // workspace's overlay, so stale claims release wherever the read lands.
-  const invalidate = () => { cache.agg.delete(ws); cache.aggAt.delete(ws); };
+  const invalidate = () => invalidateAggregate(ws);
   if (sweepStaleClaims(ws, ovWs)) invalidate();
   let native = aggregateCached(ws);
   if (sweepStaleNativeClaims(ws, ovWs, native)) {
@@ -2645,10 +2668,11 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
 }
 
 // Build the graph for one workspace: explicit reconciliation side effects, then projection.
-// Graph snapshot cache (shared by buildGraph + readGraphSnapshot). Keyed by the overlay file mtime —
-// the SAME stamp the overlay + response caches use — so any mutation rebuilds immediately, but repeated
-// reads over a stable overlay reuse ONE projection.
-const snapCache = new Map();   // ws -> { graph, stamp }
+// Graph snapshot cache (declared with `cache` up top). Keyed by the overlay file mtime — the SAME
+// stamp the overlay + response caches use — so any overlay mutation rebuilds immediately, but
+// repeated reads over a stable overlay reuse ONE projection. The mtime alone is NOT sufficient: the
+// projection also consumes the native/file-drop aggregate, which changes with no overlay write, so
+// invalidateAggregate()/invalidateAllAggregates() drop this cache as well.
 function buildGraphUncached(ws) {
   // P3: every workspace's overlay is the per-workspace cache entry (overlayFor) — there is no
   // special "current" workspace. The cache entry is the authoritative, write-coalesced in-memory
@@ -2927,7 +2951,7 @@ const ctx = {
   send, sendOp, readBody, notifyChange, graphAutoflush, buildGraph, readGraphSnapshot, targetOverlay, overlayFor, resolveRepo, resolveRepoTarget, nodeExistsInGraph, registeredWorkspaces,
   validateMetricSpec, validateBenchmark,
   overlayStore, harness: claudeHarness, harnessRegistry, filedrop, writeTaskStatus, readNativeTask, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
-  cache, loops, saveLoops, saveAgents,
+  cache, invalidateAggregate, invalidateAllAggregates, loops, saveLoops, saveAgents,
   get bootState() { return bootState; },
   GIT_HEAD, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL, WORKSPACES_FILE, STALE_MINUTES_DEFAULT,
   daemonLog,

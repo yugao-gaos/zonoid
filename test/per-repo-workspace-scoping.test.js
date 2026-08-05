@@ -51,7 +51,13 @@ function req(method, p, body) {
   });
 }
 
-async function waitForPing(ms = 10000) {
+// Boot deadline, not a latency budget: waitForPing returns the moment /ping answers, so a
+// generous ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated.
+// 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
+// runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
+// still starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
+
+async function waitForPing(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     try { const r = await req('GET', '/ping'); if (r.status === 200 && r.body.ok) return true; } catch { /* not up */ }

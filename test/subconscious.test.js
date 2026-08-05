@@ -649,7 +649,12 @@ test('subconscious execution permit store issues reads and revokes scoped permit
   assert.equal(issue.execution_permit.status, 'active');
   assert.equal(issue.execution_permit.session_id, 'session-a');
   assert.equal(issue.execution_permit.task_key, 'task/anchor');
-  assert.equal(issue.execution_permit.allowed_paths[0], `${ws}/wt/src`);
+  // Permits store paths in a CANONICAL forward-slash form (normalizePermitPath -> slashPath +
+  // path.posix.normalize) so the write gate can compare a tool's file_path against allowed_paths as
+  // plain strings. On Windows `ws` is a backslash path, so `${ws}/wt/src` is a MIXED-separator
+  // string that the canonical form never equals; normalize the expectation the same way rather than
+  // comparing against a spelling the store deliberately does not emit. No-op on POSIX.
+  assert.equal(issue.execution_permit.allowed_paths[0], `${ws.replace(/\\/g, '/')}/wt/src`);
   assert.equal(issue.execution_permit.expires_at, '2026-06-21T13:01:00.000Z');
 
   const read = store.readExecutionPermit({

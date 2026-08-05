@@ -31,7 +31,11 @@ const overlayStore = require('../lib/overlay');
 const git = require('../lib/git');
 const nt = require('../lib/native-tasks');
 
-const PORT = 18840 + Math.floor(Math.random() * 100);
+// Free port from the OS, not a random pick in a reserved-by-comment range: a daemon leaked by an
+// earlier run keeps listening, answers /ping from a deleted sandbox, and turns every assertion after
+// "daemon came up" into an unrelated-looking failure. See test/helpers/port.js.
+const { freePort } = require('./helpers/port');
+let PORT = 0;
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-filedrop-ws-')));
 // Fake Claude session for the (C) session-key routing check — mirrors native-write.test.js.
 const FAKE_SESSION = `feedface${process.pid.toString(16).padStart(8, '0')}`;
@@ -64,7 +68,13 @@ function req(method, p, body) {
   });
 }
 
-async function waitForPing(ms = 8000) {
+// Boot deadline, not a latency budget: waitForPing returns the moment /ping answers, so a
+// generous ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated.
+// 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
+// runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
+// still starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
+
+async function waitForPing(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     try { const r = await req('GET', '/ping'); if (r.status === 200) return true; } catch { /* not up yet */ }
@@ -91,6 +101,7 @@ function spawnDaemon() {
 }
 
 (async () => {
+  PORT = await freePort();
   git.initRepo(WS); // claim gate needs a registered worktree, which needs a git repo
   let child = spawnDaemon();
   try {
@@ -106,7 +117,17 @@ function spawnDaemon() {
     // native blockedBy edge clears unwired on BOTH endpoints), so it can't be the unwired example.
     dropStub('cursor', 'ccc', { description: 'standalone unwired probe' });
 
+    // Dropping a stub file is not synchronously visible to the daemon: the drop is picked up either
+    // by filedrop.watch (an fs.watch callback, delivered on the daemon's own event loop) or by the
+    // aggregate cache's TTL expiring. Reading /peek once, immediately after the writes above, races
+    // both — on a loaded machine the read lands before the watcher fires and every (A) assertion
+    // fails on a graph that simply has not seen the files yet. Poll until the stubs surface, exactly
+    // like the adopt-hold loop below: the assertions still have to become true, just not instantly.
     let g = (await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`)).body;
+    for (let i = 0; i < 25 && !(g.tasks && g.tasks.some((t) => t.id === 'cursor/aaa') && g.tasks.some((t) => t.id === 'cursor/bbb')); i++) {
+      await new Promise((r) => setTimeout(r, 200));
+      g = (await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`)).body;
+    }
     let aaa = g.tasks.find((t) => t.id === 'cursor/aaa');
     const bbb = g.tasks.find((t) => t.id === 'cursor/bbb');
     ok('(A) stub aaa is a graph node', !!aaa);
@@ -124,9 +145,18 @@ function spawnDaemon() {
     ok('(A) blocker derives ready (after adopt-hold clears)', aaa && aaa.status === 'ready');
     ok('(A) blocked task derives not_ready', bbb && bbb.status === 'not_ready');
     ok('(A) summary counts stub tasks', g.summary && g.summary.tasks_total === 3); // aaa, bbb, ccc
+    // overlayStore.load reads the overlay FILE, but the daemon COALESCES its writes — the adoption
+    // snapshot is minted in memory during the projection above and persisted a moment later. Reading
+    // once races that flush (observed: snapshots['cursor/bbb'] undefined -> TypeError). Poll the same
+    // way the adopt-hold above does, so the assertion still has to become true, just not instantly.
     let ovFirst = overlayStore.load(WS);
+    for (let i = 0; i < 25 && !(ovFirst.snapshots && ovFirst.snapshots['cursor/aaa'] && ovFirst.snapshots['cursor/bbb']); i++) {
+      await new Promise((r) => setTimeout(r, 200));
+      ovFirst = overlayStore.load(WS);
+    }
     ok('(D) adoption snapshot minted at first sight for cursor/aaa', ovFirst.snapshots && ovFirst.snapshots['cursor/aaa']);
-    ok('(D) adopted blockedBy normalized on cursor/bbb', (ovFirst.snapshots['cursor/bbb'].blockedBy || []).includes('cursor/aaa'));
+    ok('(D) adopted blockedBy normalized on cursor/bbb',
+      ovFirst.snapshots && ovFirst.snapshots['cursor/bbb'] && (ovFirst.snapshots['cursor/bbb'].blockedBy || []).includes('cursor/aaa'));
 
     // ------------------------------------------------------------------
     // (B) overlay machinery parity: unwired quarantine + claims

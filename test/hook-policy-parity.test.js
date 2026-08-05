@@ -6,6 +6,9 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { withHookStub } = require('./support/hook-http-stub');
+// Resolve the REAL MSYS2 bash rather than whatever PATH offers: on Windows, C:\WINDOWS\system32\bash.exe
+// (the WSL relay) shadows it and fails with execvpe(/bin/bash). See test/helpers/bash.js.
+const { bashExe } = require('./helpers/bash');
 
 const REPO = path.resolve(__dirname, '..');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'hook-policy-parity-'));
@@ -13,13 +16,13 @@ const WT = path.join(TMP, 'wt').replace(/\\/g, '/');
 fs.mkdirSync(WT, { recursive: true });
 
 const DIRECT_WRITE = [process.execPath, [path.join(REPO, 'hooks', 'orch-gate.js')]];
-const SHELL_WRITE = ['bash', [path.join(REPO, 'hooks', 'orch-gate.sh')]];
-const CURSOR_WRITE = ['bash', [path.join(REPO, 'adapters', 'cursor', 'orch-gate.sh')]];
-const CODEX_WRITE = ['bash', [path.join(REPO, 'adapters', 'codex', 'hooks', 'orch-gate.sh')]];
+const SHELL_WRITE = [bashExe(), [path.join(REPO, 'hooks', 'orch-gate.sh')]];
+const CURSOR_WRITE = [bashExe(), [path.join(REPO, 'adapters', 'cursor', 'orch-gate.sh')]];
+const CODEX_WRITE = [bashExe(), [path.join(REPO, 'adapters', 'codex', 'hooks', 'orch-gate.sh')]];
 const DIRECT_BASH = [process.execPath, [path.join(REPO, 'hooks', 'orch-gate-bash.js')]];
-const SHELL_BASH = ['bash', [path.join(REPO, 'hooks', 'orch-gate-bash.sh')]];
-const CURSOR_BASH = ['bash', [path.join(REPO, 'adapters', 'cursor', 'shell-gate.sh')]];
-const CODEX_BASH = ['bash', [path.join(REPO, 'adapters', 'codex', 'hooks', 'orch-gate-bash.sh')]];
+const SHELL_BASH = [bashExe(), [path.join(REPO, 'hooks', 'orch-gate-bash.sh')]];
+const CURSOR_BASH = [bashExe(), [path.join(REPO, 'adapters', 'cursor', 'shell-gate.sh')]];
+const CODEX_BASH = [bashExe(), [path.join(REPO, 'adapters', 'codex', 'hooks', 'orch-gate-bash.sh')]];
 
 let pass = 0;
 let fail = 0;

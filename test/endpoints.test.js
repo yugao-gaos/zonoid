@@ -34,9 +34,14 @@ try {
   if (fs.existsSync(realModels)) fs.symlinkSync(realModels, path.join(SANDBOX, 'models'));
 } catch { /* lexical fallback is fine */ }
 
-// Port range 19550-19649 — unused by other tests (they use 18790/18820/18980/18990/19700+/19900).
-const PORT = 19550 + Math.floor(Math.random() * 100);
-const BASE = `http://127.0.0.1:${PORT}`;
+// Free port from the OS, not a random pick in a reserved-by-comment range. The old comment here
+// claimed 19550-19649 was unused by other tests; it in fact contained the whole range
+// agent-tool-spawn-register.test.js documented as exclusively its own. Ranges also say nothing about
+// occupancy: a daemon leaked by an earlier run keeps listening, answers /ping from a deleted
+// sandbox, and turns every later assertion into an unrelated-looking failure. See test/helpers/port.js.
+const { freePort } = require('./helpers/port');
+let PORT = 0;
+let BASE = '';
 
 // Native-task fixtures: lib/native-tasks reads ONLY ~/.claude/projects/<encoded-ws>/ (session
 // listing) and ~/.claude/tasks/<session>/ (task files). WS is a unique tmp dir, so its encoded
@@ -78,7 +83,13 @@ async function get(p) {
   return { status: res.status, body: await res.json() };
 }
 
-async function waitForPing(ms = 10000) {
+// Boot deadline, not a latency budget: waitForPing returns the moment /ping answers, so a
+// generous ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated.
+// 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
+// runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
+// still starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
+
+async function waitForPing(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     try { const r = await get('/ping'); if (r.body && r.body.ok) return true; } catch { /* not up yet */ }
@@ -94,6 +105,9 @@ function dropStub(harness, id) {
 }
 
 test('untested daemon endpoints', async () => {
+  PORT = await freePort();
+  BASE = `http://127.0.0.1:${PORT}`;
+
   // ── fixtures: two fake native sessions wired to the tmp workspace ─────────
   fs.mkdirSync(PROJECTS_DIR, { recursive: true });
   fs.writeFileSync(path.join(PROJECTS_DIR, `${SID_A}.jsonl`), '');

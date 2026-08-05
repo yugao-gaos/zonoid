@@ -6,6 +6,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const lifecycle = require('../lib/graph-lifecycle');
+const { hasGitFilterRepo } = require('./helpers/tools');
 
 let pass = 0;
 let fail = 0;
@@ -193,13 +194,21 @@ async function testFeatureCheckpoint() {
 
 async function main() {
   try {
+    // testDerive is pure string work; every other case drives lifecycle.init(), which shells out to
+    // `git filter-repo` to extract .graph history into the submodule. filter-repo is a SEPARATE
+    // install (a git extension, not part of git), so its absence is a property of the machine, not
+    // of the code under test — skip those cases with a visible marker instead of failing the suite.
     await testDerive();
-    await testDryRunAndExtraction();
-    await testRollback();
-    await testDirtyRefusal();
-    await testReviewFixes();
-    await testSyncFlushCheckpointStatus();
-    await testFeatureCheckpoint();
+    if (!hasGitFilterRepo()) {
+      console.log('SKIP  graph extraction/rollback/checkpoint cases (git filter-repo is not installed)');
+    } else {
+      await testDryRunAndExtraction();
+      await testRollback();
+      await testDirtyRefusal();
+      await testReviewFixes();
+      await testSyncFlushCheckpointStatus();
+      await testFeatureCheckpoint();
+    }
   } finally {
     for (const dir of cleanup.reverse()) fs.rmSync(dir, { recursive: true, force: true });
   }

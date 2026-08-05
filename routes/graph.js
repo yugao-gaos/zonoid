@@ -38,7 +38,11 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(b, u);
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace: POST /workspace first or pass { workspace }' }); return true; }
     const prevKnown = new Set(Object.keys(T.ov.timestamps || {}));
-    ctx.cache.agg.delete(T.ws); ctx.cache.aggAt.delete(T.ws);   // force the pull past the TTL cache
+    // Force the pull past BOTH read caches. Dropping only the aggregate is not enough: buildGraph
+    // caches its projection under the overlay mtime, and a freshly dropped stub changes no overlay
+    // file — so /sync would re-aggregate and then still return the pre-drop projection, reporting
+    // adopted: [] forever. invalidateAggregate drops the snapshot with it.
+    ctx.invalidateAggregate(T.ws);
     const g = buildGraph(T.ws);
     const adopted = g.tasks.filter((t) => t.kind !== 'note' && !prevKnown.has(t.id)).map((t) => t.id);
     // Idempotency for non-current workspaces: buildGraph only stamps timestamps when ws is the

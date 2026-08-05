@@ -104,6 +104,10 @@ wait_loop_action(){
     [ "$action" = "$want" ] && { printf '%s\n' "$dec"; return; }
     sleep 0.25
   done
+  printf "DBG_READY: %s
+" "$(g state | jq -c "[.tasks[]|select(.status==\"ready\")|{id,status}]")" >&2
+  printf "DBG_LAST[%s]: %s
+" "$want" "$last" >&2
   printf '%s\n' "$last"
 }
 wait_any_loop_action(){
@@ -254,9 +258,13 @@ jpost mark-root "$(printf '{"task_key":"%s","reason":"smoke loop spawn root"}' "
 LID=$(jpost loop/start '{"maxIterations":500}' | jq -r .loopId)
 LDEC=$(wait_loop_action "$LID" spawn)
 chk "next-action spawns"        "$(echo "$LDEC" | jq -r .action)"                "spawn"
+  printf "DBG_PRE_RESTART: %s
+" "$(g state | jq -c '[.tasks[]|{id,status}]')" >&2
 ITER=$(g "loop/status?loopId=$LID" | jq -r .iterations)
 stop; boot
 jpost workspace "$(b_ws)" >/dev/null
+  printf "DBG_POST_RESTART: %s
+" "$(g state | jq -c '[.tasks[]|{id,status}]')" >&2
 chk "loop persisted on restart" "$(g "loop/status?loopId=$LID" | jq -r .active)" "true"
 chk "iterations preserved"      "$(g "loop/status?loopId=$LID" | jq -r ".iterations>=$ITER")" "true"
 

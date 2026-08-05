@@ -13,6 +13,7 @@ const os = require('os');
 const path = require('path');
 const { HEARTBEAT } = require('../lib/classify-assemble');
 const { writeCurlStub, hookEnv } = require('./helpers/curl-stub');
+const { bashExe } = require('./helpers/bash');
 
 const HOOK = path.resolve(__dirname, '..', 'hooks', 'classify.sh');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'judge-hook-nudge-test-'));
@@ -43,7 +44,7 @@ function runHook(input, extraEnv = {}) {
     envOverrides = { ...rest, PATH: process.env.PATH };
   }
   const env = hookEnv(stubDirs, envOverrides);
-  const r = spawnSync('bash', [HOOK], { input, encoding: 'utf8', env });
+  const r = spawnSync(bashExe(), [HOOK], { input, encoding: 'utf8', env });
   return { status: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
 }
 

@@ -14,6 +14,7 @@ const os = require('os');
 const path = require('path');
 const { withHookStub } = require('./support/hook-http-stub');
 const policy = require('../hooks/lib/gate-policy');
+const { bashExe } = require('./helpers/bash');
 
 const HOOK = path.resolve(__dirname, '..', 'hooks', 'orch-gate-bash.sh');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-gate-test-'));
@@ -36,7 +37,7 @@ function mkInput(command, sessionId, cwd) {
 // Run the hook with a given input and env overrides, returns { status, stderr }
 function runHook(input, extraEnv) {
   const env = { ...process.env, ...extraEnv };
-  const r = spawnSync('bash', [HOOK], {
+  const r = spawnSync(bashExe(), [HOOK], {
     input,
     encoding: 'utf8',
     env,

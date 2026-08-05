@@ -21,6 +21,7 @@ const net = require('net');
 const crypto = require('crypto');
 const { spawn, spawnSync, execSync } = require('child_process');
 const filedrop = require('../lib/filedrop-tasks');
+const { bashExe } = require('./helpers/bash');
 
 const REPO = path.resolve(__dirname, '..');
 const HOOK = path.join(REPO, 'hooks', 'orch-gate.sh');
@@ -61,7 +62,13 @@ async function get(p) {
   return { status: res.status, body: await res.json() };
 }
 
-async function waitForPing(ms = 10000) {
+// Boot deadline, not a latency budget: waitForPing returns the moment /ping answers, so a
+// generous ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated.
+// 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
+// runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
+// still starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
+
+async function waitForPing(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     try { const r = await get('/ping'); if (r.body && r.body.ok) return true; } catch { /* not up */ }
@@ -114,7 +121,7 @@ function runGate(sessionId, patch, extraEnv = {}) {
     tool_input: { file_path: '/Users/x/proj/dispatch-test.js', new_string: patch },
     session_id: sessionId,
   });
-  return spawnSync('bash', [HOOK], {
+  return spawnSync(bashExe(), [HOOK], {
     input,
     encoding: 'utf8',
     env: {
