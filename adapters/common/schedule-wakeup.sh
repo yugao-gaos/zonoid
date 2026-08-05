@@ -17,6 +17,19 @@ pid_file() {
   echo "$WAKE_DIR/$(session_slug "$1").pid"
 }
 
+# True when $1 is a shared wake host (lib/wake-host.js). One host delivers EVERY session's pending
+# wake, so a session-scoped cancel must never kill it — removing the pidfile/registry row is the
+# cancel. Host pids are published as wake-host-<hash>.pid in this same wake dir for exactly this.
+is_wake_host() {
+  local pid="$1" f
+  [[ -n "$pid" ]] || return 1
+  for f in "$WAKE_DIR"/wake-host-*.pid; do
+    [[ -f "$f" ]] || continue
+    [[ "$(tr -d '[:space:]' <"$f")" == "$pid" ]] && return 0
+  done
+  return 1
+}
+
 cmd_cancel() {
   local session="$1"
   local pf pid
@@ -27,7 +40,7 @@ cmd_cancel() {
   fi
   pid="$(tr -d '[:space:]' <"$pf")"
   rm -f "$pf"
-  if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+  if [[ -n "$pid" ]] && ! is_wake_host "$pid" && kill -0 "$pid" 2>/dev/null; then
     kill "$pid" 2>/dev/null || true
   fi
   printf '{"ok":true,"canceled":true,"pid":%s}\n' "${pid:-0}"

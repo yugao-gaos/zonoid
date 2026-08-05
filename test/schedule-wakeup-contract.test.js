@@ -37,7 +37,10 @@ const ok = (label, cond) => {
     ok('pidfile exists', fs.existsSync(sw.pidFile(SESSION)));
     ok('arm creates fire file for supervisors', fs.existsSync(sw.fireFile(SESSION)));
     const arm2 = sw.armWakeup({ session: SESSION, delaySeconds: 60, reason: 're', prompt: 'b' });
-    ok('re-arm replaces pid', arm2.ok && arm2.pid !== arm1.pid);
+    // One shared wake host serves every pending wakeup, so re-arming replaces the registry row
+    // rather than spawning a second process — same pid, new payload.
+    ok('re-arm reuses the shared host', arm2.ok && arm2.pid === arm1.pid);
+    ok('re-arm replaces the row', sw._readRegistry(sw.resolveRegistryPath())[sw.sessionSlug(SESSION)].payload.prompt === 'b');
     const cancel = sw.cancelWakeup(SESSION);
     ok('cancel ok', cancel.ok && cancel.canceled);
 
