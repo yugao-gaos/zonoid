@@ -725,6 +725,142 @@ test('findPendingLearnerQueues treats partial auto-inject queue as inject due wh
   }
 });
 
+test('a replacement queue generation never inherits the previous generation injection watermark', () => {
+  const hd = freshModule();
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-generation-replacement-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      generation: 'generation-new',
+      total: 1,
+      cursor: 1,
+      kept: [{ title: 'New', summary: 'New' }],
+      rejected: [],
+      pending: [],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept: [{ title: 'New' }], rejected: [] }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo,
+      outDir,
+      autoInject: true,
+      injected: true,
+      injectedGeneration: 'generation-old',
+      injectedKept: 99,
+      injectionGeneration: 'generation-old',
+      injectionState: 'failed',
+      injectionError: 'inject exited 1',
+      error: 'inject exited 1',
+    }));
+    const queues = hd.findPendingLearnerQueues(repo);
+    assert.equal(queues.length, 1);
+    assert.equal(queues[0].generation, 'generation-new');
+    assert.equal(queues[0].injectedKept, 0);
+    assert.equal(queues[0].injectDue, true);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('failed injection persists backoff metadata and retries automatically to success', async () => {
+  const savedMax = process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS;
+  const savedBase = process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS;
+  process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS = '3';
+  process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS = '1';
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-injection-retry-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  let injectionRuns = 0;
+  const { hd, calls, restore } = freshModuleWithMockedSpawn(() => makeFakeChild({ code: injectionRuns++ === 0 ? 1 : 0 }));
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      generation: 'generation-retry', total: 1, cursor: 1,
+      kept: [{ title: 'Retry', summary: 'Retry' }], rejected: [], pending: [],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept: [{ title: 'Retry' }], rejected: [] }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({ repo, outDir, autoInject: true }));
+    const options = {
+      ...judgeDeps({ depth: 0, eagerNodes: [] }),
+      ...labelDeps({ journal: [], labeledKeys: [] }),
+      ...mockBackendDeps().deps,
+    };
+    await hd.runDueDrains({ workspace: repo, registeredWorkspaces: [repo] }, noopHttp(), options);
+    let status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.injectionState, 'backoff');
+    assert.equal(status.injectionAttempts, 1);
+    assert.ok(status.injectionRetryAt > 0);
+    assert.equal(status.injectionRetryCapped, false);
+    assert.match(status.injectionError, /inject exited 1/);
+
+    status.injectionRetryAt = Date.now() - 1;
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify(status));
+    hd._governor.backoffUntil = Date.now() - 1;
+    await hd.runDueDrains({ workspace: repo, registeredWorkspaces: [repo] }, noopHttp(), options);
+    status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(calls.length, 2);
+    assert.equal(status.injectionState, 'succeeded');
+    assert.equal(status.injectionAttempts, 0);
+    assert.equal(status.injectedGeneration, 'generation-retry');
+    assert.equal(status.injectedKept, 1);
+    assert.equal(status.error, null);
+  } finally {
+    restore();
+    fs.rmSync(repo, { recursive: true, force: true });
+    if (savedMax === undefined) delete process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS;
+    else process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS = savedMax;
+    if (savedBase === undefined) delete process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS;
+    else process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS = savedBase;
+  }
+});
+
+test('automatic injection retries stop at the configured cap', async () => {
+  const savedMax = process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS;
+  const savedBase = process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS;
+  process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS = '2';
+  process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS = '1';
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-injection-cap-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  const { hd, calls, restore } = freshModuleWithMockedSpawn(() => makeFakeChild({ code: 1 }));
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      generation: 'generation-cap', total: 1, cursor: 1,
+      kept: [{ title: 'Cap', summary: 'Cap' }], rejected: [], pending: [],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept: [{ title: 'Cap' }], rejected: [] }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({ repo, outDir, autoInject: true }));
+    const options = {
+      ...judgeDeps({ depth: 0, eagerNodes: [] }),
+      ...labelDeps({ journal: [], labeledKeys: [] }),
+      ...mockBackendDeps().deps,
+    };
+    const state = { workspace: repo, registeredWorkspaces: [repo] };
+    await hd.runDueDrains(state, noopHttp(), options);
+    let status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    status.injectionRetryAt = Date.now() - 1;
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify(status));
+    hd._governor.backoffUntil = Date.now() - 1;
+    await hd.runDueDrains(state, noopHttp(), options);
+    status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.injectionState, 'failed');
+    assert.equal(status.injectionAttempts, 2);
+    assert.equal(status.injectionRetryCapped, true);
+    assert.equal(status.injectionRetryAt, null);
+
+    hd._governor.backoffUntil = Date.now() - 1;
+    const capped = await hd.runDueDrains(state, noopHttp(), options);
+    assert.equal(calls.length, 2, 'a capped generation must not spawn a third automatic attempt');
+    assert.equal(capped.drains.filter((d) => d.drain === hd.LEARNER_DRAIN_KEY).length, 0);
+  } finally {
+    restore();
+    fs.rmSync(repo, { recursive: true, force: true });
+    if (savedMax === undefined) delete process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS;
+    else process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS = savedMax;
+    if (savedBase === undefined) delete process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS;
+    else process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS = savedBase;
+  }
+});
+
 test('findPendingLearnerRepos returns empty when queue is complete (cursor === total)', () => {
   const hd = freshModule();
   const tmpDir = makeCompletedQueueDir();
@@ -1015,6 +1151,45 @@ test('learner selection stays fair across pumps when the first registered projec
     for (const repo of repos) fs.rmSync(repo, { recursive: true, force: true });
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
+    if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+    else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedIter;
+  }
+});
+
+test('stable queue aging serves continuous B and C queues while pending membership changes', async () => {
+  const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+  process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '10';
+  const names = ['a', 'b', 'c', 'd', 'e'];
+  const repos = Object.fromEntries(names.map((name) => [name, fs.mkdtempSync(path.join(os.tmpdir(), `hd-fair-changing-${name}-`))]));
+  const { hd, calls, restore } = freshModuleWithMockedSpawn(() => makeFakeChild({ code: 0 }));
+  try {
+    for (const [name, repo] of Object.entries(repos)) {
+      const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+        generation: `generation-${name}`,
+        total: 4,
+        cursor: 0,
+        kept: [],
+        rejected: [],
+        pending: Array.from({ length: 4 }, (_, i) => ({ title: `${name}${i}`, summary: 's' })),
+      }));
+    }
+    const options = {
+      ...judgeDeps({ depth: 0, eagerNodes: [] }),
+      ...labelDeps({ journal: [], labeledKeys: [] }),
+      ...mockBackendDeps().deps,
+    };
+    await hd.runDueDrains({ workspace: repos.a, registeredWorkspaces: [repos.a, repos.b, repos.c] }, noopHttp(), options);
+    await hd.runDueDrains({ workspace: repos.d, registeredWorkspaces: [repos.d, repos.b, repos.c] }, noopHttp(), options);
+    await hd.runDueDrains({ workspace: repos.e, registeredWorkspaces: [repos.e, repos.d, repos.b, repos.c] }, noopHttp(), options);
+    assert.deepEqual(calls.map((call) => call.opts.cwd), [repos.a, repos.b, repos.c],
+      'newly inserted queues must not reset the age of continuously waiting B/C queues');
+    assert.equal(hd._governor.iterationsUsed, 3);
+    assert.equal(hd._governor.concurrentRunning, 0);
+  } finally {
+    restore();
+    for (const repo of Object.values(repos)) fs.rmSync(repo, { recursive: true, force: true });
     if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
     else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedIter;
   }

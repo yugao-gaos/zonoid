@@ -247,7 +247,11 @@ test('empty and zero-commit projects onboard without inventing project history',
       assert.equal(status.error, null);
       assert.equal(status.preparationState, 'ready');
       if (repoCase.empty) {
-        assert.deepEqual(queue, { total: 0, cursor: 0, kept: [], rejected: [], pending: [] });
+        assert.deepEqual(
+          { total: queue.total, cursor: queue.cursor, kept: queue.kept, rejected: queue.rejected, pending: queue.pending },
+          { total: 0, cursor: 0, kept: [], rejected: [], pending: [] }
+        );
+        assert.match(queue.generation, /^onboard-[a-f0-9]+$/);
       } else {
         assert.ok(queue.total > 0, 'non-git miners must retain useful zero-commit project evidence');
         assert.equal(git(repoCase.path, ['status', '--porcelain=v1', '--untracked-files=all']), statusBefore,
@@ -468,8 +472,12 @@ test('daemon boot resumes a persisted preparation request created before the dae
     await waitFor(() => fs.existsSync(path.join(outDir, 'onboard-queue.json')));
     const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
     assert.equal(status.preparationState, 'ready');
-    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-queue.json'), 'utf8')),
-      { total: 0, cursor: 0, kept: [], rejected: [], pending: [] });
+    const queue = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-queue.json'), 'utf8'));
+    assert.deepEqual(
+      { total: queue.total, cursor: queue.cursor, kept: queue.kept, rejected: queue.rejected, pending: queue.pending },
+      { total: 0, cursor: 0, kept: [], rejected: [], pending: [] }
+    );
+    assert.match(queue.generation, /^onboard-[a-f0-9]+$/);
   } finally {
     await stopDaemon(port);
     fs.rmSync(dataDir, { recursive: true, force: true });

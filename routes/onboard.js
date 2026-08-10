@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const {
   defaultOnboardOutDir,
   onboardRuntimeRoot,
@@ -9,6 +10,7 @@ const {
 
 const DRAIN_STATUS_FILE = 'onboard-drain-status.json';
 const DEFAULT_DRAIN_BATCH_SIZE = 20;
+const DEFAULT_INJECTION_MAX_ATTEMPTS = 3;
 
 function readJSON(file, def) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')); } catch { return def; }
@@ -19,6 +21,28 @@ function writeJSONAtomic(file, data) {
   const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + '\n');
   fs.renameSync(tmp, file);
+}
+
+function newQueueGeneration() {
+  return `onboard-${crypto.randomBytes(12).toString('hex')}`;
+}
+
+function queueGeneration(q) {
+  if (!q || typeof q !== 'object') return null;
+  if (typeof q.generation === 'string' && q.generation.trim()) return q.generation.trim();
+  // Legacy queues predate explicit generations. Their candidate set is immutable while cursor,
+  // kept, and inflight progress change, so it is a safe compatibility fingerprint.
+  const stable = JSON.stringify({ total: Number(q.total) || 0, pending: Array.isArray(q.pending) ? q.pending : [] });
+  return `legacy-${crypto.createHash('sha1').update(stable).digest('hex')}`;
+}
+
+function countOrZero(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, n) : 0;
+}
+
+function injectionMaxAttempts() {
+  return Math.max(1, Number(process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS) || DEFAULT_INJECTION_MAX_ATTEMPTS);
 }
 
 function isPidAlive(pid) {
@@ -77,7 +101,16 @@ function queueStatus(outDir) {
     summary: String(n && n.summary || '').trim(),
     kind: String(n && n.kind || 'note').trim() || 'note',
   }));
-  return { total: q.total, processed, kept, keptNotes, remaining, drainDone: remaining === 0, ...summarizeInflight(q) };
+  return {
+    total: q.total,
+    processed,
+    kept,
+    keptNotes,
+    remaining,
+    drainDone: remaining === 0,
+    queueGeneration: queueGeneration(q),
+    ...summarizeInflight(q),
+  };
 }
 
 function readDrainMeta(outDir) {
@@ -94,24 +127,57 @@ function writeDrainMeta(outDir, patch) {
 function buildDrainJob(repo, outDir, patch = {}) {
   // The headless learner persists progress independently of the route process. A cached POST job
   // is only a fallback; it must never overwrite a newer on-disk injection result or error.
-  const meta = { ...patch, ...readDrainMeta(outDir) };
+  const persistedMeta = readDrainMeta(outDir);
+  const meta = Object.keys(persistedMeta).length ? persistedMeta : patch;
   const persistedQueue = queueStatus(outDir);
   const qs = persistedQueue || {};
   const autoInject = meta.autoInject !== false;
   const drainDone = qs.drainDone === true;
   const noCandidates = drainDone && qs.total === 0;
-  const error = meta.error || null;
   const kept = typeof qs.kept === 'number' ? qs.kept : (meta.kept || 0);
-  const injectedKept = Math.max(0, Number(meta.injectedKept) || (meta.injected === true ? kept : 0));
-  // `meta.injected` means at least one injection pass succeeded. A later learner batch can add
-  // more kept notes, so completion requires the injected watermark to cover the current queue.
-  const injected = meta.injected === true && injectedKept >= kept;
   const processed = qs.processed || meta.processed || 0;
   const visualProcessed = Math.max(processed, qs.visualProcessed || meta.visualProcessed || 0);
   const preparationState = persistedQueue && meta.preparationForce !== true
     ? 'ready'
     : (meta.preparationState || (persistedQueue ? 'ready' : 'idle'));
   const preparing = preparationState === 'pending' || preparationState === 'running';
+  const queueGen = qs.queueGeneration || meta.queueGeneration || null;
+  const injectionGen = typeof meta.injectionGeneration === 'string'
+    ? meta.injectionGeneration
+    : ((meta.injected === true || meta.injecting === true || meta.injectionState) ? queueGen : null);
+  const generationMatches = !!queueGen && injectionGen === queueGen;
+  // An explicit zero is a real watermark. Do not replace it with the current kept count merely
+  // because zero is falsy; that was the original stale-completion bug.
+  const injectedKept = generationMatches && Object.prototype.hasOwnProperty.call(meta, 'injectedKept')
+    ? countOrZero(meta.injectedKept)
+    : 0;
+  const legacyInjectionError = meta.error && /^inject(?:ion)?\b/i.test(String(meta.error));
+  const inferredInjectionState = meta.injecting === true
+    ? 'running'
+    : (meta.injected === true ? 'succeeded' : ((meta.injectionError || legacyInjectionError) ? 'failed' : null));
+  let injectionState = generationMatches ? (meta.injectionState || inferredInjectionState) : null;
+  const noNotesToInject = drainDone && qs.total > 0 && kept === 0;
+  if (preparing) injectionState = 'blocked';
+  else if (!injectionState) injectionState = autoInject && kept > 0 ? 'pending' : (noNotesToInject ? 'not_needed' : 'idle');
+  const injecting = generationMatches && (meta.injecting === true || injectionState === 'running');
+  const injectionError = generationMatches
+    ? (meta.injectionError || ((['backoff', 'failed'].includes(injectionState) || legacyInjectionError) ? meta.error : null))
+    : null;
+  const hasInjectionErrorMetadata = !!meta.injectionError || legacyInjectionError
+    || ['backoff', 'failed'].includes(meta.injectionState);
+  const error = injectionError || (hasInjectionErrorMetadata ? null : meta.error) || null;
+  const injected = !preparing
+    && !injecting
+    && !injectionError
+    && generationMatches
+    && (injectionState === 'succeeded' || (!meta.injectionState && meta.injected === true))
+    && injectedKept >= kept;
+  const attempts = generationMatches ? countOrZero(meta.injectionAttempts) : 0;
+  const maxAttempts = injectionMaxAttempts();
+  const retryAt = generationMatches ? countOrZero(meta.injectionRetryAt) : 0;
+  const retryCapped = generationMatches && (meta.injectionRetryCapped === true || (injectionState === 'failed' && attempts >= maxAttempts));
+  const retryPending = generationMatches && injectionState === 'backoff' && !retryCapped && retryAt > Date.now();
+  const successfulTerminal = noCandidates || noNotesToInject || !autoInject || injected;
   return {
     repo,
     outDir,
@@ -125,16 +191,25 @@ function buildDrainJob(repo, outDir, patch = {}) {
     staleInflight: qs.staleInflight || 0,
     inflightRanges: Array.isArray(qs.inflightRanges) ? qs.inflightRanges : [],
     injectedKept,
-    done: (!!error && !persistedQueue) || (drainDone && (noCandidates || !autoInject || injected || !!error)),
+    queueGeneration: queueGen,
+    done: (!!error && !persistedQueue) || (!preparing && drainDone && successfulTerminal),
     error,
     autoInject,
     injected,
-    injecting: meta.injecting === true,
+    injecting,
+    injectionState,
+    injectionAttempts: attempts,
+    injectionMaxAttempts: maxAttempts,
+    injectionRetryAt: retryAt || null,
+    injectionRetryPending: retryPending,
+    injectionRetryCapped: retryCapped,
+    injectionError,
     preparing,
     preparationState,
     preparationStage: meta.preparationStage || null,
     preparationAttempts: Math.max(0, Number(meta.preparationAttempts) || 0),
     noCandidates,
+    noNotesToInject,
     needsReview: drainDone && !noCandidates && !autoInject && !injected,
   };
 }
@@ -197,12 +272,23 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       writeDrainMeta(outDir, {
         repo,
         outDir,
+        preparationGeneration: newQueueGeneration(),
         preparationState: 'pending',
         preparationStage: null,
         preparationRequestedAt: new Date().toISOString(),
         preparationForce: b.force === true,
         preparationPid: null,
         preparationLeaseExpiresAt: null,
+        queueGeneration: null,
+        injected: false,
+        injectedGeneration: null,
+        injectedKept: 0,
+        injectionGeneration: null,
+        injectionState: 'idle',
+        injectionAttempts: 0,
+        injectionRetryAt: null,
+        injectionRetryCapped: false,
+        injectionError: null,
         injecting: false,
         error: null,
       });
@@ -242,15 +328,21 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const meta = readDrainMeta(outDir);
     const preparationKnown = ['pending', 'running', 'failed', 'ready'].includes(meta.preparationState);
     if (!status && !preparationKnown) { send(res, 404, { ok: false, error: 'queue not found for this repo+outDir' }); return true; }
+    const queueGen = status && status.queueGeneration;
+    const injectionGen = typeof meta.injectionGeneration === 'string'
+      ? meta.injectionGeneration
+      : ((meta.injected === true || meta.injecting === true || meta.injectionState) ? queueGen : null);
+    const currentInjection = !!queueGen && injectionGen === queueGen;
+    const injectionManaged = currentInjection && ['running', 'backoff', 'failed'].includes(meta.injectionState);
     writeDrainMeta(outDir, {
       repo,
       outDir,
       batchSize: batchSize || DEFAULT_DRAIN_BATCH_SIZE,
       autoInject,
-      injecting: false,
+      ...(currentInjection && (meta.injecting === true || meta.injectionState === 'running') ? {} : { injecting: false }),
       // A failed preparation is terminal until /onboard/enqueue explicitly rearms it. Merely
-      // polling/arming the drain must not erase the persisted failure and strand an idle queue.
-      ...(status || meta.preparationState !== 'failed' ? { error: null } : {}),
+      // polling/arming the drain must not erase preparation or injection retry state.
+      ...(injectionManaged ? {} : (status || meta.preparationState !== 'failed' ? { error: null } : {})),
     });
     const job = buildDrainJob(repo, outDir);
     drainJobs.set(jobKey, job);
@@ -263,13 +355,32 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const { repo, outDir } = b;
     if (!repo || !outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
     const learnScript = path.join(__dirname, '..', 'scripts', 'onboard-learn.js');
+    const status = queueStatus(outDir);
+    if (!status) { send(res, 404, { ok: false, error: 'queue not found for this repo+outDir' }); return true; }
+    const generation = status.queueGeneration;
+    const previous = readDrainMeta(outDir);
+    const attempt = countOrZero(previous.injectionAttempts) + 1;
     try {
-      writeDrainMeta(outDir, { repo, outDir, injecting: true, error: null });
+      writeDrainMeta(outDir, {
+        repo, outDir, injecting: true, injectionGeneration: generation, injectionState: 'running',
+        injectionAttempts: attempt, injectionRetryAt: null, injectionRetryCapped: false,
+        injectionError: null, error: null,
+      });
       await runNode([learnScript, '--repo', repo, '--in', outDir, '--inject', '--confirm']);
       const injectedKept = (queueStatus(outDir) || {}).kept || 0;
-      writeDrainMeta(outDir, { repo, outDir, injecting: false, injected: true, injectedKept, injectedAt: new Date().toISOString(), error: null });
+      writeDrainMeta(outDir, {
+        repo, outDir, injecting: false, injected: true, injectedGeneration: generation,
+        injectionGeneration: generation, injectionState: 'succeeded', injectionAttempts: 0,
+        injectionRetryAt: null, injectionRetryCapped: false, injectionError: null,
+        injectedKept, injectedAt: new Date().toISOString(), error: null,
+      });
     } catch (err) {
-      writeDrainMeta(outDir, { repo, outDir, injecting: false, error: String(err && err.message || err) });
+      const error = String(err && err.message || err);
+      writeDrainMeta(outDir, {
+        repo, outDir, injecting: false, injectionGeneration: generation, injectionState: 'failed',
+        injectionAttempts: attempt, injectionRetryAt: null, injectionRetryCapped: true,
+        injectionError: error, error,
+      });
       send(res, 500, { ok: false, error: `inject failed: ${err && err.message ? err.message : err}` }); return true;
     }
     const jobKey = `${repo}::${outDir}`;
@@ -282,6 +393,36 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     if (notifyChange) notifyChange();
     send(res, 200, { ok: true, injected: true }); return true;
+  }
+
+  if (p === '/onboard/retry-inject' && m === 'POST') {
+    const b = await readBody(req);
+    const { repo, outDir } = b;
+    if (!repo || !outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
+    const status = queueStatus(outDir);
+    if (!status) { send(res, 404, { ok: false, error: 'queue not found for this repo+outDir' }); return true; }
+    const meta = readDrainMeta(outDir);
+    const generation = status.queueGeneration;
+    const injectedGeneration = meta.injectedGeneration === generation ? generation : null;
+    writeDrainMeta(outDir, {
+      repo,
+      outDir,
+      autoInject: true,
+      injected: injectedGeneration !== null,
+      injectionGeneration: generation,
+      injectionState: 'pending',
+      injectionAttempts: 0,
+      injectionRetryAt: null,
+      injectionRetryCapped: false,
+      injectionError: null,
+      injecting: false,
+      error: null,
+    });
+    const job = buildDrainJob(repo, outDir);
+    drainJobs.set(`${repo}::${outDir}`, job);
+    if (notifyChange) notifyChange();
+    send(res, 200, { ok: true, status: job, message: 'injection retry queued' });
+    return true;
   }
 
   if (p === '/onboard/drain-queue' && m === 'GET') {

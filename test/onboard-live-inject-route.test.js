@@ -10,7 +10,7 @@ const path = require('path');
 const onboardRoute = require('../routes/onboard');
 const { defaultOnboardOutDir } = require('../lib/onboard-paths');
 
-function writeQueue(outDir, total, cursor, kept = []) {
+function writeQueue(outDir, total, cursor, kept = [], generation) {
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
     total,
@@ -18,6 +18,7 @@ function writeQueue(outDir, total, cursor, kept = []) {
     kept,
     rejected: [],
     pending: [],
+    ...(generation ? { generation } : {}),
   }));
 }
 
@@ -167,7 +168,7 @@ test('persisted background injection failure overrides stale POST state and bloc
     const failed = sent[1].payload.status;
     assert.equal(failed.error, 'inject exited 1');
     assert.equal(failed.injected, false);
-    assert.equal(failed.done, true, 'the failed attempt is terminal even though it is not successful');
+    assert.equal(failed.done, false, 'a failed injection remains live until retry succeeds');
     assert.equal(dashboardStatusComplete(failed), false, 'a terminal failure must not latch onboarding as complete');
 
     fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
@@ -189,6 +190,194 @@ test('persisted background injection failure overrides stale POST state and bloc
     if (previousJobs === undefined) delete global.__drainJobs;
     else global.__drainJobs = previousJobs;
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('pending or running injection never reuses a successful watermark to latch completion', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-inject-pending-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const sent = [];
+  try {
+    const generation = 'generation-pending';
+    writeQueue(outDir, 2, 2, [
+      { title: 'A', summary: 'A' },
+      { title: 'B', summary: 'B' },
+    ], generation);
+    const statusFile = path.join(outDir, 'onboard-drain-status.json');
+    const url = new URL(`http://localhost/onboard/drain-queue?repo=${encodeURIComponent(repo)}&outDir=${encodeURIComponent(outDir)}`);
+    const route = onboardRoute(makeCtx({}, sent, () => {}));
+
+    for (const state of ['pending', 'running']) {
+      fs.writeFileSync(statusFile, JSON.stringify({
+        repo,
+        outDir,
+        autoInject: true,
+        injected: true,
+        injectedGeneration: generation,
+        injectedKept: 2,
+        injectionGeneration: generation,
+        injectionState: state,
+        injecting: state === 'running',
+      }));
+      await route('/onboard/drain-queue', 'GET', {}, {}, url);
+      const status = sent.at(-1).payload.status;
+      assert.equal(status.done, false, `${state} injection must remain incomplete`);
+      assert.equal(status.injected, false, `${state} injection cannot reuse the old success flag`);
+      assert.equal(dashboardStatusComplete(status), false);
+    }
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('an explicit zero injection watermark stays zero and requires injection', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-zero-watermark-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const sent = [];
+  try {
+    const generation = 'generation-zero';
+    writeQueue(outDir, 1, 1, [{ title: 'A', summary: 'A' }], generation);
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo,
+      outDir,
+      autoInject: true,
+      injected: true,
+      injectedGeneration: generation,
+      injectedKept: 0,
+      injectionGeneration: generation,
+      injectionState: 'succeeded',
+    }));
+    const route = onboardRoute(makeCtx({}, sent, () => {}));
+    const url = new URL(`http://localhost/onboard/drain-queue?repo=${encodeURIComponent(repo)}&outDir=${encodeURIComponent(outDir)}`);
+    await route('/onboard/drain-queue', 'GET', {}, {}, url);
+    const status = sent[0].payload.status;
+    assert.equal(status.injectedKept, 0);
+    assert.equal(status.injected, false);
+    assert.equal(status.done, false);
+    assert.equal(dashboardStatusComplete(status), false);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('force replacement allocates a fresh generation and invalidates the old injection watermark', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-force-generation-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const sent = [];
+  try {
+    const oldGeneration = 'generation-old';
+    writeQueue(outDir, 1, 1, [{ title: 'Old', summary: 'Old' }], oldGeneration);
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo,
+      outDir,
+      autoInject: true,
+      queueGeneration: oldGeneration,
+      injected: true,
+      injectedGeneration: oldGeneration,
+      injectedKept: 1,
+      injectionGeneration: oldGeneration,
+      injectionState: 'succeeded',
+    }));
+    const route = onboardRoute(makeCtx({ repo, outDir, force: true }, sent, () => {}));
+    await route('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
+    const meta = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.notEqual(meta.preparationGeneration, oldGeneration);
+    assert.equal(meta.injectedGeneration, null);
+    assert.equal(meta.injectedKept, 0);
+    assert.equal(meta.injectionState, 'idle');
+
+    const url = new URL(`http://localhost/onboard/drain-queue?repo=${encodeURIComponent(repo)}&outDir=${encodeURIComponent(outDir)}`);
+    await onboardRoute(makeCtx({}, sent, () => {}))('/onboard/drain-queue', 'GET', {}, {}, url);
+    const status = sent[1].payload.status;
+    assert.equal(status.preparing, true);
+    assert.equal(status.injected, false);
+    assert.equal(status.done, false);
+    assert.equal(dashboardStatusComplete(status), false);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('manual injection retry resets a capped hold and wakes the learner without a reload', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-manual-retry-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const sent = [];
+  let notifyCount = 0;
+  try {
+    const generation = 'generation-retry';
+    writeQueue(outDir, 1, 1, [{ title: 'Retry', summary: 'Retry' }], generation);
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept: [{ title: 'Retry' }], rejected: [] }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo,
+      outDir,
+      autoInject: true,
+      injected: false,
+      injectedKept: 0,
+      injectionGeneration: generation,
+      injectionState: 'failed',
+      injectionAttempts: 3,
+      injectionRetryCapped: true,
+      injectionError: 'inject exited 1',
+      error: 'inject exited 1',
+    }));
+    const route = onboardRoute(makeCtx({ repo, outDir }, sent, () => { notifyCount++; }));
+    await route('/onboard/retry-inject', 'POST', {}, {}, new URL('http://localhost/onboard/retry-inject'));
+    assert.equal(sent[0].status, 200);
+    assert.equal(sent[0].payload.status.injectionState, 'pending');
+    assert.equal(sent[0].payload.status.injectionAttempts, 0);
+    assert.equal(sent[0].payload.status.injectionRetryAt, null);
+    assert.equal(sent[0].payload.status.injectionRetryCapped, false);
+    assert.equal(sent[0].payload.status.error, null);
+    assert.equal(notifyCount, 1);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('explicit autoInject false completes a drained queue without claiming injection', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-no-auto-inject-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const sent = [];
+  try {
+    writeQueue(outDir, 1, 1, [{ title: 'Review', summary: 'Review' }], 'generation-manual');
+    const route = onboardRoute(makeCtx({ repo, outDir, autoInject: false }, sent, () => {}));
+    await route('/onboard/drain-queue', 'POST', {}, {}, new URL('http://localhost/onboard/drain-queue'));
+    const status = sent[0].payload.status;
+    assert.equal(status.autoInject, false);
+    assert.equal(status.done, true);
+    assert.equal(status.injected, false);
+    assert.equal(status.needsReview, true);
+    assert.equal(dashboardStatusComplete(status), true);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('explicit no-candidates queue remains a successful terminal onboarding state', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-no-candidates-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const sent = [];
+  try {
+    writeQueue(outDir, 0, 0, [], 'generation-empty');
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo,
+      outDir,
+      autoInject: true,
+      preparationState: 'ready',
+      injectionGeneration: 'generation-empty',
+      injectionState: 'not_needed',
+      injectedKept: 0,
+    }));
+    const route = onboardRoute(makeCtx({}, sent, () => {}));
+    const url = new URL(`http://localhost/onboard/drain-queue?repo=${encodeURIComponent(repo)}&outDir=${encodeURIComponent(outDir)}`);
+    await route('/onboard/drain-queue', 'GET', {}, {}, url);
+    const status = sent[0].payload.status;
+    assert.equal(status.noCandidates, true);
+    assert.equal(status.done, true);
+    assert.equal(status.injectedKept, 0);
+    assert.equal(dashboardStatusComplete(status), true);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
   }
 });
 
