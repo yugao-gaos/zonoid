@@ -7,7 +7,7 @@ const fs = require('fs');
 const http = require('http');
 const os = require('os');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 
 const onboardRoute = require('../routes/onboard');
 const learner = require('../scripts/onboard-learn');
@@ -19,6 +19,7 @@ const {
   defaultOnboardOutDir,
   legacyGraphOnboardOutDir,
   legacyBenchOnboardOutDir,
+  readStableRegularFile,
 } = require('../lib/onboard-paths');
 
 function runNode(args, env) {
@@ -1615,7 +1616,10 @@ test('runtime ignore warming is a no-throw advisory for missing, corrupt, unborn
     const corrupt = path.join(root, 'corrupt-git');
     const unborn = path.join(root, 'unborn-git');
     const linked = path.join(root, 'linked-worktree');
-    for (const repo of [nonGit, corrupt, unborn, linked]) fs.mkdirSync(repo);
+    const normal = path.join(root, 'normal-git');
+    const primary = path.join(root, 'primary');
+    const canonicalLinked = path.join(root, 'canonical-linked-worktree');
+    for (const repo of [nonGit, corrupt, unborn, linked, normal, primary, canonicalLinked]) fs.mkdirSync(repo);
 
     assert.deepEqual(onboardInitTransaction.tryRuntimeIgnore(nonGit), { ok: true, applied: false });
     fs.writeFileSync(path.join(corrupt, '.git'), 'not a gitdir pointer\n');
@@ -1627,6 +1631,10 @@ test('runtime ignore warming is a no-throw advisory for missing, corrupt, unborn
     assert.deepEqual(onboardInitTransaction.tryRuntimeIgnore(unborn), { ok: true, applied: true });
     assert.match(fs.readFileSync(unbornExclude, 'utf8'), /^\.zonoid\/$/m);
 
+    fs.mkdirSync(path.join(normal, '.git'));
+    assert.deepEqual(onboardInitTransaction.tryRuntimeIgnore(normal), { ok: true, applied: true });
+    assert.equal(fs.readFileSync(path.join(normal, '.git', 'info', 'exclude'), 'utf8'), '.zonoid/\n');
+
     const commonGit = path.join(root, 'common.git');
     const linkedGit = path.join(commonGit, 'worktrees', 'linked');
     const linkedExclude = path.join(commonGit, 'info', 'exclude');
@@ -1635,8 +1643,137 @@ test('runtime ignore warming is a no-throw advisory for missing, corrupt, unborn
     fs.writeFileSync(path.join(linked, '.git'), `gitdir: ${linkedGit}\n`);
     fs.writeFileSync(path.join(linkedGit, 'commondir'), '../..\n');
     fs.writeFileSync(linkedExclude, 'linked-local-rule\n');
-    assert.deepEqual(onboardInitTransaction.tryRuntimeIgnore(linked), { ok: true, applied: true });
-    assert.match(fs.readFileSync(linkedExclude, 'utf8'), /^\.zonoid\/$/m);
+    assert.deepEqual(onboardInitTransaction.tryRuntimeIgnore(linked), { ok: true, applied: false });
+    assert.equal(fs.readFileSync(linkedExclude, 'utf8'), 'linked-local-rule\n',
+      'an arbitrary gitdir/commondir outside the canonical repo must remain untouched');
+
+    const canonicalLinkedGit = path.join(primary, '.git', 'worktrees', 'linked');
+    fs.mkdirSync(canonicalLinkedGit, { recursive: true });
+    fs.writeFileSync(path.join(canonicalLinked, '.git'), `gitdir: ${canonicalLinkedGit}\n`);
+    fs.writeFileSync(path.join(canonicalLinkedGit, 'commondir'), '../..\n');
+    const canonical = workspaceRegistry.registrationRepoRoot(canonicalLinked, { registeredRepos: [primary] });
+    assert.equal(canonical, fs.realpathSync(primary), 'linked worktree must resolve to its canonical primary checkout');
+    assert.deepEqual(onboardInitTransaction.tryRuntimeIgnore(canonical), { ok: true, applied: true });
+    assert.equal(fs.readFileSync(path.join(primary, '.git', 'info', 'exclude'), 'utf8'), '.zonoid/\n');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('runtime ignore rejects unsafe Git metadata without hanging or writing outside the repo', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-runtime-ignore-unsafe-'));
+  const outside = path.join(root, 'outside');
+  fs.mkdirSync(outside);
+  const outsideExclude = path.join(outside, 'exclude');
+  fs.writeFileSync(outsideExclude, 'outside-sentinel\n');
+  const outsideGit = path.join(outside, 'git');
+  fs.mkdirSync(path.join(outsideGit, 'info'), { recursive: true });
+  fs.writeFileSync(path.join(outsideGit, 'info', 'exclude'), 'outside-git-sentinel\n');
+
+  const makeRepo = (name) => {
+    const repo = path.join(root, name);
+    fs.mkdirSync(repo);
+    return repo;
+  };
+  const assertOutsideUnchanged = () => {
+    assert.equal(fs.readFileSync(outsideExclude, 'utf8'), 'outside-sentinel\n');
+    assert.equal(fs.readFileSync(path.join(outsideGit, 'info', 'exclude'), 'utf8'), 'outside-git-sentinel\n');
+  };
+
+  try {
+    await t.test('.git symlink and outside gitdir are advisory skips', () => {
+      const symlinkRepo = makeRepo('git-symlink');
+      fs.symlinkSync(outsideGit, path.join(symlinkRepo, '.git'), 'dir');
+      assert.deepEqual(onboardInitTransaction.tryRuntimeIgnore(symlinkRepo), { ok: true, applied: false });
+
+      const pointerRepo = makeRepo('outside-gitdir');
+      fs.writeFileSync(path.join(pointerRepo, '.git'), `gitdir: ${outsideGit}\n`);
+      assert.deepEqual(onboardInitTransaction.tryRuntimeIgnore(pointerRepo), { ok: true, applied: false });
+      assertOutsideUnchanged();
+    });
+
+    await t.test('outside, symlinked, FIFO, directory, and oversized commondir/exclude are skipped', () => {
+      const cases = [];
+      const outsideCommon = makeRepo('outside-commondir');
+      fs.mkdirSync(path.join(outsideCommon, '.git'));
+      fs.writeFileSync(path.join(outsideCommon, '.git', 'commondir'), outsideGit);
+      cases.push(outsideCommon);
+
+      const excludeSymlink = makeRepo('exclude-symlink');
+      fs.mkdirSync(path.join(excludeSymlink, '.git', 'info'), { recursive: true });
+      fs.symlinkSync(outsideExclude, path.join(excludeSymlink, '.git', 'info', 'exclude'));
+      cases.push(excludeSymlink);
+
+      const excludeDirectory = makeRepo('exclude-directory');
+      fs.mkdirSync(path.join(excludeDirectory, '.git', 'info', 'exclude'), { recursive: true });
+      cases.push(excludeDirectory);
+
+      const excludeHardlink = makeRepo('exclude-hardlink');
+      fs.mkdirSync(path.join(excludeHardlink, '.git', 'info'), { recursive: true });
+      fs.linkSync(outsideExclude, path.join(excludeHardlink, '.git', 'info', 'exclude'));
+      cases.push(excludeHardlink);
+
+      const oversize = makeRepo('oversize-commondir');
+      fs.mkdirSync(path.join(oversize, '.git'));
+      fs.writeFileSync(path.join(oversize, '.git', 'commondir'), 'x'.repeat(5000));
+      cases.push(oversize);
+
+      const fifo = makeRepo('fifo-commondir');
+      fs.mkdirSync(path.join(fifo, '.git'));
+      const fifoFile = path.join(fifo, '.git', 'commondir');
+      const mkfifo = spawnSync('mkfifo', [fifoFile], { encoding: 'utf8' });
+      if (mkfifo.status === 0) cases.push(fifo);
+
+      const started = Date.now();
+      for (const repo of cases) {
+        assert.deepEqual(onboardInitTransaction.tryRuntimeIgnore(repo), { ok: true, applied: false });
+      }
+      assert.ok(Date.now() - started < 1000, 'special Git metadata must be rejected without blocking');
+      assertOutsideUnchanged();
+    });
+
+    await t.test('bounded reader rejects FIFO, device, directory, oversize, symlink, and mutation', () => {
+      const files = path.join(root, 'reader');
+      fs.mkdirSync(files);
+      const directory = path.join(files, 'directory');
+      fs.mkdirSync(directory);
+      assert.equal(readStableRegularFile(directory, 64).ok, false);
+      assert.equal(readStableRegularFile('/dev/null', 64).ok, false);
+
+      const symlink = path.join(files, 'symlink');
+      fs.symlinkSync(outsideExclude, symlink);
+      assert.equal(readStableRegularFile(symlink, 64).ok, false);
+
+      const oversize = path.join(files, 'oversize');
+      fs.writeFileSync(oversize, 'x'.repeat(65));
+      assert.equal(readStableRegularFile(oversize, 64).reason, 'oversize');
+
+      const fifo = path.join(files, 'fifo');
+      const mkfifo = spawnSync('mkfifo', [fifo], { encoding: 'utf8' });
+      if (mkfifo.status === 0) {
+        const started = Date.now();
+        assert.equal(readStableRegularFile(fifo, 64).ok, false);
+        assert.ok(Date.now() - started < 1000, 'FIFO read must be bounded');
+      }
+
+      const mutating = path.join(files, 'mutating');
+      fs.writeFileSync(mutating, 'stable-before');
+      const originalReadSync = fs.readSync;
+      let changed = false;
+      fs.readSync = function readAndMutate(...args) {
+        const count = originalReadSync.apply(this, args);
+        if (!changed) {
+          changed = true;
+          fs.appendFileSync(mutating, '-changed');
+        }
+        return count;
+      };
+      try {
+        assert.equal(readStableRegularFile(mutating, 128).reason, 'replaced_during_read');
+      } finally {
+        fs.readSync = originalReadSync;
+      }
+    });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -2093,6 +2230,112 @@ test('tampered, shallow, and stale init intents are quarantined without project 
     assert.deepEqual(fs.readFileSync(statusFile), beforeStatus);
     assert.deepEqual(workspaceRegistry.allRepos(workspaceRegistry.loadRegistry(registryFile)), []);
     assert.equal(fs.existsSync(path.join(journals, `${stale.id}.json.invalid`)), true);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('nonregular, oversized, and mutating init journals are never read and quarantine failures stay nonfatal', () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-intent-filesystem-data-'));
+  const registryFile = path.join(dataDir, 'workspaces.json');
+  const journals = onboardInitTransaction.journalDir(registryFile);
+  const outside = path.join(dataDir, 'outside-journal.json');
+  const ids = {
+    symlink: '1'.repeat(32),
+    directory: '2'.repeat(32),
+    oversize: '3'.repeat(32),
+    fifo: '4'.repeat(32),
+    device: '5'.repeat(32),
+    mutating: '6'.repeat(32),
+    quarantineFailure: '7'.repeat(32),
+  };
+  fs.mkdirSync(journals);
+  fs.writeFileSync(outside, '{"outside":"preserve"}\n');
+  fs.symlinkSync(outside, onboardInitTransaction.journalFile(registryFile, ids.symlink));
+  fs.mkdirSync(onboardInitTransaction.journalFile(registryFile, ids.directory));
+  fs.writeFileSync(onboardInitTransaction.journalFile(registryFile, ids.oversize), 'x'.repeat(256 * 1024 + 1));
+  const fifoFile = onboardInitTransaction.journalFile(registryFile, ids.fifo);
+  const fifoMade = spawnSync('mkfifo', [fifoFile], { encoding: 'utf8' }).status === 0;
+  fs.symlinkSync('/dev/null', onboardInitTransaction.journalFile(registryFile, ids.device));
+  const mutatingFile = onboardInitTransaction.journalFile(registryFile, ids.mutating);
+  fs.writeFileSync(mutatingFile, '{"version":2}');
+  const failedQuarantineFile = onboardInitTransaction.journalFile(registryFile, ids.quarantineFailure);
+  fs.writeFileSync(failedQuarantineFile, '{invalid json');
+
+  const originalReadSync = fs.readSync;
+  const originalRenameSync = fs.renameSync;
+  let mutated = false;
+  fs.readSync = function readAndMutateJournal(...args) {
+    const count = originalReadSync.apply(this, args);
+    if (!mutated) {
+      mutated = true;
+      fs.appendFileSync(mutatingFile, ' changed');
+    }
+    return count;
+  };
+  fs.renameSync = function failOneQuarantine(source, target) {
+    if (source === failedQuarantineFile) {
+      const error = new Error('injected quarantine failure');
+      error.code = 'EACCES';
+      throw error;
+    }
+    return originalRenameSync.call(this, source, target);
+  };
+  try {
+    const started = Date.now();
+    assert.deepEqual(onboardInitTransaction.readIntents(registryFile), []);
+    assert.ok(Date.now() - started < 1000, 'FIFO/device journals must not block reconciliation');
+    assert.equal(fs.readFileSync(outside, 'utf8'), '{"outside":"preserve"}\n');
+    assert.equal(fs.existsSync(failedQuarantineFile), true,
+      'failed quarantine must leave the unconsumed journal for a later maintenance retry');
+    for (const [kind, id] of Object.entries(ids)) {
+      if (kind === 'quarantineFailure' || (kind === 'fifo' && !fifoMade)) continue;
+      assert.equal(fs.existsSync(onboardInitTransaction.journalFile(registryFile, id)), false, `${kind} source remains live`);
+      assert.ok(fs.readdirSync(journals).some((name) => name.startsWith(`${id}.json.invalid`)),
+        `${kind} journal was not quarantined`);
+    }
+  } finally {
+    fs.readSync = originalReadSync;
+    fs.renameSync = originalRenameSync;
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('accepted init settles before an unsafe Git exclude and maintenance retries without outside writes', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-unsafe-exclude-'));
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-unsafe-exclude-data-'));
+  const registryFile = path.join(dataDir, 'workspaces.json');
+  const outDir = defaultOnboardOutDir(repo);
+  const excludeFile = path.join(repo, '.git', 'info', 'exclude');
+  const outside = path.join(dataDir, 'outside-exclude');
+  const sent = [];
+  try {
+    fs.mkdirSync(path.dirname(excludeFile), { recursive: true });
+    fs.writeFileSync(outside, 'outside-preserve\n');
+    fs.symlinkSync(outside, excludeFile);
+    const ctx = {
+      ...makeCtx({ repo }, sent, () => {}, [repo]),
+      WORKSPACES_FILE: registryFile,
+      registrationRepoRoot: (candidate) => path.resolve(candidate),
+      setWorkspace: () => {},
+    };
+    await onboardRoute(ctx)('/onboard/init', 'POST', {}, {}, new URL('http://localhost/onboard/init'));
+    assert.equal(sent[0].status, 200);
+    assert.equal(sent[0].payload.accepted, true);
+    assert.equal(fs.readFileSync(outside, 'utf8'), 'outside-preserve\n');
+    const journalDir = onboardInitTransaction.journalDir(registryFile);
+    assert.equal(!fs.existsSync(journalDir) || fs.readdirSync(journalDir).length === 0, true);
+    const statusFile = path.join(outDir, 'onboard-drain-status.json');
+    const statusBytes = fs.readFileSync(statusFile);
+    const registryBytes = fs.readFileSync(registryFile);
+
+    assert.deepEqual(onboardInitTransaction.retryRegisteredRuntimeIgnore(repo), {
+      ok: true, applied: false, attempted: true,
+    });
+    assert.equal(fs.readFileSync(outside, 'utf8'), 'outside-preserve\n');
+    assert.deepEqual(fs.readFileSync(statusFile), statusBytes);
+    assert.deepEqual(fs.readFileSync(registryFile), registryBytes);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
     fs.rmSync(dataDir, { recursive: true, force: true });

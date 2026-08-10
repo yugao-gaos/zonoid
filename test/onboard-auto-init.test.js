@@ -11,6 +11,7 @@ const { execFileSync, spawn, spawnSync } = require('child_process');
 
 const { checkDaemon, startWorkspaceOnboarding } = require('../packages/cli/bin/zonoid');
 const onboardRoute = require('../routes/onboard');
+const onboardInitTransaction = require('../lib/onboard-init-transaction');
 const workspaceRegistry = require('../lib/workspace-registry');
 
 const DAEMON_PATH = path.join(__dirname, '..', 'daemon.js');
@@ -1025,6 +1026,57 @@ test('daemon boot quarantines an invalid onboarding publication and stays ready'
     assert.equal(enqueued.payload.preparationState, 'pending');
   } finally {
     await stopDaemon(port);
+    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+  }
+});
+
+test('daemon boot ignores an unreadable invalid init journal and quarantines it on a later retry', async () => {
+  const fixture = prepareInitRepo('zonoid-init-invalid-journal-boot-');
+  const port = await testPort();
+  const token = 'invalid-init-journal-boot-token';
+  const registryFile = path.join(fixture.dataDir, 'workspaces.json');
+  const journalDir = onboardInitTransaction.journalDir(registryFile);
+  const id = '8'.repeat(32);
+  const journal = onboardInitTransaction.journalFile(registryFile, id);
+  const daemonOptions = {
+    port,
+    daemonPath: DAEMON_PATH,
+    startupTimeoutMs: 15000,
+    env: {
+      ...process.env,
+      CLAUDE_PLUGIN_DATA: fixture.dataDir,
+      ORCH_TOKEN: '',
+      CLAUDE_CODE_SESSION_ID: '',
+      HEADLESS_DRAIN_MAX_ITERATIONS: '-1',
+      ZONOID_EMBED_PROVIDER: 'local',
+      ZONOID_EMBED_LOCAL_BASE_URL: 'http://127.0.0.1:1',
+    },
+  };
+  fs.writeFileSync(path.join(fixture.dataDir, 'token'), `${token}\n`);
+  fs.mkdirSync(journalDir);
+  fs.writeFileSync(journal, '{invalid json');
+  fs.chmodSync(journalDir, 0o500);
+  try {
+    assert.equal(await checkDaemon(daemonOptions), true,
+      'quarantine failure must not block daemon loadState');
+    const health = await daemonRequest(port, 'GET', '/health');
+    assert.equal(health.status, 200);
+    assert.equal(health.payload.phase, 'ready');
+    assert.equal(fs.existsSync(journal), true,
+      'failed quarantine must leave the journal unconsumed for a later retry');
+
+    await stopDaemon(port);
+    fs.chmodSync(journalDir, 0o700);
+    assert.equal(await checkDaemon(daemonOptions), true);
+    const retriedHealth = await daemonRequest(port, 'GET', '/health');
+    assert.equal(retriedHealth.status, 200);
+    assert.equal(retriedHealth.payload.phase, 'ready');
+    assert.equal(fs.existsSync(journal), false);
+    assert.ok(fs.readdirSync(journalDir).some((name) => name.startsWith(`${id}.json.invalid`)),
+      'later boot must retry and quarantine the unchanged journal');
+  } finally {
+    await stopDaemon(port);
+    try { fs.chmodSync(journalDir, 0o700); } catch { /* already removed */ }
     fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
   }
 });
