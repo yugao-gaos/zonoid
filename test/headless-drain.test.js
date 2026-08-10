@@ -35,12 +35,13 @@ function makePendingQueueDir(opts = {}) {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-test-'));
   const queueDir = path.join(tmpDir, '.graph', 'onboard');
   fs.mkdirSync(queueDir, { recursive: true });
+  const total = opts.total ?? 10;
   const queue = {
-    total: opts.total ?? 10,
+    total,
     cursor: opts.cursor ?? 3,
     kept: [],
     rejected: [],
-    pending: [],
+    pending: Array.from({ length: total }, (_, index) => ({ title: `candidate-${index}` })),
   };
   fs.writeFileSync(path.join(queueDir, 'onboard-queue.json'), JSON.stringify(queue));
   return tmpDir;
@@ -531,7 +532,7 @@ test('findPendingLearnerQueues discovers dashboard .zonoid/onboard outDir', () =
       cursor: 4,
       kept: [],
       rejected: [],
-      pending: [],
+      pending: Array.from({ length: 12 }, (_, index) => ({ title: `candidate-${index}` })),
     }));
     fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
       repo: tmpDir,
@@ -560,7 +561,7 @@ test('findPendingLearnerQueues discovers default .zonoid/onboard outDir without 
       cursor: 4,
       kept: [],
       rejected: [],
-      pending: [],
+      pending: Array.from({ length: 12 }, (_, index) => ({ title: `candidate-${index}` })),
     }));
     const queues = hd.findPendingLearnerQueues(tmpDir);
     assert.equal(queues.length, 1);
@@ -590,7 +591,7 @@ test('findRegisteredLearnerQueues discovers project queues without a daemon-glob
         cursor: 3,
         kept: [],
         rejected: [],
-        pending: [],
+        pending: Array.from({ length: 10 + index }, (_, offset) => ({ title: `candidate-${offset}` })),
       }));
     }
 
@@ -616,7 +617,7 @@ test('findPendingLearnerQueues discovers legacy dashboard bench/onboard outDir',
       cursor: 4,
       kept: [],
       rejected: [],
-      pending: [],
+      pending: Array.from({ length: 12 }, (_, index) => ({ title: `candidate-${index}` })),
     }));
     fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
       repo: tmpDir,
@@ -645,7 +646,7 @@ test('findPendingLearnerQueues ignores bench/onboard queues without route metada
       cursor: 4,
       kept: [],
       rejected: [],
-      pending: [],
+      pending: Array.from({ length: 12 }, (_, index) => ({ title: `candidate-${index}` })),
     }));
     const queues = hd.findPendingLearnerQueues(tmpDir);
     assert.equal(queues.length, 0);
@@ -862,7 +863,7 @@ test('findPendingLearnerQueues treats partial auto-inject queue as inject due wh
       cursor: 2,
       kept: [{ title: 'A', summary: 'B' }],
       rejected: [],
-      pending: [],
+      pending: Array.from({ length: 4 }, (_, index) => ({ title: `candidate-${index}` })),
     }));
     fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept: [{ title: 'A', summary: 'B' }], rejected: [] }));
     fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({ repo: tmpDir, outDir, injectedKept: 0 }));
