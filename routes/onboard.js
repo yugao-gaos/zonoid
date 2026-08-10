@@ -16,6 +16,7 @@ const {
   liveOnboardInjectionLease: liveInjectionLease,
   liveOnboardPreparationLease: livePreparationLease,
   validateOnboardQueue,
+  reconcileOnboardPublication,
 } = require('../lib/onboard-state');
 
 const DEFAULT_DRAIN_BATCH_SIZE = 20;
@@ -84,7 +85,13 @@ function summarizeInflight(q) {
   };
 }
 
-function queueStatus(outDir) {
+function queueStatus(outDir, options = {}) {
+  if (!options.statusLocked) {
+    try {
+      const reconciled = reconcileOnboardPublication(outDir);
+      if (!reconciled.ok) return null;
+    } catch { return null; }
+  }
   const q = readJSON(path.join(outDir, 'onboard-queue.json'), null);
   const validated = validateOnboardQueue(q, { allowLegacy: true });
   if (!validated.ok) return null;
@@ -230,9 +237,9 @@ function pendingPreparation(repo, outDir, current, force) {
 function buildDrainJob(repo, outDir, patch = {}) {
   // The headless learner persists progress independently of the route process. A cached POST job
   // is only a fallback; it must never overwrite a newer on-disk injection result or error.
+  const persistedQueue = queueStatus(outDir);
   const persistedMeta = readDrainMeta(outDir);
   let meta = Object.keys(persistedMeta).length ? persistedMeta : patch;
-  const persistedQueue = queueStatus(outDir);
   const qs = persistedQueue || {};
   const autoInject = meta.autoInject !== false;
   const drainDone = qs.drainDone === true;
@@ -250,7 +257,7 @@ function buildDrainJob(repo, outDir, patch = {}) {
       || meta.injectionState !== 'not_needed' || meta.injectedKept !== 0
       || meta.injecting === true || meta.injectionError)) {
     const terminal = mutateOnboardStatus(outDir, (current) => {
-      const latest = queueStatus(outDir);
+      const latest = queueStatus(outDir, { statusLocked: true });
       if (!latest || latest.queueGeneration !== queueGen || latest.drainDone !== true || latest.kept !== 0) return undefined;
       if (current.preparationForce === true || ['pending', 'running'].includes(current.preparationState)) return undefined;
       const previousInjectionError = !!current.injectionError
@@ -765,7 +772,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const leaseExpiresAt = Date.now() + leaseMs;
     try {
       const claimed = mutateOnboardStatus(outDir, (meta) => {
-        const current = queueStatus(outDir);
+        const current = queueStatus(outDir, { statusLocked: true });
         if (!current || current.queueGeneration !== generation) return undefined;
         if (meta.preparationGeneration && meta.preparationGeneration !== generation) return undefined;
         if (liveInjectionLease(meta).live) return undefined;
@@ -804,7 +811,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const injectedKept = confirmedInjectedCount(outDir, generation, notes);
       if (injectedKept < notes.length) throw new Error(`inject confirmed ${injectedKept} of ${notes.length} current-generation notes`);
       const committed = mutateOnboardStatus(outDir, (meta) => {
-        const current = queueStatus(outDir);
+        const current = queueStatus(outDir, { statusLocked: true });
         if (!current || current.queueGeneration !== generation
             || meta.injectionGeneration !== generation || meta.injectionOwner !== owner) return undefined;
         return {
@@ -825,7 +832,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const notes = (readJSON(path.join(outDir, 'onboard-notes.json'), {}) || {}).kept || [];
       const injectedKept = confirmedInjectedCount(outDir, generation, notes);
       const committed = mutateOnboardStatus(outDir, (meta) => {
-        const current = queueStatus(outDir);
+        const current = queueStatus(outDir, { statusLocked: true });
         if (!current || current.queueGeneration !== generation
             || meta.injectionGeneration !== generation || meta.injectionOwner !== owner) return undefined;
         return {
@@ -933,9 +940,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     const { repo, outDir } = resolved;
     const jobKey = `${repo}::${outDir}`;
+    const persistedQueue = queueStatus(outDir);
     const meta = readDrainMeta(outDir);
     const preparationKnown = ['pending', 'running', 'failed', 'ready'].includes(meta.preparationState);
-    if (!queueStatus(outDir) && !preparationKnown && (!global.__drainJobs || !global.__drainJobs.has(jobKey))) {
+    if (!persistedQueue && !preparationKnown && (!global.__drainJobs || !global.__drainJobs.has(jobKey))) {
       send(res, 404, { ok: false, error: 'no drain job found for this repo+outDir' }); return true;
     }
     const job = buildDrainJob(repo, outDir, global.__drainJobs && global.__drainJobs.get(jobKey));

@@ -488,6 +488,18 @@ async function loadState() {
   if (recoveredOnboardInits.length) {
     process.stdout.write(`orchestrator: reconciled ${recoveredOnboardInits.length} onboarding init transaction(s)\n`);
   }
+  const recoveredOnboardPublications = headlessDrain.reconcileRegisteredOnboardPublications({
+    workspace: __dirname,
+    registeredWorkspaces: Array.from(registeredWorkspaces()),
+  });
+  const settledOnboardPublications = recoveredOnboardPublications.filter((entry) => entry.ok !== false);
+  const failedOnboardPublications = recoveredOnboardPublications.filter((entry) => entry.ok === false);
+  if (settledOnboardPublications.length) {
+    process.stdout.write(`orchestrator: reconciled ${settledOnboardPublications.length} onboarding publication transaction(s)\n`);
+  }
+  for (const entry of failedOnboardPublications) {
+    process.stderr.write(`orchestrator: onboarding publication reconciliation failed for ${entry.outDir}: ${entry.error}\n`);
+  }
 
   // Phase 1: workspace registry warm-up. P3 removed the daemon-global default pointer, so there is
   // NO single workspace to restore on boot. Instead we lazily warm every REGISTERED workspace's

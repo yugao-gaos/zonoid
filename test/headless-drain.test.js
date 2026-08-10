@@ -1369,6 +1369,94 @@ test('prepared publication waits for an old completion and leaves the replacemen
   }
 });
 
+test('prepared publication repairs artifact, queue, status, and cleanup boundary faults as one generation', () => {
+  const boundaries = ['structure.json_temp', 'onboard-queue.json_temp',
+    'onboard-drain-status.json_temp', 'before_journal_cleanup'];
+  for (const [index, boundary] of boundaries.entries()) {
+    const hd = freshModule();
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-prepare-publish-transaction-'));
+    const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+    const stagingDir = path.join(outDir, `.prepare-${process.pid}-${Date.now() + index}`);
+    const generation = `generation-prepared-transaction-${index}`;
+    const owner = `owner-prepared-transaction-${index}`;
+    try {
+      fs.mkdirSync(stagingDir, { recursive: true });
+      fs.writeFileSync(path.join(stagingDir, '.onboard-preparation.json'), JSON.stringify({
+        generation, owner, pid: process.pid, createdAt: Date.now(),
+      }));
+      fs.writeFileSync(path.join(stagingDir, 'structure.json'), JSON.stringify({ nodes: [{ id: generation }] }));
+      fs.writeFileSync(path.join(stagingDir, 'onboard-queue.json'), JSON.stringify({
+        total: 1, cursor: 0, kept: [], rejected: [], pending: [{ title: generation }],
+      }));
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.writeFileSync(path.join(outDir, 'structure.json'), JSON.stringify({ nodes: [{ id: 'old' }] }));
+      fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+        generation: 'generation-prepared-old', total: 1, cursor: 0,
+        kept: [], rejected: [], pending: [{ title: 'old' }],
+      }));
+      fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ generation: 'generation-prepared-old', kept: [], rejected: [] }));
+      fs.writeFileSync(path.join(outDir, 'onboard-injection-receipt.json'), JSON.stringify({ generation: 'generation-prepared-old', confirmed: ['old'] }));
+      fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+        repo, outDir, preparationGeneration: generation, preparationOwner: owner,
+        preparationState: 'running', injectionGeneration: 'generation-prepared-old',
+      }));
+
+      const result = hd._publishPreparedQueue(stagingDir, outDir, generation, owner, {
+        onBoundary(name) { if (name === boundary) throw new Error(`one-shot ${boundary}`); },
+      });
+      const queue = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-queue.json'), 'utf8'));
+      const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+      const structure = JSON.parse(fs.readFileSync(path.join(outDir, 'structure.json'), 'utf8'));
+      assert.equal(result.stale, false, boundary);
+      assert.equal(queue.generation, generation, boundary);
+      assert.equal(status.queueGeneration, generation, boundary);
+      assert.equal(status.injectionGeneration, generation, boundary);
+      assert.equal(structure.nodes[0].id, generation, boundary);
+      assert.equal(fs.existsSync(path.join(outDir, 'onboard-notes.json')), false, boundary);
+      assert.equal(fs.existsSync(path.join(outDir, 'onboard-injection-receipt.json')), false, boundary);
+      assert.equal(fs.existsSync(stagingDir), false, boundary);
+      assert.equal(fs.existsSync(path.join(outDir, 'onboard-publication-intent.json')), false, boundary);
+      assert.deepEqual(fs.readdirSync(outDir).filter((name) => /\.publish-[a-f0-9]{32}\.tmp$/.test(name)), [], boundary);
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  }
+});
+
+test('headless discovery reconciles a hard-exited direct publication without a dashboard or duplicate', () => {
+  const hd = freshModule();
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-publication-discovery-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  const learn = path.resolve(__dirname, '../scripts/onboard-learn.js');
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'config-notes.json'), JSON.stringify([
+      { title: 'candidate', summary: 'candidate', kind: 'gotcha' },
+    ]));
+    const initial = child_process.spawnSync(process.execPath, [learn, '--repo', repo, '--in', outDir, '--enqueue'], {
+      encoding: 'utf8', windowsHide: true,
+    });
+    assert.equal(initial.status, 0, initial.stderr);
+    const crashed = child_process.spawnSync(process.execPath, [learn, '--repo', repo, '--in', outDir, '--enqueue'], {
+      encoding: 'utf8', windowsHide: true,
+      env: { ...process.env, ZONOID_TEST_ONBOARD_PUBLICATION_CRASH_AFTER: 'onboard-queue.json' },
+    });
+    assert.equal(crashed.status, 87, crashed.stderr);
+    const crashedGeneration = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-queue.json'), 'utf8')).generation;
+
+    const due = hd.findPendingLearnerQueues(repo);
+    const queue = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-queue.json'), 'utf8'));
+    const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(due.length, 1);
+    assert.equal(due[0].generation, crashedGeneration);
+    assert.equal(queue.generation, crashedGeneration);
+    assert.equal(status.queueGeneration, crashedGeneration);
+    assert.equal(fs.existsSync(path.join(outDir, 'onboard-publication-intent.json')), false);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test('failed injection persists backoff metadata and retries automatically to success', async () => {
   const savedMax = process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS;
   const savedBase = process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS;

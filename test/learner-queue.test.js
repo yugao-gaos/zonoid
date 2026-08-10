@@ -382,6 +382,174 @@ function readJSON(p) {
     fs.readFileSync(qf).equals(beforeQueue));
 }
 
+// ---- TEST 7b: queue/status publication survives every durable hard-exit boundary ----
+{
+  const boundaries = [
+    'journal',
+    'onboard-queue.json_temp',
+    'onboard-queue.json',
+    'onboard-drain-status.json_temp',
+    'before_journal_cleanup',
+  ];
+  for (const boundary of boundaries) {
+    const repo = fakeRepo(tmpDir());
+    const dir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+    writeFakeMined(dir);
+    const initial = run(['--repo', repo, '--in', dir, '--enqueue']);
+    const oldQueue = readJSON(path.join(dir, 'onboard-queue.json'));
+    fs.writeFileSync(path.join(dir, onboardState.INJECTION_RECEIPT_FILE), JSON.stringify({
+      generation: oldQueue.generation, confirmed: ['stale'],
+    }));
+    fs.writeFileSync(path.join(dir, 'onboard-notes.json'), JSON.stringify({
+      generation: oldQueue.generation, kept: [{ title: 'stale' }], rejected: [],
+    }));
+
+    const crashed = run(['--repo', repo, '--in', dir, '--enqueue'], {
+      ZONOID_TEST_ONBOARD_PUBLICATION_CRASH_AFTER: boundary,
+    });
+    const queueAfterCrash = readJSON(path.join(dir, 'onboard-queue.json'));
+    const retried = run(['--repo', repo, '--in', dir, '--enqueue'], {
+      ZONOID_TEST_ONBOARD_PUBLICATION_CRASH_AFTER: '',
+    });
+    const queue = readJSON(path.join(dir, 'onboard-queue.json'));
+    const status = readJSON(path.join(dir, 'onboard-drain-status.json'));
+    const leftovers = fs.readdirSync(dir).filter((name) => name === onboardState.PUBLICATION_INTENT_FILE
+      || /\.publish-[a-f0-9]{32}\.tmp$/.test(name)
+      || /^onboard-publication-intent\.json\..*\.tmp$/.test(name));
+    ok(`publication hard exit ${boundary}: child exits at deterministic boundary`, initial.status === 0 && crashed.status === 87);
+    ok(`publication hard exit ${boundary}: retry converges to one queue/status generation`, retried.status === 0
+      && queue && status && status.queueGeneration === queue.generation
+      && status.injectionGeneration === queue.generation && status.preparationState === 'ready');
+    ok(`publication hard exit ${boundary}: committed retry clears stale generation artifacts`,
+      !fs.existsSync(path.join(dir, onboardState.INJECTION_RECEIPT_FILE))
+        && !fs.existsSync(path.join(dir, 'onboard-notes.json')) && leftovers.length === 0);
+    if (['onboard-queue.json', 'onboard-drain-status.json_temp', 'before_journal_cleanup'].includes(boundary)) {
+      ok(`publication hard exit ${boundary}: retry does not allocate a duplicate replacement`,
+        queueAfterCrash && queueAfterCrash.generation === queue.generation);
+    }
+  }
+}
+
+// ---- TEST 7c: a newer accepted preparation fences an abandoned older publication intent ----
+{
+  const repo = fakeRepo(tmpDir());
+  const dir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  writeFakeMined(dir);
+  run(['--repo', repo, '--in', dir, '--enqueue']);
+  const oldQueue = readJSON(path.join(dir, 'onboard-queue.json'));
+  const crashed = run(['--repo', repo, '--in', dir, '--enqueue'], {
+    ZONOID_TEST_ONBOARD_PUBLICATION_CRASH_AFTER: 'journal',
+  });
+  const newerGeneration = 'generation-newer-preparation';
+  fs.writeFileSync(path.join(dir, 'onboard-drain-status.json'), JSON.stringify({
+    repo, outDir: dir, preparationState: 'pending', preparationGeneration: newerGeneration,
+    preparationOwner: null, queueGeneration: null, injectionGeneration: newerGeneration,
+  }, null, 2));
+  const reconciled = onboardState.reconcileOnboardPublication(dir);
+  const finalQueue = readJSON(path.join(dir, 'onboard-queue.json'));
+  const finalStatus = readJSON(path.join(dir, 'onboard-drain-status.json'));
+  ok('newer preparation CAS abandons an older journal instead of resurrecting it', crashed.status === 87
+    && reconciled.settled === 'abandoned' && finalQueue.generation === oldQueue.generation
+    && finalStatus.preparationGeneration === newerGeneration
+    && !fs.existsSync(path.join(dir, onboardState.PUBLICATION_INTENT_FILE)));
+}
+
+// ---- TEST 7d: one-shot publication faults repair synchronously or preserve the exact old pair ----
+{
+  const dir = tmpDir();
+  const oldGeneration = 'generation-publication-old';
+  const oldQueue = {
+    generation: oldGeneration, total: 1, cursor: 0, kept: [], rejected: [],
+    pending: [{ title: 'old', summary: 'old', kind: 'gotcha' }],
+  };
+  const oldStatus = {
+    preparationState: 'ready', queueGeneration: oldGeneration,
+    injectionGeneration: oldGeneration, injectionState: 'pending',
+  };
+  fs.writeFileSync(path.join(dir, 'onboard-queue.json'), JSON.stringify(oldQueue, null, 2));
+  fs.writeFileSync(path.join(dir, 'onboard-drain-status.json'), JSON.stringify(oldStatus, null, 2));
+
+  const beforeJournal = {
+    generation: 'generation-publication-before-journal', total: 1, cursor: 0, kept: [], rejected: [],
+    pending: [{ title: 'before', summary: 'before', kind: 'gotcha' }],
+  };
+  let beforeError = null;
+  try {
+    onboardState.publishOnboardGeneration({
+      outDir: dir, queue: beforeJournal, files: { 'onboard-notes.json': null },
+      statusMutator: (status) => ({ ...status, preparationState: 'ready',
+        queueGeneration: beforeJournal.generation, injectionGeneration: beforeJournal.generation }),
+    }, { onBoundary(name) { if (name === 'journal_temp') throw new Error('one-shot journal temp failure'); } });
+  } catch (err) { beforeError = err; }
+  ok('publication journal-temp failure reports failure with the exact old queue/status pair', beforeError
+    && readJSON(path.join(dir, 'onboard-queue.json')).generation === oldGeneration
+    && readJSON(path.join(dir, 'onboard-drain-status.json')).queueGeneration === oldGeneration);
+  ok('publication journal-temp failure removes its abandoned temp',
+    !fs.readdirSync(dir).some((name) => /onboard-publication-intent.*\.tmp$/.test(name)));
+
+  const repairBoundaries = ['journal', 'onboard-queue.json_temp', 'onboard-queue.json',
+    'onboard-drain-status.json_temp', 'before_journal_cleanup', 'journal_cleanup'];
+  for (const [index, boundary] of repairBoundaries.entries()) {
+    const generation = `generation-publication-repair-${index}`;
+    const queue = {
+      generation, total: 1, cursor: 0, kept: [], rejected: [],
+      pending: [{ title: generation, summary: generation, kind: 'gotcha' }],
+    };
+    const result = onboardState.publishOnboardGeneration({
+      outDir: dir, queue, files: {
+        [onboardState.INJECTION_RECEIPT_FILE]: null,
+        'onboard-notes.json': null,
+      },
+      statusMutator: (status) => ({ ...status, preparationState: 'ready',
+        queueGeneration: generation, injectionGeneration: generation, injectionState: 'pending' }),
+    }, { onBoundary(name) { if (name === boundary) throw new Error(`one-shot ${boundary} failure`); } });
+    const committedQueue = readJSON(path.join(dir, 'onboard-queue.json'));
+    const committedStatus = readJSON(path.join(dir, 'onboard-drain-status.json'));
+    ok(`publication one-shot ${boundary}: caller receives truthful committed success`, result.applied === true
+      && committedQueue.generation === generation && committedStatus.queueGeneration === generation
+      && committedStatus.injectionGeneration === generation);
+    ok(`publication one-shot ${boundary}: no journal or owned temp remains`,
+      !fs.existsSync(path.join(dir, onboardState.PUBLICATION_INTENT_FILE))
+        && !fs.readdirSync(dir).some((name) => /\.publish-[a-f0-9]{32}\.tmp$/.test(name)));
+  }
+
+  const persistentGeneration = 'generation-publication-persistent-status';
+  const persistentQueue = {
+    generation: persistentGeneration, total: 1, cursor: 0, kept: [], rejected: [],
+    pending: [{ title: 'persistent', summary: 'persistent', kind: 'gotcha' }],
+  };
+  const statusPath = path.join(dir, 'onboard-drain-status.json');
+  const realRename = fs.renameSync;
+  let pendingResult;
+  try {
+    fs.renameSync = (from, to) => {
+      if (to === statusPath && /\.publish-[a-f0-9]{32}\.tmp$/.test(from)) {
+        throw Object.assign(new Error('persistent status rename failure'), { code: 'EIO' });
+      }
+      return realRename(from, to);
+    };
+    pendingResult = onboardState.publishOnboardGeneration({
+      outDir: dir, queue: persistentQueue, files: { 'onboard-notes.json': null },
+      statusMutator: (status) => ({ ...status, preparationState: 'ready',
+        queueGeneration: persistentGeneration, injectionGeneration: persistentGeneration }),
+    });
+  } finally {
+    fs.renameSync = realRename;
+  }
+  const pendingStatus = readJSON(statusPath);
+  const pendingQueue = readJSON(path.join(dir, 'onboard-queue.json'));
+  ok('persistent status rename failure acknowledges the durable queue intent without false failure',
+    pendingResult.applied === true && pendingResult.reconciliationPending === true
+      && pendingQueue.generation === persistentGeneration
+      && pendingStatus.queueGeneration !== persistentGeneration
+      && fs.existsSync(path.join(dir, onboardState.PUBLICATION_INTENT_FILE)));
+  const restarted = onboardState.reconcileOnboardPublication(dir);
+  ok('restart reconciliation completes a persistently failed status rename exactly once',
+    restarted.settled === 'committed'
+      && readJSON(statusPath).queueGeneration === persistentGeneration
+      && !fs.existsSync(path.join(dir, onboardState.PUBLICATION_INTENT_FILE)));
+}
+
 // ---- TEST 7: queue reservations allow parallel non-overlapping batches ----
 {
   const dir = tmpDir();
