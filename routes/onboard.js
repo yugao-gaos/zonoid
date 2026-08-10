@@ -15,6 +15,7 @@ const {
 
 const DEFAULT_DRAIN_BATCH_SIZE = 20;
 const DEFAULT_INJECTION_MAX_ATTEMPTS = 3;
+const DEFAULT_INJECTION_LEASE_MS = 5 * 60 * 1000;
 
 function readJSON(file, def) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')); } catch { return def; }
@@ -42,6 +43,10 @@ function injectionMaxAttempts() {
   return Math.max(1, Number(process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS) || DEFAULT_INJECTION_MAX_ATTEMPTS);
 }
 
+function injectionLeaseMs() {
+  return Math.max(1000, Number(process.env.HEADLESS_DRAIN_TIMEOUT_MS) || DEFAULT_INJECTION_LEASE_MS);
+}
+
 function isPidAlive(pid) {
   const n = Number(pid);
   if (!Number.isInteger(n) || n <= 0) return false;
@@ -51,6 +56,16 @@ function isPidAlive(pid) {
   } catch (err) {
     return !!(err && err.code === 'EPERM');
   }
+}
+
+function liveInjectionLease(meta, now = Date.now()) {
+  if (!meta || (meta.injectionState !== 'running' && meta.injecting !== true)) {
+    return { live: false, expiresAt: null };
+  }
+  const expiresAt = countOrZero(meta.injectionLeaseExpiresAt);
+  const ownerAlive = meta.injectionPid ? isPidAlive(meta.injectionPid) : true;
+  const live = ownerAlive && (expiresAt > now || (!expiresAt && !!meta.injectionOwner));
+  return { live, expiresAt: expiresAt || null };
 }
 
 function summarizeInflight(q) {
@@ -219,6 +234,8 @@ function buildDrainJob(repo, outDir, patch = {}) {
   const retryAt = generationMatches ? countOrZero(meta.injectionRetryAt) : 0;
   const retryCapped = generationMatches && (meta.injectionRetryCapped === true || (injectionState === 'failed' && attempts >= maxAttempts));
   const retryPending = generationMatches && injectionState === 'backoff' && !retryCapped && retryAt > Date.now();
+  const retryablePending = !!error && !injectionError && !!persistedQueue && !preparing
+    && preparationState !== 'failed' && qs.remaining > 0;
   const successfulTerminal = nothingToInject || !autoInject || injected;
   return {
     repo,
@@ -246,6 +263,7 @@ function buildDrainJob(repo, outDir, patch = {}) {
     injectionRetryPending: retryPending,
     injectionRetryCapped: retryCapped,
     injectionError,
+    retryablePending,
     preparing,
     preparationState,
     preparationStage: meta.preparationStage || null,
@@ -256,12 +274,29 @@ function buildDrainJob(repo, outDir, patch = {}) {
   };
 }
 
-function runNode(args) {
+function runNode(args, options = {}) {
   const { spawn } = require('child_process');
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, args, { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
-    child.on('error', reject);
-    child.on('close', (code) => code === 0 ? resolve() : reject(new Error(`child exited ${code}`)));
+    let settled = false;
+    let timedOut = false;
+    const timeoutMs = Math.max(0, Number(options.timeoutMs) || 0);
+    const timer = timeoutMs ? setTimeout(() => {
+      timedOut = true;
+      try { child.kill('SIGKILL'); } catch { /* child already exited */ }
+    }, timeoutMs) : null;
+    if (timer && typeof timer.unref === 'function') timer.unref();
+    if (typeof options.onSpawn === 'function') options.onSpawn(child);
+    const finish = (err) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      if (err) reject(err); else resolve();
+    };
+    child.on('error', (err) => finish(err));
+    child.on('close', (code) => finish(timedOut
+      ? new Error(`child timed out after ${timeoutMs}ms`)
+      : (code === 0 ? null : new Error(`child exited ${code}`))));
   });
 }
 
@@ -312,29 +347,48 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
     try {
       if (resolved.kind === 'default') ensureOnboardRuntimeIgnored(repo);
-      writeDrainMeta(outDir, {
-        repo,
-        outDir,
-        preparationGeneration: newQueueGeneration(),
-        preparationState: 'pending',
-        preparationStage: null,
-        preparationRequestedAt: new Date().toISOString(),
-        preparationForce: b.force === true || (rearm && existingMeta.preparationForce === true),
-        preparationPid: null,
-        preparationLeaseExpiresAt: null,
-        queueGeneration: null,
-        injected: false,
-        injectedGeneration: null,
-        injectedKept: 0,
-        injectionGeneration: null,
-        injectionState: 'idle',
-        injectionAttempts: 0,
-        injectionRetryAt: null,
-        injectionRetryCapped: false,
-        injectionError: null,
-        injecting: false,
-        error: null,
+      const preparationGeneration = newQueueGeneration();
+      const queued = mutateOnboardStatus(outDir, (current) => {
+        if (b.force === true && liveInjectionLease(current).live) return undefined;
+        return {
+          ...current,
+          repo,
+          outDir,
+          preparationGeneration,
+          preparationState: 'pending',
+          preparationStage: null,
+          preparationRequestedAt: new Date().toISOString(),
+          preparationForce: b.force === true || (rearm && existingMeta.preparationForce === true),
+          preparationPid: null,
+          preparationLeaseExpiresAt: null,
+          queueGeneration: null,
+          injected: false,
+          injectedGeneration: null,
+          injectedKept: 0,
+          injectionGeneration: null,
+          injectionState: 'idle',
+          injectionOwner: null,
+          injectionPid: null,
+          injectionLeaseExpiresAt: null,
+          injectionAttempts: 0,
+          injectionRetryAt: null,
+          injectionRetryCapped: false,
+          injectionError: null,
+          injecting: false,
+          error: null,
+        };
       });
+      if (!queued.applied) {
+        const lease = liveInjectionLease(queued.value);
+        send(res, 409, {
+          ok: false,
+          retryable: true,
+          conflict: 'injection_in_progress',
+          retryAt: lease.expiresAt,
+          error: 'cannot replace onboarding while live injection is writing the current generation; retry after it finishes',
+        });
+        return true;
+      }
     } catch (err) {
       send(res, 500, { ok: false, error: `could not persist onboarding request: ${err && err.message ? err.message : err}` });
       return true;
@@ -416,6 +470,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       writeDrainMeta(outDir, {
         repo, outDir, injected: false, injectedKept: 0,
         injectionGeneration: generation, injectionState: 'not_needed',
+        injectionOwner: null, injectionPid: null, injectionLeaseExpiresAt: null,
         injectionAttempts: 0, injectionRetryAt: null, injectionRetryCapped: false,
         injectionError: null, injecting: false, error: null,
       });
@@ -428,24 +483,45 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const previous = readDrainMeta(outDir);
     const attempt = countOrZero(previous.injectionAttempts) + 1;
     const owner = `inject-route-${process.pid}-${crypto.randomBytes(8).toString('hex')}`;
+    const leaseMs = injectionLeaseMs();
+    const leaseExpiresAt = Date.now() + leaseMs;
     try {
       const claimed = mutateOnboardStatus(outDir, (meta) => {
         const current = queueStatus(outDir);
         if (!current || current.queueGeneration !== generation) return undefined;
         if (meta.preparationGeneration && meta.preparationGeneration !== generation) return undefined;
+        if (liveInjectionLease(meta).live) return undefined;
         return {
           ...meta,
           repo, outDir, injecting: true, injectionGeneration: generation, injectionState: 'running',
           injectionOwner: owner, injectionPid: process.pid,
+          injectionLeaseExpiresAt: leaseExpiresAt,
           injectionAttempts: attempt, injectionRetryAt: null, injectionRetryCapped: false,
           injectionError: null, error: null,
         };
       });
       if (!claimed.applied) {
+        const lease = liveInjectionLease(claimed.value);
+        if (lease.live) {
+          send(res, 409, {
+            ok: false,
+            retryable: true,
+            conflict: 'injection_in_progress',
+            retryAt: lease.expiresAt,
+            error: 'onboarding injection is already running for this generation',
+          });
+          return true;
+        }
         send(res, 409, { ok: false, stale: true, error: 'onboarding generation was replaced before injection started' });
         return true;
       }
-      await runNode([learnScript, '--repo', repo, '--in', outDir, '--inject', '--confirm', '--generation', generation]);
+      await runNode([learnScript, '--repo', repo, '--in', outDir, '--inject', '--confirm', '--generation', generation], {
+        timeoutMs: leaseMs,
+        onSpawn: (child) => mutateOnboardStatus(outDir, (meta) => {
+          if (meta.injectionGeneration !== generation || meta.injectionOwner !== owner) return undefined;
+          return { ...meta, injectionPid: child.pid || process.pid, injectionLeaseExpiresAt: leaseExpiresAt };
+        }),
+      });
       const notes = (readJSON(path.join(outDir, 'onboard-notes.json'), {}) || {}).kept || [];
       const injectedKept = confirmedInjectedCount(outDir, generation, notes);
       if (injectedKept < notes.length) throw new Error(`inject confirmed ${injectedKept} of ${notes.length} current-generation notes`);
@@ -457,6 +533,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           ...meta,
           repo, outDir, injecting: false, injected: true, injectedGeneration: generation,
           injectionGeneration: generation, injectionState: 'succeeded', injectionOwner: null, injectionPid: null,
+          injectionLeaseExpiresAt: null,
           injectionAttempts: 0, injectionRetryAt: null, injectionRetryCapped: false, injectionError: null,
           injectedKept, injectedAt: new Date().toISOString(), error: null,
         };
@@ -477,6 +554,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           ...meta,
           repo, outDir, injecting: false, injected: false, injectedKept,
           injectionGeneration: generation, injectionState: 'failed', injectionOwner: null, injectionPid: null,
+          injectionLeaseExpiresAt: null,
           injectionAttempts: attempt, injectionRetryAt: null, injectionRetryCapped: true,
           injectionError: error, error,
         };
@@ -516,6 +594,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       writeDrainMeta(outDir, {
         repo, outDir, autoInject: true, injected: false, injectedKept: 0,
         injectionGeneration: generation, injectionState: 'not_needed',
+        injectionOwner: null, injectionPid: null, injectionLeaseExpiresAt: null,
         injectionAttempts: 0, injectionRetryAt: null, injectionRetryCapped: false,
         injectionError: null, injecting: false, error: null,
       });
@@ -526,20 +605,38 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       return true;
     }
     const injectedGeneration = meta.injectedGeneration === generation ? generation : null;
-    writeDrainMeta(outDir, {
-      repo,
-      outDir,
-      autoInject: true,
-      injected: injectedGeneration !== null,
-      injectionGeneration: generation,
-      injectionState: 'pending',
-      injectionAttempts: 0,
-      injectionRetryAt: null,
-      injectionRetryCapped: false,
-      injectionError: null,
-      injecting: false,
-      error: null,
+    const rearmed = mutateOnboardStatus(outDir, (current) => {
+      if (liveInjectionLease(current).live) return undefined;
+      return {
+        ...current,
+        repo,
+        outDir,
+        autoInject: true,
+        injected: injectedGeneration !== null,
+        injectionGeneration: generation,
+        injectionState: 'pending',
+        injectionOwner: null,
+        injectionPid: null,
+        injectionLeaseExpiresAt: null,
+        injectionAttempts: 0,
+        injectionRetryAt: null,
+        injectionRetryCapped: false,
+        injectionError: null,
+        injecting: false,
+        error: null,
+      };
     });
+    if (!rearmed.applied) {
+      const lease = liveInjectionLease(rearmed.value);
+      send(res, 409, {
+        ok: false,
+        retryable: true,
+        conflict: 'injection_in_progress',
+        retryAt: lease.expiresAt,
+        error: 'onboarding injection is already running; retry after it finishes',
+      });
+      return true;
+    }
     const job = buildDrainJob(repo, outDir);
     drainJobs.set(`${repo}::${outDir}`, job);
     if (notifyChange) notifyChange();

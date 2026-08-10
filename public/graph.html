@@ -8449,7 +8449,8 @@ function updateOnboardFromStatus(s) {
   const drained = onboardStatusDrained(s);
   const preparationFailure = s.preparationState === 'failed';
   const injectionFailure = !!(s.injectionError || ['backoff', 'failed'].includes(s.injectionState));
-  if (cloud) cloud.classList.toggle('is-live', !onboardStatusComplete(s) && (!s.error || injectionFailure || preparationFailure));
+  if (cloud) cloud.classList.toggle('is-live', !onboardStatusComplete(s)
+    && (!s.error || injectionFailure || preparationFailure || s.retryablePending));
   setOnboardProgress(processed, total, kept, injected, inflight);
   renderOnboardCloud({ ...s, total, processed, visualProcessed, kept, inflight, injectedKept: injected });
   if (preparationFailure) {
@@ -8472,10 +8473,15 @@ function updateOnboardFromStatus(s) {
       true
     );
     setOnboardInjectVisible(true, false);
-    return false;
+    return s.injectionState !== 'backoff' || s.injectionRetryCapped === true;
   }
   setOnboardInjectVisible(false, false);
   if (s.error) {
+    if (s.retryablePending) {
+      setOnboardStage('validate');
+      setOnboardStatus(`${s.error} Retrying automatically...`, true);
+      return false;
+    }
     setOnboardStatus(s.error, true);
     return true;
   }
