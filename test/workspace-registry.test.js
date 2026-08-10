@@ -306,6 +306,14 @@ try {
   ok('addRepo creates an additional named workspace', r4.workspaces.second && r4.workspaces.second.repos.includes('/repos/three'));
   ok('addRepo allRepos sees all members across workspaces', reg.allRepos(r4).length === 3);
 
+  // Deterministic stale-owner recovery: age the lock explicitly rather than racing a timeout.
+  const staleLock = `${addFile}.lock`;
+  fs.writeFileSync(staleLock, JSON.stringify({ pid: process.pid, owner: 'stale-test-owner', at: 1 }));
+  fs.utimesSync(staleLock, new Date(0), new Date(0));
+  const recovered = reg.addRepo(addFile, { workspace: 'second', repo: '/repos/four' }, { staleMs: 1, waitMs: 1000 });
+  ok('addRepo reclaims an explicitly stale live-owner lock', recovered.workspaces.second.repos.includes('/repos/four'));
+  ok('addRepo removes its replacement lock after stale-owner recovery', !fs.existsSync(staleLock));
+
   // addRepo validates inputs
   let threw = false;
   try { reg.addRepo(addFile, { workspace: '', repo: '/x' }); } catch { threw = true; }

@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const workspaceRegistry = require('../lib/workspace-registry');
+const onboardInitTransaction = require('../lib/onboard-init-transaction');
 const {
   resolveOnboardPaths,
   ensureOnboardRuntimeIgnored,
@@ -167,7 +168,7 @@ function removeEmptyParents(start, stop) {
   }
 }
 
-function removeNewTransactionFiles(outDir, entriesBefore, registryFile, registryTmpBefore) {
+function removeNewTransactionFiles(outDir, entriesBefore, registryFile, registryEntriesBefore) {
   let entries = [];
   try { entries = fs.readdirSync(outDir); } catch { /* output directory may already be gone */ }
   for (const name of entries) {
@@ -177,10 +178,20 @@ function removeNewTransactionFiles(outDir, entriesBefore, registryFile, registry
       try { fs.unlinkSync(path.join(outDir, name)); } catch { /* best-effort rollback */ }
     }
   }
-  const registryTmp = `${registryFile}.${process.pid}.tmp`;
-  if (!registryTmpBefore) {
-    try { fs.unlinkSync(registryTmp); } catch { /* best-effort rollback */ }
+  let registryEntries = [];
+  try { registryEntries = fs.readdirSync(path.dirname(registryFile)); } catch { /* registry directory may be absent */ }
+  const registryBase = path.basename(registryFile).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const ownRegistryTmp = new RegExp(`^${registryBase}\\.${process.pid}\\.[a-f0-9]+\\.tmp$`);
+  for (const name of registryEntries) {
+    if (registryEntriesBefore.has(name) || !ownRegistryTmp.test(name)) continue;
+    try { fs.unlinkSync(path.join(path.dirname(registryFile), name)); } catch { /* best-effort rollback */ }
   }
+}
+
+// Test-only deterministic hard-exit seam. process.exit intentionally bypasses catch/finally, leaving
+// the same dead-owner locks and journal a daemon crash would leave at the named durable boundary.
+function maybeCrashInitBoundary(boundary) {
+  if (process.env.ZONOID_TEST_ONBOARD_INIT_CRASH_AFTER === boundary) process.exit(86);
 }
 
 function injectionRetryIsCapped(status, meta) {
@@ -424,51 +435,96 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       send(res, 500, { ok: false, error: 'workspace registry is unavailable' }); return true;
     }
     const statusFile = path.join(outDir, 'onboard-drain-status.json');
-    let registryBefore;
-    let registryBackupBefore;
-    let statusBefore;
-    const outDirExisted = fs.existsSync(outDir);
-    const outDirEntriesBefore = new Set(outDirExisted ? fs.readdirSync(outDir) : []);
-    const registryTmp = `${registryFile}.${process.pid}.tmp`;
-    const registryTmpBefore = fs.existsSync(registryTmp);
+    let transactionResult = null;
     try {
-      registryBefore = snapshotFile(registryFile);
-      registryBackupBefore = snapshotFile(`${registryFile}.bak`);
-      statusBefore = snapshotFile(statusFile);
+      transactionResult = workspaceRegistry.withRegistryLock(registryFile, () => {
+        // A second daemon can become the recovery owner immediately after a hard exit. Finish every
+        // older durable intent before deriving this request's idempotent reuse state.
+        onboardInitTransaction.reconcilePending(registryFile, { locked: true });
 
-      const reuseQueue = sameRepo && !!existingStatus;
-      const reusePreparation = sameRepo && ['pending', 'running'].includes(existingMeta.preparationState);
-      const needsPreparation = !reuseQueue && !reusePreparation;
-      const needsDrainPatch = existingMeta.autoInject !== true
-        || countOrZero(existingMeta.batchSize) !== DEFAULT_DRAIN_BATCH_SIZE;
-      if (needsPreparation || needsDrainPatch) {
-        mutateOnboardStatus(outDir, (current) => ({
-          ...(needsPreparation ? pendingPreparation(repo, outDir, current, false) : current),
-          repo,
-          outDir,
-          batchSize: DEFAULT_DRAIN_BATCH_SIZE,
-          autoInject: true,
-        }));
-      }
+        const lockedStatus = queueStatus(outDir);
+        const lockedMeta = readDrainMeta(outDir);
+        const lockedSameRepo = lockedMeta.repo
+          ? pathsNameSameDirectory(lockedMeta.repo, repo)
+          : resolved.kind === 'default';
+        if (lockedSameRepo && injectionRetryIsCapped(lockedStatus, lockedMeta)) {
+          const capped = new Error('existing onboarding queue is injection-failed and retry-capped; explicitly retry injection before init can succeed');
+          capped.code = 'onboarding_injection_retry_capped';
+          throw capped;
+        }
 
-      const currentRegistry = workspaceRegistry.loadRegistry(registryFile);
-      const alreadyRegistered = !!(currentRegistry.workspaces[workspaceId]
-        && currentRegistry.workspaces[workspaceId].repos.includes(repo));
-      const registry = alreadyRegistered
-        ? currentRegistry
-        : workspaceRegistry.addRepo(registryFile, { workspace: workspaceId, repo });
-      if (!registry.workspaces[workspaceId] || !registry.workspaces[workspaceId].repos.includes(repo)) {
-        throw new Error('workspace registration was not durably persisted');
-      }
+        const registryBefore = snapshotFile(registryFile);
+        const registryBackupBefore = snapshotFile(`${registryFile}.bak`);
+        const statusBefore = snapshotFile(statusFile);
+        const outDirExisted = fs.existsSync(outDir);
+        const outDirEntriesBefore = new Set(outDirExisted ? fs.readdirSync(outDir) : []);
+        const registryEntriesBefore = new Set(fs.readdirSync(path.dirname(registryFile)));
+        let intent = null;
+        let committed = false;
+        let reuseQueue = false;
+        let reusePreparation = false;
+        try {
+          reuseQueue = lockedSameRepo && !!lockedStatus;
+          reusePreparation = lockedSameRepo && ['pending', 'running'].includes(lockedMeta.preparationState);
+          const needsPreparation = !reuseQueue && !reusePreparation;
+          const needsDrainPatch = lockedMeta.autoInject !== true
+            || countOrZero(lockedMeta.batchSize) !== DEFAULT_DRAIN_BATCH_SIZE;
+          const desiredStatus = {
+            ...(needsPreparation ? pendingPreparation(repo, outDir, lockedMeta, false) : lockedMeta),
+            repo,
+            outDir,
+            batchSize: DEFAULT_DRAIN_BATCH_SIZE,
+            autoInject: true,
+            ...(needsPreparation || needsDrainPatch ? { updatedAt: new Date().toISOString() } : {}),
+          };
+          intent = onboardInitTransaction.createIntent({
+            repo,
+            outDir,
+            workspaceId,
+            beforeStatus: lockedMeta,
+            desiredStatus,
+            ensureRuntimeIgnore: resolved.kind === 'default',
+          });
+
+          // Write-ahead protocol: journal -> onboarding status -> registry -> committed reread ->
+          // journal removal. Any hard exit leaves an intent that boot reconciliation rolls forward.
+          onboardInitTransaction.writeIntent(registryFile, intent);
+          maybeCrashInitBoundary('journal');
+          onboardInitTransaction.ensureIntentStatus(intent);
+          maybeCrashInitBoundary('status');
+          workspaceRegistry.addRepo(registryFile, { workspace: workspaceId, repo }, { locked: true });
+          maybeCrashInitBoundary('registry');
+          onboardInitTransaction.verifyIntent(registryFile, intent);
+          committed = true;
+          maybeCrashInitBoundary('verified');
+          if (intent.ensureRuntimeIgnore) ensureOnboardRuntimeIgnored(repo);
+          maybeCrashInitBoundary('exclude');
+          onboardInitTransaction.removeIntent(registryFile, intent);
+          maybeCrashInitBoundary('journal_removed');
+          return { reuseQueue, reusePreparation };
+        } catch (err) {
+          // Once both durable halves reread successfully, acceptance is truthful. Keep the journal
+          // for boot to retry a post-commit ignore/cleanup failure and do not claim rollback.
+          if (committed) return { reuseQueue, reusePreparation, reconciliationPending: true };
+          // Ordinary exceptions retain the previous exact transactional behavior. A real hard exit
+          // never enters this catch, so its durable intent remains available to boot reconciliation.
+          try { restoreFile(statusFile, statusBefore); } catch { /* preserve primary error */ }
+          try { restoreFile(registryFile, registryBefore); } catch { /* preserve primary error */ }
+          try { restoreFile(`${registryFile}.bak`, registryBackupBefore); } catch { /* preserve primary error */ }
+          try { if (intent) onboardInitTransaction.removeIntent(registryFile, intent); } catch { /* preserve primary error */ }
+          removeNewTransactionFiles(outDir, outDirEntriesBefore, registryFile, registryEntriesBefore);
+          if (!outDirExisted) removeEmptyParents(outDir, repo);
+          throw err;
+        }
+      });
     } catch (err) {
-      try { if (statusBefore) restoreFile(statusFile, statusBefore); } catch { /* preserve primary error */ }
-      try { if (registryBefore) restoreFile(registryFile, registryBefore); } catch { /* preserve primary error */ }
-      try { if (registryBackupBefore) restoreFile(`${registryFile}.bak`, registryBackupBefore); } catch { /* preserve primary error */ }
-      removeNewTransactionFiles(outDir, outDirEntriesBefore, registryFile, registryTmpBefore);
-      if (!outDirExisted) removeEmptyParents(outDir, repo);
-      send(res, 500, {
+      const capped = err && err.code === 'onboarding_injection_retry_capped';
+      send(res, capped ? 409 : 500, {
         ok: false,
-        error: `workspace registration and onboarding transaction failed: ${err && err.message ? err.message : err}`,
+        ...(capped ? { code: err.code, retryable: false } : {}),
+        error: capped
+          ? err.message
+          : `workspace registration and onboarding transaction failed: ${err && err.message ? err.message : err}`,
       });
       return true;
     }
@@ -485,10 +541,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       graph_repo: repo,
       workspace_id: workspaceId,
       outDir,
-      reused: !!(sameRepo && (existingStatus || ['pending', 'running'].includes(existingMeta.preparationState))),
-      queued: !(sameRepo && (existingStatus || ['pending', 'running'].includes(existingMeta.preparationState))),
-      preparing: !(sameRepo && existingStatus),
-      preparationState: existingStatus ? (existingMeta.preparationState || 'ready') : 'pending',
+      reused: !!(transactionResult && (transactionResult.reuseQueue || transactionResult.reusePreparation)),
+      queued: !(transactionResult && (transactionResult.reuseQueue || transactionResult.reusePreparation)),
+      preparing: !(transactionResult && transactionResult.reuseQueue),
+      preparationState: transactionResult && transactionResult.reuseQueue
+        ? (readDrainMeta(outDir).preparationState || 'ready')
+        : 'pending',
     });
     return true;
   }
@@ -536,7 +594,6 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
 
     try {
-      if (resolved.kind === 'default') ensureOnboardRuntimeIgnored(repo);
       const preparationGeneration = newQueueGeneration();
       const queued = mutateOnboardStatus(outDir, (current) => {
         if (b.force === true && liveInjectionLease(current).live) return undefined;
@@ -556,6 +613,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         });
         return true;
       }
+      // Git-local ignore state is a post-acceptance side effect. A rejected force/live-owner CAS
+      // must be byte-for-byte read-only, while a successful enqueue may add the advisory rule.
+      try { if (resolved.kind === 'default') ensureOnboardRuntimeIgnored(repo); } catch { /* advisory after accepted CAS */ }
     } catch (err) {
       send(res, 500, { ok: false, error: `could not persist onboarding request: ${err && err.message ? err.message : err}` });
       return true;

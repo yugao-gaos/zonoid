@@ -11,6 +11,7 @@ const { execFileSync, spawn, spawnSync } = require('child_process');
 
 const { checkDaemon, startWorkspaceOnboarding } = require('../packages/cli/bin/zonoid');
 const onboardRoute = require('../routes/onboard');
+const workspaceRegistry = require('../lib/workspace-registry');
 
 const DAEMON_PATH = path.join(__dirname, '..', 'daemon.js');
 const CLI_PATH = path.join(__dirname, '..', 'packages', 'cli', 'bin', 'zonoid.js');
@@ -816,6 +817,146 @@ test('full init starts a cold token-protected daemon on a custom port', async ()
   } finally {
     await stopDaemon(port);
     fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+  }
+});
+
+test('synchronized registry writers acknowledge only commits that preserve every repo', async () => {
+  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-registry-rmw-'));
+  const registryFile = path.join(fixtureDir, 'workspaces.json');
+  const workerPath = path.join(fixtureDir, 'registry-worker.js');
+  const workerCount = 8;
+  fs.writeFileSync(workerPath, `
+    'use strict';
+    const registry = require(${JSON.stringify(path.join(__dirname, '..', 'lib', 'workspace-registry.js'))});
+    process.send({ ready: true, index: process.env.WORKER_INDEX });
+    process.once('message', (message) => {
+      if (message !== 'commit') process.exit(2);
+      try {
+        const committed = registry.addRepo(process.env.REGISTRY_FILE, {
+          workspace: 'shared',
+          repo: process.env.WORKER_REPO,
+        });
+        const persisted = committed.workspaces.shared.repos.includes(process.env.WORKER_REPO);
+        process.send({ status: persisted ? 200 : 500, repo: process.env.WORKER_REPO });
+        process.exit(persisted ? 0 : 1);
+      } catch (err) {
+        process.send({ status: 500, error: String(err && err.message || err) });
+        process.exit(1);
+      }
+    });
+  `);
+
+  const children = [];
+  try {
+    for (let i = 0; i < workerCount; i++) {
+      const repo = path.join(fixtureDir, `repo-${i}`);
+      const child = spawn(process.execPath, [workerPath], {
+        env: {
+          ...process.env,
+          REGISTRY_FILE: registryFile,
+          WORKER_INDEX: String(i),
+          WORKER_REPO: repo,
+        },
+        stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
+      });
+      children.push({ child, repo, ready: false, response: null, stderr: '' });
+      child.stderr.on('data', (chunk) => { children[i].stderr += chunk; });
+      child.on('message', (message) => {
+        if (message && message.ready) children[i].ready = true;
+        if (message && message.status) children[i].response = message;
+      });
+    }
+
+    await waitFor(() => children.every((entry) => entry.ready), 5000);
+    for (const { child } of children) child.send('commit');
+    await Promise.all(children.map(({ child }) => new Promise((resolve, reject) => {
+      child.once('error', reject);
+      child.once('exit', (code) => code === 0 ? resolve() : reject(new Error(`registry worker exited ${code}`)));
+    })));
+
+    assert.ok(children.every((entry) => entry.response && entry.response.status === 200),
+      JSON.stringify(children.map((entry) => ({ response: entry.response, stderr: entry.stderr }))));
+    const persisted = workspaceRegistry.loadRegistry(registryFile);
+    assert.deepEqual(new Set(persisted.workspaces.shared.repos), new Set(children.map((entry) => entry.repo)));
+    assert.equal(fs.existsSync(`${registryFile}.lock`), false, 'successful writers must release the registry lock');
+  } finally {
+    for (const { child } of children) {
+      if (processIsAlive(child.pid)) child.kill('SIGKILL');
+    }
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
+  }
+});
+
+test('daemon boot reconciles every hard-exit boundary of onboarding init', async (t) => {
+  const boundaries = ['journal', 'status', 'registry', 'verified', 'exclude', 'journal_removed'];
+  for (const boundary of boundaries) {
+    await t.test(boundary, async () => {
+      const fixture = prepareInitRepo(`zonoid-init-crash-${boundary}-`);
+      const port = await testPort();
+      const token = `crash-${boundary}-token`;
+      const outDir = path.join(fixture.repo, '.zonoid', 'onboard', path.basename(fixture.repo));
+      fs.writeFileSync(path.join(fixture.dataDir, 'token'), `${token}\n`);
+      let crashedPid = null;
+      try {
+        assert.equal(await checkDaemon({
+          port,
+          daemonPath: DAEMON_PATH,
+          startupTimeoutMs: 15000,
+          env: {
+            ...process.env,
+            CLAUDE_PLUGIN_DATA: fixture.dataDir,
+            ORCH_TOKEN: '',
+            CLAUDE_CODE_SESSION_ID: '',
+            HEADLESS_DRAIN_MAX_ITERATIONS: '-1',
+            ZONOID_EMBED_PROVIDER: 'local',
+            ZONOID_EMBED_LOCAL_BASE_URL: 'http://127.0.0.1:1',
+            ZONOID_TEST_ONBOARD_INIT_CRASH_AFTER: boundary,
+          },
+        }), true);
+        const version = await daemonRequest(port, 'GET', '/version');
+        crashedPid = Number(version.payload && version.payload.pid);
+        await assert.rejects(
+          daemonRequest(port, 'POST', '/onboard/init', { repo: fixture.repo }, token),
+          /fetch failed|terminated|socket|other side closed/i,
+        );
+        assert.equal(await waitForProcessExit(crashedPid, 5000), true, `daemon did not exit at ${boundary}`);
+
+        assert.equal(await checkDaemon({
+          port,
+          daemonPath: DAEMON_PATH,
+          startupTimeoutMs: 15000,
+          env: {
+            ...process.env,
+            CLAUDE_PLUGIN_DATA: fixture.dataDir,
+            ORCH_TOKEN: '',
+            CLAUDE_CODE_SESSION_ID: '',
+            HEADLESS_DRAIN_MAX_ITERATIONS: '-1',
+            ZONOID_EMBED_PROVIDER: 'local',
+            ZONOID_EMBED_LOCAL_BASE_URL: 'http://127.0.0.1:1',
+            ZONOID_TEST_ONBOARD_INIT_CRASH_AFTER: '',
+          },
+        }), true);
+
+        const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+        assert.equal(status.repo, fixture.repo);
+        assert.equal(status.outDir, outDir);
+        assert.equal(status.autoInject, true);
+        assert.equal(status.preparationState, 'pending');
+        const registry = workspaceRegistry.loadRegistry(path.join(fixture.dataDir, 'workspaces.json'));
+        assert.ok(workspaceRegistry.allRepos(registry).includes(fixture.repo),
+          `restart after ${boundary} left onboarding unregistered`);
+        const journals = path.join(fixture.dataDir, 'onboard-init-transactions');
+        assert.ok(!fs.existsSync(journals) || fs.readdirSync(journals).length === 0,
+          `restart after ${boundary} left an unreconciled journal`);
+        assert.match(fs.readFileSync(path.join(fixture.repo, '.git', 'info', 'exclude'), 'utf8'), /^\.zonoid\/$/m);
+        const listed = await daemonRequest(port, 'GET', '/workspaces', undefined, token);
+        assert.match(JSON.stringify(listed.payload), new RegExp(fixture.repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+      } finally {
+        await stopDaemon(port);
+        if (crashedPid && processIsAlive(crashedPid)) process.kill(crashedPid, 'SIGKILL');
+        fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+      }
+    });
   }
 });
 
