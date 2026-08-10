@@ -1837,6 +1837,81 @@ test('publication recovery never accepts linked queue or status files as a coher
   }
 });
 
+test('ordinary onboarding route rejects a FIFO queue without a publication journal', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-queue-fifo-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const queueFile = path.join(outDir, 'onboard-queue.json');
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    const fifo = spawnSync('mkfifo', [queueFile], { encoding: 'utf8', windowsHide: true });
+    if (fifo.status !== 0) return;
+    const childSource = `
+      const makeRoute = require(process.argv[1]);
+      const repo = process.argv[2];
+      const outDir = process.argv[3];
+      let sent = null;
+      const route = makeRoute({
+        readBody: async () => ({}),
+        send: (_res, status, payload) => { sent = { status, payload }; },
+        notifyChange: () => {},
+        registeredWorkspaces: () => new Set([repo]),
+      });
+      Promise.resolve(route(
+        '/onboard/drain-queue', 'GET', {}, {},
+        new URL('http://localhost/onboard/drain-queue?repo=' + encodeURIComponent(repo)
+          + '&outDir=' + encodeURIComponent(outDir))
+      )).then(() => process.stdout.write(JSON.stringify(sent))).catch((error) => {
+        process.stderr.write(error && error.stack || String(error));
+        process.exit(2);
+      });
+    `;
+    const response = spawnSync(
+      process.execPath,
+      ['-e', childSource, require.resolve('../routes/onboard'), repo, outDir],
+      { encoding: 'utf8', windowsHide: true, timeout: 3000 }
+    );
+    assert.notEqual(response.error && response.error.code, 'ETIMEDOUT',
+      'dashboard route must not block on a canonical FIFO without a journal');
+    assert.equal(response.status, 0, response.stderr);
+    assert.equal(JSON.parse(response.stdout).status, 404);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('ordinary status mutation replaces a FIFO from the bounded empty status image', () => {
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-status-mutate-fifo-'));
+  const file = path.join(outDir, 'onboard-drain-status.json');
+  try {
+    const fifo = spawnSync('mkfifo', [file], { encoding: 'utf8', windowsHide: true });
+    if (fifo.status !== 0) return;
+    const childSource = `
+      const state = require(process.argv[1]);
+      const result = state.mutateOnboardStatus(process.argv[2], (status) => ({
+        ...status,
+        preparationState: 'pending',
+        preparationGeneration: 'generation-from-unsafe-status',
+      }));
+      process.stdout.write(JSON.stringify(result));
+    `;
+    const mutated = spawnSync(
+      process.execPath,
+      ['-e', childSource, require.resolve('../lib/onboard-state'), outDir],
+      { encoding: 'utf8', windowsHide: true, timeout: 3000 }
+    );
+    assert.notEqual(mutated.error && mutated.error.code, 'ETIMEDOUT',
+      'status compare-and-mutate must not block on a canonical FIFO');
+    assert.equal(mutated.status, 0, mutated.stderr);
+    assert.equal(JSON.parse(mutated.stdout).applied, true);
+    assert.equal(fs.lstatSync(file).isFile(), true);
+    const status = JSON.parse(fs.readFileSync(file, 'utf8'));
+    assert.equal(status.preparationState, 'pending');
+    assert.equal(status.preparationGeneration, 'generation-from-unsafe-status');
+  } finally {
+    fs.rmSync(outDir, { recursive: true, force: true });
+  }
+});
+
 test('init rollback is an exact-image CAS and preserves a concurrent accepted generation and temp', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-cas-'));
   const outDir = defaultOnboardOutDir(repo);

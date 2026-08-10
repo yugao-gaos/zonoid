@@ -10,6 +10,7 @@ const {
 } = require('../lib/onboard-paths');
 const {
   readOnboardStatus,
+  readOnboardQueue,
   patchOnboardStatus,
   mutateOnboardStatus,
   confirmedInjectedCount,
@@ -93,7 +94,7 @@ function queueStatus(outDir, options = {}) {
       if (!reconciled.ok) return null;
     } catch { return null; }
   }
-  const q = readJSON(path.join(outDir, 'onboard-queue.json'), null);
+  const q = readOnboardQueue(outDir);
   const validated = validateOnboardQueue(q, { allowLegacy: true });
   if (!validated.ok) return null;
   const processed = q.cursor;
