@@ -899,6 +899,23 @@ async function injectDocumentStructure(inDir, workspace, httpRequest = request, 
 function enqueue(inDir, outDir, repoAbs) {
   let candidates = gatherCandidates(inDir);
   fs.mkdirSync(outDir, { recursive: true });
+  const staging = fs.existsSync(path.join(outDir, '.onboard-preparation.json'));
+  if (!staging) {
+    // A command restarted after a hard exit has no in-memory operation id to carry forward. Settle
+    // its durable journal before allocating a fresh generation, so the restarted invocation returns
+    // the exact recovered operation. Callers that already possess a requested generation use
+    // publishOnboardGeneration directly and are deduplicated by generation + payload digest.
+    const recovered = reconcileOnboardPublication(outDir);
+    if (!recovered.ok) throw new Error(`could not reconcile onboarding publication: ${recovered.error}`);
+    if (recovered.hadIntent && recovered.settled === 'committed') {
+      const recoveredQueue = loadJSON(queueFilePath(outDir), null);
+      if (!validateOnboardQueue(recoveredQueue, { expectedGeneration: recovered.generation }).ok) {
+        throw new Error('recovered onboarding publication has no matching queue');
+      }
+      console.error(`[learn] enqueue: recovered ${recoveredQueue.total} candidates in ${queueFilePath(outDir)}`);
+      return;
+    }
+  }
   // Sort by priority (config > asset > doc > git > struct). No cap at enqueue time. Every direct
   // enqueue is a replacement generation, even when the mined candidates are byte-identical.
   candidates = sortByPriority(candidates);
@@ -911,7 +928,6 @@ function enqueue(inDir, outDir, repoAbs) {
     rejected: [],
     pending: candidates,
   };
-  const staging = fs.existsSync(path.join(outDir, '.onboard-preparation.json'));
   let publishedQueue = queue;
   if (!staging) {
     const replaced = publishOnboardGeneration({

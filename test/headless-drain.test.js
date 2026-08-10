@@ -1470,6 +1470,84 @@ test('headless discovery reconciles a hard-exited direct publication without a d
   }
 });
 
+test('route and headless discovery quarantine invalid publication journals and reprepare', async () => {
+  const hd = freshModule();
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-publication-invalid-route-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      generation: 'generation-untrusted-route', total: 1, cursor: 0,
+      kept: [], rejected: [], pending: [{ title: 'untrusted' }],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo, outDir, preparationState: 'running', preparationGeneration: 'generation-route-reprepare',
+      preparationOwner: 'dead-route-owner', preparationPid: 999999,
+      preparationLeaseExpiresAt: Date.now() - 1,
+      queueGeneration: 'generation-before-route', injectionGeneration: 'generation-before-route',
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-publication-intent.json'), JSON.stringify({ version: 1 }));
+
+    const sent = [];
+    const route = onboardRoute({
+      readBody: async () => ({ repo, outDir }),
+      send: (_res, status, payload) => sent.push({ status, payload }),
+      notifyChange: () => {},
+      registeredWorkspaces: () => new Set([repo]),
+    });
+    await route('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
+
+    const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(sent[0].status, 200);
+    assert.equal(sent[0].payload.preparing, true);
+    assert.equal(status.preparationState, 'pending');
+    assert.equal(status.preparationGeneration, 'generation-route-reprepare');
+    assert.equal(status.preparationOwner, null);
+    assert.equal(fs.existsSync(path.join(outDir, 'onboard-queue.json')), false);
+    assert.equal(fs.existsSync(path.join(outDir, 'onboard-publication-intent.json')), false);
+    assert.ok(fs.readdirSync(outDir).some((name) => name.startsWith('onboard-publication-intent.json.invalid-')));
+
+    const due = hd.findPendingLearnerQueues(repo);
+    assert.equal(due.length, 1);
+    assert.equal(due[0].preparationDue, true);
+    assert.equal(due[0].generation, 'generation-route-reprepare');
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('registered headless reconciliation removes malformed journals without blocking later discovery', () => {
+  const hd = freshModule();
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-publication-invalid-registered-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo, outDir, preparationState: 'pending', preparationGeneration: 'generation-headless-reprepare',
+      preparationOwner: null, preparationPid: null, preparationLeaseExpiresAt: null,
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-publication-intent.json'), '{');
+    fs.writeFileSync(path.join(outDir, `onboard-drain-status.json.publish-${'b'.repeat(32)}.tmp`), '{}');
+
+    const reconciled = hd.reconcileRegisteredOnboardPublications({
+      workspace: repo,
+      registeredWorkspaces: [repo],
+    });
+    assert.equal(reconciled.length, 1);
+    assert.equal(reconciled[0].ok, true);
+    assert.equal(reconciled[0].settled, 'invalid_quarantined');
+    assert.equal(reconciled[0].reprepare, true);
+    assert.equal(fs.existsSync(path.join(outDir, 'onboard-publication-intent.json')), false);
+    assert.deepEqual(fs.readdirSync(outDir).filter((name) => /\.publish-[a-f0-9]{32}\.tmp$/.test(name)), []);
+
+    const due = hd.findRegisteredLearnerQueues({ workspace: repo, registeredWorkspaces: [repo] });
+    assert.equal(due.length, 1);
+    assert.equal(due[0].generation, 'generation-headless-reprepare');
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test('failed injection persists backoff metadata and retries automatically to success', async () => {
   const savedMax = process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS;
   const savedBase = process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS;

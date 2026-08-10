@@ -960,6 +960,75 @@ test('daemon boot reconciles every hard-exit boundary of onboarding init', async
   }
 });
 
+test('daemon boot quarantines an invalid onboarding publication and stays ready', async () => {
+  const fixture = prepareInitRepo('zonoid-publication-invalid-boot-');
+  const port = await testPort();
+  const token = 'publication-invalid-boot-token';
+  const registryFile = path.join(fixture.dataDir, 'workspaces.json');
+  const outDir = path.join(fixture.repo, '.zonoid', 'onboard', path.basename(fixture.repo));
+  const journal = path.join(outDir, 'onboard-publication-intent.json');
+  fs.writeFileSync(path.join(fixture.dataDir, 'token'), `${token}\n`);
+  workspaceRegistry.addRepo(registryFile, { workspace: 'invalid-publication', repo: fixture.repo });
+  fs.mkdirSync(outDir, { recursive: true });
+  fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+    generation: 'generation-untrusted-boot', total: 1, cursor: 0,
+    kept: [], rejected: [], pending: [{ title: 'untrusted' }],
+  }));
+  fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+    repo: fixture.repo,
+    outDir,
+    autoInject: true,
+    preparationState: 'running',
+    preparationGeneration: 'generation-boot-reprepare',
+    preparationOwner: 'dead-boot-owner',
+    preparationPid: 999999,
+    preparationLeaseExpiresAt: Date.now() - 1,
+    queueGeneration: 'generation-before-boot',
+    injectionGeneration: 'generation-before-boot',
+  }));
+  fs.writeFileSync(journal, JSON.stringify({ version: 1, generation: 'shallow-untrusted' }));
+
+  try {
+    assert.equal(await checkDaemon({
+      port,
+      daemonPath: DAEMON_PATH,
+      startupTimeoutMs: 15000,
+      env: {
+        ...process.env,
+        CLAUDE_PLUGIN_DATA: fixture.dataDir,
+        ORCH_TOKEN: '',
+        CLAUDE_CODE_SESSION_ID: '',
+        HEADLESS_DRAIN_MAX_ITERATIONS: '-1',
+        ZONOID_EMBED_PROVIDER: 'local',
+        ZONOID_EMBED_LOCAL_BASE_URL: 'http://127.0.0.1:1',
+      },
+    }), true);
+
+    const health = await daemonRequest(port, 'GET', '/health');
+    assert.equal(health.status, 200);
+    assert.equal(health.payload.phase, 'ready');
+    assert.equal(fs.existsSync(journal), false);
+    assert.equal(fs.existsSync(path.join(outDir, 'onboard-queue.json')), false,
+      'boot must not roll a queue forward from an invalid publication');
+    assert.ok(fs.readdirSync(outDir).some((name) => name.startsWith('onboard-publication-intent.json.invalid-')));
+    const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.preparationState, 'pending');
+    assert.equal(status.preparationGeneration, 'generation-boot-reprepare');
+    assert.equal(status.preparationOwner, null);
+
+    const enqueued = await daemonRequest(port, 'POST', '/onboard/enqueue', {
+      repo: fixture.repo,
+      outDir,
+    }, token);
+    assert.equal(enqueued.status, 200);
+    assert.equal(enqueued.payload.preparing, true);
+    assert.equal(enqueued.payload.preparationState, 'pending');
+  } finally {
+    await stopDaemon(port);
+    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+  }
+});
+
 test('real daemon rejects invalid onboarding paths before registration or project mutation', async () => {
   const fixture = prepareInitRepo('zonoid-init-real-reject-');
   const outside = path.join(fixture.fixtureDir, 'escaped-runtime');

@@ -550,6 +550,151 @@ function readJSON(p) {
       && !fs.existsSync(path.join(dir, onboardState.PUBLICATION_INTENT_FILE)));
 }
 
+// ---- TEST 7e: committed cleanup is independent from publication operation identity ----
+{
+  const dir = tmpDir();
+  const intentPath = path.join(dir, onboardState.PUBLICATION_INTENT_FILE);
+  const queueFor = (generation) => ({
+    generation, total: 1, cursor: 0, kept: [], rejected: [],
+    pending: [{ title: generation, summary: generation, kind: 'gotcha' }],
+  });
+  const filesFor = () => ({ 'onboard-notes.json': null });
+  const publish = (generation, statusMutator) => onboardState.publishOnboardGeneration({
+    outDir: dir,
+    queue: queueFor(generation),
+    files: filesFor(),
+    statusMutator: statusMutator || ((status) => ({
+      ...status,
+      preparationState: 'ready',
+      queueGeneration: generation,
+      injectionGeneration: generation,
+      injectionState: 'pending',
+    })),
+  });
+
+  const realUnlink = fs.unlinkSync;
+  let first;
+  let second;
+  try {
+    fs.unlinkSync = (file, ...args) => {
+      if (path.resolve(file) === path.resolve(intentPath)) {
+        throw Object.assign(new Error('persistent publication cleanup failure'), { code: 'EIO' });
+      }
+      return realUnlink(file, ...args);
+    };
+    first = publish('generation-cleanup-one');
+    second = publish('generation-cleanup-two');
+  } finally {
+    fs.unlinkSync = realUnlink;
+  }
+  const secondQueue = readJSON(path.join(dir, 'onboard-queue.json'));
+  const secondStatus = readJSON(path.join(dir, 'onboard-drain-status.json'));
+  ok('cleanup-pending gen1 does not swallow an explicitly requested gen2',
+    first.applied === true && first.reconciliationPending === true
+      && second.applied === true && second.generation === 'generation-cleanup-two'
+      && secondQueue.generation === 'generation-cleanup-two'
+      && secondStatus.queueGeneration === 'generation-cleanup-two');
+  ok('gen2 owns the surviving cleanup journal after replacing cleanup-pending gen1',
+    readJSON(intentPath).generation === 'generation-cleanup-two');
+
+  let retryMutatorCalls = 0;
+  const retried = publish('generation-cleanup-two', () => {
+    retryMutatorCalls++;
+    throw new Error('same-operation recovery must not allocate another publication');
+  });
+  ok('same generation and payload retry returns only its exact recovered operation',
+    retried.applied === true && retried.recovered === true
+      && retried.generation === 'generation-cleanup-two' && retryMutatorCalls === 0);
+  ok('successful same-operation retry settles the cleanup journal and owned temps',
+    !fs.existsSync(intentPath)
+      && !fs.readdirSync(dir).some((name) => /\.publish-[a-f0-9]{32}\.tmp$/.test(name)));
+}
+
+// ---- TEST 7f: invalid journals fail closed, reprepare, and never poison later publication ----
+{
+  const dir = tmpDir();
+  const intentPath = path.join(dir, onboardState.PUBLICATION_INTENT_FILE);
+  const tempId = 'a'.repeat(32);
+  fs.writeFileSync(path.join(dir, 'onboard-queue.json'), JSON.stringify({
+    generation: 'generation-untrusted-partial', total: 1, cursor: 0, kept: [], rejected: [],
+    pending: [{ title: 'untrusted', summary: 'untrusted', kind: 'gotcha' }],
+  }));
+  fs.writeFileSync(path.join(dir, 'onboard-drain-status.json'), JSON.stringify({
+    preparationState: 'running', preparationGeneration: 'generation-reprepare',
+    preparationOwner: 'dead-owner', preparationPid: 999999, preparationLeaseExpiresAt: Date.now() - 1,
+    queueGeneration: 'generation-before-partial', injectionGeneration: 'generation-before-partial',
+  }));
+  fs.writeFileSync(intentPath, '{');
+  fs.writeFileSync(path.join(dir, `onboard-queue.json.publish-${tempId}.tmp`), '{}');
+
+  const quarantined = onboardState.reconcileOnboardPublication(dir);
+  const failedStatus = readJSON(path.join(dir, 'onboard-drain-status.json'));
+  ok('malformed publication journal is quarantined without rolling its partial queue forward',
+    quarantined.ok === true && quarantined.settled === 'invalid_quarantined'
+      && quarantined.reprepare === true && !fs.existsSync(intentPath)
+      && !fs.existsSync(path.join(dir, 'onboard-queue.json'))
+      && failedStatus.queueGeneration === null && failedStatus.injectionGeneration === null);
+  ok('invalid prepared publication releases its owner into restart-safe reprepare state',
+    failedStatus.preparationState === 'pending'
+      && failedStatus.preparationGeneration === 'generation-reprepare'
+      && failedStatus.preparationOwner === null && failedStatus.preparationPid === null);
+  ok('invalid publication cleanup reaps owned temps and retains quarantined evidence only',
+    !fs.existsSync(path.join(dir, `onboard-queue.json.publish-${tempId}.tmp`))
+      && fs.readdirSync(dir).some((name) => name.startsWith(`${onboardState.PUBLICATION_INTENT_FILE}.invalid-`)));
+
+  const replacementGeneration = 'generation-after-invalid';
+  const replacementQueue = {
+    generation: replacementGeneration, total: 1, cursor: 0, kept: [], rejected: [],
+    pending: [{ title: 'replacement', summary: 'replacement', kind: 'gotcha' }],
+  };
+  const replacement = onboardState.publishOnboardGeneration({
+    outDir: dir, queue: replacementQueue, files: { 'onboard-notes.json': null },
+    statusMutator: (status) => ({
+      ...status, preparationState: 'ready', preparationGeneration: null,
+      queueGeneration: replacementGeneration, injectionGeneration: replacementGeneration,
+    }),
+  });
+  ok('quarantined malformed journal cannot block a later valid publication',
+    replacement.applied === true
+      && readJSON(path.join(dir, 'onboard-queue.json')).generation === replacementGeneration
+      && readJSON(path.join(dir, 'onboard-drain-status.json')).queueGeneration === replacementGeneration);
+
+  const safeQueueBytes = fs.readFileSync(path.join(dir, 'onboard-queue.json'));
+  const safeStatusBytes = fs.readFileSync(path.join(dir, 'onboard-drain-status.json'));
+  fs.writeFileSync(intentPath, JSON.stringify({ version: 1 }));
+  const shallow = onboardState.reconcileOnboardPublication(dir);
+  ok('shallow invalid journal preserves an already coherent committed queue and status',
+    shallow.settled === 'invalid_quarantined'
+      && fs.readFileSync(path.join(dir, 'onboard-queue.json')).equals(safeQueueBytes)
+      && fs.readFileSync(path.join(dir, 'onboard-drain-status.json')).equals(safeStatusBytes));
+}
+
+// ---- TEST 7g: a tampered hard-exit journal cannot block the direct command restart ----
+{
+  const repo = fakeRepo(tmpDir());
+  const dir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  writeFakeMined(dir);
+  const initial = run(['--repo', repo, '--in', dir, '--enqueue']);
+  const before = readJSON(path.join(dir, 'onboard-queue.json'));
+  const crashed = run(['--repo', repo, '--in', dir, '--enqueue'], {
+    ZONOID_TEST_ONBOARD_PUBLICATION_CRASH_AFTER: 'journal',
+  });
+  const intentPath = path.join(dir, onboardState.PUBLICATION_INTENT_FILE);
+  const tampered = readJSON(intentPath);
+  tampered.desiredStatus.queueGeneration = 'generation-tampered';
+  fs.writeFileSync(intentPath, JSON.stringify(tampered, null, 2));
+  const restarted = run(['--repo', repo, '--in', dir, '--enqueue']);
+  const after = readJSON(path.join(dir, 'onboard-queue.json'));
+  const status = readJSON(path.join(dir, 'onboard-drain-status.json'));
+  ok('tampered hard-exit journal is quarantined and direct enqueue restart succeeds',
+    initial.status === 0 && crashed.status === 87 && restarted.status === 0
+      && after.generation !== before.generation && status.queueGeneration === after.generation
+      && status.queueGeneration !== 'generation-tampered' && !fs.existsSync(intentPath));
+  ok('tampered journal restart leaves only quarantined evidence, not publication temps',
+    fs.readdirSync(dir).some((name) => name.startsWith(`${onboardState.PUBLICATION_INTENT_FILE}.invalid-`))
+      && !fs.readdirSync(dir).some((name) => /\.publish-[a-f0-9]{32}\.tmp$/.test(name)));
+}
+
 // ---- TEST 7: queue reservations allow parallel non-overlapping batches ----
 {
   const dir = tmpDir();
