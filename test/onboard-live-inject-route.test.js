@@ -1351,6 +1351,105 @@ test('explicit preparation rearm replaces a failed force generation instead of r
   }
 });
 
+test('explicit rearm is byte-identical while injection or preparation has a live owner', async (t) => {
+  for (const ownerKind of ['injection', 'preparation']) {
+    await t.test(ownerKind, async () => {
+      const repo = fs.mkdtempSync(path.join(os.tmpdir(), `onboard-route-rearm-live-${ownerKind}-`));
+      const outDir = defaultOnboardOutDir(repo);
+      const sent = [];
+      try {
+        writeQueue(outDir, 1, 1, [{ title: 'Old' }], 'generation-live');
+        const status = {
+          repo,
+          outDir,
+          preparationGeneration: 'generation-live',
+          preparationState: ownerKind === 'preparation' ? 'running' : 'failed',
+          preparationForce: true,
+          ...(ownerKind === 'preparation' ? {
+            preparationOwner: 'live-preparation-owner',
+            preparationPid: process.pid,
+            preparationLeaseExpiresAt: Date.now() + 60_000,
+          } : {
+            injectionGeneration: 'generation-live',
+            injectionState: 'running',
+            injecting: true,
+            injectionOwner: 'live-injection-owner',
+            injectionPid: process.pid,
+            injectionLeaseExpiresAt: Date.now() + 60_000,
+          }),
+        };
+        const statusFile = path.join(outDir, 'onboard-drain-status.json');
+        fs.writeFileSync(statusFile, JSON.stringify(status, null, 4) + '\n');
+        const before = fs.readFileSync(statusFile);
+
+        const route = onboardRoute(makeCtx({ repo, outDir, rearm: true }, sent, () => {}, [repo]));
+        await route('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
+
+        assert.equal(sent[0].status, 409);
+        assert.equal(sent[0].payload.retryable, true);
+        assert.equal(sent[0].payload.conflict, `${ownerKind}_in_progress`);
+        assert.deepEqual(fs.readFileSync(statusFile), before);
+      } finally {
+        fs.rmSync(repo, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+test('explicit rearm replaces dead injection and expired preparation owners', async (t) => {
+  const cases = [
+    {
+      name: 'dead injection',
+      fields: {
+        preparationState: 'failed',
+        injectionGeneration: 'generation-stale',
+        injectionState: 'running',
+        injecting: true,
+        injectionOwner: 'dead-injection-owner',
+        injectionPid: 99999999,
+        injectionLeaseExpiresAt: Date.now() + 60_000,
+      },
+    },
+    {
+      name: 'expired preparation',
+      fields: {
+        preparationState: 'running',
+        preparationOwner: 'expired-preparation-owner',
+        preparationPid: process.pid,
+        preparationLeaseExpiresAt: Date.now() - 1,
+      },
+    },
+  ];
+  for (const entry of cases) {
+    await t.test(entry.name, async () => {
+      const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-rearm-stale-owner-'));
+      const outDir = defaultOnboardOutDir(repo);
+      const sent = [];
+      try {
+        writeQueue(outDir, 1, 1, [{ title: 'Old' }], 'generation-stale');
+        fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+          repo,
+          outDir,
+          preparationGeneration: 'generation-stale',
+          preparationForce: true,
+          ...entry.fields,
+        }));
+        const route = onboardRoute(makeCtx({ repo, outDir, rearm: true }, sent, () => {}, [repo]));
+        await route('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
+
+        assert.equal(sent[0].status, 200);
+        const rearmed = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+        assert.equal(rearmed.preparationState, 'pending');
+        assert.notEqual(rearmed.preparationGeneration, 'generation-stale');
+        assert.equal(rearmed.preparationOwner, null);
+        assert.equal(rearmed.injectionOwner, null);
+      } finally {
+        fs.rmSync(repo, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
 test('init atomically rearms a failed force replacement backed by an old queue', async () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-force-rearm-'));
   const outDir = defaultOnboardOutDir(repo);
@@ -1554,6 +1653,95 @@ test('init exceptions after each durable write restore the exact old force image
         const journals = onboardInitTransaction.journalDir(registryFile);
         assert.equal(!fs.existsSync(journals) || fs.readdirSync(journals).length === 0, true);
       } finally {
+        fs.rmSync(repo, { recursive: true, force: true });
+        fs.rmSync(dataDir, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+test('malformed and truncated init pre-images roll back exactly and cannot roll forward on restart', async (t) => {
+  for (const [name, oldBytes] of [
+    ['malformed', Buffer.from('{ definitely not onboarding JSON }\n')],
+    ['truncated', Buffer.from('{"repo":"truncated","preparationState":')],
+  ]) {
+    await t.test(name, async () => {
+      const repo = fs.mkdtempSync(path.join(os.tmpdir(), `onboard-init-${name}-`));
+      const outDir = defaultOnboardOutDir(repo);
+      const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), `onboard-init-${name}-data-`));
+      const registryFile = path.join(dataDir, 'workspaces.json');
+      const statusFile = path.join(outDir, 'onboard-drain-status.json');
+      const sent = [];
+      try {
+        fs.mkdirSync(outDir, { recursive: true });
+        fs.writeFileSync(statusFile, oldBytes);
+        fs.chmodSync(statusFile, 0o640);
+        const ctx = {
+          ...makeCtx({ repo }, sent, () => {}, [repo]),
+          WORKSPACES_FILE: registryFile,
+          registrationRepoRoot: (candidate) => path.resolve(candidate),
+          setWorkspace: () => {},
+          onboardInitBoundary: (boundary) => {
+            if (boundary === 'status') throw new Error(`injected ${name} rollback failure`);
+          },
+        };
+        await onboardRoute(ctx)('/onboard/init', 'POST', {}, {}, new URL('http://localhost/onboard/init'));
+
+        assert.equal(sent[0].status, 500);
+        assert.deepEqual(fs.readFileSync(statusFile), oldBytes);
+        assert.equal(fs.statSync(statusFile).mode & 0o777, 0o640);
+        assert.equal(fs.existsSync(registryFile), false);
+        assert.deepEqual(onboardInitTransaction.reconcilePending(registryFile), [],
+          'a later daemon boot must not roll a reported failure forward');
+        assert.deepEqual(fs.readFileSync(statusFile), oldBytes);
+        const journals = onboardInitTransaction.journalDir(registryFile);
+        assert.equal(!fs.existsSync(journals)
+          || fs.readdirSync(journals).every((entry) => entry.endsWith('.invalid')), true);
+      } finally {
+        fs.rmSync(repo, { recursive: true, force: true });
+        fs.rmSync(dataDir, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+test('directory and unreadable init pre-images fail without status, registry, or restart mutation', async (t) => {
+  for (const kind of ['directory', 'unreadable']) {
+    await t.test(kind, async () => {
+      const repo = fs.mkdtempSync(path.join(os.tmpdir(), `onboard-init-${kind}-`));
+      const outDir = defaultOnboardOutDir(repo);
+      const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), `onboard-init-${kind}-data-`));
+      const registryFile = path.join(dataDir, 'workspaces.json');
+      const statusFile = path.join(outDir, 'onboard-drain-status.json');
+      const sent = [];
+      const unreadableBytes = Buffer.from('{"preserve":"unreadable"}\n');
+      try {
+        fs.mkdirSync(outDir, { recursive: true });
+        if (kind === 'directory') fs.mkdirSync(statusFile);
+        else {
+          fs.writeFileSync(statusFile, unreadableBytes, { mode: 0o000 });
+          fs.chmodSync(statusFile, 0o000);
+        }
+        const before = onboardInitTransaction.snapshotStatusFile(statusFile);
+        const ctx = {
+          ...makeCtx({ repo }, sent, () => {}, [repo]),
+          WORKSPACES_FILE: registryFile,
+          registrationRepoRoot: (candidate) => path.resolve(candidate),
+          setWorkspace: () => {},
+        };
+        await onboardRoute(ctx)('/onboard/init', 'POST', {}, {}, new URL('http://localhost/onboard/init'));
+
+        assert.equal(sent[0].status, 500);
+        assert.equal(fs.existsSync(registryFile), false);
+        assert.deepEqual(onboardInitTransaction.reconcilePending(registryFile), []);
+        if (kind === 'directory') assert.equal(fs.lstatSync(statusFile).isDirectory(), true);
+        else {
+          fs.chmodSync(statusFile, 0o600);
+          assert.deepEqual(fs.readFileSync(statusFile), unreadableBytes);
+          assert.equal(before.kind, 'unreadable');
+        }
+      } finally {
+        try { if (kind === 'unreadable') fs.chmodSync(statusFile, 0o600); } catch { /* already removed */ }
         fs.rmSync(repo, { recursive: true, force: true });
         fs.rmSync(dataDir, { recursive: true, force: true });
       }
