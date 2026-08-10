@@ -3,8 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const {
-  defaultOnboardOutDir,
-  onboardRuntimeRoot,
+  resolveOnboardPaths,
   ensureOnboardRuntimeIgnored,
 } = require('../lib/onboard-paths');
 const {
@@ -115,11 +114,31 @@ function writeDrainMeta(outDir, patch) {
   return patchOnboardStatus(outDir, patch).value;
 }
 
+function resolveRequestPaths(ctx, repo, outDir) {
+  return resolveOnboardPaths({
+    repo,
+    outDir,
+    registeredWorkspaces: ctx.registeredWorkspaces,
+  });
+}
+
+function sendPathError(send, res, err) {
+  send(res, Number(err && err.statusCode) || 400, {
+    ok: false,
+    error: err && err.message ? err.message : String(err),
+  });
+}
+
+function pathsNameSameDirectory(left, right) {
+  try { return fs.realpathSync(path.resolve(left)) === fs.realpathSync(path.resolve(right)); }
+  catch { return path.resolve(left) === path.resolve(right); }
+}
+
 function buildDrainJob(repo, outDir, patch = {}) {
   // The headless learner persists progress independently of the route process. A cached POST job
   // is only a fallback; it must never overwrite a newer on-disk injection result or error.
   const persistedMeta = readDrainMeta(outDir);
-  const meta = Object.keys(persistedMeta).length ? persistedMeta : patch;
+  let meta = Object.keys(persistedMeta).length ? persistedMeta : patch;
   const persistedQueue = queueStatus(outDir);
   const qs = persistedQueue || {};
   const autoInject = meta.autoInject !== false;
@@ -133,6 +152,37 @@ function buildDrainJob(repo, outDir, patch = {}) {
     : (meta.preparationState || (persistedQueue ? 'ready' : 'idle'));
   const preparing = preparationState === 'pending' || preparationState === 'running';
   const queueGen = qs.queueGeneration || meta.queueGeneration || null;
+  const nothingToInject = drainDone && kept === 0 && !preparing && meta.preparationForce !== true;
+  if (nothingToInject && queueGen && (meta.injectionGeneration !== queueGen
+      || meta.injectionState !== 'not_needed' || meta.injectedKept !== 0
+      || meta.injecting === true || meta.injectionError)) {
+    const terminal = mutateOnboardStatus(outDir, (current) => {
+      const latest = queueStatus(outDir);
+      if (!latest || latest.queueGeneration !== queueGen || latest.drainDone !== true || latest.kept !== 0) return undefined;
+      if (current.preparationForce === true || ['pending', 'running'].includes(current.preparationState)) return undefined;
+      const previousInjectionError = !!current.injectionError
+        || ['backoff', 'failed'].includes(current.injectionState)
+        || /^inject(?:ion)?\b/i.test(String(current.error || ''));
+      return {
+        ...current,
+        repo,
+        outDir,
+        injected: false,
+        injectedKept: 0,
+        injectionGeneration: queueGen,
+        injectionState: 'not_needed',
+        injectionAttempts: 0,
+        injectionRetryAt: null,
+        injectionRetryCapped: false,
+        injectionError: null,
+        injecting: false,
+        error: previousInjectionError ? null : (current.error || null),
+      };
+    });
+    if (terminal.applied) {
+      meta = terminal.value;
+    }
+  }
   const injectionGen = typeof meta.injectionGeneration === 'string'
     ? meta.injectionGeneration
     : ((meta.injected === true || meta.injecting === true || meta.injectionState) ? queueGen : null);
@@ -149,7 +199,8 @@ function buildDrainJob(repo, outDir, patch = {}) {
   let injectionState = generationMatches ? (meta.injectionState || inferredInjectionState) : null;
   const noNotesToInject = drainDone && qs.total > 0 && kept === 0;
   if (preparing) injectionState = 'blocked';
-  else if (!injectionState) injectionState = autoInject && kept > 0 ? 'pending' : (noNotesToInject ? 'not_needed' : 'idle');
+  else if (nothingToInject) injectionState = 'not_needed';
+  else if (!injectionState) injectionState = autoInject && kept > 0 ? 'pending' : 'idle';
   const injecting = generationMatches && (meta.injecting === true || injectionState === 'running');
   const injectionError = generationMatches
     ? (meta.injectionError || ((['backoff', 'failed'].includes(injectionState) || legacyInjectionError) ? meta.error : null))
@@ -168,7 +219,7 @@ function buildDrainJob(repo, outDir, patch = {}) {
   const retryAt = generationMatches ? countOrZero(meta.injectionRetryAt) : 0;
   const retryCapped = generationMatches && (meta.injectionRetryCapped === true || (injectionState === 'failed' && attempts >= maxAttempts));
   const retryPending = generationMatches && injectionState === 'backoff' && !retryCapped && retryAt > Date.now();
-  const successfulTerminal = noCandidates || noNotesToInject || !autoInject || injected;
+  const successfulTerminal = nothingToInject || !autoInject || injected;
   return {
     repo,
     outDir,
@@ -219,17 +270,22 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
   if (p === '/onboard/enqueue' && m === 'POST') {
     const b = await readBody(req);
-    const repo = b.repo;
-    if (!repo) { send(res, 400, { ok: false, error: 'repo required' }); return true; }
-    const outDir = b.outDir || defaultOnboardOutDir(repo);
+    if (!b.repo) { send(res, 400, { ok: false, error: 'repo required' }); return true; }
+    let resolved;
+    try { resolved = resolveRequestPaths(ctx, b.repo, b.outDir); } catch (err) {
+      sendPathError(send, res, err);
+      return true;
+    }
+    const { repo, outDir } = resolved;
     const existingStatus = queueStatus(outDir);
     const existingMeta = readDrainMeta(outDir);
     const sameRepo = existingMeta.repo
-      ? path.resolve(existingMeta.repo) === path.resolve(repo)
-      : path.resolve(outDir) === path.resolve(defaultOnboardOutDir(repo));
+      ? pathsNameSameDirectory(existingMeta.repo, repo)
+      : resolved.kind === 'default';
+    const rearm = b.rearm === true;
     // Repeated init/dashboard requests must resume an existing queue at its current cursor. Re-mining
     // an incomplete queue would discard already-kept notes and make normal idempotent setup destructive.
-    if (!b.force && existingStatus && sameRepo) {
+    if (!b.force && !rearm && existingStatus && sameRepo) {
       send(res, 200, {
         ok: true,
         total: existingStatus.total,
@@ -240,7 +296,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       });
       return true;
     }
-    if (!b.force && sameRepo && ['pending', 'running'].includes(existingMeta.preparationState)) {
+    if (!b.force && !rearm && sameRepo && ['pending', 'running'].includes(existingMeta.preparationState)) {
       const job = buildDrainJob(repo, outDir);
       send(res, 200, {
         ok: true,
@@ -255,11 +311,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
 
     try {
-      const resolvedOutDir = path.resolve(outDir);
-      const runtimeRoot = path.resolve(onboardRuntimeRoot(repo));
-      if (resolvedOutDir === runtimeRoot || resolvedOutDir.startsWith(runtimeRoot + path.sep)) {
-        ensureOnboardRuntimeIgnored(repo);
-      }
+      if (resolved.kind === 'default') ensureOnboardRuntimeIgnored(repo);
       writeDrainMeta(outDir, {
         repo,
         outDir,
@@ -267,7 +319,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         preparationState: 'pending',
         preparationStage: null,
         preparationRequestedAt: new Date().toISOString(),
-        preparationForce: b.force === true,
+        preparationForce: b.force === true || (rearm && existingMeta.preparationForce === true),
         preparationPid: null,
         preparationLeaseExpiresAt: null,
         queueGeneration: null,
@@ -305,9 +357,15 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
   if (p === '/onboard/drain-queue' && m === 'POST') {
     const b = await readBody(req);
-    const { repo, outDir, batchSize } = b;
+    const { batchSize } = b;
     const autoInject = b.autoInject !== false;
-    if (!repo || !outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
+    if (!b.repo || !b.outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
+    let resolved;
+    try { resolved = resolveRequestPaths(ctx, b.repo, b.outDir); } catch (err) {
+      sendPathError(send, res, err);
+      return true;
+    }
+    const { repo, outDir } = resolved;
     const jobKey = `${repo}::${outDir}`;
     if (drainJobs.has(jobKey)) {
       const existing = drainJobs.get(jobKey);
@@ -343,12 +401,30 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
   if (p === '/onboard/inject' && m === 'POST') {
     const b = await readBody(req);
-    const { repo, outDir } = b;
-    if (!repo || !outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
+    if (!b.repo || !b.outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
+    let resolved;
+    try { resolved = resolveRequestPaths(ctx, b.repo, b.outDir); } catch (err) {
+      sendPathError(send, res, err);
+      return true;
+    }
+    const { repo, outDir } = resolved;
     const learnScript = path.join(__dirname, '..', 'scripts', 'onboard-learn.js');
     const status = queueStatus(outDir);
     if (!status) { send(res, 404, { ok: false, error: 'queue not found for this repo+outDir' }); return true; }
     const generation = status.queueGeneration;
+    if (status.drainDone && status.kept === 0) {
+      writeDrainMeta(outDir, {
+        repo, outDir, injected: false, injectedKept: 0,
+        injectionGeneration: generation, injectionState: 'not_needed',
+        injectionAttempts: 0, injectionRetryAt: null, injectionRetryCapped: false,
+        injectionError: null, injecting: false, error: null,
+      });
+      const job = buildDrainJob(repo, outDir);
+      drainJobs.set(`${repo}::${outDir}`, job);
+      if (notifyChange) notifyChange();
+      send(res, 200, { ok: true, injected: false, notNeeded: true, status: job });
+      return true;
+    }
     const previous = readDrainMeta(outDir);
     const attempt = countOrZero(previous.injectionAttempts) + 1;
     const owner = `inject-route-${process.pid}-${crypto.randomBytes(8).toString('hex')}`;
@@ -425,12 +501,30 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
   if (p === '/onboard/retry-inject' && m === 'POST') {
     const b = await readBody(req);
-    const { repo, outDir } = b;
-    if (!repo || !outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
+    if (!b.repo || !b.outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
+    let resolved;
+    try { resolved = resolveRequestPaths(ctx, b.repo, b.outDir); } catch (err) {
+      sendPathError(send, res, err);
+      return true;
+    }
+    const { repo, outDir } = resolved;
     const status = queueStatus(outDir);
     if (!status) { send(res, 404, { ok: false, error: 'queue not found for this repo+outDir' }); return true; }
     const meta = readDrainMeta(outDir);
     const generation = status.queueGeneration;
+    if (status.drainDone && status.kept === 0) {
+      writeDrainMeta(outDir, {
+        repo, outDir, autoInject: true, injected: false, injectedKept: 0,
+        injectionGeneration: generation, injectionState: 'not_needed',
+        injectionAttempts: 0, injectionRetryAt: null, injectionRetryCapped: false,
+        injectionError: null, injecting: false, error: null,
+      });
+      const job = buildDrainJob(repo, outDir);
+      drainJobs.set(`${repo}::${outDir}`, job);
+      if (notifyChange) notifyChange();
+      send(res, 200, { ok: true, status: job, message: 'no injection needed' });
+      return true;
+    }
     const injectedGeneration = meta.injectedGeneration === generation ? generation : null;
     writeDrainMeta(outDir, {
       repo,
@@ -454,9 +548,15 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   }
 
   if (p === '/onboard/drain-queue' && m === 'GET') {
-    const repo = u.searchParams.get('repo');
-    const outDir = u.searchParams.get('outDir');
-    if (!repo || !outDir) { send(res, 400, { ok: false, error: 'repo and outDir query params required' }); return true; }
+    const requestedRepo = u.searchParams.get('repo');
+    const requestedOutDir = u.searchParams.get('outDir');
+    if (!requestedRepo || !requestedOutDir) { send(res, 400, { ok: false, error: 'repo and outDir query params required' }); return true; }
+    let resolved;
+    try { resolved = resolveRequestPaths(ctx, requestedRepo, requestedOutDir); } catch (err) {
+      sendPathError(send, res, err);
+      return true;
+    }
+    const { repo, outDir } = resolved;
     const jobKey = `${repo}::${outDir}`;
     const meta = readDrainMeta(outDir);
     const preparationKnown = ['pending', 'running', 'failed', 'ready'].includes(meta.preparationState);
@@ -470,8 +570,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
   if (p === '/onboard/drain-next' && m === 'POST') {
     const b = await readBody(req);
-    const { repo, outDir, batchSize } = b;
-    if (!repo || !outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
+    const { batchSize } = b;
+    if (!b.repo || !b.outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
+    let resolved;
+    try { resolved = resolveRequestPaths(ctx, b.repo, b.outDir); } catch (err) {
+      sendPathError(send, res, err);
+      return true;
+    }
+    const { repo, outDir } = resolved;
     const learnScript = path.join(__dirname, '..', 'scripts', 'onboard-learn.js');
     try {
       await runNode([learnScript, '--repo', repo, '--in', outDir, '--drain', '--batch', String(batchSize || DEFAULT_DRAIN_BATCH_SIZE)]);
@@ -480,7 +586,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       send(res, 500, { ok: false, error: `drain failed: ${err && err.message ? err.message : err}` });
       return true;
     }
-    send(res, 200, { ok: true, status: queueStatus(outDir) }); return true;
+    send(res, 200, { ok: true, status: buildDrainJob(repo, outDir) }); return true;
   }
 
   return false;

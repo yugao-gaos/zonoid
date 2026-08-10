@@ -660,6 +660,7 @@
       </div>
     </div>
     <div class="ol-status" id="onboardStatus"></div>
+    <button class="ol-retry" id="onboardRetryPrepareBtn" type="button" onclick="retryOnboardPreparation()">Retry project preparation</button>
     <button class="ol-retry" id="onboardRetryInjectBtn" type="button" onclick="retryOnboardInjection()">Retry live injection</button>
   </div>
 </div>
@@ -8271,6 +8272,13 @@ function setOnboardInjectVisible(visible, busy) {
   btn.disabled = !!busy;
 }
 
+function setOnboardPrepareVisible(visible, busy) {
+  const btn = document.getElementById('onboardRetryPrepareBtn');
+  if (!btn) return;
+  btn.style.display = visible ? '' : 'none';
+  btn.disabled = !!busy;
+}
+
 function buildOnboardCloudState(s={}) {
   const total = Math.max(0, Number(s.total) || 0);
   const processed = Math.max(0, Number(s.processed) || 0);
@@ -8330,6 +8338,7 @@ function completeOnboardLearning() {
   localStorage.removeItem(onboardStoreKey('outdir'));
   document.body.classList.remove('onboarding-pending');
   setOnboardInjectVisible(false, false);
+  setOnboardPrepareVisible(false, false);
   setOnboardStatus('');
   if (typeof tick === 'function') tick();
 }
@@ -8337,7 +8346,10 @@ function completeOnboardLearning() {
 function onboardStatusComplete(s) {
   if (!s || s.error || s.preparing || s.injecting) return false;
   if (['pending', 'running', 'backoff', 'failed', 'blocked'].includes(s.injectionState)) return false;
-  if (s.noCandidates === true || s.noNotesToInject === true) return s.done === true;
+  if (s.injectionState === 'not_needed') {
+    return s.done === true && Math.max(0, Number(s.kept) || 0) === 0
+      && (s.noCandidates === true || onboardStatusDrained(s));
+  }
   if (s.autoInject === false) return s.done === true && onboardStatusDrained(s);
   return s.done === true && s.injected === true && (!s.injectionState || s.injectionState === 'succeeded');
 }
@@ -8355,6 +8367,7 @@ function onboardStatusDrained(s) {
 
 function onboardStatusNeedsResume(s) {
   if (!s || onboardStatusComplete(s)) return false;
+  if (s.preparationState === 'failed') return false;
   if (['pending', 'running', 'backoff', 'failed'].includes(s.injectionState) || s.injecting || s.injectionError) return false;
   return !!(s.done !== true || s.recovered || s.active === false || (s.autoInject !== false && !s.injected));
 }
@@ -8367,6 +8380,7 @@ async function ensureOnboardLearning(repo) {
   try {
     onboardAutoStartInFlight = true;
     setOnboardInjectVisible(false, false);
+    setOnboardPrepareVisible(false, false);
 
     let outDir = storedOutDir;
     if (!outDir) {
@@ -8433,10 +8447,19 @@ function updateOnboardFromStatus(s) {
   const injected = typeof s.injectedKept === 'number' ? s.injectedKept : (s.injected ? kept : 0);
   const cloud = document.querySelector('.ol-cloud');
   const drained = onboardStatusDrained(s);
+  const preparationFailure = s.preparationState === 'failed';
   const injectionFailure = !!(s.injectionError || ['backoff', 'failed'].includes(s.injectionState));
-  if (cloud) cloud.classList.toggle('is-live', !onboardStatusComplete(s) && (!s.error || injectionFailure));
+  if (cloud) cloud.classList.toggle('is-live', !onboardStatusComplete(s) && (!s.error || injectionFailure || preparationFailure));
   setOnboardProgress(processed, total, kept, injected, inflight);
   renderOnboardCloud({ ...s, total, processed, visualProcessed, kept, inflight, injectedKept: injected });
+  if (preparationFailure) {
+    setOnboardStage('mine');
+    setOnboardInjectVisible(false, false);
+    setOnboardPrepareVisible(true, false);
+    setOnboardStatus(`${s.error || 'Project preparation failed.'} Retry preparation to continue.`, true);
+    return true;
+  }
+  setOnboardPrepareVisible(false, false);
   if (injectionFailure) {
     setOnboardStage('review');
     const retryAt = Number(s.injectionRetryAt) || 0;
@@ -8547,6 +8570,34 @@ async function retryOnboardInjection() {
   } catch (e) {
     setOnboardStatus(String(e && e.message || e), true);
     setOnboardInjectVisible(true, false);
+  }
+}
+
+async function retryOnboardPreparation() {
+  const landing = document.getElementById('onboard-landing');
+  if (!landing || !landing.dataset.repo || !landing.dataset.outDir) return;
+  try {
+    setOnboardPrepareVisible(true, true);
+    setOnboardStatus('Rearming project preparation...');
+    const enqueued = await (await dfetch('/onboard/enqueue', {
+      method: 'POST',
+      headers: {'content-type':'application/json'},
+      body: JSON.stringify({repo: landing.dataset.repo, outDir: landing.dataset.outDir, rearm: true})
+    })).json();
+    if (!enqueued.ok) throw new Error(enqueued.error || 'preparation rearm failed');
+    const drained = await (await dfetch('/onboard/drain-queue', {
+      method: 'POST',
+      headers: {'content-type':'application/json'},
+      body: JSON.stringify({repo: landing.dataset.repo, outDir: landing.dataset.outDir, autoInject: true, liveInject: true})
+    })).json();
+    if (!drained.ok) throw new Error(drained.error || 'preparation resume failed');
+    landing.dataset.draining = '1';
+    setOnboardPrepareVisible(false, false);
+    updateOnboardFromStatus(drained.status || {});
+    pollOnboardLearning();
+  } catch (e) {
+    setOnboardStatus(String(e && e.message || e), true);
+    setOnboardPrepareVisible(true, false);
   }
 }
 
