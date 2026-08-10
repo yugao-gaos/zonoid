@@ -2922,6 +2922,7 @@ const ctx = {
   //   - repoRoot(startDir)             : walk up to the containing repo dir (.graph preferred), excludes worktrees.
   loadRegistry: () => registry.loadRegistry(WORKSPACES_FILE),
   repoToWorkspace: registry.repoToWorkspace,
+  registrationRepoRoot: registry.registrationRepoRoot,
   workspaceForRepo: (repoPath) => registry.repoToWorkspace(registry.loadRegistry(WORKSPACES_FILE)).get(repoPath) || null,
   repoRoot: registry.repoRoot,
   send, sendOp, readBody, notifyChange, graphAutoflush, buildGraph, readGraphSnapshot, targetOverlay, overlayFor, resolveRepo, resolveRepoTarget, nodeExistsInGraph, registeredWorkspaces,

@@ -186,6 +186,21 @@ function snapshotInitFixture(fixture) {
   };
 }
 
+function readOptionalBytes(file) {
+  try { return fs.readFileSync(file).toString('base64'); }
+  catch (err) { if (err && err.code === 'ENOENT') return null; throw err; }
+}
+
+function snapshotRealDaemonInit(fixture) {
+  return {
+    repoTree: snapshotTree(fixture.repo),
+    homeTree: snapshotTree(fixture.homeDir),
+    head: git(fixture.repo, ['rev-parse', 'HEAD']),
+    status: git(fixture.repo, ['status', '--porcelain=v1', '--untracked-files=all']),
+    registry: readOptionalBytes(path.join(fixture.dataDir, 'workspaces.json')),
+  };
+}
+
 function initOutput(client) {
   return `${client.stdout || ''}\n${client.stderr || ''}`;
 }
@@ -212,6 +227,7 @@ async function startInitProtocolServer(fixture, port, behavior = {}) {
     const behavior = JSON.parse(process.env.INIT_SERVER_BEHAVIOR);
     const expectedAuth = behavior.expectedToken ? 'Bearer ' + behavior.expectedToken : null;
     function responseFor(route) {
+      if (route === '/onboard/init') return behavior.transaction || {};
       if (route === '/workspace') return behavior.registration || {};
       if (route === '/onboard/enqueue') return behavior.enqueue || {};
       if (route === '/onboard/drain-queue') return behavior.drain || {};
@@ -253,6 +269,18 @@ async function startInitProtocolServer(fixture, port, behavior = {}) {
         if (spec.hang) return;
         if (req.url === '/workspace' && !Object.prototype.hasOwnProperty.call(spec, 'body')) {
           write(res, spec.status || 200, { ok: true, graph_repo: body && body.path, workspace: body && body.path });
+          return;
+        }
+        if (req.url === '/onboard/init' && !Object.prototype.hasOwnProperty.call(spec, 'body')) {
+          write(res, spec.status || 200, {
+            ok: true,
+            accepted: true,
+            registered: true,
+            graph_repo: body && body.repo,
+            outDir: path.join(body.repo, '.zonoid', 'onboard', 'test'),
+            queued: true,
+            preparationState: 'pending',
+          });
           return;
         }
         if (req.url === '/onboard/enqueue' && !Object.prototype.hasOwnProperty.call(spec, 'body')) {
@@ -396,13 +424,12 @@ test('init lifecycle arms onboarding without a dashboard and leaves accumulated 
 
     const cliSource = fs.readFileSync(path.join(__dirname, '..', 'packages', 'cli', 'bin', 'zonoid.js'), 'utf8');
     const readyAt = cliSource.indexOf('const daemonReady = await checkDaemon(daemonDeps);');
-    const registerAt = cliSource.indexOf('const registeredRepo = await registerWorkspace(cwd, opts.workspace, daemonDeps);');
-    const onboardAt = cliSource.indexOf('const onboarding = await startWorkspaceOnboarding(registeredRepo, daemonDeps);');
+    const transactionAt = cliSource.indexOf('const initialization = await startWorkspaceInitialization(cwd, opts.workspace, daemonDeps);');
     const localMutationAt = cliSource.indexOf('const runtimeMigration = runtimePaths.migrateLegacyRuntime();');
     const successOutputAt = cliSource.indexOf("ok(`Daemon verified (localhost:${daemonDeps.port || ORCH_PORT})`);");
-    assert.ok(readyAt >= 0 && registerAt > readyAt && onboardAt > registerAt
-      && localMutationAt > onboardAt && successOutputAt > onboardAt,
-      'init must verify, register, and durably enqueue onboarding before local setup mutates or prints success');
+    assert.ok(readyAt >= 0 && transactionAt > readyAt
+      && localMutationAt > transactionAt && successOutputAt > transactionAt,
+      'init must verify and atomically accept registration plus onboarding before local setup mutates or prints success');
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -487,6 +514,8 @@ test('cold daemon startup is non-blocking and waits until the daemon is ready', 
         ORCH_TOKEN: '',
         CLAUDE_CODE_SESSION_ID: '',
         HEADLESS_DRAIN_MAX_ITERATIONS: '-1',
+        ZONOID_EMBED_PROVIDER: 'local',
+        ZONOID_EMBED_LOCAL_BASE_URL: 'http://127.0.0.1:1',
       },
     });
     assert.equal(ready, true);
@@ -619,49 +648,28 @@ test('full init aborts cleanly when a cold daemon executable is unavailable', as
   }
 });
 
-test('full init rejects registration and enqueue errors transactionally', async (t) => {
+test('full init rejects daemon transaction errors without local mutation', async (t) => {
   const cases = [
     {
       name: 'registration auth 4xx',
       behavior: { expectedToken: 'different-token' },
-      expectedLastRoute: '/workspace',
+      expectedLastRoute: '/onboard/init',
     },
     {
       name: 'registration 5xx',
-      behavior: { expectedToken: 'transaction-token', registration: { status: 503, body: { ok: false, error: 'registration unavailable' } } },
-      expectedLastRoute: '/workspace',
+      behavior: { expectedToken: 'transaction-token', transaction: { status: 503, body: { ok: false, error: 'transaction unavailable' } } },
+      expectedLastRoute: '/onboard/init',
     },
     {
       name: 'registration timeout',
-      behavior: { expectedToken: 'transaction-token', registration: { hang: true } },
-      deps: { registrationTimeoutMs: 100 },
-      expectedLastRoute: '/workspace',
+      behavior: { expectedToken: 'transaction-token', transaction: { hang: true } },
+      deps: { transactionTimeoutMs: 100 },
+      expectedLastRoute: '/onboard/init',
     },
     {
       name: 'registration non-accepted 2xx',
-      behavior: { expectedToken: 'transaction-token', registration: { status: 200, body: { ok: false } } },
-      expectedLastRoute: '/workspace',
-    },
-    {
-      name: 'enqueue 4xx',
-      behavior: { expectedToken: 'transaction-token', enqueue: { status: 400, body: { ok: false, error: 'bad enqueue' } } },
-      expectedLastRoute: '/onboard/enqueue',
-    },
-    {
-      name: 'enqueue 5xx',
-      behavior: { expectedToken: 'transaction-token', enqueue: { status: 503, body: { ok: false, error: 'enqueue unavailable' } } },
-      expectedLastRoute: '/onboard/enqueue',
-    },
-    {
-      name: 'enqueue timeout',
-      behavior: { expectedToken: 'transaction-token', enqueue: { hang: true } },
-      deps: { onboardingTimeoutMs: 100 },
-      expectedLastRoute: '/onboard/enqueue',
-    },
-    {
-      name: 'enqueue non-accepted 2xx',
-      behavior: { expectedToken: 'transaction-token', enqueue: { status: 200, body: { ok: false } } },
-      expectedLastRoute: '/onboard/enqueue',
+      behavior: { expectedToken: 'transaction-token', transaction: { status: 200, body: { ok: false } } },
+      expectedLastRoute: '/onboard/init',
     },
   ];
 
@@ -684,8 +692,7 @@ test('full init rejects registration and enqueue errors transactionally', async 
         const mutations = requests.filter((request) => request.method === 'POST');
         assert.ok(mutations.length > 0, JSON.stringify(requests));
         assert.equal(mutations.at(-1).route, scenario.expectedLastRoute, JSON.stringify(requests));
-        assert.equal(mutations.some((request) => request.route === '/onboard/drain-queue'), false,
-          `drain must not be armed after a rejected transaction: ${JSON.stringify(requests)}`);
+        assert.deepEqual(mutations.map((request) => request.route), ['/onboard/init']);
         for (const request of mutations) {
           assert.equal(request.authorization, 'Bearer transaction-token');
           assert.equal(request.localPort, port);
@@ -717,20 +724,13 @@ test('full init forwards custom daemon dependencies and is repeatable after acce
 
     const firstRequests = readInitRequests(server.requestLog);
     const firstMutations = firstRequests.filter((request) => request.method === 'POST');
-    assert.deepEqual(firstMutations.map((request) => request.route), [
-      '/workspace',
-      '/onboard/enqueue',
-      '/onboard/drain-queue',
-    ]);
+    assert.deepEqual(firstMutations.map((request) => request.route), ['/onboard/init']);
     for (const request of firstMutations) {
       assert.equal(request.authorization, `Bearer ${token}`);
       assert.equal(request.localPort, port);
     }
     const canonicalRepo = fs.realpathSync(fixture.repo);
-    assert.deepEqual(firstMutations[0].body, { path: canonicalRepo });
-    assert.deepEqual(firstMutations[1].body, { repo: canonicalRepo });
-    assert.equal(firstMutations[2].body.repo, canonicalRepo);
-    assert.equal(firstMutations[2].body.autoInject, true);
+    assert.deepEqual(firstMutations[0].body, { repo: canonicalRepo });
 
     const afterFirst = snapshotInitFixture(fixture);
     assert.equal(afterFirst.head, before.head, 'successful init must not commit or rewrite project history');
@@ -750,10 +750,7 @@ test('full init forwards custom daemon dependencies and is repeatable after acce
 
     const allRequests = readInitRequests(server.requestLog);
     const mutationRoutes = allRequests.filter((request) => request.method === 'POST').map((request) => request.route);
-    assert.deepEqual(mutationRoutes, [
-      '/workspace', '/onboard/enqueue', '/onboard/drain-queue',
-      '/workspace', '/onboard/enqueue', '/onboard/drain-queue',
-    ]);
+    assert.deepEqual(mutationRoutes, ['/onboard/init', '/onboard/init']);
     assert.ok(allRequests.every((request) => request.localPort === port), JSON.stringify(allRequests));
   } finally {
     if (processIsAlive(server.child.pid)) server.child.kill('SIGKILL');
@@ -781,6 +778,8 @@ test('full init starts a cold token-protected daemon on a custom port', async ()
         ORCH_TOKEN: '',
         CLAUDE_CODE_SESSION_ID: '',
         HEADLESS_DRAIN_MAX_ITERATIONS: '-1',
+        ZONOID_EMBED_PROVIDER: 'local',
+        ZONOID_EMBED_LOCAL_BASE_URL: 'http://127.0.0.1:1',
       },
     });
     assert.equal(client.status, 0, initOutput(client));
@@ -793,6 +792,154 @@ test('full init starts a cold token-protected daemon on a custom port', async ()
     assert.match(JSON.stringify(workspaces.payload), new RegExp(fixture.repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     assert.equal(fs.existsSync(path.join(fixture.repo, '.zonoid', 'onboard')), true,
       'accepted cold init must persist its onboarding request');
+    const outDir = path.join(fixture.repo, '.zonoid', 'onboard', path.basename(fixture.repo));
+    const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.preparationState, 'pending');
+    assert.equal(status.autoInject, true, 'durable acceptance must arm background injection before returning');
+    assert.match(fs.readFileSync(path.join(fixture.repo, '.gitattributes'), 'utf8'), /^\.graph\/\*\* merge=ours$/m);
+    assert.equal(git(fixture.repo, ['config', '--local', '--get', 'merge.ours.driver']), 'true');
+    assert.match(fs.readFileSync(path.join(fixture.repo, '.git', 'info', 'exclude'), 'utf8'), /^\.zonoid\/$/m);
+    const registry = JSON.parse(fs.readFileSync(path.join(fixture.dataDir, 'workspaces.json'), 'utf8'));
+    const repoRealpath = fs.realpathSync(fixture.repo);
+    assert.ok(Object.values(registry.workspaces).some((entry) => entry.repos.some((repo) => fs.realpathSync(repo) === repoRealpath)));
+
+    const acceptedSnapshot = snapshotRealDaemonInit(fixture);
+    const repeated = runFullInit(fixture.repo, fixture.dataDir, fixture.homeDir, port, {
+      port,
+      token,
+      registrationTimeoutMs: 3000,
+      onboardingTimeoutMs: 3000,
+    });
+    assert.equal(repeated.status, 0, initOutput(repeated));
+    assert.deepEqual(snapshotRealDaemonInit(fixture), acceptedSnapshot,
+      'repeat real-daemon init must be byte-idempotent across project, HOME, registry, and Git state');
+  } finally {
+    await stopDaemon(port);
+    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+  }
+});
+
+test('real daemon rejects invalid onboarding paths before registration or project mutation', async () => {
+  const fixture = prepareInitRepo('zonoid-init-real-reject-');
+  const outside = path.join(fixture.fixtureDir, 'escaped-runtime');
+  const port = await testPort();
+  const token = 'real-reject-token';
+  fs.mkdirSync(outside);
+  fs.symlinkSync(outside, path.join(fixture.repo, '.zonoid'));
+  fs.writeFileSync(path.join(fixture.dataDir, 'token'), `${token}\n`);
+  try {
+    assert.equal(await checkDaemon({
+      port,
+      daemonPath: DAEMON_PATH,
+      startupTimeoutMs: 15000,
+      env: {
+        ...process.env,
+        CLAUDE_PLUGIN_DATA: fixture.dataDir,
+        ORCH_TOKEN: '',
+        CLAUDE_CODE_SESSION_ID: '',
+        HEADLESS_DRAIN_MAX_ITERATIONS: '-1',
+        ZONOID_EMBED_PROVIDER: 'local',
+        ZONOID_EMBED_LOCAL_BASE_URL: 'http://127.0.0.1:1',
+      },
+    }), true);
+    const before = snapshotRealDaemonInit(fixture);
+    const client = runFullInit(fixture.repo, fixture.dataDir, fixture.homeDir, port, { token });
+    assert.notEqual(client.status, 0, initOutput(client));
+    assert.match(initOutput(client), /onboarding output path must not contain symlinks/);
+    assert.deepEqual(snapshotRealDaemonInit(fixture), before,
+      'rejected real-daemon validation must not create graph, attributes, config, registry, hooks, or onboarding state');
+    const workspaces = await daemonRequest(port, 'GET', '/workspaces', undefined, token);
+    assert.doesNotMatch(JSON.stringify(workspaces.payload), new RegExp(fixture.repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  } finally {
+    await stopDaemon(port);
+    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+  }
+});
+
+test('real daemon rolls back durable onboarding when registry commit fails', async () => {
+  const fixture = prepareInitRepo('zonoid-init-real-rollback-');
+  const port = await testPort();
+  const token = 'real-rollback-token';
+  fs.writeFileSync(path.join(fixture.dataDir, 'token'), `${token}\n`);
+  try {
+    assert.equal(await checkDaemon({
+      port,
+      daemonPath: DAEMON_PATH,
+      startupTimeoutMs: 15000,
+      env: {
+        ...process.env,
+        CLAUDE_PLUGIN_DATA: fixture.dataDir,
+        ORCH_TOKEN: '',
+        CLAUDE_CODE_SESSION_ID: '',
+        HEADLESS_DRAIN_MAX_ITERATIONS: '-1',
+        ZONOID_EMBED_PROVIDER: 'local',
+        ZONOID_EMBED_LOCAL_BASE_URL: 'http://127.0.0.1:1',
+      },
+    }), true);
+    fs.chmodSync(fixture.dataDir, 0o555);
+    const before = snapshotRealDaemonInit(fixture);
+    const client = runFullInit(fixture.repo, fixture.dataDir, fixture.homeDir, port, { token });
+    assert.notEqual(client.status, 0, initOutput(client));
+    assert.match(initOutput(client), /workspace registration and onboarding transaction failed/);
+    assert.deepEqual(snapshotRealDaemonInit(fixture), before,
+      'registry commit failure must roll back the newly persisted queue and every project/HOME/Git byte');
+  } finally {
+    fs.chmodSync(fixture.dataDir, 0o755);
+    await stopDaemon(port);
+    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+  }
+});
+
+test('real daemon refuses retry-capped reused queues without false init success or new mutations', async () => {
+  const fixture = prepareInitRepo('zonoid-init-real-capped-');
+  const port = await testPort();
+  const token = 'real-capped-token';
+  const generation = 'onboard-capped-test';
+  const outDir = path.join(fixture.repo, '.zonoid', 'onboard', path.basename(fixture.repo));
+  fs.mkdirSync(outDir, { recursive: true });
+  fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+    generation,
+    total: 1,
+    cursor: 1,
+    pending: [],
+    kept: [{ title: 'Existing note', summary: 'not injected' }],
+    rejected: [],
+    inflight: {},
+  }, null, 2));
+  fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+    repo: fixture.repo,
+    outDir,
+    preparationState: 'ready',
+    autoInject: true,
+    injectionGeneration: generation,
+    injectionState: 'failed',
+    injectionAttempts: 3,
+    injectionRetryCapped: true,
+    injectionError: 'injection failed three times',
+  }, null, 2));
+  fs.writeFileSync(path.join(fixture.dataDir, 'token'), `${token}\n`);
+  try {
+    assert.equal(await checkDaemon({
+      port,
+      daemonPath: DAEMON_PATH,
+      startupTimeoutMs: 15000,
+      env: {
+        ...process.env,
+        CLAUDE_PLUGIN_DATA: fixture.dataDir,
+        ORCH_TOKEN: '',
+        CLAUDE_CODE_SESSION_ID: '',
+        HEADLESS_DRAIN_MAX_ITERATIONS: '-1',
+        ZONOID_EMBED_PROVIDER: 'local',
+        ZONOID_EMBED_LOCAL_BASE_URL: 'http://127.0.0.1:1',
+      },
+    }), true);
+    const before = snapshotRealDaemonInit(fixture);
+    const client = runFullInit(fixture.repo, fixture.dataDir, fixture.homeDir, port, { token });
+    assert.notEqual(client.status, 0, initOutput(client));
+    assert.match(initOutput(client), /injection-failed and retry-capped/);
+    assert.doesNotMatch(initOutput(client), /FULL_INIT_OK|Workspace registration and project onboarding accepted/);
+    assert.deepEqual(snapshotRealDaemonInit(fixture), before,
+      'capped reused queue rejection must preserve exact queue, registry, project, HOME, HEAD, status, and Git config bytes');
   } finally {
     await stopDaemon(port);
     fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });

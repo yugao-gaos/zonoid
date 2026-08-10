@@ -771,6 +771,41 @@ async function startWorkspaceOnboarding(repoPath, deps = {}) {
   }
 }
 
+async function startWorkspaceInitialization(cwd, workspace, deps = {}) {
+  let repoPath = cwd;
+  try {
+    const { registrationRepoRoot } = require(path.join(INSTALL_DIR, 'lib', 'workspace-registry.js'));
+    repoPath = registrationRepoRoot(cwd) || cwd;
+  } catch { /* older installs fall back to the requested cwd */ }
+  const post = deps.post || ((route, payload) => postDaemonJson(
+    route,
+    payload,
+    deps.transactionTimeoutMs || deps.onboardingTimeoutMs || deps.registrationTimeoutMs || deps.timeoutMs || 120000,
+    deps
+  ));
+  try {
+    const payload = { repo: repoPath };
+    if (workspace) payload.workspace_id = workspace;
+    const accepted = await post('/onboard/init', payload);
+    if (!accepted || accepted.ok !== true || accepted.accepted !== true
+        || accepted.registered !== true || !accepted.graph_repo || !accepted.outDir) {
+      throw new Error((accepted && accepted.error) || 'daemon did not accept the workspace onboarding transaction');
+    }
+    daemonReport(deps, 'ok', accepted.reused
+      ? 'Workspace registration and project onboarding resumed.'
+      : 'Workspace registration and project onboarding queued.');
+    return {
+      ok: true,
+      repo: accepted.graph_repo,
+      outDir: accepted.outDir,
+      reused: !!accepted.reused,
+    };
+  } catch (err) {
+    daemonReport(deps, 'warn', `Could not initialize workspace onboarding: ${err && err.message ? err.message : err}`);
+    return { ok: false, error: String(err && err.message ? err.message : err) };
+  }
+}
+
 // ── main ────────────────────────────────────────────────────────────────────
 
 function ask(question) {
@@ -1814,13 +1849,9 @@ async function init(opts = {}) {
       'Workspace registration and project onboarding were not attempted.'
     );
   }
-  const registeredRepo = await registerWorkspace(cwd, opts.workspace, daemonDeps);
-  if (!registeredRepo) {
-    throw new Error('Initialization aborted: workspace registration was not accepted by the Zonoid daemon.');
-  }
-  const onboarding = await startWorkspaceOnboarding(registeredRepo, daemonDeps);
-  if (!onboarding.ok) {
-    throw new Error(`Initialization aborted: project onboarding was not durably queued: ${onboarding.error}`);
+  const initialization = await startWorkspaceInitialization(cwd, opts.workspace, daemonDeps);
+  if (!initialization.ok) {
+    throw new Error(`Initialization aborted: workspace registration and project onboarding were not durably accepted: ${initialization.error}`);
   }
 
   section('0. Daemon preflight');
@@ -2004,6 +2035,7 @@ if (require.main === module) {
     registerWorkspace,
     postDaemonJson,
     startWorkspaceOnboarding,
+    startWorkspaceInitialization,
     dashboardUrl,
     renderClaudeInstructions,
     parseGraphArgs,
