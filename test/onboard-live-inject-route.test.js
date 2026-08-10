@@ -1732,7 +1732,7 @@ test('runtime ignore rejects unsafe Git metadata without hanging or writing outs
       assertOutsideUnchanged();
     });
 
-    await t.test('bounded reader rejects FIFO, device, directory, oversize, symlink, and mutation', () => {
+    await t.test('bounded reader rejects FIFO, device, directory, hardlink, oversize, symlink, and mutation', () => {
       const files = path.join(root, 'reader');
       fs.mkdirSync(files);
       const directory = path.join(files, 'directory');
@@ -1743,6 +1743,10 @@ test('runtime ignore rejects unsafe Git metadata without hanging or writing outs
       const symlink = path.join(files, 'symlink');
       fs.symlinkSync(outsideExclude, symlink);
       assert.equal(readStableRegularFile(symlink, 64).ok, false);
+
+      const hardlink = path.join(files, 'hardlink');
+      fs.linkSync(outsideExclude, hardlink);
+      assert.equal(readStableRegularFile(hardlink, 64).reason, 'linked_file');
 
       const oversize = path.join(files, 'oversize');
       fs.writeFileSync(oversize, 'x'.repeat(65));
@@ -1776,6 +1780,60 @@ test('runtime ignore rejects unsafe Git metadata without hanging or writing outs
     });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('publication recovery never accepts linked queue or status files as a coherent generation', () => {
+  for (const linkedName of ['onboard-queue.json', 'onboard-drain-status.json']) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-publication-linked-'));
+    const outDir = path.join(root, 'out');
+    const queueFile = path.join(outDir, 'onboard-queue.json');
+    const statusFile = path.join(outDir, 'onboard-drain-status.json');
+    const external = path.join(root, `external-${linkedName}`);
+    const generation = `generation-linked-${linkedName}`;
+    const queue = {
+      generation,
+      total: 1,
+      cursor: 0,
+      kept: [],
+      rejected: [],
+      pending: [{ title: 'must-not-be-discovered' }],
+    };
+    const status = {
+      preparationState: 'ready',
+      queueGeneration: generation,
+      injectionGeneration: generation,
+    };
+    try {
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.writeFileSync(queueFile, JSON.stringify(queue));
+      fs.writeFileSync(statusFile, JSON.stringify(status));
+      const canonical = path.join(outDir, linkedName);
+      fs.renameSync(canonical, external);
+      fs.linkSync(external, canonical);
+      const externalBytes = fs.readFileSync(external);
+      fs.writeFileSync(
+        path.join(outDir, 'onboard-publication-intent.json'),
+        JSON.stringify({ version: 1, generation: 'shallow-untrusted' })
+      );
+
+      if (linkedName === 'onboard-drain-status.json') {
+        assert.deepEqual(onboardState.readOnboardStatus(outDir), {},
+          'an unsafe status image must be treated as empty');
+      }
+      const recovered = onboardState.reconcileOnboardPublication(outDir);
+      assert.equal(recovered.ok, true, linkedName);
+      assert.equal(recovered.settled, 'invalid_quarantined', linkedName);
+      assert.equal(fs.existsSync(queueFile), false, linkedName);
+      assert.deepEqual(fs.readFileSync(external), externalBytes,
+        `${linkedName}: recovery must not modify the linked target`);
+      const fencedStatus = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+      assert.equal(fencedStatus.preparationState, 'failed', linkedName);
+      assert.equal(fencedStatus.queueGeneration, null, linkedName);
+      assert.equal(fencedStatus.injectionGeneration, null, linkedName);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   }
 });
 
