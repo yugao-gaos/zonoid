@@ -396,6 +396,55 @@ function readJSON(p) {
   ok('dead inflight owner is replaced by current reservation', q && q.inflight && q.inflight['0'] && q.inflight['0'].pid === process.pid);
 }
 
+// ---- TEST 10: an old child cannot complete into a replacement generation ---
+{
+  const dir = tmpDir();
+  const qf = path.join(dir, 'onboard-queue.json');
+  const pending = [{ title: 'Old', summary: 'old', kind: 'gotcha' }];
+  fs.writeFileSync(qf, JSON.stringify({
+    generation: 'generation-old', total: 1, cursor: 0,
+    kept: [], rejected: [], pending,
+  }, null, 2));
+
+  const old = learner.reserveQueueBatch(qf, 1, Infinity, 1000, 10000);
+  fs.writeFileSync(qf, JSON.stringify({
+    generation: 'generation-new', total: 1, cursor: 0,
+    kept: [], rejected: [], pending: [{ title: 'New', summary: 'new', kind: 'gotcha' }],
+  }, null, 2));
+
+  const completion = learner.completeQueueBatch(qf, old, {
+    kept: [{ title: 'Stale result', summary: 'must not land', kind: 'gotcha' }],
+    rejected: [],
+  }, dir, dir, 'opus');
+  const q = readJSON(qf);
+  ok('reservation carries the claimed queue generation', old.generation === 'generation-old');
+  ok('old child completion is reported stale', completion && completion.stale === true);
+  ok('old child cannot advance or mutate replacement queue', q && q.generation === 'generation-new'
+    && q.cursor === 0 && q.kept.length === 0 && q.pending[0].title === 'New');
+  ok('stale completion cannot publish old-generation notes', !fs.existsSync(path.join(dir, 'onboard-notes.json')));
+}
+
+// ---- TEST 11: an old failure cannot release a new reservation --------------
+{
+  const dir = tmpDir();
+  const qf = path.join(dir, 'onboard-queue.json');
+  const base = (generation) => ({
+    generation, total: 1, cursor: 0, kept: [], rejected: [],
+    pending: [{ title: generation, summary: generation, kind: 'gotcha' }],
+  });
+  fs.writeFileSync(qf, JSON.stringify(base('generation-old'), null, 2));
+  const old = learner.reserveQueueBatch(qf, 1, Infinity, 1000, 10000);
+
+  fs.writeFileSync(qf, JSON.stringify(base('generation-new'), null, 2));
+  const current = learner.reserveQueueBatch(qf, 1, Infinity, 1001, 10000);
+  const failed = learner.failQueueBatch(qf, old);
+  const q = readJSON(qf);
+  ok('old failure is reported stale after replacement', failed && failed.stale === true);
+  ok('old failure leaves the new generation reservation intact', q && q.inflight['0']
+    && q.inflight['0'].generation === current.generation
+    && q.inflight['0'].reservationId === current.reservationId);
+}
+
 // ---- summary ---------------------------------------------------------------
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
