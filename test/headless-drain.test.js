@@ -830,6 +830,70 @@ test('learner backlog starts one learner per pump by default', async () => {
   }
 });
 
+test('learner selection stays fair across pumps when the first registered project repeatedly fails', async () => {
+  const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+  const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+  process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '2';
+  process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '10';
+  const repos = [
+    fs.mkdtempSync(path.join(os.tmpdir(), 'hd-learner-fair-a-')),
+    fs.mkdtempSync(path.join(os.tmpdir(), 'hd-learner-fair-b-')),
+  ];
+  const { hd, calls, restore } = freshModuleWithMockedSpawn((_bin, _args, opts) => (
+    makeFakeChild({ code: opts.cwd === repos[0] ? 1 : 0 })
+  ));
+  try {
+    for (const repo of repos) {
+      const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+        total: 4,
+        cursor: 0,
+        kept: [],
+        rejected: [],
+        pending: Array.from({ length: 4 }, (_, i) => ({ title: `C${i}`, summary: 's', kind: 'gotcha' })),
+      }));
+    }
+
+    const state = { workspace: repos[0], registeredWorkspaces: repos };
+    const options = {
+      ...judgeDeps({ depth: 0, eagerNodes: [] }),
+      ...labelDeps({ journal: [], labeledKeys: [] }),
+      ...mockBackendDeps().deps,
+    };
+    const first = await hd.runDueDrains(state, noopHttp(), options);
+    assert.equal(first.ran, 1);
+    assert.ok(hd._governor.backoffUntil > Date.now(), 'the first project failure still activates normal backoff');
+
+    // Represent the daemon's next pump after the backoff window has elapsed. The first queue remains
+    // pending and keeps failing; fairness must nevertheless select the second queue next.
+    hd._governor.backoffUntil = Date.now() - 1;
+    const second = await hd.runDueDrains(state, noopHttp(), options);
+    assert.equal(second.ran, 1);
+    const third = await hd.runDueDrains(state, noopHttp(), options);
+    assert.equal(third.ran, 1);
+    assert.ok(hd._governor.backoffUntil > Date.now(), 'the repeated first-project failure still backs off');
+    hd._governor.backoffUntil = Date.now() - 1;
+    const fourth = await hd.runDueDrains(state, noopHttp(), options);
+    assert.equal(fourth.ran, 1);
+
+    assert.deepEqual(
+      calls.map((call) => call.opts.cwd),
+      [repos[0], repos[1], repos[0], repos[1]],
+      'cross-pump selection should round-robin instead of resetting to the failing first queue'
+    );
+    assert.equal(hd._governor.iterationsUsed, 4, 'fairness does not bypass the iteration governor');
+    assert.equal(hd._governor.concurrentRunning, 0, 'each learner still releases its concurrency slot');
+  } finally {
+    restore();
+    for (const repo of repos) fs.rmSync(repo, { recursive: true, force: true });
+    if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+    else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
+    if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+    else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedIter;
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Test 4: runDrain shape validation (direct invocation with a REAL async spawn of a trivial command)
 // runDrain now returns a Promise (async child_process.spawn) — these await it. Spawning the same Node
