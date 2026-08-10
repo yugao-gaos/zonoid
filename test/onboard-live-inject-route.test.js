@@ -3,6 +3,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
 const os = require('os');
@@ -1936,6 +1937,185 @@ test('init status snapshots retain one exact bounded image, mode, and replacemen
       'same bytes and mode on a replacement inode must remain a distinct CAS image');
   } finally {
     fs.rmSync(outDir, { recursive: true, force: true });
+  }
+});
+
+function legacyStatusSnapshotDigest(snapshot) {
+  const exists = !!(snapshot && snapshot.exists);
+  const identity = exists ? {
+    exists: true,
+    kind: String(snapshot.kind || (Buffer.isBuffer(snapshot.bytes) ? 'file' : 'unknown')),
+    bytesDigest: Buffer.isBuffer(snapshot.bytes)
+      ? crypto.createHash('sha256').update(snapshot.bytes).digest('hex')
+      : null,
+    mode: Number.isInteger(snapshot.mode) ? snapshot.mode : null,
+    size: Number.isFinite(snapshot.size)
+      ? snapshot.size
+      : (Buffer.isBuffer(snapshot.bytes) ? snapshot.bytes.length : null),
+    errorCode: snapshot.errorCode || null,
+  } : { exists: false, kind: 'absent' };
+  return onboardInitTransaction.digest(identity);
+}
+
+function priorV2Intent(options, beforeSnapshot) {
+  const intent = onboardInitTransaction.createIntent({ ...options, beforeStatusSnapshot: beforeSnapshot });
+  intent.beforeStatusSnapshotDigest = legacyStatusSnapshotDigest(beforeSnapshot);
+  intent.intentDigest = onboardInitTransaction.digest({
+    version: intent.version,
+    id: intent.id,
+    repo: intent.repo,
+    outDir: intent.outDir,
+    workspaceId: intent.workspaceId,
+    beforeStatusDigest: intent.beforeStatusDigest,
+    beforeStatusSnapshotDigest: intent.beforeStatusSnapshotDigest,
+    desiredStatusDigest: intent.desiredStatusDigest,
+    desiredStatus: intent.desiredStatus,
+    ensureRuntimeIgnore: intent.ensureRuntimeIgnore,
+    createdAt: intent.createdAt,
+  });
+  return intent;
+}
+
+test('prior v2 fingerprintless status snapshot intent recovers its exact preimage', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-prior-v2-'));
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-prior-v2-data-'));
+  const registryFile = path.join(dataDir, 'workspaces.json');
+  const outDir = defaultOnboardOutDir(repo);
+  const file = path.join(outDir, 'onboard-drain-status.json');
+  const beforeStatus = { repo, outDir, preparationState: 'failed', error: 'prior v2' };
+  const desiredStatus = {
+    repo, outDir, autoInject: true, batchSize: 20,
+    preparationState: 'pending', preparationGeneration: 'generation-prior-v2',
+  };
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(beforeStatus, null, 4) + '\n', { mode: 0o640 });
+    fs.chmodSync(file, 0o640);
+    const beforeSnapshot = onboardInitTransaction.snapshotStatusFile(file);
+    const intent = priorV2Intent({
+      repo, outDir, workspaceId: path.basename(repo), beforeStatus, desiredStatus,
+    }, beforeSnapshot);
+    onboardInitTransaction.writeIntent(registryFile, intent);
+
+    assert.deepEqual(onboardInitTransaction.reconcilePending(registryFile).map((item) => item.id), [intent.id]);
+    assert.deepEqual(onboardState.readOnboardStatus(outDir), desiredStatus);
+    assert.equal(workspaceRegistry.allRepos(workspaceRegistry.loadRegistry(registryFile)).includes(repo), true);
+    assert.equal(fs.existsSync(onboardInitTransaction.journalFile(registryFile, intent.id)), false);
+    assert.equal(fs.existsSync(onboardInitTransaction.journalDir(registryFile)), false);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('prior v2 fingerprintless snapshot compatibility rejects byte, mode, and existence mismatches', () => {
+  for (const mismatch of ['bytes', 'mode', 'existence']) {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), `onboard-init-prior-v2-${mismatch}-`));
+    const outDir = defaultOnboardOutDir(repo);
+    const file = path.join(outDir, 'onboard-drain-status.json');
+    const beforeStatus = { repo, outDir, preparationState: 'failed', error: 'exact image required' };
+    const beforeBytes = Buffer.from(JSON.stringify(beforeStatus, null, 4) + '\n');
+    const desiredStatus = {
+      repo, outDir, autoInject: true, batchSize: 20,
+      preparationState: 'pending', preparationGeneration: `generation-${mismatch}`,
+    };
+    try {
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.writeFileSync(file, beforeBytes, { mode: 0o640 });
+      fs.chmodSync(file, 0o640);
+      const beforeSnapshot = onboardInitTransaction.snapshotStatusFile(file);
+      const intent = priorV2Intent({
+        repo, outDir, workspaceId: path.basename(repo), beforeStatus, desiredStatus,
+      }, beforeSnapshot);
+
+      if (mismatch === 'bytes') {
+        fs.writeFileSync(file, JSON.stringify(beforeStatus) + '\n');
+        fs.chmodSync(file, 0o640);
+      } else if (mismatch === 'mode') {
+        fs.chmodSync(file, 0o600);
+      } else {
+        fs.unlinkSync(file);
+      }
+      assert.throws(
+        () => onboardInitTransaction.ensureIntentStatus(intent),
+        (error) => error && error.code === 'STALE_ONBOARD_INIT_INTENT',
+        `${mismatch} mismatch must not pass the legacy digest compatibility check`,
+      );
+      if (mismatch === 'existence') assert.equal(fs.existsSync(file), false);
+      else assert.notDeepEqual(fs.readFileSync(file), Buffer.from(JSON.stringify(desiredStatus, null, 2) + '\n'));
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  }
+});
+
+test('prior v2 fingerprintless snapshot rollback restores the exact captured preimage', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-prior-v2-rollback-'));
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-prior-v2-rollback-data-'));
+  const registryFile = path.join(dataDir, 'workspaces.json');
+  const outDir = defaultOnboardOutDir(repo);
+  const file = path.join(outDir, 'onboard-drain-status.json');
+  const beforeStatus = { repo, outDir, preparationState: 'failed', error: 'restore exact prior v2 bytes' };
+  const beforeBytes = Buffer.from(JSON.stringify(beforeStatus, null, 4) + '\n');
+  const desiredStatus = {
+    repo, outDir, autoInject: true, batchSize: 20,
+    preparationState: 'pending', preparationGeneration: 'generation-prior-v2-rollback',
+  };
+  let intent;
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(file, beforeBytes, { mode: 0o640 });
+    fs.chmodSync(file, 0o640);
+    const beforeSnapshot = onboardInitTransaction.snapshotStatusFile(file);
+    intent = priorV2Intent({
+      repo, outDir, workspaceId: path.basename(repo), beforeStatus, desiredStatus,
+    }, beforeSnapshot);
+    onboardInitTransaction.writeIntent(registryFile, intent);
+    assert.equal(onboardInitTransaction.ensureIntentStatus(intent).applied, true);
+
+    const restored = onboardInitTransaction.rollbackIntentStatus(registryFile, intent, beforeSnapshot);
+    assert.equal(restored.applied, true);
+    assert.deepEqual(fs.readFileSync(file), beforeBytes);
+    assert.equal(fs.statSync(file).mode & 0o777, 0o640);
+  } finally {
+    try { if (intent) onboardInitTransaction.removeIntent(registryFile, intent); } catch { /* fixture cleanup */ }
+    fs.rmSync(repo, { recursive: true, force: true });
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('new v2 fingerprinted snapshot digest rejects an identical replacement inode', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-current-v2-replacement-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const file = path.join(outDir, 'onboard-drain-status.json');
+  const beforeStatus = { repo, outDir, preparationState: 'failed', error: 'replacement fenced' };
+  const beforeBytes = Buffer.from(JSON.stringify(beforeStatus, null, 4) + '\n');
+  const desiredStatus = {
+    repo, outDir, autoInject: true, batchSize: 20,
+    preparationState: 'pending', preparationGeneration: 'generation-current-v2-replacement',
+  };
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(file, beforeBytes, { mode: 0o640 });
+    fs.chmodSync(file, 0o640);
+    const beforeSnapshot = onboardInitTransaction.snapshotStatusFile(file);
+    const intent = onboardInitTransaction.createIntent({
+      repo, outDir, workspaceId: path.basename(repo), beforeStatus, beforeStatusSnapshot: beforeSnapshot,
+      desiredStatus,
+    });
+    assert.notEqual(intent.beforeStatusSnapshotDigest, legacyStatusSnapshotDigest(beforeSnapshot));
+
+    const replacement = `${file}.replacement`;
+    fs.writeFileSync(replacement, beforeBytes, { mode: 0o640 });
+    fs.chmodSync(replacement, 0o640);
+    fs.renameSync(replacement, file);
+    assert.throws(
+      () => onboardInitTransaction.ensureIntentStatus(intent),
+      (error) => error && error.code === 'STALE_ONBOARD_INIT_INTENT',
+    );
+    assert.deepEqual(fs.readFileSync(file), beforeBytes);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
   }
 });
 
