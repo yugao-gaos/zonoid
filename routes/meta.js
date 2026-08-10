@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const mcpCore = require('../lib/mcp-core');
+const workspaceRegistry = require('../lib/workspace-registry');
 
 // Package identity for /version — resolved once at module load; tolerant of a broken checkout.
 const PKG_VERSION = (() => {
@@ -229,9 +230,17 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     //    member repos are registry-known repos that join their named group.
     const reg = loadRegistry();
     const repoWs = repoToWorkspace(reg);            // Map<normalizedRepoPath, workspaceName>
-    // repoToWorkspace keys are the raw stored paths; re-key by normPath so lookups match seenPaths.
+    const registeredRepos = workspaceRegistry.allRepos(reg);
+    // Registry history keeps raw mount paths. Re-key active entries by their canonical repo root so
+    // a linked worktree resolves to its primary checkout while absent paths remain history-only.
     const repoWsNorm = new Map();
-    for (const [repo, name] of repoWs) { repoWsNorm.set(normPath(repo), name); addPath(repo); }
+    for (const [repo, name] of repoWs) {
+      const activeRepo = workspaceRegistry.activeRepoRoot(repo, { registeredRepos });
+      if (!activeRepo) continue;
+      const normalized = normPath(activeRepo);
+      repoWsNorm.set(normalized, workspaceRegistry.preferWorkspaceId(repoWsNorm.get(normalized), name));
+      addPath(activeRepo);
+    }
 
     // 2. (P3) No daemon-global current workspace — sessions/agents/registry are the sources.
 
@@ -259,7 +268,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // graphStore._stores via ?workspace= reads but should never appear in the user-facing switcher.
     const repoEntries = [...seenPaths]
       .filter((wsPath) => {
-        if (!fs.existsSync(wsPath)) return false;
+        if (!workspaceRegistry.isActiveRepoPath(wsPath)) return false;
         if (!fs.existsSync(path.join(wsPath, '.graph'))) return false;
         // Exclude git worktrees: in a worktree .git is a regular file (gitdir pointer), not a dir.
         try { if (fs.statSync(path.join(wsPath, '.git')).isFile()) return false; } catch { /* no .git = not a repo clone, allow */ }

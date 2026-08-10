@@ -329,24 +329,31 @@ function migrateBlindEdges(workspace, overlay) {
   return tagged;
 }
 
-// The REAL set of workspaces the daemon knows about — the registry persisted by setWorkspace
+// The REAL, currently mounted set of workspaces the daemon knows about — the registry persisted by setWorkspace
 // (every bind / POST /workspace appends to workspaces.json). This is the authoritative enumeration
 // the maintenance sweeps + loop tick iterate over, REPLACING reliance on the single daemon-global
 // state.workspace pointer (Phase 2b of deprecating the global default). We UNION in any active-loop
 // workspaces defensively (a loop pinned to a ws that somehow never hit setWorkspace still gets
 // swept) — but the registry, not state.workspace, is the source of truth. Pure read; best-effort
-// (a missing/garbage registry yields the active-loop set alone, never throws).
+// (a missing/garbage registry yields the active-loop set alone, never throws). Registry history is
+// not pruned: absent/broken/file paths simply stay inactive until the same path is a directory again.
 function registeredWorkspaces() {
   const set = new Set();
+  let registeredRepos = [];
+  const addActive = (p) => {
+    const activeRoot = registry.activeRepoRoot(p, { registeredRepos });
+    if (activeRoot) set.add(activeRoot);
+  };
   try {
     // v2 registry: flatten every member repo across all named workspaces into a flat list of repo
     // PATHS. This MUST stay a Set<repoPath> — ≈10 sweep/claim callers iterate repo paths (never
     // workspace NAMES); leaking names would break every maintenance sweep + the gate claim scan.
     // loadRegistry lazily migrates a legacy v1 flat array in place; allRepos de-dupes.
-    for (const p of registry.allRepos(registry.loadRegistry(WORKSPACES_FILE))) { if (p) set.add(p); }
+    registeredRepos = registry.allRepos(registry.loadRegistry(WORKSPACES_FILE));
+    for (const p of registeredRepos) addActive(p);
   } catch { /* no registry yet / unreadable — fall through to active-loop set */ }
   // Defensive union: a loop pinned to a workspace that isn't (yet) in the registry still needs sweeping.
-  for (const L of loops.values()) { if (L.active && L.workspace) set.add(L.workspace); }
+  for (const L of loops.values()) { if (L.active && L.workspace) addActive(L.workspace); }
   return set;
 }
 
@@ -491,6 +498,7 @@ async function loadState() {
   await yieldLoop();
   for (const ws of registeredWorkspaces()) {
     try {
+      if (!registry.isActiveRepoPath(ws)) continue;
       // Sync an already-configured submodule before opening overlay/graph state. Ordinary .graph
       // directories are a no-op, and this never creates remotes or converts legacy repositories.
       await graphLifecycle.sync(ws, { latest: true });
@@ -522,6 +530,7 @@ async function loadState() {
     const followups = require('./lib/followups');
     for (const ws of registeredWorkspaces()) {
       try {
+        if (!registry.isActiveRepoPath(ws)) continue;
         const ov = overlayFor(ws);
         const ack = followups.acknowledgeDaemonRestartOnBoot(ov, { bootedAt: BOOTED_AT });
         if (ack) {
@@ -3055,6 +3064,7 @@ if (require.main === module) {
   function writeDaemonPort(port) {
     for (const ws of registeredWorkspaces()) {
       try {
+        if (!registry.isActiveRepoPath(ws)) continue;
         const graphDir = path.join(ws, '.graph');
         fs.mkdirSync(graphDir, { recursive: true });
         fs.writeFileSync(path.join(graphDir, 'daemon.port'), String(port));
