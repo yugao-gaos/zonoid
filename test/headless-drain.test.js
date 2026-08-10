@@ -692,7 +692,8 @@ test('headless zero-kept finalization persists the shared not-needed terminal st
   try {
     fs.mkdirSync(outDir, { recursive: true });
     fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
-      generation: 'generation-zero-kept', total: 2, cursor: 2, kept: [], rejected: [], pending: [],
+      generation: 'generation-zero-kept', total: 2, cursor: 2, kept: [],
+      rejected: [{ reason: 'duplicate' }, { reason: 'restatement' }], pending: [],
     }));
     fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
       repo, outDir, injectionGeneration: 'generation-zero-kept', injectionState: 'pending',
@@ -806,13 +807,13 @@ test('findPendingLearnerQueues treats completed auto-inject queue as due until i
       total: 2,
       cursor: 2,
       kept: [{ title: 'A', summary: 'B' }],
-      rejected: [],
+      rejected: [{ reason: 'restatement' }],
       pending: [],
     }));
     fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({
       generation: 'generation-manual-complete',
       kept: [{ title: 'A', summary: 'B' }],
-      rejected: [],
+      rejected: [{ reason: 'restatement' }],
     }));
     fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({ repo: tmpDir, outDir }));
     const queues = hd.findPendingLearnerQueues(tmpDir);
@@ -1305,6 +1306,65 @@ test('overlapping force preparation cannot publish an older claimed generation',
     assert.equal(status.preparationGeneration, 'generation-new');
     assert.equal(status.preparationState, 'pending');
   } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('prepared publication waits for an old completion and leaves the replacement generation authoritative', async () => {
+  const hd = freshModule();
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-prepare-publish-lock-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  const stagingDir = path.join(outDir, '.prepare-new');
+  const queueFile = path.join(outDir, 'onboard-queue.json');
+  const marker = path.join(repo, 'old-completion-holds-lock');
+  let child = null;
+  try {
+    fs.mkdirSync(stagingDir, { recursive: true });
+    fs.writeFileSync(path.join(stagingDir, 'onboard-queue.json'), JSON.stringify({
+      total: 1, cursor: 0, kept: [], rejected: [], pending: [{ title: 'New' }],
+    }));
+    fs.writeFileSync(queueFile, JSON.stringify({
+      generation: 'generation-old', total: 1, cursor: 0,
+      kept: [], rejected: [], pending: [{ title: 'Old' }],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo, outDir, preparationGeneration: 'generation-new', preparationOwner: 'owner-new',
+      preparationState: 'running',
+    }));
+
+    const stateModule = require.resolve('../lib/onboard-state');
+    const oldCompleted = JSON.stringify({
+      generation: 'generation-old', total: 1, cursor: 1,
+      kept: [{ title: 'Old result' }], rejected: [], pending: [{ title: 'Old' }],
+    });
+    const code = [
+      "const fs=require('fs');",
+      "const {withFileLock,writeJSONAtomic}=require(process.argv[1]);",
+      "const qf=process.argv[2], marker=process.argv[3], old=JSON.parse(process.argv[4]);",
+      "withFileLock(qf,()=>{fs.writeFileSync(marker,'held');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,200);writeJSONAtomic(qf,old);});",
+    ].join('');
+    child = child_process.spawn(process.execPath, ['-e', code, stateModule, queueFile, marker, oldCompleted], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+    await waitForCondition(() => fs.existsSync(marker));
+
+    const published = hd._publishPreparedQueue(stagingDir, outDir, 'generation-new', 'owner-new');
+    const childExit = await new Promise((resolve, reject) => {
+      child.once('error', reject);
+      child.once('close', resolve);
+    });
+    assert.equal(childExit, 0);
+    assert.equal(published.stale, false);
+    const finalQueue = JSON.parse(fs.readFileSync(queueFile, 'utf8'));
+    const finalStatus = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(finalQueue.generation, 'generation-new');
+    assert.equal(finalQueue.cursor, 0);
+    assert.equal(finalQueue.pending[0].title, 'New');
+    assert.equal(finalStatus.queueGeneration, 'generation-new');
+    assert.equal(finalStatus.preparationState, 'ready');
+  } finally {
+    if (child && child.exitCode == null) child.kill('SIGKILL');
     fs.rmSync(repo, { recursive: true, force: true });
   }
 });

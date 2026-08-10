@@ -398,7 +398,7 @@ function withQueueLock(qf, fn, opts = {}) {
 }
 
 function normalizeQueue(queue) {
-  if (!validateOnboardQueue(queue).ok) return null;
+  if (!validateOnboardQueue(queue, { allowLegacy: true }).ok) return null;
   if (queue.inflight === undefined) queue.inflight = {};
   if (queue.completed === undefined) queue.completed = {};
   return queue;
@@ -749,7 +749,7 @@ async function inject(notesFile, confirm, workspace, expectedGeneration) {
 function assertCurrentInjectionGeneration(outDir, expectedGeneration) {
   if (!expectedGeneration) return;
   const queue = loadJSON(queueFilePath(outDir), null);
-  const validated = validateOnboardQueue(queue, { expectedGeneration });
+  const validated = validateOnboardQueue(queue, { expectedGeneration, allowLegacy: true });
   const current = queueGeneration(queue);
   const status = readOnboardStatus(outDir);
   const replacement = status.preparationGeneration && status.preparationGeneration !== expectedGeneration
@@ -905,17 +905,17 @@ function enqueue(inDir, outDir, repoAbs) {
     rejected: [],
     pending: candidates,
   };
-  const publish = () => withQueueLock(queueFilePath(outDir), () => {
+  const publishLocked = () => {
     writeJSONAtomic(queueFilePath(outDir), queue);
     try { fs.rmSync(path.join(outDir, INJECTION_RECEIPT_FILE), { force: true }); } catch { /* runtime artifact */ }
     if (queue.total === 0) writeOnboardNotesArtifact(outDir, queue, generation);
     else try { fs.rmSync(path.join(outDir, 'onboard-notes.json'), { force: true }); } catch { /* runtime artifact */ }
-  });
+  };
   const staging = fs.existsSync(path.join(outDir, '.onboard-preparation.json'));
   if (!staging) {
-    const replaced = mutateOnboardStatus(outDir, (status) => {
+    const replaced = withQueueLock(queueFilePath(outDir), () => mutateOnboardStatus(outDir, (status) => {
       if (liveOnboardInjectionLease(status).live) return undefined;
-      publish();
+      publishLocked();
       return {
         ...status,
         ...(repoAbs ? { repo: repoAbs } : {}),
@@ -943,9 +943,9 @@ function enqueue(inDir, outDir, repoAbs) {
         error: null,
         lastError: null,
       };
-    });
+    }));
     if (!replaced.applied) throw new Error('cannot replace onboarding queue while injection is running');
-  } else publish();
+  } else withQueueLock(queueFilePath(outDir), publishLocked);
   if (!candidates.length) {
     console.error(`[learn] enqueue: no mined candidates in ${inDir}; wrote a completed empty queue.`);
     return;
@@ -1022,7 +1022,7 @@ function previewKeptNotes(queue, limit = 64) {
 function queueStatus(outDir) {
   const qf = queueFilePath(outDir);
   const queue = readQueue(qf);
-  if (!validateOnboardQueue(queue).ok) {
+  if (!validateOnboardQueue(queue, { allowLegacy: true }).ok) {
     console.error(`[learn] No queue file at ${qf}. Run --enqueue first.`);
     process.exit(1);
   }

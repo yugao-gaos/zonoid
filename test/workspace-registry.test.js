@@ -435,12 +435,54 @@ try {
   const releaseLock = `${releaseFile}.lock`;
   const releaseReplacement = JSON.stringify({ pid: process.pid, owner: 'release-replacement', at: Date.now() });
   reg.withRegistryLock(releaseFile, () => {
-    fs.unlinkSync(releaseLock);
-    fs.writeFileSync(releaseLock, releaseReplacement);
+    const held = path.join(releaseLock, 'held');
+    const own = fs.readdirSync(held).map((name) => path.join(held, name))[0];
+    fs.unlinkSync(own);
+    fs.rmdirSync(held);
+    fs.mkdirSync(held);
+    fs.writeFileSync(path.join(held, 'owner-00000000000000000000000000000000.json'), releaseReplacement);
   });
   ok('an old owner release never unlinks a replacement lock',
-    fs.readFileSync(releaseLock, 'utf8') === releaseReplacement);
-  fs.unlinkSync(releaseLock);
+    fs.readFileSync(path.join(releaseLock, 'held', 'owner-00000000000000000000000000000000.json'), 'utf8') === releaseReplacement);
+  fs.rmSync(releaseLock, { recursive: true, force: true });
+
+  const ownerFaultFile = path.join(SANDBOX, 'owner-write-fault.json');
+  let ownerFd = null;
+  let ownerPath = null;
+  let ownerFdClosed = false;
+  let ownerPathRemoved = false;
+  const ownerFaultFs = new Proxy(fs, { get(target, key) {
+    if (key === 'openSync') return (file, flags, ...args) => {
+      const opened = target.openSync(file, flags, ...args);
+      if (flags === 'wx' && /\.lock\/held\/owner-[a-f0-9]+\.json$/.test(String(file))) {
+        ownerFd = opened;
+        ownerPath = file;
+      }
+      return opened;
+    };
+    if (key === 'writeFileSync') return (file, ...args) => {
+      if (file === ownerFd) throw Object.assign(new Error('injected owner record failure'), { code: 'EIO' });
+      return target.writeFileSync(file, ...args);
+    };
+    if (key === 'closeSync') return (fd, ...args) => {
+      if (fd === ownerFd) ownerFdClosed = true;
+      return target.closeSync(fd, ...args);
+    };
+    if (key === 'unlinkSync') return (file, ...args) => {
+      if (file === ownerPath) ownerPathRemoved = true;
+      return target.unlinkSync(file, ...args);
+    };
+    return target[key];
+  }});
+  let ownerFaultThrown = false;
+  try {
+    workspaceRegistryWithFs(ownerFaultFs).addRepo(ownerFaultFile,
+      { workspace: 'fault', repo: '/repos/fault' });
+  } catch (err) { ownerFaultThrown = err && err.code === 'EIO'; }
+  ok('registry owner-record write failure surfaces the original error', ownerFaultThrown);
+  ok('registry owner-record write failure closes its descriptor', ownerFd != null && ownerFdClosed);
+  ok('registry owner-record write failure removes only its empty owned lock',
+    ownerPathRemoved && !fs.existsSync(`${ownerFaultFile}.lock`));
 
   const activeDir = mk('active-repo-path');
   const inactiveFile = touchFile(SANDBOX, 'inactive-repo-file');
