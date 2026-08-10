@@ -12,6 +12,7 @@ const {
   patchOnboardStatus,
   mutateOnboardStatus,
   confirmedInjectedCount,
+  liveOnboardInjectionLease: liveInjectionLease,
 } = require('../lib/onboard-state');
 
 const DEFAULT_DRAIN_BATCH_SIZE = 20;
@@ -57,16 +58,6 @@ function isPidAlive(pid) {
   } catch (err) {
     return !!(err && err.code === 'EPERM');
   }
-}
-
-function liveInjectionLease(meta, now = Date.now()) {
-  if (!meta || (meta.injectionState !== 'running' && meta.injecting !== true)) {
-    return { live: false, expiresAt: null };
-  }
-  const expiresAt = countOrZero(meta.injectionLeaseExpiresAt);
-  const ownerAlive = meta.injectionPid ? isPidAlive(meta.injectionPid) : true;
-  const live = ownerAlive && (expiresAt > now || (!expiresAt && !!meta.injectionOwner));
-  return { live, expiresAt: expiresAt || null };
 }
 
 function summarizeInflight(q) {
@@ -315,9 +306,9 @@ function buildDrainJob(repo, outDir, patch = {}) {
   const retryAt = generationMatches ? countOrZero(meta.injectionRetryAt) : 0;
   const retryCapped = generationMatches && (meta.injectionRetryCapped === true || (injectionState === 'failed' && attempts >= maxAttempts));
   const retryPending = generationMatches && injectionState === 'backoff' && !retryCapped && retryAt > Date.now();
-  const retryablePending = !!error && !injectionError && !!persistedQueue && !preparing
-    && preparationState !== 'failed' && qs.remaining > 0;
   const successfulTerminal = nothingToInject || !autoInject || injected;
+  const retryablePending = !!error && !injectionError && !!persistedQueue && !preparing
+    && preparationState !== 'failed' && (qs.remaining > 0 || drainDone);
   return {
     repo,
     outDir,
