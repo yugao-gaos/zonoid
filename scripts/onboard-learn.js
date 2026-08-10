@@ -800,52 +800,66 @@ async function injectOnboardNotes(notesFile, confirm, workspace, httpRequest = r
   const structureResult = await injectDocumentStructure(outDir, workspace, httpRequest, assertCurrent);
   const existing = new Map();
   try {
+    assertCurrent();
     const statePath = workspace ? `/state?workspace=${encodeURIComponent(workspace)}` : '/state';
     const state = await httpRequest('GET', statePath);
+    assertCurrent();
     for (const t of state.tasks || []) {
       if (typeof t.label !== 'string' || !t.label.startsWith(PREFIX) || t.validTo) continue;
       const matches = existing.get(t.label) || [];
       matches.push(t);
       existing.set(t.label, matches);
     }
-  } catch (e) { console.error(`WARN: could not read /state for idempotency (${e.message}); proceeding without skip-set.`); }
+  } catch (e) {
+    // Confirmed generation-scoped injection must fail closed: without current graph state a retry
+    // cannot distinguish a note persisted by an earlier partial attempt from a note not yet created.
+    if (expectedGeneration) throw new Error(`could not read /state for idempotent injection: ${e.message}`);
+    console.error(`WARN: could not read /state for idempotency (${e.message}); proceeding without skip-set.`);
+  }
   let created = 0, skipped = 0, evidenceEdges = 0;
   for (const [index, n] of kept.entries()) {
     assertCurrent();
     const title = PREFIX + n.title;
     const titleMatches = existing.get(title) || [];
     const exact = titleMatches.find((t) => String(t.summary || '') === String(n.summary || ''));
-    if (exact) {
-      if (expectedGeneration) confirmInjectedNote(outDir, expectedGeneration, n, index);
+    let noteKey = exact && (exact.key || exact.id);
+    if (noteKey && !String(noteKey).startsWith('note:')) noteKey = `note:${noteKey}`;
+    if (!exact) {
+      let supersedes = titleMatches.length && (titleMatches[0].key || titleMatches[0].id);
+      if (supersedes && !String(supersedes).startsWith('note:')) supersedes = `note:${supersedes}`;
+      const noteResp = await httpRequest('POST', '/overlay/note', {
+        title, summary: n.summary,
+        knowledge: [`evidence:${n.evidence || '?'}`, `kind:${n.kind}`, `origin:onboard-learn`]
+          .concat((Array.isArray(n.evidence_refs) ? n.evidence_refs : []).map((ref) => `evidence_ref:${ref}`)),
+        created_by: 'onboard-learn',
+        ...(supersedes ? { supersedes } : {}),
+        ...(workspace ? { workspace } : {}),
+      });
+      assertCurrent();
+      noteKey = noteResp && (noteResp.key || noteResp.id);
+      if (noteKey && !String(noteKey).startsWith('note:')) noteKey = `note:${noteKey}`;
+      if (!noteKey) throw new Error(`overlay note '${title}' did not return a durable key`);
+      existing.set(title, [{ id: noteKey, label: title, summary: n.summary }]);
+      created++;
+    } else {
+      if (!noteKey) throw new Error(`existing overlay note '${title}' has no durable key`);
       skipped++;
-      continue;
     }
-    const supersedes = titleMatches.length && (titleMatches[0].id || titleMatches[0].key);
-    const noteResp = await httpRequest('POST', '/overlay/note', {
-      title, summary: n.summary,
-      knowledge: [`evidence:${n.evidence || '?'}`, `kind:${n.kind}`, `origin:onboard-learn`]
-        .concat((Array.isArray(n.evidence_refs) ? n.evidence_refs : []).map((ref) => `evidence_ref:${ref}`)),
-      created_by: 'onboard-learn',
-      ...(supersedes ? { supersedes } : {}),
-      ...(workspace ? { workspace } : {}),
-    });
-    assertCurrent();
+    for (const ref of evidenceRefsForNote(n, [], structure)) {
+      assertCurrent();
+      await httpRequest('POST', '/overlay/edge', {
+        from: ref,
+        to: noteKey,
+        kind: 'context',
+        weight: 1.0,
+        ...(workspace ? { workspace } : {}),
+      });
+      assertCurrent();
+      evidenceEdges++;
+    }
+    // A note is not durably complete until every evidence edge has been upserted. If an edge write
+    // fails, no receipt advances; the next pass finds the exact note key and repairs all edges.
     if (expectedGeneration) confirmInjectedNote(outDir, expectedGeneration, n, index);
-    const noteKey = noteResp && (noteResp.key || (noteResp.id ? `note:${noteResp.id}` : null));
-    existing.set(title, [{ id: noteKey, label: title, summary: n.summary }]);
-    if (noteKey) {
-      for (const ref of evidenceRefsForNote(n, [], structure)) {
-        await httpRequest('POST', '/overlay/edge', {
-          from: ref,
-          to: noteKey,
-          kind: 'context',
-          weight: 1.0,
-          ...(workspace ? { workspace } : {}),
-        });
-        evidenceEdges++;
-      }
-    }
-    created++;
   }
   console.log(`document structure nodes upserted: ${structureResult.nodes}, provenance edges upserted: ${structureResult.edges}`);
   console.log(`notes created: ${created}, skipped (already present): ${skipped}, evidence edges: ${evidenceEdges}`);

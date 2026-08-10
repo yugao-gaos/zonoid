@@ -917,7 +917,7 @@ test('partial injection crash advances only the confirmed current-generation rec
   }
 });
 
-test('old injection completion cannot overwrite a force replacement request', async () => {
+test('force replacement waits for the live injection lease and old completion cannot overwrite it after expiry', async () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-injection-force-cas-'));
   const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
   let child;
@@ -952,7 +952,15 @@ test('old injection completion cannot overwrite a force replacement request', as
       registeredWorkspaces: () => new Set([repo]),
     });
     await route('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
-    assert.equal(sent[0].status, 200);
+    assert.equal(sent[0].status, 409);
+    assert.equal(sent[0].payload.retryable, true);
+    assert.equal(sent[0].payload.conflict, 'injection_in_progress');
+
+    const expired = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    expired.injectionLeaseExpiresAt = Date.now() - 1;
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify(expired));
+    await route('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
+    assert.equal(sent[1].status, 200);
     const replacement = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
     assert.notEqual(replacement.preparationGeneration, 'generation-old');
 

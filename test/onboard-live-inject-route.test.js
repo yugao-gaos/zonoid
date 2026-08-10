@@ -10,6 +10,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 
 const onboardRoute = require('../routes/onboard');
+const learner = require('../scripts/onboard-learn');
 const {
   defaultOnboardOutDir,
   legacyGraphOnboardOutDir,
@@ -66,6 +67,45 @@ function dashboardStatusComplete(status) {
     `'use strict';\n${sourceFor('onboardStatusDrained')}\n${sourceFor('onboardStatusComplete')}\nreturn onboardStatusComplete;`
   )();
   return predicate(status);
+}
+
+function dashboardStatusUpdater() {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'graph.html'), 'utf8');
+  const sourceFor = (name) => {
+    const start = html.indexOf(`function ${name}(s) {`);
+    assert.notEqual(start, -1, `${name} must exist in the dashboard`);
+    let depth = 0;
+    let opened = false;
+    for (let i = start; i < html.length; i++) {
+      if (html[i] === '{') { depth++; opened = true; }
+      if (html[i] === '}') depth--;
+      if (opened && depth === 0) return html.slice(start, i + 1);
+    }
+    throw new Error(`could not extract ${name}`);
+  };
+  return Function(`'use strict';
+    const view = { status: null, injectVisible: null, prepareVisible: null, stage: null };
+    const cloud = { classList: { toggle() {} } };
+    const landing = { dataset: {} };
+    const document = {
+      querySelector() { return cloud; },
+      getElementById(id) { return id === 'onboard-landing' ? landing : null; }
+    };
+    function setOnboardProgress() {}
+    function renderOnboardCloud() {}
+    function setOnboardStage(stage) { view.stage = stage; }
+    function setOnboardInjectVisible(visible, busy) { view.injectVisible = { visible, busy }; }
+    function setOnboardPrepareVisible(visible, busy) { view.prepareVisible = { visible, busy }; }
+    function setOnboardStatus(message, isError) { view.status = { message, isError: !!isError }; }
+    function completeOnboardLearning() {}
+    function setTimeout() {}
+    ${sourceFor('onboardStatusDrained')}
+    ${sourceFor('onboardStatusComplete')}
+    ${sourceFor('updateOnboardFromStatus')}
+    return {
+      apply(status) { return { stopped: updateOnboardFromStatus(status), view: JSON.parse(JSON.stringify(view)) }; }
+    };
+  `)();
 }
 
 test('onboarding routes accept only the default and documented legacy roots of a registered repo', async () => {
@@ -308,6 +348,42 @@ test('persisted background injection failure overrides stale POST state and bloc
   }
 });
 
+test('generic learner failure is reported retryable while queue work remains and clears on recovery', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-drain-recovery-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const sent = [];
+  const url = new URL(`http://localhost/onboard/drain-queue?repo=${encodeURIComponent(repo)}&outDir=${encodeURIComponent(outDir)}`);
+  try {
+    writeQueue(outDir, 2, 1, [], 'generation-drain-recovery');
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo,
+      outDir,
+      autoInject: true,
+      error: 'onboarding drain exited 1',
+    }));
+    const route = onboardRoute(makeCtx({}, sent, () => {}, [repo]));
+    await route('/onboard/drain-queue', 'GET', {}, {}, url);
+    assert.equal(sent[0].status, 200);
+    assert.equal(sent[0].payload.status.retryablePending, true);
+    assert.equal(sent[0].payload.status.done, false);
+
+    writeQueue(outDir, 2, 2, [], 'generation-drain-recovery');
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo,
+      outDir,
+      autoInject: true,
+      error: null,
+    }));
+    await route('/onboard/drain-queue', 'GET', {}, {}, url);
+    assert.equal(sent[1].payload.status.retryablePending, false);
+    assert.equal(sent[1].payload.status.error, null);
+    assert.equal(sent[1].payload.status.injectionState, 'not_needed');
+    assert.equal(sent[1].payload.status.done, true);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test('pending or running injection never reuses a successful watermark to latch completion', async () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-inject-pending-'));
   const outDir = defaultOnboardOutDir(repo);
@@ -411,6 +487,214 @@ test('force replacement allocates a fresh generation and invalidates the old inj
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
+});
+
+test('force replacement conflicts with a live injection lease, then succeeds after expiry and fences old writes', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-force-live-injection-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const generation = 'generation-live';
+  const kept = [{ title: 'Live', summary: 'Live generation', kind: 'decision', evidence_refs: ['source:live'] }];
+  const statusFile = path.join(outDir, 'onboard-drain-status.json');
+  try {
+    writeQueue(outDir, 1, 1, kept, generation);
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept, rejected: [] }));
+    fs.writeFileSync(statusFile, JSON.stringify({
+      repo,
+      outDir,
+      autoInject: true,
+      injectionGeneration: generation,
+      injectionState: 'running',
+      injecting: true,
+      injectionOwner: 'live-owner',
+      injectionPid: process.pid,
+      injectionLeaseExpiresAt: Date.now() + 60000,
+    }));
+
+    const blocked = [];
+    await onboardRoute(makeCtx({ repo, outDir, force: true }, blocked, () => {}, [repo]))(
+      '/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue')
+    );
+    assert.equal(blocked[0].status, 409);
+    assert.equal(blocked[0].payload.retryable, true);
+    assert.equal(blocked[0].payload.conflict, 'injection_in_progress');
+    assert.equal(JSON.parse(fs.readFileSync(statusFile, 'utf8')).injectionOwner, 'live-owner');
+
+    const expired = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+    expired.injectionLeaseExpiresAt = Date.now() - 1;
+    fs.writeFileSync(statusFile, JSON.stringify(expired));
+    const accepted = [];
+    await onboardRoute(makeCtx({ repo, outDir, force: true }, accepted, () => {}, [repo]))(
+      '/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue')
+    );
+    assert.equal(accepted[0].status, 200);
+    const replacement = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+    assert.notEqual(replacement.preparationGeneration, generation);
+    assert.equal(replacement.injectionOwner, null);
+
+    let graphRequests = 0;
+    await assert.rejects(
+      learner.injectOnboardNotes(path.join(outDir, 'onboard-notes.json'), true, repo, async () => {
+        graphRequests++;
+        return {};
+      }, { expectedGeneration: generation }),
+      /stale onboarding generation/
+    );
+    assert.equal(graphRequests, 0, 'an expired old-generation injector is fenced before another graph request');
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('an exact existing note keeps its graph key and upserts every evidence edge on every retry', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-inject-existing-edges-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const generation = 'generation-existing';
+  const kept = [{
+    title: 'Stable note',
+    summary: 'Stable summary',
+    kind: 'decision',
+    evidence_refs: ['source:a', 'source:b'],
+  }];
+  const calls = [];
+  try {
+    writeQueue(outDir, 1, 1, kept, generation);
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept, rejected: [] }));
+    const request = async (method, url, body) => {
+      calls.push({ method, url, body });
+      if (method === 'GET' && url.startsWith('/state')) {
+        return { tasks: [{ id: 'note:stable-existing', label: '[ingest] Stable note', summary: 'Stable summary' }] };
+      }
+      if (url === '/overlay/edge') return { ok: true };
+      throw new Error(`unexpected request ${method} ${url}`);
+    };
+
+    await learner.injectOnboardNotes(path.join(outDir, 'onboard-notes.json'), true, repo, request, { expectedGeneration: generation });
+    await learner.injectOnboardNotes(path.join(outDir, 'onboard-notes.json'), true, repo, request, { expectedGeneration: generation });
+
+    assert.equal(calls.filter((call) => call.url === '/overlay/note').length, 0);
+    const edges = calls.filter((call) => call.url === '/overlay/edge');
+    assert.equal(edges.length, 4, 'both evidence edges are idempotently upserted on both passes');
+    assert.ok(edges.every((call) => call.body.to === 'note:stable-existing'));
+    assert.deepEqual(edges.map((call) => call.body.from), ['source:a', 'source:b', 'source:a', 'source:b']);
+    const receipt = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-injection-receipt.json'), 'utf8'));
+    assert.equal(receipt.generation, generation);
+    assert.equal(receipt.confirmed.length, 1, 'repeated completion does not duplicate the receipt watermark');
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('edge failure after note persistence retries to a complete graph without duplicate notes or false receipt', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-inject-edge-repair-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const generation = 'generation-edge-repair';
+  const kept = [{
+    title: 'Repair note',
+    summary: 'Repair summary',
+    kind: 'gotcha',
+    evidence_refs: ['source:first', 'source:second'],
+  }];
+  let persistedNote = null;
+  let noteCreates = 0;
+  let failSecondEdge = true;
+  const graphEdges = new Set();
+  try {
+    writeQueue(outDir, 1, 1, kept, generation);
+    const notesFile = path.join(outDir, 'onboard-notes.json');
+    fs.writeFileSync(notesFile, JSON.stringify({ kept, rejected: [] }));
+    const request = async (method, url, body) => {
+      if (method === 'GET' && url.startsWith('/state')) return { tasks: persistedNote ? [persistedNote] : [] };
+      if (url === '/overlay/note') {
+        noteCreates++;
+        persistedNote = { id: 'note:repair-stable', label: body.title, summary: body.summary };
+        return { key: persistedNote.id };
+      }
+      if (url === '/overlay/edge') {
+        if (body.from === 'source:second' && failSecondEdge) {
+          failSecondEdge = false;
+          throw new Error('transient edge failure');
+        }
+        graphEdges.add(`${body.from}->${body.to}`);
+        return { ok: true };
+      }
+      throw new Error(`unexpected request ${method} ${url}`);
+    };
+
+    await assert.rejects(
+      learner.injectOnboardNotes(notesFile, true, repo, request, { expectedGeneration: generation }),
+      /transient edge failure/
+    );
+    assert.equal(noteCreates, 1);
+    assert.equal(fs.existsSync(path.join(outDir, 'onboard-injection-receipt.json')), false,
+      'a partial graph must not advance the durable injection receipt');
+
+    await learner.injectOnboardNotes(notesFile, true, repo, request, { expectedGeneration: generation });
+    await learner.injectOnboardNotes(notesFile, true, repo, request, { expectedGeneration: generation });
+    assert.equal(noteCreates, 1, 'retry finds and preserves the exact persisted note');
+    assert.deepEqual(Array.from(graphEdges).sort(), [
+      'source:first->note:repair-stable',
+      'source:second->note:repair-stable',
+    ]);
+    const receipt = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-injection-receipt.json'), 'utf8'));
+    assert.equal(receipt.confirmed.length, 1);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('confirmed injection fails closed when graph state cannot establish the idempotency key', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-inject-state-failure-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const generation = 'generation-state-failure';
+  const kept = [{ title: 'Unknown note', summary: 'State read must succeed', kind: 'gotcha' }];
+  let noteCreates = 0;
+  try {
+    writeQueue(outDir, 1, 1, kept, generation);
+    const notesFile = path.join(outDir, 'onboard-notes.json');
+    fs.writeFileSync(notesFile, JSON.stringify({ kept, rejected: [] }));
+    await assert.rejects(
+      learner.injectOnboardNotes(notesFile, true, repo, async (method, url) => {
+        if (method === 'GET' && url.startsWith('/state')) throw new Error('state unavailable');
+        if (url === '/overlay/note') noteCreates++;
+        return {};
+      }, { expectedGeneration: generation }),
+      /could not read \/state for idempotent injection/
+    );
+    assert.equal(noteCreates, 0);
+    assert.equal(fs.existsSync(path.join(outDir, 'onboard-injection-receipt.json')), false);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('dashboard keeps retryable learner errors live, clears them on success, and stops terminal states', () => {
+  const dashboard = dashboardStatusUpdater();
+  const retryable = dashboard.apply({
+    total: 2, processed: 1, remaining: 1, kept: 0,
+    error: 'onboarding drain exited 1', retryablePending: true,
+  });
+  assert.equal(retryable.stopped, false);
+  assert.equal(retryable.view.status.isError, true);
+  assert.match(retryable.view.status.message, /Retrying automatically/);
+
+  const recovered = dashboard.apply({ total: 2, processed: 1, remaining: 1, kept: 0, error: null });
+  assert.equal(recovered.stopped, false);
+  assert.equal(recovered.view.status.isError, false, 'later success clears the visible error without reload');
+
+  const terminal = dashboard.apply({ total: 0, processed: 0, remaining: 0, error: 'terminal drain failure' });
+  assert.equal(terminal.stopped, true);
+  const capped = dashboard.apply({
+    total: 1, processed: 1, remaining: 0, kept: 1,
+    injectionState: 'failed', injectionRetryCapped: true, injectionError: 'inject exhausted', error: 'inject exhausted',
+  });
+  assert.equal(capped.stopped, true);
+  assert.equal(capped.view.injectVisible.visible, true, 'capped injection exposes the manual retry control');
+  const backoff = dashboard.apply({
+    total: 1, processed: 1, remaining: 0, kept: 1,
+    injectionState: 'backoff', injectionRetryAt: Date.now() + 1000,
+    injectionError: 'inject retry', error: 'inject retry',
+  });
+  assert.equal(backoff.stopped, false, 'automatic backoff keeps polling');
 });
 
 test('real injector honors ORCH_PORT and shared bearer auth when ORCH_DAEMON is absent', async () => {
