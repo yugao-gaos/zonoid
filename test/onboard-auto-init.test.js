@@ -7,7 +7,7 @@ const fs = require('fs');
 const net = require('net');
 const os = require('os');
 const path = require('path');
-const { execFileSync, spawnSync } = require('child_process');
+const { execFileSync, spawn, spawnSync } = require('child_process');
 
 const { checkDaemon, startWorkspaceOnboarding } = require('../packages/cli/bin/zonoid');
 const onboardRoute = require('../routes/onboard');
@@ -41,7 +41,32 @@ async function daemonRequest(port, method, route, body, token) {
   });
   let payload = null;
   try { payload = await response.json(); } catch { /* response body is diagnostic only */ }
-  return { status: response.status, payload };
+  return { status: response.status, payload, headers: response.headers };
+}
+
+function processIsAlive(pid) {
+  try { process.kill(pid, 0); return true; } catch { return false; }
+}
+
+async function waitForProcessExit(pid, timeoutMs = 2000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!processIsAlive(pid)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return !processIsAlive(pid);
+}
+
+async function waitForHealthResponse(port, timeoutMs = 2000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const response = await daemonRequest(port, 'GET', '/health');
+      if (response.status === 200) return true;
+    } catch { /* process is still starting */ }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return false;
 }
 
 async function stopDaemon(port) {
@@ -201,10 +226,74 @@ test('cold daemon startup is non-blocking and waits until the daemon is ready', 
     const health = await daemonRequest(port, 'GET', '/health');
     assert.equal(health.status, 200);
     assert.equal(health.payload && health.payload.phase, 'ready');
+    assert.equal(health.headers.get('x-zonoid-health-signature'), 'zonoid-orchestrator-health-v1');
     assert.ok(Date.now() - startedAt < 15000, 'cold startup must return instead of waiting on the detached daemon process');
   } finally {
     await stopDaemon(port);
     fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('daemon readiness rejects a real HTTP impostor without terminating it', async () => {
+  const port = await testPort();
+  const impostorSource = `
+    const http = require('node:http');
+    const server = http.createServer((_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, phase: 'ready' }));
+    });
+    server.listen(Number(process.env.IMPOSTOR_PORT), '127.0.0.1');
+  `;
+  const impostor = spawn(process.execPath, ['-e', impostorSource], {
+    env: { ...process.env, IMPOSTOR_PORT: String(port) },
+    stdio: 'ignore',
+  });
+  try {
+    assert.ok(await waitForHealthResponse(port), 'impostor process came up');
+    assert.equal(await checkDaemon({
+      port,
+      startupTimeoutMs: 250,
+      healthTimeoutMs: 50,
+      pollMs: 25,
+    }), false, 'generic HTTP 200 must not be accepted as Zonoid readiness');
+    assert.equal(processIsAlive(impostor.pid), true, 'init must not terminate an independently running process');
+  } finally {
+    if (processIsAlive(impostor.pid)) impostor.kill('SIGKILL');
+    await waitForProcessExit(impostor.pid);
+  }
+});
+
+test('daemon readiness timeout terminates only the hung child it spawned', async () => {
+  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-hung-child-'));
+  const daemonPath = path.join(fixtureDir, 'hung-daemon.js');
+  const pidFile = path.join(fixtureDir, 'hung-daemon.pid');
+  const port = await testPort();
+  fs.writeFileSync(daemonPath, `
+    'use strict';
+    const fs = require('node:fs');
+    fs.writeFileSync(process.env.HUNG_DAEMON_PID_FILE, String(process.pid));
+    process.on('SIGTERM', () => {});
+    setInterval(() => {}, 1000);
+  `);
+
+  let pid = null;
+  try {
+    assert.equal(await checkDaemon({
+      port,
+      daemonPath,
+      startupTimeoutMs: 400,
+      healthTimeoutMs: 50,
+      pollMs: 25,
+      childCleanupGraceMs: 100,
+      env: { ...process.env, HUNG_DAEMON_PID_FILE: pidFile },
+    }), false);
+    assert.ok(fs.existsSync(pidFile), 'the owned hung child must have started');
+    pid = Number(fs.readFileSync(pidFile, 'utf8'));
+    assert.ok(Number.isInteger(pid) && pid > 0);
+    assert.equal(await waitForProcessExit(pid), true, 'timeout must reap the exact child spawned by this invocation');
+  } finally {
+    if (pid && processIsAlive(pid)) process.kill(pid, 'SIGKILL');
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
   }
 });
 
