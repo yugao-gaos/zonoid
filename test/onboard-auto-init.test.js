@@ -960,6 +960,81 @@ test('daemon boot reconciles every hard-exit boundary of onboarding init', async
   }
 });
 
+test('daemon loadState survives a settled init with read-only Git exclude and retries later', async () => {
+  const fixture = prepareInitRepo('zonoid-init-exclude-readonly-');
+  const port = await testPort();
+  const token = 'exclude-readonly-token';
+  const excludeFile = path.join(fixture.repo, '.git', 'info', 'exclude');
+  const registryFile = path.join(fixture.dataDir, 'workspaces.json');
+  const outDir = path.join(fixture.repo, '.zonoid', 'onboard', path.basename(fixture.repo));
+  const statusFile = path.join(outDir, 'onboard-drain-status.json');
+  const journalDir = path.join(fixture.dataDir, 'onboard-init-transactions');
+  const daemonOptions = {
+    port,
+    daemonPath: DAEMON_PATH,
+    startupTimeoutMs: 15000,
+    env: {
+      ...process.env,
+      CLAUDE_PLUGIN_DATA: fixture.dataDir,
+      ORCH_TOKEN: '',
+      CLAUDE_CODE_SESSION_ID: '',
+      HEADLESS_DRAIN_MAX_ITERATIONS: '-1',
+      ZONOID_EMBED_PROVIDER: 'local',
+      ZONOID_EMBED_LOCAL_BASE_URL: 'http://127.0.0.1:1',
+    },
+  };
+  fs.writeFileSync(path.join(fixture.dataDir, 'token'), `${token}\n`);
+  fs.writeFileSync(excludeFile, 'preserve-existing-rule\n');
+  fs.chmodSync(excludeFile, 0o400);
+  try {
+    assert.equal(await checkDaemon(daemonOptions), true);
+    const accepted = await daemonRequest(port, 'POST', '/onboard/init', { repo: fixture.repo }, token);
+    assert.equal(accepted.status, 200, JSON.stringify(accepted.payload));
+    assert.equal(accepted.payload.accepted, true);
+    assert.equal(fs.readFileSync(excludeFile, 'utf8'), 'preserve-existing-rule\n');
+    assert.equal(!fs.existsSync(journalDir) || fs.readdirSync(journalDir).length === 0, true,
+      'exclude EACCES must not retain the committed init journal');
+
+    await stopDaemon(port);
+    const committed = {
+      status: fs.readFileSync(statusFile),
+      registry: fs.readFileSync(registryFile),
+      exclude: fs.readFileSync(excludeFile),
+      head: git(fixture.repo, ['rev-parse', 'HEAD']),
+      source: fs.readFileSync(path.join(fixture.repo, 'src', 'index.js')),
+      work: fs.readFileSync(path.join(fixture.repo, 'work-in-progress.txt')),
+      porcelain: git(fixture.repo, ['status', '--porcelain=v1', '--untracked-files=all']),
+    };
+
+    assert.equal(await checkDaemon(daemonOptions), true,
+      'advisory Git exclusion failure must not crash daemon loadState');
+    const health = await daemonRequest(port, 'GET', '/health');
+    assert.equal(health.status, 200);
+    assert.equal(health.payload.phase, 'ready');
+    await stopDaemon(port);
+    assert.deepEqual(fs.readFileSync(statusFile), committed.status);
+    assert.deepEqual(fs.readFileSync(registryFile), committed.registry);
+    assert.deepEqual(fs.readFileSync(excludeFile), committed.exclude);
+    assert.equal(git(fixture.repo, ['rev-parse', 'HEAD']), committed.head);
+    assert.deepEqual(fs.readFileSync(path.join(fixture.repo, 'src', 'index.js')), committed.source);
+    assert.deepEqual(fs.readFileSync(path.join(fixture.repo, 'work-in-progress.txt')), committed.work);
+    assert.equal(git(fixture.repo, ['status', '--porcelain=v1', '--untracked-files=all']), committed.porcelain);
+    assert.equal(!fs.existsSync(journalDir) || fs.readdirSync(journalDir).length === 0, true);
+
+    fs.chmodSync(excludeFile, 0o600);
+    assert.equal(await checkDaemon(daemonOptions), true);
+    assert.match(fs.readFileSync(excludeFile, 'utf8'), /^\.zonoid\/$/m,
+      'a later writable maintenance pass must finish the advisory runtime ignore');
+    assert.deepEqual(fs.readFileSync(statusFile), committed.status);
+    assert.deepEqual(fs.readFileSync(registryFile), committed.registry);
+    assert.equal(!fs.existsSync(journalDir) || fs.readdirSync(journalDir).length === 0, true);
+  } finally {
+    await stopDaemon(port);
+    try { fs.chmodSync(excludeFile, 0o600); } catch { /* missing fixture */ }
+    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+  }
+});
+
 test('real daemon rejects invalid onboarding paths before registration or project mutation', async () => {
   const fixture = prepareInitRepo('zonoid-init-real-reject-');
   const outside = path.join(fixture.fixtureDir, 'escaped-runtime');

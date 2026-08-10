@@ -515,7 +515,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           });
 
           // Write-ahead protocol: journal -> onboarding status -> registry -> committed reread ->
-          // journal removal. Any hard exit leaves an intent that boot reconciliation rolls forward.
+          // journal removal. Git exclusion is a separate advisory effect after settlement.
           onboardInitTransaction.writeIntent(registryFile, intent);
           maybeCrashInitBoundary('journal');
           observeInitBoundary(ctx, 'journal', { intent, repo, outDir, registryFile });
@@ -529,9 +529,6 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           committed = true;
           maybeCrashInitBoundary('verified');
           observeInitBoundary(ctx, 'verified', { intent, repo, outDir, registryFile });
-          if (intent.ensureRuntimeIgnore) ensureOnboardRuntimeIgnored(repo);
-          maybeCrashInitBoundary('exclude');
-          observeInitBoundary(ctx, 'exclude', { intent, repo, outDir, registryFile });
           onboardInitTransaction.removeIntent(registryFile, intent);
           maybeCrashInitBoundary('journal_removed');
           observeInitBoundary(ctx, 'journal_removed', { intent, repo, outDir, registryFile });
@@ -586,10 +583,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       return true;
     }
 
-    // Registration and durable drain intent are now committed. Warming graph/Git integration and
-    // adding the local runtime ignore are idempotent post-commit effects, never pre-acceptance writes.
+    // Registration and durable drain intent are now committed and the journal is settled. Warming
+    // graph/Git integration and adding the local runtime ignore are idempotent advisory effects.
     try { if (typeof ctx.setWorkspace === 'function') ctx.setWorkspace(repo, { workspace: workspaceId }); } catch { /* lazy routes can warm later */ }
-    try { if (resolved.kind === 'default') ensureOnboardRuntimeIgnored(repo); } catch { /* advisory */ }
+    if (resolved.kind === 'default') {
+      onboardInitTransaction.tryRuntimeIgnore(repo, { onError: ctx.onboardRuntimeIgnoreError });
+    }
+    maybeCrashInitBoundary('exclude');
+    observeInitBoundary(ctx, 'exclude', { repo, outDir, registryFile });
     if (notifyChange) notifyChange(repo);
     send(res, 200, {
       ok: true,
