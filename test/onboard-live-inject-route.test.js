@@ -1912,6 +1912,127 @@ test('ordinary status mutation replaces a FIFO from the bounded empty status ima
   }
 });
 
+test('init status snapshots retain one exact bounded image, mode, and replacement fingerprint', () => {
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-status-snapshot-'));
+  const file = path.join(outDir, 'onboard-drain-status.json');
+  const bytes = Buffer.from('{"generation":"captured"}\n');
+  try {
+    fs.writeFileSync(file, bytes, { mode: 0o640 });
+    fs.chmodSync(file, 0o640);
+    const first = onboardInitTransaction.snapshotStatusFile(file);
+    assert.equal(first.kind, 'file');
+    assert.deepEqual(first.bytes, bytes);
+    assert.equal(first.mode, 0o640);
+    assert.match(first.fingerprint, /^[a-f0-9]{64}$/);
+
+    const replacement = `${file}.replacement`;
+    fs.writeFileSync(replacement, bytes, { mode: 0o640 });
+    fs.chmodSync(replacement, 0o640);
+    fs.renameSync(replacement, file);
+    const second = onboardInitTransaction.snapshotStatusFile(file);
+    assert.deepEqual(second.bytes, bytes);
+    assert.equal(second.mode, 0o640);
+    assert.notEqual(second.fingerprint, first.fingerprint,
+      'same bytes and mode on a replacement inode must remain a distinct CAS image');
+  } finally {
+    fs.rmSync(outDir, { recursive: true, force: true });
+  }
+});
+
+test('init ensure and rollback parse only their stable captured status bytes', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-single-status-image-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-single-status-data-'));
+  const registryFile = path.join(dataDir, 'workspaces.json');
+  const file = path.join(outDir, 'onboard-drain-status.json');
+  const beforeStatus = { repo, outDir, preparationState: 'failed', error: 'preserve raw image' };
+  const beforeBytes = Buffer.from(JSON.stringify(beforeStatus, null, 4) + '\n');
+  const desiredStatus = {
+    repo, outDir, autoInject: true, batchSize: 20,
+    preparationState: 'pending', preparationGeneration: 'generation-single-image',
+  };
+  let intent;
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(file, beforeBytes, { mode: 0o640 });
+    fs.chmodSync(file, 0o640);
+    const beforeSnapshot = onboardInitTransaction.snapshotStatusFile(file);
+    intent = onboardInitTransaction.createIntent({
+      repo, outDir, workspaceId: path.basename(repo), beforeStatus, beforeStatusSnapshot: beforeSnapshot,
+      desiredStatus,
+    });
+    onboardInitTransaction.writeIntent(registryFile, intent);
+
+    const originalReadFileSync = fs.readFileSync;
+    fs.readFileSync = function rejectLegacyStatusReread(target, ...args) {
+      if (path.resolve(String(target)) === path.resolve(file)) {
+        throw new Error('legacy pathname status reread');
+      }
+      return originalReadFileSync.call(this, target, ...args);
+    };
+    try {
+      assert.equal(onboardInitTransaction.ensureIntentStatus(intent).applied, true);
+      const restored = onboardInitTransaction.rollbackIntentStatus(registryFile, intent, beforeSnapshot);
+      assert.equal(restored.applied, true);
+    } finally {
+      fs.readFileSync = originalReadFileSync;
+    }
+    assert.deepEqual(fs.readFileSync(file), beforeBytes);
+    assert.equal(fs.statSync(file).mode & 0o777, 0o640);
+  } finally {
+    try { if (intent) onboardInitTransaction.removeIntent(registryFile, intent); } catch { /* fixture cleanup */ }
+    fs.rmSync(repo, { recursive: true, force: true });
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('init status snapshots reject replacement and nonregular paths without blocking or bytes', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-status-unsafe-'));
+  const mutating = path.join(root, 'mutating');
+  const outside = path.join(root, 'outside');
+  const directory = path.join(root, 'directory');
+  const symlink = path.join(root, 'symlink');
+  const fifo = path.join(root, 'fifo');
+  const oversize = path.join(root, 'oversize');
+  try {
+    fs.writeFileSync(mutating, '{"generation":"first"}\n');
+    fs.writeFileSync(outside, '{"outside":"preserve"}\n');
+    fs.mkdirSync(directory);
+    fs.symlinkSync(outside, symlink);
+    fs.writeFileSync(oversize, Buffer.alloc(onboardState.ONBOARD_STATUS_MAX_BYTES + 1, 0x78));
+    const fifoMade = spawnSync('mkfifo', [fifo], { encoding: 'utf8', windowsHide: true }).status === 0;
+
+    const originalReadSync = fs.readSync;
+    let replaced = false;
+    fs.readSync = function readThenReplace(...args) {
+      const count = originalReadSync.apply(this, args);
+      if (!replaced) {
+        replaced = true;
+        const next = `${mutating}.next`;
+        fs.writeFileSync(next, '{"generation":"replacement"}\n');
+        fs.renameSync(next, mutating);
+      }
+      return count;
+    };
+    let changed;
+    try { changed = onboardInitTransaction.snapshotStatusFile(mutating); }
+    finally { fs.readSync = originalReadSync; }
+    assert.notEqual(changed.kind, 'file');
+    assert.equal(changed.bytes, null);
+
+    const started = Date.now();
+    for (const file of [directory, symlink, oversize, ...(fifoMade ? [fifo] : [])]) {
+      const snapshot = onboardInitTransaction.snapshotStatusFile(file);
+      assert.notEqual(snapshot.kind, 'file');
+      assert.equal(snapshot.bytes, null);
+    }
+    assert.ok(Date.now() - started < 1000, 'nonregular status snapshots must be bounded');
+    assert.equal(fs.readFileSync(outside, 'utf8'), '{"outside":"preserve"}\n');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('init rollback is an exact-image CAS and preserves a concurrent accepted generation and temp', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-cas-'));
   const outDir = defaultOnboardOutDir(repo);

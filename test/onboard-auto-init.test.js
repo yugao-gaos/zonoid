@@ -1081,6 +1081,72 @@ test('daemon boot ignores an unreadable invalid init journal and quarantines it 
   }
 });
 
+test('daemon boot quarantines a valid legacy init intent instead of reading or replacing a FIFO status', async () => {
+  const fixture = prepareInitRepo('zonoid-init-legacy-status-fifo-');
+  const port = await testPort();
+  const token = 'legacy-status-fifo-token';
+  const registryFile = path.join(fixture.dataDir, 'workspaces.json');
+  const outDir = path.join(fixture.repo, '.zonoid', 'onboard', path.basename(fixture.repo));
+  const statusFile = path.join(outDir, 'onboard-drain-status.json');
+  const desiredStatus = {
+    repo: fixture.repo,
+    outDir,
+    autoInject: true,
+    batchSize: 20,
+    preparationState: 'pending',
+    preparationGeneration: 'generation-legacy-fifo',
+  };
+  const intent = onboardInitTransaction.createIntent({
+    repo: fixture.repo,
+    outDir,
+    workspaceId: path.basename(fixture.repo),
+    beforeStatus: {},
+    desiredStatus,
+  });
+  const legacy = { ...intent, version: 1 };
+  delete legacy.desiredStatusDigest;
+  delete legacy.intentDigest;
+  const journalDir = onboardInitTransaction.journalDir(registryFile);
+  const journal = onboardInitTransaction.journalFile(registryFile, legacy.id);
+  fs.writeFileSync(path.join(fixture.dataDir, 'token'), `${token}\n`);
+  fs.mkdirSync(outDir, { recursive: true });
+  fs.mkdirSync(journalDir);
+  fs.writeFileSync(journal, JSON.stringify(legacy));
+  const fifo = spawnSync('mkfifo', [statusFile], { encoding: 'utf8', windowsHide: true });
+  if (fifo.status !== 0) {
+    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+    return;
+  }
+  try {
+    assert.equal(await checkDaemon({
+      port,
+      daemonPath: DAEMON_PATH,
+      startupTimeoutMs: 15000,
+      env: {
+        ...process.env,
+        CLAUDE_PLUGIN_DATA: fixture.dataDir,
+        ORCH_TOKEN: '',
+        CLAUDE_CODE_SESSION_ID: '',
+        HEADLESS_DRAIN_MAX_ITERATIONS: '-1',
+        ZONOID_EMBED_PROVIDER: 'local',
+        ZONOID_EMBED_LOCAL_BASE_URL: 'http://127.0.0.1:1',
+      },
+    }), true, 'legacy intent recovery must not hang on the canonical FIFO');
+    const health = await daemonRequest(port, 'GET', '/health');
+    assert.equal(health.status, 200);
+    assert.equal(health.payload.phase, 'ready');
+    assert.equal(fs.lstatSync(statusFile).isFIFO(), true,
+      'recovery must not replace the unsafe status path');
+    assert.equal(workspaceRegistry.allRepos(workspaceRegistry.loadRegistry(registryFile)).includes(fixture.repo), false,
+      'unsafe legacy status must not publish workspace registration');
+    assert.equal(fs.existsSync(journal), false);
+    assert.ok(fs.readdirSync(journalDir).some((name) => name.startsWith(`${legacy.id}.json.invalid`)));
+  } finally {
+    await stopDaemon(port);
+    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+  }
+});
+
 test('daemon restart keeps an invalid journal fenced after status-temp publication crash', async () => {
   const fixture = prepareInitRepo('zonoid-publication-invalid-restart-');
   const port = await testPort();
