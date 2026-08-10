@@ -88,14 +88,19 @@ function writeDrainMeta(outDir, patch) {
 }
 
 function buildDrainJob(repo, outDir, patch = {}) {
-  const meta = { ...readDrainMeta(outDir), ...patch };
+  // The headless learner persists progress independently of the route process. A cached POST job
+  // is only a fallback; it must never overwrite a newer on-disk injection result or error.
+  const meta = { ...patch, ...readDrainMeta(outDir) };
   const qs = queueStatus(outDir) || {};
   const autoInject = meta.autoInject !== false;
-  const injected = meta.injected === true;
   const drainDone = qs.drainDone === true;
+  const noCandidates = drainDone && qs.total === 0;
   const error = meta.error || null;
   const kept = typeof qs.kept === 'number' ? qs.kept : (meta.kept || 0);
-  const injectedKept = Math.max(0, Number(meta.injectedKept) || (injected ? kept : 0));
+  const injectedKept = Math.max(0, Number(meta.injectedKept) || (meta.injected === true ? kept : 0));
+  // `meta.injected` means at least one injection pass succeeded. A later learner batch can add
+  // more kept notes, so completion requires the injected watermark to cover the current queue.
+  const injected = meta.injected === true && injectedKept >= kept;
   const processed = qs.processed || meta.processed || 0;
   const visualProcessed = Math.max(processed, qs.visualProcessed || meta.visualProcessed || 0);
   return {
@@ -111,12 +116,13 @@ function buildDrainJob(repo, outDir, patch = {}) {
     staleInflight: qs.staleInflight || 0,
     inflightRanges: Array.isArray(qs.inflightRanges) ? qs.inflightRanges : [],
     injectedKept,
-    done: drainDone && (!autoInject || injected || !!error),
+    done: drainDone && (noCandidates || !autoInject || injected || !!error),
     error,
     autoInject,
     injected,
     injecting: meta.injecting === true,
-    needsReview: drainDone && !autoInject && !injected,
+    noCandidates,
+    needsReview: drainDone && !noCandidates && !autoInject && !injected,
   };
 }
 
@@ -200,7 +206,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     try {
       writeDrainMeta(outDir, { repo, outDir, injecting: true, error: null });
       await runNode([learnScript, '--repo', repo, '--in', outDir, '--inject', '--confirm']);
-      writeDrainMeta(outDir, { repo, outDir, injecting: false, injected: true, injectedAt: new Date().toISOString(), error: null });
+      const injectedKept = (queueStatus(outDir) || {}).kept || 0;
+      writeDrainMeta(outDir, { repo, outDir, injecting: false, injected: true, injectedKept, injectedAt: new Date().toISOString(), error: null });
     } catch (err) {
       writeDrainMeta(outDir, { repo, outDir, injecting: false, error: String(err && err.message || err) });
       send(res, 500, { ok: false, error: `inject failed: ${err && err.message ? err.message : err}` }); return true;
@@ -209,6 +216,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (drainJobs.has(jobKey)) {
       const job = drainJobs.get(jobKey);
       job.injected = true;
+      job.injectedKept = (queueStatus(outDir) || {}).kept || 0;
       job.needsReview = false;
       job.done = true;
     }

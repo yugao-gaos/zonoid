@@ -17,7 +17,8 @@ function git(repo, args) {
 
 function routePost(calls) {
   return async (route, body) => {
-    calls.push({ route, body });
+    const call = { route, body };
+    calls.push(call);
     let response = null;
     const handler = onboardRoute({
       readBody: async () => body,
@@ -27,6 +28,7 @@ function routePost(calls) {
     const handled = await handler(route, 'POST', {}, {}, new URL(`http://localhost${route}`));
     assert.equal(handled, true);
     assert.ok(response);
+    call.response = response;
     return response.payload;
   };
 }
@@ -89,5 +91,47 @@ test('onboarding startup failure is advisory and does not mutate project files',
     assert.equal(fs.readFileSync(source, 'utf8'), 'valuable existing work\n');
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('empty and zero-commit projects onboard without inventing project history', async () => {
+  const repos = [
+    { label: 'empty directory', path: fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-auto-onboard-empty-')), empty: true },
+    { label: 'zero-commit git repo', path: fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-auto-onboard-zero-commit-')), empty: false },
+  ];
+
+  try {
+    git(repos[1].path, ['init']);
+    const zeroCommitSource = path.join(repos[1].path, 'src', 'uncommitted.js');
+    fs.mkdirSync(path.dirname(zeroCommitSource), { recursive: true });
+    fs.writeFileSync(zeroCommitSource, 'exports.uncommittedWork = true;\n');
+    fs.writeFileSync(path.join(repos[1].path, 'README.md'), '# Zero-commit project\n\nUseful work exists before the first commit.\n');
+    for (const repoCase of repos) {
+      const calls = [];
+      const result = await startWorkspaceOnboarding(repoCase.path, {
+        post: routePost(calls),
+      });
+
+      assert.equal(result.ok, true, `${repoCase.label} should onboard without an HTTP 500`);
+      assert.deepEqual(calls.map((call) => call.route), ['/onboard/enqueue', '/onboard/drain-queue']);
+      const queue = JSON.parse(fs.readFileSync(path.join(result.outDir, 'onboard-queue.json'), 'utf8'));
+      assert.equal(calls[1].response.status, 200);
+      assert.equal(calls[1].response.payload.status.error, null);
+      if (repoCase.empty) {
+        assert.deepEqual(queue, { total: 0, cursor: 0, kept: [], rejected: [], pending: [] });
+        assert.equal(calls[1].response.payload.status.done, true);
+        assert.equal(calls[1].response.payload.status.noCandidates, true);
+      } else {
+        assert.ok(queue.total > 0, 'non-git miners must retain useful zero-commit project evidence');
+        assert.equal(calls[1].response.payload.status.done, false);
+        assert.equal(calls[1].response.payload.status.noCandidates, false);
+      }
+    }
+
+    assert.equal(fs.readFileSync(zeroCommitSource, 'utf8'), 'exports.uncommittedWork = true;\n');
+    assert.throws(() => git(repos[1].path, ['rev-parse', '--verify', 'HEAD']), /Command failed/,
+      'onboarding must not manufacture a commit in a zero-commit repo');
+  } finally {
+    for (const repoCase of repos) fs.rmSync(repoCase.path, { recursive: true, force: true });
   }
 });
