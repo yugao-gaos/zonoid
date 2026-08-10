@@ -29,6 +29,26 @@ function makeCtx(body, sent, notify) {
   };
 }
 
+function dashboardStatusComplete(status) {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'graph.html'), 'utf8');
+  const sourceFor = (name) => {
+    const start = html.indexOf(`function ${name}(s) {`);
+    assert.notEqual(start, -1, `${name} must exist in the dashboard`);
+    let depth = 0;
+    let opened = false;
+    for (let i = start; i < html.length; i++) {
+      if (html[i] === '{') { depth++; opened = true; }
+      if (html[i] === '}') depth--;
+      if (opened && depth === 0) return html.slice(start, i + 1);
+    }
+    throw new Error(`could not extract ${name}`);
+  };
+  const predicate = Function(
+    `'use strict';\n${sourceFor('onboardStatusDrained')}\n${sourceFor('onboardStatusComplete')}\nreturn onboardStatusComplete;`
+  )();
+  return predicate(status);
+}
+
 test('POST /onboard/drain-queue records status and returns without owning drain loop', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-'));
   const outDir = path.join(tmpDir, 'bench', 'onboard', path.basename(tmpDir));
@@ -97,6 +117,74 @@ test('GET /onboard/drain-queue recovers status from queue files after in-memory 
     assert.equal(sent[0].payload.status.remaining, 0);
     assert.equal(sent[0].payload.status.done, true);
     assert.equal(sent[0].payload.status.injected, true);
+  } finally {
+    if (previousJobs === undefined) delete global.__drainJobs;
+    else global.__drainJobs = previousJobs;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('persisted background injection failure overrides stale POST state and blocks dashboard completion', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-inject-failure-'));
+  const outDir = path.join(tmpDir, 'bench', 'onboard', path.basename(tmpDir));
+  const repo = tmpDir;
+  const sent = [];
+  const previousJobs = global.__drainJobs;
+  delete global.__drainJobs;
+
+  try {
+    writeQueue(outDir, 2, 2, [
+      { title: 'Previously injected', summary: 'Already live', kind: 'decision' },
+      { title: 'Newly learned', summary: 'Injection will fail', kind: 'gotcha' },
+    ]);
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept: [], rejected: [] }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo,
+      outDir,
+      autoInject: true,
+      injected: true,
+      injectedKept: 1,
+    }));
+
+    const route = onboardRoute(makeCtx({ repo, outDir, autoInject: true }, sent, () => {}));
+    await route('/onboard/drain-queue', 'POST', {}, {}, new URL('http://localhost/onboard/drain-queue'));
+    assert.equal(sent[0].status, 200);
+    assert.equal(sent[0].payload.status.injected, false, 'one newly kept note still needs injection');
+    assert.equal(sent[0].payload.status.done, false);
+
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo,
+      outDir,
+      autoInject: true,
+      injecting: false,
+      injected: true,
+      injectedKept: 1,
+      error: 'inject exited 1',
+    }));
+    const statusUrl = new URL(`http://localhost/onboard/drain-queue?repo=${encodeURIComponent(repo)}&outDir=${encodeURIComponent(outDir)}`);
+    await route('/onboard/drain-queue', 'GET', {}, {}, statusUrl);
+
+    const failed = sent[1].payload.status;
+    assert.equal(failed.error, 'inject exited 1');
+    assert.equal(failed.injected, false);
+    assert.equal(failed.done, true, 'the failed attempt is terminal even though it is not successful');
+    assert.equal(dashboardStatusComplete(failed), false, 'a terminal failure must not latch onboarding as complete');
+
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo,
+      outDir,
+      autoInject: true,
+      injecting: false,
+      injected: true,
+      injectedKept: 2,
+      error: null,
+    }));
+    await route('/onboard/drain-queue', 'GET', {}, {}, statusUrl);
+    const recovered = sent[2].payload.status;
+    assert.equal(recovered.error, null);
+    assert.equal(recovered.injected, true);
+    assert.equal(recovered.done, true);
+    assert.equal(dashboardStatusComplete(recovered), true, 'a later successful injection may complete onboarding');
   } finally {
     if (previousJobs === undefined) delete global.__drainJobs;
     else global.__drainJobs = previousJobs;

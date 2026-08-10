@@ -806,13 +806,16 @@ async function injectDocumentStructure(inDir, workspace, httpRequest = request) 
 // ---- --enqueue: assemble all candidates and write queue file (no LLM) ----------------------
 function enqueue(inDir, outDir) {
   let candidates = gatherCandidates(inDir);
+  fs.mkdirSync(outDir, { recursive: true });
   if (!candidates.length) {
-    console.error(`No mined candidates in ${inDir}. Run scripts/onboard-mine-*.js --repo <abs> first.`);
-    process.exit(1);
+    const queue = { total: 0, cursor: 0, kept: [], rejected: [], pending: [] };
+    writeJSONAtomic(queueFilePath(outDir), queue);
+    writeJSONAtomic(path.join(outDir, 'onboard-notes.json'), { kept: [], rejected: [] });
+    console.error(`[learn] enqueue: no mined candidates in ${inDir}; wrote a completed empty queue.`);
+    return;
   }
   // Sort by priority (config > asset > doc > git > struct). No cap at enqueue time.
   candidates = sortByPriority(candidates);
-  fs.mkdirSync(outDir, { recursive: true });
   const queue = { total: candidates.length, cursor: 0, kept: [], rejected: [], pending: candidates };
   writeJSONAtomic(queueFilePath(outDir), queue);
   console.error(`[learn] enqueue: ${candidates.length} candidates written to ${queueFilePath(outDir)}`);

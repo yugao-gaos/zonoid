@@ -8319,7 +8319,8 @@ function completeOnboardLearning() {
 }
 
 function onboardStatusComplete(s) {
-  return !!(s && (onboardStatusDrained(s) || (s.done === true && (s.injected || (!s.autoInject && s.needsReview === false)))));
+  if (!s || s.error) return false;
+  return !!((s.noCandidates === true && s.done === true) || onboardStatusDrained(s) || (s.done === true && (s.injected || (!s.autoInject && s.needsReview === false))));
 }
 
 function onboardStatusDrained(s) {
@@ -8426,6 +8427,12 @@ function updateOnboardFromStatus(s) {
   }
   const landing = document.getElementById('onboard-landing');
   if (landing) landing.dataset.draining = '';
+  if (s.noCandidates === true) {
+    setOnboardStage('complete');
+    setOnboardStatus('No onboarding candidates were found; opening dashboard...');
+    setTimeout(completeOnboardLearning, 800);
+    return true;
+  }
   if (s.injected) {
     setOnboardStage('complete');
     setOnboardStatus('Injected. Refreshing graph...');
