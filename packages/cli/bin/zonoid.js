@@ -1806,9 +1806,17 @@ async function init(opts = {}) {
 
   section('5. Daemon');
   if (opts.service) installService();
-  await checkDaemon();
-  const registeredRepo = await registerWorkspace(cwd, opts.workspace);
-  if (registeredRepo) await startWorkspaceOnboarding(registeredRepo);
+  const daemonDeps = opts.daemonDeps || {};
+  const daemonReady = await checkDaemon(daemonDeps);
+  if (!daemonReady) {
+    const port = daemonDeps.port || ORCH_PORT;
+    throw new Error(
+      `Initialization aborted: no verified Zonoid daemon is ready on localhost:${port}. ` +
+      'Workspace registration and project onboarding were not attempted.'
+    );
+  }
+  const registeredRepo = await registerWorkspace(cwd, opts.workspace, daemonDeps);
+  if (registeredRepo) await startWorkspaceOnboarding(registeredRepo, daemonDeps);
 
   section('6. Graph auto-commit hook');
   checkGraphAutocommitHook(cwd, { enable: opts.enableGraphAutocommit });
@@ -1942,6 +1950,7 @@ if (require.main === module) {
     prePushTestHookScript,
     checkPrePushTestHook,
     parseOnboardArgs,
+    init,
     checkDaemon,
     registerWorkspace,
     postDaemonJson,
