@@ -1516,6 +1516,75 @@ test('route and headless discovery quarantine invalid publication journals and r
   }
 });
 
+test('invalid publication quarantine stays fail-closed across every queue/status/journal fault', () => {
+  const boundaries = [
+    'invalid_queue_quarantine',
+    'invalid_status_temp',
+    'invalid_status_commit',
+    'invalid_journal_quarantine',
+  ];
+  for (const boundary of boundaries) {
+    const hd = freshModule();
+    const onboardState = require('../lib/onboard-state');
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), `hd-invalid-publication-${boundary}-`));
+    const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+    const queueFile = path.join(outDir, 'onboard-queue.json');
+    const statusFile = path.join(outDir, 'onboard-drain-status.json');
+    const journal = path.join(outDir, 'onboard-publication-intent.json');
+    const retryGeneration = `generation-reprepare-${boundary}`;
+    try {
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.writeFileSync(queueFile, JSON.stringify({
+        generation: `generation-untrusted-${boundary}`,
+        total: 1,
+        cursor: 0,
+        kept: [],
+        rejected: [],
+        pending: [{ title: 'untrusted' }],
+      }));
+      fs.writeFileSync(statusFile, JSON.stringify({
+        repo,
+        outDir,
+        preparationState: 'running',
+        preparationGeneration: retryGeneration,
+        preparationOwner: 'dead-owner',
+        preparationPid: 99999999,
+        preparationLeaseExpiresAt: Date.now() - 1,
+        queueGeneration: 'generation-before-invalid-journal',
+        injectionGeneration: 'generation-before-invalid-journal',
+      }));
+      fs.writeFileSync(journal, JSON.stringify({ version: 1, generation: 'shallow-untrusted' }));
+
+      const injected = onboardState.reconcileOnboardPublication(outDir, {
+        onBoundary(name) {
+          if (name === boundary) throw Object.assign(new Error(`injected ${boundary}`), { code: 'EIO' });
+        },
+      });
+      assert.equal(injected.ok, false, boundary);
+      assert.equal(fs.existsSync(journal), true,
+        `${boundary}: canonical poison journal must remain the discovery fence`);
+      if (boundary === 'invalid_queue_quarantine') {
+        assert.equal(JSON.parse(fs.readFileSync(queueFile, 'utf8')).generation,
+          `generation-untrusted-${boundary}`);
+      }
+
+      // A later headless/daemon discovery pass retries reconciliation before queue discovery. It may
+      // expose only the safe preparation generation, never the untrusted canonical queue generation.
+      const due = hd.findPendingLearnerQueues(repo);
+      assert.equal(due.length, 1, boundary);
+      assert.equal(due[0].preparationDue, true, boundary);
+      assert.equal(due[0].generation, retryGeneration, boundary);
+      assert.equal(fs.existsSync(queueFile), false, boundary);
+      assert.equal(fs.existsSync(journal), false, boundary);
+      assert.deepEqual(fs.readdirSync(outDir).filter((name) => (
+        /^onboard-drain-status\.json\.invalid-\d+-[a-f0-9]+\.tmp$/.test(name)
+      )), [], boundary);
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  }
+});
+
 test('registered headless reconciliation removes malformed journals without blocking later discovery', () => {
   const hd = freshModule();
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-publication-invalid-registered-'));
