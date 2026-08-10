@@ -18,7 +18,7 @@ const path = require('path');
 const { defaultOnboardOutDir } = require('../lib/onboard-paths');
 
 const SKIP_DIRS = new Set([
-  'node_modules', 'worktrees', '.git', 'dist', 'build', 'coverage',
+  'node_modules', 'worktrees', '.git', '.zonoid', 'dist', 'build', 'coverage',
   'vendor', '.next', 'out', 'tmp', '__pycache__',
 ]);
 // Test/bench files are real modules but rarely the "backbone"; we still index them but

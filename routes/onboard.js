@@ -1,7 +1,11 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { defaultOnboardOutDir } = require('../lib/onboard-paths');
+const {
+  defaultOnboardOutDir,
+  onboardRuntimeRoot,
+  ensureOnboardRuntimeIgnored,
+} = require('../lib/onboard-paths');
 
 const DRAIN_STATUS_FILE = 'onboard-drain-status.json';
 const DEFAULT_DRAIN_BATCH_SIZE = 20;
@@ -91,7 +95,8 @@ function buildDrainJob(repo, outDir, patch = {}) {
   // The headless learner persists progress independently of the route process. A cached POST job
   // is only a fallback; it must never overwrite a newer on-disk injection result or error.
   const meta = { ...patch, ...readDrainMeta(outDir) };
-  const qs = queueStatus(outDir) || {};
+  const persistedQueue = queueStatus(outDir);
+  const qs = persistedQueue || {};
   const autoInject = meta.autoInject !== false;
   const drainDone = qs.drainDone === true;
   const noCandidates = drainDone && qs.total === 0;
@@ -103,6 +108,10 @@ function buildDrainJob(repo, outDir, patch = {}) {
   const injected = meta.injected === true && injectedKept >= kept;
   const processed = qs.processed || meta.processed || 0;
   const visualProcessed = Math.max(processed, qs.visualProcessed || meta.visualProcessed || 0);
+  const preparationState = persistedQueue && meta.preparationForce !== true
+    ? 'ready'
+    : (meta.preparationState || (persistedQueue ? 'ready' : 'idle'));
+  const preparing = preparationState === 'pending' || preparationState === 'running';
   return {
     repo,
     outDir,
@@ -116,11 +125,15 @@ function buildDrainJob(repo, outDir, patch = {}) {
     staleInflight: qs.staleInflight || 0,
     inflightRanges: Array.isArray(qs.inflightRanges) ? qs.inflightRanges : [],
     injectedKept,
-    done: drainDone && (noCandidates || !autoInject || injected || !!error),
+    done: (!!error && !persistedQueue) || (drainDone && (noCandidates || !autoInject || injected || !!error)),
     error,
     autoInject,
     injected,
     injecting: meta.injecting === true,
+    preparing,
+    preparationState,
+    preparationStage: meta.preparationStage || null,
+    preparationAttempts: Math.max(0, Number(meta.preparationAttempts) || 0),
     noCandidates,
     needsReview: drainDone && !noCandidates && !autoInject && !injected,
   };
@@ -161,17 +174,53 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       });
       return true;
     }
-    const { spawnSync } = require('child_process');
-    const SCRIPTS = path.join(__dirname, '..', 'scripts');
-    for (const s of ['onboard-mine-structure.js', 'onboard-mine-git.js', 'onboard-mine-docs.js', 'onboard-mine-assets.js', 'onboard-mine-config.js']) {
-      spawnSync(process.execPath, [path.join(SCRIPTS, s), '--repo', repo, '--out', outDir], { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
+    if (!b.force && sameRepo && ['pending', 'running'].includes(existingMeta.preparationState)) {
+      const job = buildDrainJob(repo, outDir);
+      send(res, 200, {
+        ok: true,
+        total: job.total,
+        remaining: job.remaining,
+        outDir,
+        reused: true,
+        preparing: true,
+        preparationState: job.preparationState,
+      });
+      return true;
     }
-    const enqR = spawnSync(process.execPath, [path.join(SCRIPTS, 'onboard-learn.js'), '--repo', repo, '--in', outDir, '--enqueue'], { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
-    if (enqR.status !== 0) { send(res, 500, { ok: false, error: `enqueue failed (exit ${enqR.status})` }); return true; }
-    const statusR = spawnSync(process.execPath, [path.join(SCRIPTS, 'onboard-learn.js'), '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: path.join(__dirname, '..'), encoding: 'utf8', windowsHide: true });
-    let status = null;
-    try { status = JSON.parse(statusR.stdout || ''); } catch { /* ignore */ }
-    send(res, 200, { ok: true, total: status && status.total, remaining: status && status.remaining, outDir }); return true;
+
+    try {
+      const resolvedOutDir = path.resolve(outDir);
+      const runtimeRoot = path.resolve(onboardRuntimeRoot(repo));
+      if (resolvedOutDir === runtimeRoot || resolvedOutDir.startsWith(runtimeRoot + path.sep)) {
+        ensureOnboardRuntimeIgnored(repo);
+      }
+      writeDrainMeta(outDir, {
+        repo,
+        outDir,
+        preparationState: 'pending',
+        preparationStage: null,
+        preparationRequestedAt: new Date().toISOString(),
+        preparationForce: b.force === true,
+        preparationPid: null,
+        preparationLeaseExpiresAt: null,
+        injecting: false,
+        error: null,
+      });
+    } catch (err) {
+      send(res, 500, { ok: false, error: `could not persist onboarding request: ${err && err.message ? err.message : err}` });
+      return true;
+    }
+    if (notifyChange) notifyChange();
+    send(res, 200, {
+      ok: true,
+      total: 0,
+      remaining: 0,
+      outDir,
+      queued: true,
+      preparing: true,
+      preparationState: 'pending',
+    });
+    return true;
   }
 
   if (!global.__drainJobs) global.__drainJobs = new Map();
@@ -190,8 +239,19 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
     }
     const status = queueStatus(outDir);
-    if (!status) { send(res, 404, { ok: false, error: 'queue not found for this repo+outDir' }); return true; }
-    writeDrainMeta(outDir, { repo, outDir, batchSize: batchSize || DEFAULT_DRAIN_BATCH_SIZE, autoInject, injecting: false, error: null });
+    const meta = readDrainMeta(outDir);
+    const preparationKnown = ['pending', 'running', 'failed', 'ready'].includes(meta.preparationState);
+    if (!status && !preparationKnown) { send(res, 404, { ok: false, error: 'queue not found for this repo+outDir' }); return true; }
+    writeDrainMeta(outDir, {
+      repo,
+      outDir,
+      batchSize: batchSize || DEFAULT_DRAIN_BATCH_SIZE,
+      autoInject,
+      injecting: false,
+      // A failed preparation is terminal until /onboard/enqueue explicitly rearms it. Merely
+      // polling/arming the drain must not erase the persisted failure and strand an idle queue.
+      ...(status || meta.preparationState !== 'failed' ? { error: null } : {}),
+    });
     const job = buildDrainJob(repo, outDir);
     drainJobs.set(jobKey, job);
     if (notifyChange) notifyChange();
@@ -229,7 +289,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const outDir = u.searchParams.get('outDir');
     if (!repo || !outDir) { send(res, 400, { ok: false, error: 'repo and outDir query params required' }); return true; }
     const jobKey = `${repo}::${outDir}`;
-    if (!queueStatus(outDir) && (!global.__drainJobs || !global.__drainJobs.has(jobKey))) {
+    const meta = readDrainMeta(outDir);
+    const preparationKnown = ['pending', 'running', 'failed', 'ready'].includes(meta.preparationState);
+    if (!queueStatus(outDir) && !preparationKnown && (!global.__drainJobs || !global.__drainJobs.has(jobKey))) {
       send(res, 404, { ok: false, error: 'no drain job found for this repo+outDir' }); return true;
     }
     const job = buildDrainJob(repo, outDir, global.__drainJobs && global.__drainJobs.get(jobKey));
@@ -241,14 +303,15 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const { repo, outDir, batchSize } = b;
     if (!repo || !outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
-    const { spawnSync } = require('child_process');
     const learnScript = path.join(__dirname, '..', 'scripts', 'onboard-learn.js');
-    const drainR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--drain', '--batch', String(batchSize || DEFAULT_DRAIN_BATCH_SIZE)], { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
-    if (drainR.status !== 0) { send(res, 500, { ok: false, error: `drain failed (exit ${drainR.status})` }); return true; }
-    const statusR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: path.join(__dirname, '..'), encoding: 'utf8', windowsHide: true });
-    let status = null;
-    try { status = JSON.parse(statusR.stdout || ''); } catch { /* ignore */ }
-    send(res, 200, { ok: true, status }); return true;
+    try {
+      await runNode([learnScript, '--repo', repo, '--in', outDir, '--drain', '--batch', String(batchSize || DEFAULT_DRAIN_BATCH_SIZE)]);
+    } catch (err) {
+      writeDrainMeta(outDir, { repo, outDir, error: `drain failed: ${err && err.message ? err.message : err}` });
+      send(res, 500, { ok: false, error: `drain failed: ${err && err.message ? err.message : err}` });
+      return true;
+    }
+    send(res, 200, { ok: true, status: queueStatus(outDir) }); return true;
   }
 
   return false;

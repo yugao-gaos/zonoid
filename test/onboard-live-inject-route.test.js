@@ -275,3 +275,84 @@ test('POST /onboard/enqueue defaults to ignored .zonoid onboarding outDir', asyn
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
+
+test('POST /onboard/enqueue persists preparation before returning and duplicate requests reuse it', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-prepare-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const sent = [];
+  let notifyCount = 0;
+
+  try {
+    const route = onboardRoute(makeCtx({ repo }, sent, () => { notifyCount++; }));
+    const startedAt = Date.now();
+    await route('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
+    assert.ok(Date.now() - startedAt < 1000, 'enqueue should persist intent, not wait for miners');
+    assert.equal(sent[0].status, 200);
+    assert.equal(sent[0].payload.queued, true);
+    assert.equal(sent[0].payload.preparationState, 'pending');
+    assert.equal(fs.existsSync(path.join(outDir, 'onboard-queue.json')), false);
+
+    const before = fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8');
+    const firstMeta = JSON.parse(before);
+    assert.equal(firstMeta.repo, repo);
+    assert.equal(firstMeta.preparationState, 'pending');
+    assert.ok(firstMeta.preparationRequestedAt);
+
+    await route('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
+    assert.equal(sent[1].status, 200);
+    assert.equal(sent[1].payload.reused, true);
+    assert.equal(sent[1].payload.preparing, true);
+    assert.equal(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'), before,
+      'duplicate enqueue must not restart or rewrite an in-flight persisted request');
+    assert.equal(notifyCount, 1, 'only the first enqueue needs to wake the headless runner');
+
+    const drain = onboardRoute(makeCtx({ repo, outDir, autoInject: true }, sent, () => { notifyCount++; }));
+    await drain('/onboard/drain-queue', 'POST', {}, {}, new URL('http://localhost/onboard/drain-queue'));
+    assert.equal(sent[2].status, 200);
+    assert.equal(sent[2].payload.status.preparing, true);
+    assert.equal(sent[2].payload.status.preparationState, 'pending');
+
+    delete global.__drainJobs;
+    const statusRoute = onboardRoute(makeCtx({}, sent, () => {}));
+    const statusUrl = new URL(`http://localhost/onboard/drain-queue?repo=${encodeURIComponent(repo)}&outDir=${encodeURIComponent(outDir)}`);
+    await statusRoute('/onboard/drain-queue', 'GET', {}, {}, statusUrl);
+    assert.equal(sent[3].status, 200, 'persisted preparation must survive in-memory job loss');
+    assert.equal(sent[3].payload.status.preparationState, 'pending');
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('failed preparation remains visible until enqueue explicitly rearms it', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-prepare-failed-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const sent = [];
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo,
+      outDir,
+      preparationState: 'failed',
+      preparationAttempts: 1,
+      error: 'onboarding preparation (onboard-mine-git.js) exited 7',
+    }));
+
+    const drain = onboardRoute(makeCtx({ repo, outDir, autoInject: true }, sent, () => {}));
+    await drain('/onboard/drain-queue', 'POST', {}, {}, new URL('http://localhost/onboard/drain-queue'));
+    assert.equal(sent[0].status, 200);
+    assert.match(sent[0].payload.status.error, /exited 7/);
+    assert.equal(sent[0].payload.status.done, true);
+    assert.equal(sent[0].payload.status.preparationState, 'failed');
+
+    const enqueue = onboardRoute(makeCtx({ repo }, sent, () => {}));
+    await enqueue('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
+    assert.equal(sent[1].status, 200);
+    assert.equal(sent[1].payload.preparationState, 'pending');
+    const rearmed = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(rearmed.preparationState, 'pending');
+    assert.equal(rearmed.error, null);
+    assert.equal(rearmed.preparationAttempts, 1, 'retry count advances only when a worker actually starts');
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});

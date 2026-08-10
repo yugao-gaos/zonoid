@@ -8419,6 +8419,12 @@ function updateOnboardFromStatus(s) {
     setOnboardStatus(s.error, true);
     return true;
   }
+  if (s.preparing || s.preparationState === 'pending' || s.preparationState === 'running') {
+    setOnboardStage('mine');
+    const stage = s.preparationStage ? ` (${s.preparationStage})` : '';
+    setOnboardStatus(`Preparing project evidence${stage}...`);
+    return false;
+  }
   if (!s.done && !drained) {
     setOnboardStage('validate');
     const live = inflight ? `; learning ${inflight} live candidates now` : '';

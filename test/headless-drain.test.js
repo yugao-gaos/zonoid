@@ -747,6 +747,132 @@ test('findPendingLearnerRepos returns empty when no queue file exists', () => {
   }
 });
 
+test('pending and stale-running preparation requests are restart-discoverable without a queue', () => {
+  const hd = freshModule();
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-prepare-discovery-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    const statusFile = path.join(outDir, 'onboard-drain-status.json');
+    fs.writeFileSync(statusFile, JSON.stringify({ repo, outDir, preparationState: 'pending' }));
+    let queues = hd.findPendingLearnerQueues(repo);
+    assert.equal(queues.length, 1);
+    assert.equal(queues[0].preparationDue, true);
+    assert.equal(queues[0].remaining, 0);
+
+    fs.writeFileSync(statusFile, JSON.stringify({
+      repo,
+      outDir,
+      preparationState: 'running',
+      preparationPid: process.pid,
+      preparationLeaseExpiresAt: Date.now() + 60000,
+    }));
+    assert.equal(hd.findPendingLearnerQueues(repo).length, 0,
+      'a second daemon must not duplicate work owned by a live preparation lease');
+
+    fs.writeFileSync(statusFile, JSON.stringify({
+      repo,
+      outDir,
+      preparationState: 'running',
+      preparationPid: 99999999,
+      preparationLeaseExpiresAt: Date.now() - 1,
+    }));
+    queues = hd.findPendingLearnerQueues(repo);
+    assert.equal(queues.length, 1);
+    assert.equal(queues[0].preparationDue, true, 'dead/expired owners must resume after restart');
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('preparation miner failure is persisted truthfully and does not publish a queue', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-prepare-failure-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  fs.mkdirSync(outDir, { recursive: true });
+  fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+    repo,
+    outDir,
+    preparationState: 'pending',
+  }));
+  const { hd, calls, restore } = freshModuleWithMockedSpawn(() => makeFakeChild({
+    code: 7,
+    stderr: 'simulated miner failure\n',
+  }));
+  try {
+    const result = await hd.runDueDrains(
+      { workspace: repo, registeredWorkspaces: [repo] },
+      noopHttp(),
+      {
+        ...judgeDeps({ depth: 0, eagerNodes: [] }),
+        ...labelDeps({ journal: [], labeledKeys: [] }),
+        ...mockBackendDeps().deps,
+      }
+    );
+    assert.equal(calls.length, 1, 'preparation stops on the first failed miner');
+    assert.match(calls[0].args[0], /onboard-mine-structure\.js$/);
+    assert.equal(result.drains[0].operation, 'preparation');
+    assert.equal(result.drains[0].exitCode, 7);
+    const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.preparationState, 'failed');
+    assert.equal(status.preparationStage, 'onboard-mine-structure.js');
+    assert.equal(status.preparationAttempts, 1);
+    assert.match(status.error, /simulated miner failure/);
+    assert.equal(fs.existsSync(path.join(outDir, 'onboard-queue.json')), false);
+    assert.equal(hd.findPendingLearnerQueues(repo).length, 0,
+      'a terminal failure waits for explicit enqueue rearm instead of hot-looping');
+  } finally {
+    restore();
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('preparation timeout is persisted as an error and releases its worker slot', async () => {
+  const savedTimeout = process.env.HEADLESS_DRAIN_PREPARATION_TIMEOUT_MS;
+  process.env.HEADLESS_DRAIN_PREPARATION_TIMEOUT_MS = '100';
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-prepare-timeout-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  fs.mkdirSync(outDir, { recursive: true });
+  fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+    repo,
+    outDir,
+    preparationState: 'pending',
+  }));
+  const { hd, calls, restore } = freshModuleWithMockedSpawn(() => {
+    const child = makeFakeChild({ never: true });
+    // runDrain intentionally unrefs its timeout. A real child process keeps Node alive while the
+    // timer runs; mirror that handle here so node:test does not cancel the pending Promise early.
+    const hold = setInterval(() => {}, 1000);
+    const kill = child.kill;
+    child.kill = () => { clearInterval(hold); return kill(); };
+    return child;
+  });
+  try {
+    const result = await hd.runDueDrains(
+      { workspace: repo, registeredWorkspaces: [repo] },
+      noopHttp(),
+      {
+        ...judgeDeps({ depth: 0, eagerNodes: [] }),
+        ...labelDeps({ journal: [], labeledKeys: [] }),
+        ...mockBackendDeps().deps,
+      }
+    );
+    assert.equal(calls.length, 1);
+    assert.equal(result.drains[0].timedOut, true);
+    const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.preparationState, 'failed');
+    assert.match(status.error, /timed out/);
+    assert.match(status.lastError, /timed out/);
+    assert.equal(status.preparationPid, null);
+    assert.equal(hd._governor.concurrentRunning, 0, 'timeout must release the process-local slot');
+    assert.equal(fs.existsSync(path.join(outDir, 'onboard-queue.json')), false);
+  } finally {
+    restore();
+    fs.rmSync(repo, { recursive: true, force: true });
+    if (savedTimeout === undefined) delete process.env.HEADLESS_DRAIN_PREPARATION_TIMEOUT_MS;
+    else process.env.HEADLESS_DRAIN_PREPARATION_TIMEOUT_MS = savedTimeout;
+  }
+});
+
 test('runDueDrains with mocked runDrain: governor is incremented and decremented correctly', async () => {
   const savedMaxIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
   process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '10';
