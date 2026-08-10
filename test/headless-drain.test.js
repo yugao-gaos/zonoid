@@ -654,6 +654,118 @@ test('findPendingLearnerQueues ignores bench/onboard queues without route metada
   }
 });
 
+test('headless discovery ignores unsupported custom and symlink onboarding roots', () => {
+  const hd = freshModule();
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-path-confinement-'));
+  const repo = path.join(container, 'repo');
+  const custom = path.join(repo, '.zonoid', 'onboard', 'custom');
+  const linkedOutside = path.join(container, 'linked-outside');
+  try {
+    fs.mkdirSync(custom, { recursive: true });
+    fs.writeFileSync(path.join(custom, 'onboard-queue.json'), JSON.stringify({
+      total: 1, cursor: 0, kept: [], rejected: [], pending: [{ title: 'custom' }],
+    }));
+    fs.writeFileSync(path.join(custom, 'onboard-drain-status.json'), JSON.stringify({ repo, outDir: custom }));
+    assert.equal(hd.findPendingLearnerQueues(repo).length, 0,
+      'a status file must not make an unsupported in-repo root executable');
+
+    fs.mkdirSync(linkedOutside, { recursive: true });
+    fs.rmSync(path.join(repo, '.zonoid'), { recursive: true, force: true });
+    fs.symlinkSync(linkedOutside, path.join(repo, '.zonoid'));
+    const symlinkedDefault = path.join(linkedOutside, 'onboard', path.basename(repo));
+    fs.mkdirSync(symlinkedDefault, { recursive: true });
+    fs.writeFileSync(path.join(symlinkedDefault, 'onboard-queue.json'), JSON.stringify({
+      total: 1, cursor: 0, kept: [], rejected: [], pending: [{ title: 'escape' }],
+    }));
+    assert.equal(hd.findPendingLearnerQueues(repo).length, 0,
+      'a supported lexical root that escapes through a symlink must not be discovered');
+  } finally {
+    fs.rmSync(container, { recursive: true, force: true });
+  }
+});
+
+test('headless zero-kept finalization persists the shared not-needed terminal state', () => {
+  const hd = freshModule();
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-zero-kept-terminal-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      generation: 'generation-zero-kept', total: 2, cursor: 2, kept: [], rejected: [], pending: [],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo, outDir, injectionGeneration: 'generation-zero-kept', injectionState: 'pending',
+    }));
+    assert.equal(hd._persistNoInjectionNeeded(repo, outDir), true);
+    const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.injectionState, 'not_needed');
+    assert.equal(status.injectionGeneration, 'generation-zero-kept');
+    assert.equal(status.injected, false);
+    assert.equal(status.injectedKept, 0);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('preparation scavenging removes only old inactive staging below a validated outDir', () => {
+  const savedAge = process.env.HEADLESS_DRAIN_PREPARATION_SCAVENGE_AGE_MS;
+  process.env.HEADLESS_DRAIN_PREPARATION_SCAVENGE_AGE_MS = '1000';
+  const hd = freshModule();
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-prepare-scavenge-'));
+  const repo = path.join(container, 'repo');
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  const outside = path.join(container, '.prepare-outside');
+  const now = Date.now();
+  const makeStage = (name, marker) => {
+    const dir = path.join(outDir, name);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, '.onboard-preparation.json'), JSON.stringify(marker));
+    const old = new Date(now - 10000);
+    fs.utimesSync(dir, old, old);
+    return dir;
+  };
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.mkdirSync(outside, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo, outDir, preparationState: 'running',
+      preparationGeneration: 'generation-current', preparationOwner: 'owner-current',
+    }));
+    const stale = makeStage('.prepare-99999991-stale', {
+      generation: 'generation-old', owner: 'owner-old', pid: 99999991, createdAt: now - 10000,
+    });
+    const currentGeneration = makeStage('.prepare-99999992-current-generation', {
+      generation: 'generation-current', owner: 'owner-old-2', pid: 99999992, createdAt: now - 10000,
+    });
+    const currentOwner = makeStage('.prepare-99999993-current-owner', {
+      generation: 'generation-old-3', owner: 'owner-current', pid: 99999993, createdAt: now - 10000,
+    });
+    const live = makeStage(`.prepare-${process.pid}-live`, {
+      generation: 'generation-live', owner: 'owner-live', pid: process.pid,
+      createdAt: now - 10000, leaseExpiresAt: now + 60000,
+    });
+    const result = hd._scavengePreparationDirs(repo, outDir, now);
+    assert.deepEqual(result.removed, [path.basename(stale)]);
+    assert.equal(fs.existsSync(stale), false);
+    assert.equal(fs.existsSync(currentGeneration), true);
+    assert.equal(fs.existsSync(currentOwner), true);
+    assert.equal(fs.existsSync(live), true);
+    assert.equal(fs.existsSync(outside), true, 'scavenging never crosses the validated outDir');
+
+    const custom = path.join(repo, '.zonoid', 'onboard', 'custom');
+    fs.mkdirSync(custom, { recursive: true });
+    const customStage = path.join(custom, '.prepare-99999994-old');
+    fs.mkdirSync(customStage, { recursive: true });
+    const rejected = hd._scavengePreparationDirs(repo, custom, now);
+    assert.deepEqual(rejected.removed, []);
+    assert.equal(fs.existsSync(customStage), true);
+  } finally {
+    fs.rmSync(container, { recursive: true, force: true });
+    if (savedAge === undefined) delete process.env.HEADLESS_DRAIN_PREPARATION_SCAVENGE_AGE_MS;
+    else process.env.HEADLESS_DRAIN_PREPARATION_SCAVENGE_AGE_MS = savedAge;
+  }
+});
+
 test('findPendingLearnerQueues treats completed auto-inject queue as due until injected', () => {
   const hd = freshModule();
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-inject-'));
@@ -837,6 +949,7 @@ test('old injection completion cannot overwrite a force replacement request', as
       readBody: async () => ({ repo, outDir, force: true }),
       send: (_res, status, payload) => sent.push({ status, payload }),
       notifyChange: () => {},
+      registeredWorkspaces: () => new Set([repo]),
     });
     await route('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
     assert.equal(sent[0].status, 200);

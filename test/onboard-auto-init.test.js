@@ -178,6 +178,7 @@ function routePost(calls) {
       readBody: async () => body,
       send: (_res, status, payload) => { response = { status, payload }; },
       notifyChange: () => {},
+      registeredWorkspaces: () => new Set([body.repo]),
     });
     const handled = await handler(route, 'POST', {}, {}, new URL(`http://localhost${route}`));
     assert.equal(handled, true);
@@ -562,6 +563,7 @@ test('daemon boot resumes a persisted preparation request created before the dae
       readBody: async () => ({ repo }),
       send: (_res, status, payload) => { response = { status, payload }; },
       notifyChange: () => {},
+      registeredWorkspaces: () => new Set([repo]),
     });
     await handler('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
     assert.equal(response.status, 200);

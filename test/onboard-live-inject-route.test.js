@@ -10,7 +10,11 @@ const path = require('path');
 const { spawn } = require('child_process');
 
 const onboardRoute = require('../routes/onboard');
-const { defaultOnboardOutDir } = require('../lib/onboard-paths');
+const {
+  defaultOnboardOutDir,
+  legacyGraphOnboardOutDir,
+  legacyBenchOnboardOutDir,
+} = require('../lib/onboard-paths');
 
 function runNode(args, env) {
   return new Promise((resolve, reject) => {
@@ -35,11 +39,12 @@ function writeQueue(outDir, total, cursor, kept = [], generation) {
   }));
 }
 
-function makeCtx(body, sent, notify) {
+function makeCtx(body, sent, notify, registeredRepos) {
   return {
     readBody: async () => body,
     send: (_res, status, payload) => sent.push({ status, payload }),
     notifyChange: notify,
+    registeredWorkspaces: () => new Set(registeredRepos || (body && body.repo ? [body.repo] : [])),
   };
 }
 
@@ -62,6 +67,102 @@ function dashboardStatusComplete(status) {
   )();
   return predicate(status);
 }
+
+test('onboarding routes accept only the default and documented legacy roots of a registered repo', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-supported-roots-'));
+  const roots = [defaultOnboardOutDir(repo), legacyGraphOnboardOutDir(repo), legacyBenchOnboardOutDir(repo)];
+  try {
+    for (const outDir of roots) {
+      const sent = [];
+      const route = onboardRoute(makeCtx({ repo, outDir }, sent, () => {}, [repo]));
+      await route('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
+      assert.equal(sent[0].status, 200, `${outDir} should remain supported`);
+      assert.equal(sent[0].payload.outDir, outDir);
+      assert.equal(fs.existsSync(path.join(outDir, 'onboard-drain-status.json')), true);
+    }
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('onboarding rejects unregistered, custom, outside, traversal, and symlink output paths before creation', async () => {
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-path-reject-'));
+  const repo = path.join(container, 'repo');
+  const outside = path.join(container, 'outside', 'onboard');
+  fs.mkdirSync(repo, { recursive: true });
+  const customInside = path.join(repo, '.zonoid', 'onboard', 'custom');
+  const traversal = path.join(repo, '.zonoid', 'onboard', 'ghost') + `${path.sep}..${path.sep}${path.basename(repo)}`;
+  try {
+    const rejected = [customInside, outside, traversal];
+    for (const outDir of rejected) {
+      const sent = [];
+      const route = onboardRoute(makeCtx({ repo, outDir }, sent, () => {}, [repo]));
+      await route('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
+      assert.equal(sent[0].status, 400, `${outDir} must be rejected`);
+      assert.equal(fs.existsSync(outDir), false, 'a rejected target must never be created');
+    }
+
+    const unregisteredOut = defaultOnboardOutDir(repo);
+    const unregistered = [];
+    await onboardRoute(makeCtx({ repo }, unregistered, () => {}, []))(
+      '/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue')
+    );
+    assert.equal(unregistered[0].status, 403);
+    assert.equal(fs.existsSync(unregisteredOut), false);
+
+    const missingRepo = path.join(container, 'missing-repo');
+    const missing = [];
+    await onboardRoute(makeCtx({ repo: missingRepo }, missing, () => {}, [missingRepo]))(
+      '/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue')
+    );
+    assert.equal(missing[0].status, 400);
+    assert.equal(fs.existsSync(missingRepo), false, 'a missing registered path must not be created as a project');
+
+    const linkedOutside = path.join(container, 'linked-outside');
+    fs.mkdirSync(linkedOutside, { recursive: true });
+    fs.symlinkSync(linkedOutside, path.join(repo, '.zonoid'));
+    const symlinked = [];
+    await onboardRoute(makeCtx({ repo }, symlinked, () => {}, [repo]))(
+      '/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue')
+    );
+    assert.equal(symlinked[0].status, 400);
+    assert.match(symlinked[0].payload.error, /symlink/i);
+    assert.equal(fs.existsSync(path.join(linkedOutside, 'onboard')), false);
+  } finally {
+    fs.rmSync(container, { recursive: true, force: true });
+  }
+});
+
+test('every onboarding route validates the canonical repo and output before touching state', async () => {
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-all-path-gates-'));
+  const repo = path.join(container, 'repo');
+  const outDir = path.join(container, 'outside-state');
+  fs.mkdirSync(repo, { recursive: true });
+  const cases = [
+    { path: '/onboard/enqueue', method: 'POST', body: { repo, outDir } },
+    { path: '/onboard/drain-queue', method: 'POST', body: { repo, outDir } },
+    { path: '/onboard/inject', method: 'POST', body: { repo, outDir } },
+    { path: '/onboard/retry-inject', method: 'POST', body: { repo, outDir } },
+    { path: '/onboard/drain-next', method: 'POST', body: { repo, outDir } },
+  ];
+  try {
+    for (const item of cases) {
+      const sent = [];
+      const route = onboardRoute(makeCtx(item.body, sent, () => {}, [repo]));
+      await route(item.path, item.method, {}, {}, new URL(`http://localhost${item.path}`));
+      assert.equal(sent[0].status, 400, `${item.method} ${item.path} must reject the outside root`);
+      assert.equal(fs.existsSync(outDir), false);
+    }
+    const sent = [];
+    const route = onboardRoute(makeCtx({}, sent, () => {}, [repo]));
+    const url = new URL(`http://localhost/onboard/drain-queue?repo=${encodeURIComponent(repo)}&outDir=${encodeURIComponent(outDir)}`);
+    await route('/onboard/drain-queue', 'GET', {}, {}, url);
+    assert.equal(sent[0].status, 400);
+    assert.equal(fs.existsSync(outDir), false);
+  } finally {
+    fs.rmSync(container, { recursive: true, force: true });
+  }
+});
 
 test('POST /onboard/drain-queue records status and returns without owning drain loop', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-'));
@@ -120,7 +221,7 @@ test('GET /onboard/drain-queue recovers status from queue files after in-memory 
       autoInject: true,
       injected: true,
     }));
-    const route = onboardRoute(makeCtx({}, sent, () => {}));
+    const route = onboardRoute(makeCtx({}, sent, () => {}, [repo]));
     const url = new URL(`http://localhost/onboard/drain-queue?repo=${encodeURIComponent(repo)}&outDir=${encodeURIComponent(outDir)}`);
     const handled = await route('/onboard/drain-queue', 'GET', {}, {}, url);
 
@@ -130,7 +231,8 @@ test('GET /onboard/drain-queue recovers status from queue files after in-memory 
     assert.equal(sent[0].payload.status.processed, 4);
     assert.equal(sent[0].payload.status.remaining, 0);
     assert.equal(sent[0].payload.status.done, true);
-    assert.equal(sent[0].payload.status.injected, true);
+    assert.equal(sent[0].payload.status.injected, false);
+    assert.equal(sent[0].payload.status.injectionState, 'not_needed');
   } finally {
     if (previousJobs === undefined) delete global.__drainJobs;
     else global.__drainJobs = previousJobs;
@@ -218,7 +320,7 @@ test('pending or running injection never reuses a successful watermark to latch 
     ], generation);
     const statusFile = path.join(outDir, 'onboard-drain-status.json');
     const url = new URL(`http://localhost/onboard/drain-queue?repo=${encodeURIComponent(repo)}&outDir=${encodeURIComponent(outDir)}`);
-    const route = onboardRoute(makeCtx({}, sent, () => {}));
+    const route = onboardRoute(makeCtx({}, sent, () => {}, [repo]));
 
     for (const state of ['pending', 'running']) {
       fs.writeFileSync(statusFile, JSON.stringify({
@@ -260,7 +362,7 @@ test('an explicit zero injection watermark stays zero and requires injection', a
       injectionGeneration: generation,
       injectionState: 'succeeded',
     }));
-    const route = onboardRoute(makeCtx({}, sent, () => {}));
+    const route = onboardRoute(makeCtx({}, sent, () => {}, [repo]));
     const url = new URL(`http://localhost/onboard/drain-queue?repo=${encodeURIComponent(repo)}&outDir=${encodeURIComponent(outDir)}`);
     await route('/onboard/drain-queue', 'GET', {}, {}, url);
     const status = sent[0].payload.status;
@@ -300,7 +402,7 @@ test('force replacement allocates a fresh generation and invalidates the old inj
     assert.equal(meta.injectionState, 'idle');
 
     const url = new URL(`http://localhost/onboard/drain-queue?repo=${encodeURIComponent(repo)}&outDir=${encodeURIComponent(outDir)}`);
-    await onboardRoute(makeCtx({}, sent, () => {}))('/onboard/drain-queue', 'GET', {}, {}, url);
+    await onboardRoute(makeCtx({}, sent, () => {}, [repo]))('/onboard/drain-queue', 'GET', {}, {}, url);
     const status = sent[1].payload.status;
     assert.equal(status.preparing, true);
     assert.equal(status.injected, false);
@@ -457,13 +559,47 @@ test('explicit no-candidates queue remains a successful terminal onboarding stat
       injectionState: 'not_needed',
       injectedKept: 0,
     }));
-    const route = onboardRoute(makeCtx({}, sent, () => {}));
+    const route = onboardRoute(makeCtx({}, sent, () => {}, [repo]));
     const url = new URL(`http://localhost/onboard/drain-queue?repo=${encodeURIComponent(repo)}&outDir=${encodeURIComponent(outDir)}`);
     await route('/onboard/drain-queue', 'GET', {}, {}, url);
     const status = sent[0].payload.status;
     assert.equal(status.noCandidates, true);
     assert.equal(status.done, true);
     assert.equal(status.injectedKept, 0);
+    assert.equal(dashboardStatusComplete(status), true);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('drained zero-kept queues persist the same not-needed terminal state the dashboard completes', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-zero-kept-terminal-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const sent = [];
+  try {
+    writeQueue(outDir, 3, 3, [], 'generation-zero-kept');
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo,
+      outDir,
+      autoInject: true,
+      preparationState: 'ready',
+      injectionGeneration: 'generation-zero-kept',
+      injectionState: 'failed',
+      injectionError: 'arbitrary injector failure',
+      error: 'arbitrary injector failure',
+      injectedKept: 0,
+    }));
+    const route = onboardRoute(makeCtx({}, sent, () => {}, [repo]));
+    const url = new URL(`http://localhost/onboard/drain-queue?repo=${encodeURIComponent(repo)}&outDir=${encodeURIComponent(outDir)}`);
+    await route('/onboard/drain-queue', 'GET', {}, {}, url);
+    const status = sent[0].payload.status;
+    const persisted = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.noNotesToInject, true);
+    assert.equal(status.injectionState, 'not_needed');
+    assert.equal(status.done, true);
+    assert.equal(status.error, null);
+    assert.equal(persisted.injectionState, 'not_needed');
+    assert.equal(persisted.injectionGeneration, 'generation-zero-kept');
     assert.equal(dashboardStatusComplete(status), true);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
@@ -591,7 +727,7 @@ test('POST /onboard/enqueue persists preparation before returning and duplicate 
     assert.equal(sent[2].payload.status.preparationState, 'pending');
 
     delete global.__drainJobs;
-    const statusRoute = onboardRoute(makeCtx({}, sent, () => {}));
+    const statusRoute = onboardRoute(makeCtx({}, sent, () => {}, [repo]));
     const statusUrl = new URL(`http://localhost/onboard/drain-queue?repo=${encodeURIComponent(repo)}&outDir=${encodeURIComponent(outDir)}`);
     await statusRoute('/onboard/drain-queue', 'GET', {}, {}, statusUrl);
     assert.equal(sent[3].status, 200, 'persisted preparation must survive in-memory job loss');
@@ -630,6 +766,36 @@ test('failed preparation remains visible until enqueue explicitly rearms it', as
     assert.equal(rearmed.preparationState, 'pending');
     assert.equal(rearmed.error, null);
     assert.equal(rearmed.preparationAttempts, 1, 'retry count advances only when a worker actually starts');
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('explicit preparation rearm replaces a failed force generation instead of reusing its old queue', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-prepare-rearm-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const sent = [];
+  try {
+    writeQueue(outDir, 1, 1, [{ title: 'Old' }], 'generation-old');
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo,
+      outDir,
+      preparationGeneration: 'generation-failed',
+      preparationState: 'failed',
+      preparationForce: true,
+      preparationAttempts: 1,
+      error: 'project evidence miner failed',
+    }));
+    const route = onboardRoute(makeCtx({ repo, outDir, rearm: true }, sent, () => {}, [repo]));
+    await route('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
+    assert.equal(sent[0].status, 200);
+    assert.equal(sent[0].payload.queued, true);
+    assert.notEqual(sent[0].payload.reused, true);
+    const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.preparationState, 'pending');
+    assert.equal(status.preparationForce, true);
+    assert.notEqual(status.preparationGeneration, 'generation-failed');
+    assert.equal(status.error, null);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
