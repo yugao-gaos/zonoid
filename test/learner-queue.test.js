@@ -634,6 +634,25 @@ function readJSON(p) {
     swappedAfterExactUnlink && recoverySwapTimedOut
       && fs.readFileSync(replacementOwnerFile, 'utf8') === replacementOwnerBytes);
   fs.rmSync(lock, { recursive: true, force: true });
+
+  fs.mkdirSync(lock);
+  let removedRootAtHandoff = false;
+  const rootHandoffFs = new Proxy(fs, { get(target, key) {
+    if (key === 'mkdirSync') return (dirPath, ...args) => {
+      if (!removedRootAtHandoff && dirPath === held) {
+        removedRootAtHandoff = true;
+        target.rmdirSync(lock);
+      }
+      return target.mkdirSync(dirPath, ...args);
+    };
+    return target[key];
+  } });
+  let acquiredAfterRootHandoff = false;
+  learner.withQueueLock(qf, () => { acquiredAfterRootHandoff = true; }, {
+    fsImpl: rootHandoffFs, staleMs: 60000, waitMs: 100,
+  });
+  ok('contender retries when the empty root disappears before held creation',
+    removedRootAtHandoff && acquiredAfterRootHandoff && !fs.existsSync(lock));
 }
 
 // ---- TEST 8: failed reservation becomes retryable -------------------------
