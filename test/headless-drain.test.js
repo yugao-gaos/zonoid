@@ -1119,15 +1119,21 @@ test('headless injection claim preserves a live cross-process owner and takes ov
   }
 });
 
-test('shared injection lease makes live owners exclusive but expires live and dead pids deterministically', () => {
-  const { liveOnboardInjectionLease } = require('../lib/onboard-state');
+test('shared injection ownership survives lease expiry, distinguishes PID reuse, and releases on death', () => {
+  const { liveOnboardInjectionLease, processIncarnation } = require('../lib/onboard-state');
   const now = Date.now();
+  const identity = processIncarnation(process.pid);
+  assert.ok(identity, 'the current platform should expose a stable process-start identity');
   const base = {
     injectionState: 'running', injectionOwner: 'lease-owner', injectionPid: process.pid,
+    injectionProcessIdentity: identity,
   };
   assert.equal(liveOnboardInjectionLease({ ...base, injectionLeaseExpiresAt: now + 1000 }, now).live, true);
-  assert.equal(liveOnboardInjectionLease({ ...base, injectionLeaseExpiresAt: now - 1 }, now).live, false,
-    'an expired lease may be taken over even before its old process exits');
+  assert.equal(liveOnboardInjectionLease({ ...base, injectionLeaseExpiresAt: now - 1 }, now).live, true,
+    'an expired timestamp never replaces the exact still-running writer incarnation');
+  assert.equal(liveOnboardInjectionLease({ ...base, injectionLeaseExpiresAt: now - 1 }, now, {
+    processIncarnation: () => 'different-process-incarnation',
+  }).live, false, 'a reused PID does not inherit ownership from the old process incarnation');
   assert.equal(liveOnboardInjectionLease({
     ...base, injectionPid: 99999991, injectionLeaseExpiresAt: now + 1000,
   }, now).live, false, 'a dead owner releases its lease before the deadline');
@@ -1218,7 +1224,7 @@ test('partial injection crash advances only the confirmed current-generation rec
   }
 });
 
-test('force replacement waits for the live injection lease and old completion cannot overwrite it after expiry', async () => {
+test('force replacement waits past lease expiry until the writer incarnation is gone', async () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-injection-force-cas-'));
   const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
   let child;
@@ -1261,7 +1267,14 @@ test('force replacement waits for the live injection lease and old completion ca
     expired.injectionLeaseExpiresAt = Date.now() - 1;
     fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify(expired));
     await route('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
-    assert.equal(sent[1].status, 200);
+    assert.equal(sent[1].status, 409,
+      'the exact live writer stays authoritative after the advisory lease timestamp');
+
+    const reusedPid = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    reusedPid.injectionProcessIdentity = 'different-process-incarnation';
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify(reusedPid));
+    await route('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
+    assert.equal(sent[2].status, 200);
     const replacement = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
     assert.notEqual(replacement.preparationGeneration, 'generation-old');
 
@@ -1668,10 +1681,12 @@ test('a child that survives daemon restart keeps its generation lease until it e
     fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
       repo, outDir, autoInject: true, injecting: true,
       injectionGeneration: 'generation-surviving', injectionState: 'running',
-      injectionPid: child.pid, injectionLeaseExpiresAt: Date.now() + 30000,
+      injectionPid: child.pid,
+      injectionProcessIdentity: require('../lib/onboard-state').processIncarnation(child.pid),
+      injectionLeaseExpiresAt: Date.now() - 1,
     }));
     assert.equal(hd.findPendingLearnerQueues(repo).length, 0,
-      'a restarted daemon must not duplicate injection while the old child is still alive');
+      'a restarted daemon must not duplicate injection while the old child is alive, even after lease expiry');
 
     child.kill('SIGKILL');
     await new Promise((resolve) => child.once('close', resolve));

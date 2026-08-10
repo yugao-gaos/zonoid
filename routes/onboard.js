@@ -13,6 +13,7 @@ const {
   patchOnboardStatus,
   mutateOnboardStatus,
   confirmedInjectedCount,
+  processIncarnation,
   liveOnboardInjectionLease: liveInjectionLease,
   liveOnboardPreparationLease: livePreparationLease,
   validateOnboardQueue,
@@ -224,7 +225,10 @@ function pendingPreparation(repo, outDir, current, force) {
     injectionState: 'idle',
     injectionOwner: null,
     injectionPid: null,
+    injectionProcessIdentity: null,
     injectionLeaseExpiresAt: null,
+    injectionCancelRequestedOwner: null,
+    injectionCancelRequestedAt: null,
     injectionAttempts: 0,
     injectionRetryAt: null,
     injectionRetryCapped: false,
@@ -460,7 +464,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         if (lockedSameRepo && forceReplacementPending && liveInjectionLease(lockedMeta).live) {
           const busy = new Error('cannot rearm forced onboarding replacement while live injection is writing the old generation');
           busy.code = 'onboarding_injection_in_progress';
-          busy.retryAt = liveInjectionLease(lockedMeta).expiresAt;
+          busy.retryAt = liveInjectionLease(lockedMeta).retryAt;
           throw busy;
         }
 
@@ -664,7 +668,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           ok: false,
           retryable: true,
           conflict: preparing ? 'preparation_in_progress' : 'injection_in_progress',
-          retryAt: lease.expiresAt,
+          retryAt: preparing ? lease.expiresAt : lease.retryAt,
           error: preparing
             ? 'cannot replace onboarding while preparation is running for the current generation; retry after it finishes'
             : 'cannot replace onboarding while live injection is writing the current generation; retry after it finishes',
@@ -693,6 +697,44 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
   if (!global.__drainJobs) global.__drainJobs = new Map();
   const drainJobs = global.__drainJobs;
+
+  if (p === '/onboard/cancel-inject' && m === 'POST') {
+    const b = await readBody(req);
+    if (!b.repo || !b.outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
+    let resolved;
+    try { resolved = resolveRequestPaths(ctx, b.repo, b.outDir); } catch (err) {
+      sendPathError(send, res, err);
+      return true;
+    }
+    const { outDir } = resolved;
+    const requested = mutateOnboardStatus(outDir, (meta) => {
+      const running = meta.injectionState === 'running' || meta.injecting === true;
+      if (!running || !meta.injectionOwner) return undefined;
+      if (meta.injectionCancelRequestedOwner === meta.injectionOwner) return undefined;
+      return {
+        ...meta,
+        injectionCancelRequestedOwner: meta.injectionOwner,
+        injectionCancelRequestedAt: new Date().toISOString(),
+      };
+    });
+    const running = requested.value
+      && (requested.value.injectionState === 'running' || requested.value.injecting === true)
+      && !!requested.value.injectionOwner;
+    if (!running) {
+      send(res, 200, { ok: true, cancelRequested: false, message: 'no onboarding injection is running' });
+      return true;
+    }
+    if (notifyChange) notifyChange();
+    // Cancellation is cooperative. Ownership is intentionally retained until the exact process
+    // exits, so force/rearm cannot race the writer between its last preflight and graph request.
+    send(res, 202, {
+      ok: true,
+      cancelRequested: true,
+      owner: requested.value.injectionOwner,
+      retryAt: liveInjectionLease(requested.value).retryAt,
+    });
+    return true;
+  }
 
   if (p === '/onboard/drain-queue' && m === 'POST') {
     const b = await readBody(req);
@@ -755,7 +797,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       writeDrainMeta(outDir, {
         repo, outDir, injected: false, injectedKept: 0,
         injectionGeneration: generation, injectionState: 'not_needed',
-        injectionOwner: null, injectionPid: null, injectionLeaseExpiresAt: null,
+        injectionOwner: null, injectionPid: null, injectionProcessIdentity: null, injectionLeaseExpiresAt: null,
+        injectionCancelRequestedOwner: null, injectionCancelRequestedAt: null,
         injectionAttempts: 0, injectionRetryAt: null, injectionRetryCapped: false,
         injectionError: null, injecting: false, error: null,
       });
@@ -780,7 +823,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           ...meta,
           repo, outDir, injecting: true, injectionGeneration: generation, injectionState: 'running',
           injectionOwner: owner, injectionPid: process.pid,
+          injectionProcessIdentity: processIncarnation(process.pid),
           injectionLeaseExpiresAt: leaseExpiresAt,
+          injectionCancelRequestedOwner: null, injectionCancelRequestedAt: null,
           injectionAttempts: attempt, injectionRetryAt: null, injectionRetryCapped: false,
           injectionError: null, error: null,
         };
@@ -792,7 +837,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
             ok: false,
             retryable: true,
             conflict: 'injection_in_progress',
-            retryAt: lease.expiresAt,
+            retryAt: lease.retryAt,
             error: 'onboarding injection is already running for this generation',
           });
           return true;
@@ -800,11 +845,17 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         send(res, 409, { ok: false, stale: true, error: 'onboarding generation was replaced before injection started' });
         return true;
       }
-      await runNode([learnScript, '--repo', repo, '--in', outDir, '--inject', '--confirm', '--generation', generation], {
+      await runNode([learnScript, '--repo', repo, '--in', outDir, '--inject', '--confirm', '--generation', generation, '--owner', owner], {
         timeoutMs: leaseMs,
         onSpawn: (child) => mutateOnboardStatus(outDir, (meta) => {
           if (meta.injectionGeneration !== generation || meta.injectionOwner !== owner) return undefined;
-          return { ...meta, injectionPid: child.pid || process.pid, injectionLeaseExpiresAt: leaseExpiresAt };
+          const pid = child.pid || process.pid;
+          return {
+            ...meta,
+            injectionPid: pid,
+            injectionProcessIdentity: processIncarnation(pid),
+            injectionLeaseExpiresAt: leaseExpiresAt,
+          };
         }),
       });
       const notes = (readJSON(path.join(outDir, 'onboard-notes.json'), {}) || {}).kept || [];
@@ -818,7 +869,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           ...meta,
           repo, outDir, injecting: false, injected: true, injectedGeneration: generation,
           injectionGeneration: generation, injectionState: 'succeeded', injectionOwner: null, injectionPid: null,
+          injectionProcessIdentity: null,
           injectionLeaseExpiresAt: null,
+          injectionCancelRequestedOwner: null, injectionCancelRequestedAt: null,
           injectionAttempts: 0, injectionRetryAt: null, injectionRetryCapped: false, injectionError: null,
           injectedKept, injectedAt: new Date().toISOString(), error: null,
         };
@@ -839,7 +892,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           ...meta,
           repo, outDir, injecting: false, injected: false, injectedKept,
           injectionGeneration: generation, injectionState: 'failed', injectionOwner: null, injectionPid: null,
+          injectionProcessIdentity: null,
           injectionLeaseExpiresAt: null,
+          injectionCancelRequestedOwner: null, injectionCancelRequestedAt: null,
           injectionAttempts: attempt, injectionRetryAt: null, injectionRetryCapped: true,
           injectionError: error, error,
         };
@@ -879,7 +934,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       writeDrainMeta(outDir, {
         repo, outDir, autoInject: true, injected: false, injectedKept: 0,
         injectionGeneration: generation, injectionState: 'not_needed',
-        injectionOwner: null, injectionPid: null, injectionLeaseExpiresAt: null,
+        injectionOwner: null, injectionPid: null, injectionProcessIdentity: null, injectionLeaseExpiresAt: null,
+        injectionCancelRequestedOwner: null, injectionCancelRequestedAt: null,
         injectionAttempts: 0, injectionRetryAt: null, injectionRetryCapped: false,
         injectionError: null, injecting: false, error: null,
       });
@@ -902,7 +958,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         injectionState: 'pending',
         injectionOwner: null,
         injectionPid: null,
+        injectionProcessIdentity: null,
         injectionLeaseExpiresAt: null,
+        injectionCancelRequestedOwner: null,
+        injectionCancelRequestedAt: null,
         injectionAttempts: 0,
         injectionRetryAt: null,
         injectionRetryCapped: false,
@@ -917,7 +976,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         ok: false,
         retryable: true,
         conflict: 'injection_in_progress',
-        retryAt: lease.expiresAt,
+        retryAt: lease.retryAt,
         error: 'onboarding injection is already running; retry after it finishes',
       });
       return true;

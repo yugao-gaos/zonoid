@@ -744,11 +744,11 @@ function request(method, urlPath, body) {
 // `workspace` (--workspace): target overlay workspace for the notes. Defaults to the daemon's LIVE
 // workspace (back-compat). For a FOREIGN repo's KB, pass an isolated workspace (e.g. the repo path)
 // so its notes never land in — and can't pollute — the live graph (note nodes have no delete API).
-async function inject(notesFile, confirm, workspace, expectedGeneration) {
-  return injectOnboardNotes(notesFile, confirm, workspace, request, { expectedGeneration });
+async function inject(notesFile, confirm, workspace, expectedGeneration, expectedOwner) {
+  return injectOnboardNotes(notesFile, confirm, workspace, request, { expectedGeneration, expectedOwner });
 }
 
-function assertCurrentInjectionGeneration(outDir, expectedGeneration) {
+function assertCurrentInjectionGeneration(outDir, expectedGeneration, expectedOwner) {
   if (!expectedGeneration) return;
   const queue = loadJSON(queueFilePath(outDir), null);
   const validated = validateOnboardQueue(queue, { expectedGeneration, allowLegacy: true });
@@ -757,9 +757,12 @@ function assertCurrentInjectionGeneration(outDir, expectedGeneration) {
   const replacement = status.preparationGeneration && status.preparationGeneration !== expectedGeneration
     ? status.preparationGeneration
     : null;
-  if (!validated.ok || replacement) {
+  const ownerReplaced = expectedOwner && (status.injectionGeneration !== expectedGeneration
+    || status.injectionOwner !== expectedOwner);
+  const canceled = expectedOwner && status.injectionCancelRequestedOwner === expectedOwner;
+  if (!validated.ok || replacement || ownerReplaced || canceled) {
     const err = new Error(`stale onboarding generation ${expectedGeneration}; current generation is ${replacement || current || 'missing'}`);
-    err.code = 'STALE_ONBOARDING_GENERATION';
+    err.code = canceled ? 'CANCELED_ONBOARDING_INJECTION' : 'STALE_ONBOARDING_GENERATION';
     throw err;
   }
 }
@@ -767,6 +770,7 @@ function assertCurrentInjectionGeneration(outDir, expectedGeneration) {
 async function injectOnboardNotes(notesFile, confirm, workspace, httpRequest = request, options = {}) {
   const outDir = path.dirname(notesFile);
   const expectedGeneration = options.expectedGeneration || null;
+  const expectedOwner = options.expectedOwner || null;
   const matched = expectedGeneration
     ? loadGenerationMatchedOnboardNotes(outDir, expectedGeneration)
     : null;
@@ -790,8 +794,8 @@ async function injectOnboardNotes(notesFile, confirm, workspace, httpRequest = r
     return;
   }
   console.log('=== onboard-learn --inject CONFIRMED ===');
-  assertCurrentInjectionGeneration(outDir, expectedGeneration);
-  const assertCurrent = () => assertCurrentInjectionGeneration(outDir, expectedGeneration);
+  assertCurrentInjectionGeneration(outDir, expectedGeneration, expectedOwner);
+  const assertCurrent = () => assertCurrentInjectionGeneration(outDir, expectedGeneration, expectedOwner);
   const structureResult = await injectDocumentStructure(outDir, workspace, httpRequest, assertCurrent);
   const existing = new Map();
   try {
@@ -938,7 +942,10 @@ function enqueue(inDir, outDir, repoAbs) {
           injectionState: queue.total > 0 ? 'pending' : 'not_needed',
           injectionOwner: null,
           injectionPid: null,
+          injectionProcessIdentity: null,
           injectionLeaseExpiresAt: null,
+          injectionCancelRequestedOwner: null,
+          injectionCancelRequestedAt: null,
           injectionAttempts: 0,
           injectionRetryAt: null,
           injectionRetryCapped: false,
@@ -1070,7 +1077,7 @@ async function main() {
 
   if (has('inject')) {
     const expectedGeneration = arg('generation', queueGeneration(loadJSON(queueFilePath(outDir), null)));
-    await inject(notesFile, has('confirm'), arg('workspace', repoAbs), expectedGeneration);
+    await inject(notesFile, has('confirm'), arg('workspace', repoAbs), expectedGeneration, arg('owner', null));
     return;
   }
 
