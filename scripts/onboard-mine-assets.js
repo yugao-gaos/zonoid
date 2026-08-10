@@ -29,7 +29,7 @@ const fs = require('fs');
 const path = require('path');
 const { defaultOnboardOutDir } = require('../lib/onboard-paths');
 
-const SKIP_DIRS = new Set(['node_modules', 'worktrees', '.git', 'dist', 'build', 'coverage', 'vendor', '.next', 'out', 'tmp', '__pycache__']);
+const SKIP_DIRS = new Set(['node_modules', 'worktrees', '.git', '.zonoid', 'dist', 'build', 'coverage', 'vendor', '.next', 'out', 'tmp', '__pycache__']);
 
 const ASSET_CLASSES = {
   image: new Set(['.png', '.jpg', '.jpeg', '.tga', '.psd', '.webp']),

@@ -64,6 +64,7 @@ const headlessDrain = require('./lib/headless-drain');
 const headlessSpawn = require('./lib/headless-spawn');
 const { createHeadlessDrainRunner } = require('./lib/headless-drain-runner');
 const registry = require('./lib/workspace-registry');
+const onboardInitTransaction = require('./lib/onboard-init-transaction');
 const repoTarget = require('./lib/repo-target');
 const requestIdentity = require('./lib/request-identity');
 const runtimePaths = require('./lib/runtime-paths');
@@ -328,24 +329,31 @@ function migrateBlindEdges(workspace, overlay) {
   return tagged;
 }
 
-// The REAL set of workspaces the daemon knows about — the registry persisted by setWorkspace
+// The REAL, currently mounted set of workspaces the daemon knows about — the registry persisted by setWorkspace
 // (every bind / POST /workspace appends to workspaces.json). This is the authoritative enumeration
 // the maintenance sweeps + loop tick iterate over, REPLACING reliance on the single daemon-global
 // state.workspace pointer (Phase 2b of deprecating the global default). We UNION in any active-loop
 // workspaces defensively (a loop pinned to a ws that somehow never hit setWorkspace still gets
 // swept) — but the registry, not state.workspace, is the source of truth. Pure read; best-effort
-// (a missing/garbage registry yields the active-loop set alone, never throws).
+// (a missing/garbage registry yields the active-loop set alone, never throws). Registry history is
+// not pruned: absent/broken/file paths simply stay inactive until the same path is a directory again.
 function registeredWorkspaces() {
   const set = new Set();
+  let registeredRepos = [];
+  const addActive = (p) => {
+    const activeRoot = registry.activeRepoRoot(p, { registeredRepos });
+    if (activeRoot) set.add(activeRoot);
+  };
   try {
     // v2 registry: flatten every member repo across all named workspaces into a flat list of repo
     // PATHS. This MUST stay a Set<repoPath> — ≈10 sweep/claim callers iterate repo paths (never
     // workspace NAMES); leaking names would break every maintenance sweep + the gate claim scan.
     // loadRegistry lazily migrates a legacy v1 flat array in place; allRepos de-dupes.
-    for (const p of registry.allRepos(registry.loadRegistry(WORKSPACES_FILE))) { if (p) set.add(p); }
+    registeredRepos = registry.allRepos(registry.loadRegistry(WORKSPACES_FILE));
+    for (const p of registeredRepos) addActive(p);
   } catch { /* no registry yet / unreadable — fall through to active-loop set */ }
   // Defensive union: a loop pinned to a workspace that isn't (yet) in the registry still needs sweeping.
-  for (const L of loops.values()) { if (L.active && L.workspace) set.add(L.workspace); }
+  for (const L of loops.values()) { if (L.active && L.workspace) addActive(L.workspace); }
   return set;
 }
 
@@ -391,6 +399,7 @@ try { GIT_HEAD = require('child_process').execFileSync('git', ['-C', __dirname, 
 // Capability flags, bumped per change — cheap self-description so a restart script can verify the
 // new code is actually serving (beyond the git head).
 const FEATURES = { perRequestWorkspaceWrites: true, perRequestWorkspaceReads: true, gatedSearch: true };
+const DAEMON_HEALTH_SIGNATURE = 'zonoid-orchestrator-health-v1';
 
 // MCP tool-usage counters (persisted; see lib/analytics.js). Recorded via POST /analytics/tool-call
 // beacons fired by mcp-core's tools/call dispatch on BOTH transports; flushed debounced.
@@ -470,7 +479,35 @@ function restoreLoops() {
 // Yields to the event loop between phases so /health (whitelisted through the 503 gate) can
 // report live progress while the synchronous per-phase loads run.
 const yieldLoop = () => new Promise((r) => setImmediate(r));
+function reportOnboardRuntimeIgnoreError(error, repo) {
+  process.stderr.write(
+    `orchestrator: onboarding runtime ignore unavailable for ${repo}: ${error && error.message ? error.message : error}\n`
+  );
+}
 async function loadState() {
+  // Resolve every write-ahead onboarding intent before the registry is enumerated or non-health
+  // routes become available. A crash between status and registry therefore cannot strand a queue
+  // outside registeredWorkspaces(), and a crash after registry commit cannot expose a project whose
+  // durable onboarding intent is missing.
+  const recoveredOnboardInits = onboardInitTransaction.reconcilePending(WORKSPACES_FILE, {
+    onRuntimeIgnoreError: reportOnboardRuntimeIgnoreError,
+  });
+  if (recoveredOnboardInits.length) {
+    process.stdout.write(`orchestrator: reconciled ${recoveredOnboardInits.length} onboarding init transaction(s)\n`);
+  }
+  const recoveredOnboardPublications = headlessDrain.reconcileRegisteredOnboardPublications({
+    workspace: __dirname,
+    registeredWorkspaces: Array.from(registeredWorkspaces()),
+  });
+  const settledOnboardPublications = recoveredOnboardPublications.filter((entry) => entry.ok !== false);
+  const failedOnboardPublications = recoveredOnboardPublications.filter((entry) => entry.ok === false);
+  if (settledOnboardPublications.length) {
+    process.stdout.write(`orchestrator: reconciled ${settledOnboardPublications.length} onboarding publication transaction(s)\n`);
+  }
+  for (const entry of failedOnboardPublications) {
+    process.stderr.write(`orchestrator: onboarding publication reconciliation failed for ${entry.outDir}: ${entry.error}\n`);
+  }
+
   // Phase 1: workspace registry warm-up. P3 removed the daemon-global default pointer, so there is
   // NO single workspace to restore on boot. Instead we lazily warm every REGISTERED workspace's
   // overlay into the per-workspace cache (and run the one-time blind-edge migration on each), so the
@@ -479,7 +516,9 @@ async function loadState() {
   advanceBoot('workspace');
   await yieldLoop();
   for (const ws of registeredWorkspaces()) {
+    onboardInitTransaction.retryRegisteredRuntimeIgnore(ws, { onError: reportOnboardRuntimeIgnoreError });
     try {
+      if (!registry.isActiveRepoPath(ws)) continue;
       // Sync an already-configured submodule before opening overlay/graph state. Ordinary .graph
       // directories are a no-op, and this never creates remotes or converts legacy repositories.
       await graphLifecycle.sync(ws, { latest: true });
@@ -511,6 +550,7 @@ async function loadState() {
     const followups = require('./lib/followups');
     for (const ws of registeredWorkspaces()) {
       try {
+        if (!registry.isActiveRepoPath(ws)) continue;
         const ov = overlayFor(ws);
         const ack = followups.acknowledgeDaemonRestartOnBoot(ov, { bootedAt: BOOTED_AT });
         if (ack) {
@@ -2775,7 +2815,7 @@ function readTranscript(p, maxLines = 200) {
 
 function send(res, code, body, type = 'application/json') {
   if (res.headersSent) return false;
-  res.writeHead(code, { 'Content-Type': type, 'Access-Control-Allow-Origin': '*', 'Connection': 'close' });
+  res.writeHead(code, { 'Content-Type': type, 'Access-Control-Allow-Origin': '*', 'Connection': 'close', 'X-Zonoid-Health-Signature': DAEMON_HEALTH_SIGNATURE });
   res.end(type === 'application/json' ? JSON.stringify(body) : body);
   return true;
 }
@@ -2891,11 +2931,9 @@ const ctx = {
     // basename(p) — a single-repo workspace, preserving today's behavior — unless an explicit
     // bind.workspace names a group. registry.addRepo migrates any legacy v1 array, is atomic, and
     // is idempotent (re-adding the same repo is a no-op).
-    try {
-      fs.mkdirSync(BASE, { recursive: true });
-      const workspace = (opts && opts.workspace) || path.basename(p);
-      registry.addRepo(WORKSPACES_FILE, { workspace, repo: p });
-    } catch { /* best effort */ }
+    fs.mkdirSync(BASE, { recursive: true });
+    const workspace = (opts && opts.workspace) || path.basename(p);
+    registry.addRepo(WORKSPACES_FILE, { workspace, repo: p });
     const harnessName = opts.harness || (sessionId && state.sessions[sessionId] && state.sessions[sessionId].harness) || 'claude';
     try {
       runUsageReconcile(ctx, { harness: harnessName, workspace: p, session: sessionId || opts.session_id || null });
@@ -2921,6 +2959,8 @@ const ctx = {
   //   - repoRoot(startDir)             : walk up to the containing repo dir (.graph preferred), excludes worktrees.
   loadRegistry: () => registry.loadRegistry(WORKSPACES_FILE),
   repoToWorkspace: registry.repoToWorkspace,
+  registrationRepoRoot: registry.registrationRepoRoot,
+  onboardRuntimeIgnoreError: reportOnboardRuntimeIgnoreError,
   workspaceForRepo: (repoPath) => registry.repoToWorkspace(registry.loadRegistry(WORKSPACES_FILE)).get(repoPath) || null,
   repoRoot: registry.repoRoot,
   send, sendOp, readBody, notifyChange, graphAutoflush, buildGraph, readGraphSnapshot, targetOverlay, overlayFor, resolveRepo, resolveRepoTarget, nodeExistsInGraph, registeredWorkspaces,
@@ -3045,6 +3085,7 @@ if (require.main === module) {
   function writeDaemonPort(port) {
     for (const ws of registeredWorkspaces()) {
       try {
+        if (!registry.isActiveRepoPath(ws)) continue;
         const graphDir = path.join(ws, '.graph');
         fs.mkdirSync(graphDir, { recursive: true });
         fs.writeFileSync(path.join(graphDir, 'daemon.port'), String(port));
@@ -3256,6 +3297,15 @@ if (require.main === module) {
   // bound to a closed conversation is otherwise never re-evaluated). decideAll already sweeps on each
   // heartbeat; this catches the un-driven case. Cheap; unref'd so it never holds the process open.
   setInterval(() => { try { sweepStaleLoops(); ensureManagedGraphLoops(); } catch { /* best effort */ } }, 60000).unref();
+  // Retry advisory Git exclusion independently of onboarding publication settlement. A repo may
+  // become writable or acquire valid Git metadata after init; failure never affects daemon health.
+  setInterval(() => {
+    for (const ws of registeredWorkspaces()) {
+      onboardInitTransaction.retryRegisteredRuntimeIgnore(ws, {
+        onError: reportOnboardRuntimeIgnoreError,
+      });
+    }
+  }, 300000).unref();
 
   // Periodic claim sweep: release orphaned in_progress claims when no route (buildGraph) is being
   // called — catches the case after a Claude app restart where the user hasn't issued any command

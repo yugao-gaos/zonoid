@@ -603,6 +603,18 @@
   }
   .ol-status { color: #8b949e; font-size: 12px; margin-top: 12px; min-height: 18px; }
   .ol-status.err { color: #f85149; }
+  .ol-retry {
+    display: none;
+    align-self: flex-start;
+    margin-top: 8px;
+    padding: 7px 12px;
+    border: 1px solid #f85149;
+    border-radius: 6px;
+    background: #21262d;
+    color: #f0f6fc;
+    cursor: pointer;
+  }
+  .ol-retry:disabled { cursor: wait; opacity: .65; }
   @keyframes onboardCloudFieldBreathe {
     0%,100% { opacity: .46; transform: scale(.92); }
     50% { opacity: .78; transform: scale(1.04); }
@@ -648,6 +660,8 @@
       </div>
     </div>
     <div class="ol-status" id="onboardStatus"></div>
+    <button class="ol-retry" id="onboardRetryPrepareBtn" type="button" onclick="retryOnboardPreparation()">Retry project preparation</button>
+    <button class="ol-retry" id="onboardRetryInjectBtn" type="button" onclick="retryOnboardInjection()">Retry live injection</button>
   </div>
 </div>
 <header>
@@ -8074,12 +8088,17 @@ tick(); setInterval(tick, 30000);   // safety poll
 // the gated learning flow.
 let onboardAutoStartInFlight = false;
 let onboardPollTimer = null;
+let onboardPollFailures = 0;
+let onboardDiscoveryInFlight = false;
+let onboardDiscoveryTimer = null;
 const ONBOARD_POLL_MS = 1200;
+const ONBOARD_POLL_MAX_MS = 10000;
 
 async function hasInjectedOnboardNotes() {
   try {
     const res = await dfetch('/search?q=ingest&k=5');
     const data = await res.json();
+    if (!res.ok) throw new Error(data && data.error || 'onboarding note search unavailable');
     // /search returns { results: [...] } or an array directly — handle both.
     const items = Array.isArray(data) ? data : (data.results || []);
     return items.some(n => n.kind === 'note' && typeof n.title === 'string' && n.title.startsWith('[ingest]'));
@@ -8088,31 +8107,49 @@ async function hasInjectedOnboardNotes() {
   }
 }
 
+function scheduleOnboardDiscoveryRetry(message) {
+  clearTimeout(onboardDiscoveryTimer);
+  const key = onboardStoreKey('discovery_failures');
+  const failures = Math.max(0, Number(localStorage.getItem(key)) || 0) + 1;
+  localStorage.setItem(key, String(failures));
+  const retryMs = Math.min(ONBOARD_POLL_MAX_MS,
+    ONBOARD_POLL_MS * Math.pow(2, Math.min(4, failures - 1)));
+  showOnboardLanding();
+  setOnboardStatus(message || 'Onboarding discovery is temporarily unavailable. Retrying...', true);
+  onboardDiscoveryTimer = setTimeout(() => {
+    onboardDiscoveryTimer = null;
+    return checkOnboardingState();
+  }, retryMs);
+}
+
+function clearOnboardDiscoveryRetry() {
+  clearTimeout(onboardDiscoveryTimer);
+  onboardDiscoveryTimer = null;
+  localStorage.removeItem(onboardStoreKey('discovery_failures'));
+}
+
 async function checkOnboardingState() {
+  if (onboardDiscoveryInFlight) return;
+  onboardDiscoveryInFlight = true;
+  try {
   const workspace = currentOnboardWorkspace();
   const storedOutDir = localStorage.getItem(onboardStoreKey('outdir')) || '';
-
-  if (workspace && !storedOutDir && localStorage.getItem(onboardCompletedKey()) === '1') {
-    completeOnboardLearning();
-    return;
-  }
-
-  const onboardNotesPresent = await hasInjectedOnboardNotes();
-  if (onboardNotesPresent === true) {
-    completeOnboardLearning();
-    return;
-  }
+  let storedQueueStatusUnavailable = false;
 
   if (workspace && !storedOutDir) {
     for (const candidateOutDir of candidateOnboardOutDirs(workspace)) {
       try {
         const r = await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(workspace) + '&outDir=' + encodeURIComponent(candidateOutDir));
         const st = await r.json();
+        if (r.status === 404) continue;
+        if (!r.ok || !st.ok) throw new Error(st.error || 'candidate onboarding status unavailable');
         if (st.ok && st.status && onboardStatusComplete(st.status)) {
+          clearOnboardDiscoveryRetry();
           completeOnboardLearning();
           return;
         }
         if (st.ok && st.status) {
+          clearOnboardDiscoveryRetry();
           const shouldResumeDrain = onboardStatusNeedsResume(st.status);
           showOnboardLanding();
           localStorage.setItem(onboardStoreKey('outdir'), candidateOutDir);
@@ -8123,12 +8160,13 @@ async function checkOnboardingState() {
             landing.dataset.draining = shouldResumeDrain ? '' : '1';
           }
           updateOnboardFromStatus(st.status);
-          if (shouldResumeDrain) ensureOnboardLearning(workspace);
+          if (shouldResumeDrain) await ensureOnboardLearning(workspace);
           else pollOnboardLearning();
           return;
         }
       } catch (e) {
-        // No existing default/legacy queue; continue to auto-start.
+        scheduleOnboardDiscoveryRetry('Onboarding queue discovery is temporarily unavailable. Retrying...');
+        return;
       }
     }
   }
@@ -8137,11 +8175,18 @@ async function checkOnboardingState() {
     try {
       const r = await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(workspace) + '&outDir=' + encodeURIComponent(storedOutDir));
       const st = await r.json();
+      if (r.status === 400 || r.status === 404) {
+        localStorage.removeItem(onboardStoreKey('outdir'));
+      } else if (!r.ok || !st.ok) {
+        throw new Error(st.error || 'status unavailable');
+      }
       if (st.ok && st.status && onboardStatusComplete(st.status)) {
+        clearOnboardDiscoveryRetry();
         completeOnboardLearning();
         return;
       }
       if (st.ok && st.status) {
+        clearOnboardDiscoveryRetry();
         const shouldResumeDrain = onboardStatusNeedsResume(st.status);
         showOnboardLanding();
         const landing = document.getElementById('onboard-landing');
@@ -8151,27 +8196,62 @@ async function checkOnboardingState() {
           landing.dataset.draining = shouldResumeDrain ? '' : '1';
         }
         updateOnboardFromStatus(st.status);
-        if (shouldResumeDrain) ensureOnboardLearning(workspace);
+        if (shouldResumeDrain) await ensureOnboardLearning(workspace);
         else pollOnboardLearning();
         return;
       }
     } catch (e) {
-      // Fall through to auto-start. The status endpoint may be
-      // unavailable before the queue has been created.
+      storedQueueStatusUnavailable = true;
     }
   }
 
+  // A stored queue means onboarding was already in progress. If its first reload probe is transiently
+  // unavailable, keep that queue authoritative and re-arm live polling instead of trusting old ingest
+  // notes or the browser completion latch and hiding unfinished final injection.
+  if (workspace && storedOutDir && storedQueueStatusUnavailable) {
+    showOnboardLanding();
+    const landing = document.getElementById('onboard-landing');
+    if (landing) {
+      landing.dataset.repo = workspace;
+      landing.dataset.outDir = storedOutDir;
+      landing.dataset.draining = '1';
+    }
+    setOnboardStatus('Onboarding status is temporarily unavailable. Retrying...', true);
+    pollOnboardLearning();
+    return;
+  }
+
+  // Queue state is authoritative over the browser's completion latch and previously injected
+  // notes. A force replacement deliberately leaves the old notes live until its new generation is
+  // ready, so checking notes/latch first would hide the replacement while it is pending.
+  if (workspace && !storedOutDir && localStorage.getItem(onboardCompletedKey()) === '1') {
+    clearOnboardDiscoveryRetry();
+    completeOnboardLearning();
+    return;
+  }
+
+  const onboardNotesPresent = await hasInjectedOnboardNotes();
+  if (onboardNotesPresent === true) {
+    clearOnboardDiscoveryRetry();
+    completeOnboardLearning();
+    return;
+  }
+
   if (onboardNotesPresent === null) {
+    scheduleOnboardDiscoveryRetry('Onboarding note discovery is temporarily unavailable. Retrying...');
     return;
   }
 
   showOnboardLanding();
   renderOnboardCloud({ total: 0, processed: 0, kept: 0, injectedKept: 0 });
-  if (workspace) ensureOnboardLearning(workspace);
+  if (workspace) await ensureOnboardLearning(workspace);
   else {
     setOnboardStage('mine');
     setOnboardStatus('Waiting for workspace path...', true);
     setTimeout(checkOnboardingState, 1000);
+  }
+  } finally {
+    onboardDiscoveryInFlight = false;
   }
 }
 
@@ -8249,7 +8329,14 @@ function setOnboardProgress(processed, total, kept=0, injected=0, inflight=0) {
 }
 
 function setOnboardInjectVisible(visible, busy) {
-  const btn = document.getElementById('onboardInjectBtn');
+  const btn = document.getElementById('onboardRetryInjectBtn');
+  if (!btn) return;
+  btn.style.display = visible ? '' : 'none';
+  btn.disabled = !!busy;
+}
+
+function setOnboardPrepareVisible(visible, busy) {
+  const btn = document.getElementById('onboardRetryPrepareBtn');
   if (!btn) return;
   btn.style.display = visible ? '' : 'none';
   btn.disabled = !!busy;
@@ -8303,8 +8390,10 @@ function renderOnboardCloud(status={}) {
 function completeOnboardLearning() {
   clearTimeout(onboardPollTimer);
   onboardPollTimer = null;
+  onboardPollFailures = 0;
   if (onboardCloudRenderState.raf) cancelAnimationFrame(onboardCloudRenderState.raf);
   onboardCloudRenderState.raf = null;
+  clearOnboardDiscoveryRetry();
   if (onboardCloudRenderState.sim) onboardCloudRenderState.sim.stop();
   disposeCloudThree(document.getElementById('onboardCloudSvg'));
   const cloud = document.querySelector('.ol-cloud');
@@ -8314,12 +8403,20 @@ function completeOnboardLearning() {
   localStorage.removeItem(onboardStoreKey('outdir'));
   document.body.classList.remove('onboarding-pending');
   setOnboardInjectVisible(false, false);
+  setOnboardPrepareVisible(false, false);
   setOnboardStatus('');
   if (typeof tick === 'function') tick();
 }
 
 function onboardStatusComplete(s) {
-  return !!(s && (onboardStatusDrained(s) || (s.done === true && (s.injected || (!s.autoInject && s.needsReview === false)))));
+  if (!s || s.error || s.preparing || s.injecting) return false;
+  if (['pending', 'running', 'backoff', 'failed', 'blocked'].includes(s.injectionState)) return false;
+  if (s.injectionState === 'not_needed') {
+    return s.done === true && Math.max(0, Number(s.kept) || 0) === 0
+      && (s.noCandidates === true || onboardStatusDrained(s));
+  }
+  if (s.autoInject === false) return s.done === true && onboardStatusDrained(s);
+  return s.done === true && s.injected === true && (!s.injectionState || s.injectionState === 'succeeded');
 }
 
 function onboardStatusDrained(s) {
@@ -8334,7 +8431,10 @@ function onboardStatusDrained(s) {
 }
 
 function onboardStatusNeedsResume(s) {
-  return !!(s && !onboardStatusComplete(s) && (s.done !== true || s.recovered || s.active === false || !s.injected));
+  if (!s || onboardStatusComplete(s)) return false;
+  if (s.preparationState === 'failed') return false;
+  if (['pending', 'running', 'backoff', 'failed'].includes(s.injectionState) || s.injecting || s.injectionError) return false;
+  return !!(s.done !== true || s.recovered || s.active === false || (s.autoInject !== false && !s.injected));
 }
 
 async function ensureOnboardLearning(repo) {
@@ -8345,18 +8445,20 @@ async function ensureOnboardLearning(repo) {
   try {
     onboardAutoStartInFlight = true;
     setOnboardInjectVisible(false, false);
+    setOnboardPrepareVisible(false, false);
 
     let outDir = storedOutDir;
     if (!outDir) {
       localStorage.removeItem(onboardCompletedKey());
       setOnboardStage('mine');
       setOnboardStatus('Mining candidates...');
-      const enq = await (await dfetch('/onboard/enqueue', {
+      const enqResponse = await dfetch('/onboard/enqueue', {
         method: 'POST',
         headers: {'content-type':'application/json'},
         body: JSON.stringify({repo})
-      })).json();
-      if (!enq.ok) throw new Error(enq.error || 'enqueue failed');
+      });
+      const enq = await enqResponse.json();
+      if (!enqResponse.ok || !enq.ok) throw new Error(enq.error || 'enqueue failed');
       outDir = enq.outDir;
       localStorage.setItem(onboardStoreKey('outdir'), outDir);
       setOnboardProgress(enq.total - enq.remaining, enq.total, 0, 0);
@@ -8368,17 +8470,20 @@ async function ensureOnboardLearning(repo) {
     landing.dataset.draining = '1';
     setOnboardStage('validate');
     setOnboardStatus(storedOutDir ? 'Resuming learning queue...' : 'Learning queued...');
-    const dr = await (await dfetch('/onboard/drain-queue', {
+    const drainResponse = await dfetch('/onboard/drain-queue', {
       method: 'POST',
       headers: {'content-type':'application/json'},
       body: JSON.stringify({repo, outDir, autoInject: true, liveInject: true})
-    })).json();
-    if (!dr.ok) throw new Error(dr.error || 'drain failed');
+    });
+    const dr = await drainResponse.json();
+    if (!drainResponse.ok || !dr.ok) throw new Error(dr.error || 'drain failed');
+    clearOnboardDiscoveryRetry();
     if (!updateOnboardFromStatus(dr.status || {})) pollOnboardLearning();
   } catch (e) {
     setOnboardStatus(String(e && e.message || e), true);
     const landing = document.getElementById('onboard-landing');
     if (landing) landing.dataset.draining = '';
+    scheduleOnboardDiscoveryRetry('Onboarding setup is temporarily unavailable. Retrying...');
   } finally {
     onboardAutoStartInFlight = false;
   }
@@ -8392,13 +8497,21 @@ async function pollOnboardLearning() {
   try {
     const st = await (await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(landing.dataset.repo) + '&outDir=' + encodeURIComponent(landing.dataset.outDir))).json();
     if (!st.ok) throw new Error(st.error || 'status unavailable');
+    onboardPollFailures = 0;
+    landing.dataset.draining = '1';
     if (updateOnboardFromStatus(st.status || {})) {
       return;
     }
     onboardPollTimer = setTimeout(pollOnboardLearning, ONBOARD_POLL_MS);
   } catch (e) {
     setOnboardStatus(String(e && e.message || e), true);
-    if (landing) landing.dataset.draining = '';
+    // Status HTTP, network, and JSON failures are observational only. The daemon still owns the
+    // durable queue, so keep the landing live and retry with a bounded exponential delay.
+    onboardPollFailures++;
+    if (landing) landing.dataset.draining = '1';
+    const retryMs = Math.min(ONBOARD_POLL_MAX_MS,
+      ONBOARD_POLL_MS * Math.pow(2, Math.min(4, Math.max(0, onboardPollFailures - 1))));
+    onboardPollTimer = setTimeout(pollOnboardLearning, retryMs);
   }
 }
 
@@ -8411,12 +8524,49 @@ function updateOnboardFromStatus(s) {
   const injected = typeof s.injectedKept === 'number' ? s.injectedKept : (s.injected ? kept : 0);
   const cloud = document.querySelector('.ol-cloud');
   const drained = onboardStatusDrained(s);
-  if (cloud) cloud.classList.toggle('is-live', !onboardStatusComplete(s) && !s.error);
+  const preparationFailure = s.preparationState === 'failed';
+  const injectionFailure = !!(s.injectionError || ['backoff', 'failed'].includes(s.injectionState));
+  if (cloud) cloud.classList.toggle('is-live', !onboardStatusComplete(s)
+    && (!s.error || injectionFailure || preparationFailure || s.retryablePending));
   setOnboardProgress(processed, total, kept, injected, inflight);
   renderOnboardCloud({ ...s, total, processed, visualProcessed, kept, inflight, injectedKept: injected });
+  if (preparationFailure) {
+    setOnboardStage('mine');
+    setOnboardInjectVisible(false, false);
+    setOnboardPrepareVisible(true, false);
+    setOnboardStatus(`${s.error || 'Project preparation failed.'} Retry preparation to continue.`, true);
+    return true;
+  }
+  setOnboardPrepareVisible(false, false);
+  if (injectionFailure) {
+    setOnboardStage('review');
+    const retryAt = Number(s.injectionRetryAt) || 0;
+    const waiting = s.injectionState === 'backoff' && retryAt > Date.now();
+    const seconds = waiting ? Math.max(1, Math.ceil((retryAt - Date.now()) / 1000)) : 0;
+    setOnboardStatus(
+      s.injectionRetryCapped
+        ? `${s.injectionError || s.error} Automatic retries are exhausted.`
+        : (waiting ? `${s.injectionError || s.error} Retrying automatically in ${seconds}s...` : `${s.injectionError || s.error} Retrying automatically...`),
+      true
+    );
+    setOnboardInjectVisible(true, false);
+    return s.injectionState !== 'backoff' || s.injectionRetryCapped === true;
+  }
+  setOnboardInjectVisible(false, false);
   if (s.error) {
+    if (s.retryablePending) {
+      setOnboardStage('validate');
+      setOnboardStatus(`${s.error} Retrying automatically...`, true);
+      return false;
+    }
     setOnboardStatus(s.error, true);
     return true;
+  }
+  if (s.preparing || s.preparationState === 'pending' || s.preparationState === 'running') {
+    setOnboardStage('mine');
+    const stage = s.preparationStage ? ` (${s.preparationStage})` : '';
+    setOnboardStatus(`Preparing project evidence${stage}...`);
+    return false;
   }
   if (!s.done && !drained) {
     setOnboardStage('validate');
@@ -8426,6 +8576,23 @@ function updateOnboardFromStatus(s) {
   }
   const landing = document.getElementById('onboard-landing');
   if (landing) landing.dataset.draining = '';
+  if (s.noCandidates === true) {
+    setOnboardStage('complete');
+    setOnboardStatus('No onboarding candidates were found; opening dashboard...');
+    setTimeout(completeOnboardLearning, 800);
+    return true;
+  }
+  if (s.noNotesToInject === true) {
+    setOnboardStage('complete');
+    setOnboardStatus('Learning complete; no reviewed notes were injected. Opening dashboard...');
+    setTimeout(completeOnboardLearning, 800);
+    return true;
+  }
+  if (s.injecting || s.injectionState === 'running') {
+    setOnboardStage('review');
+    setOnboardStatus('Final live injection is running...');
+    return false;
+  }
   if (s.injected) {
     setOnboardStage('complete');
     setOnboardStatus('Injected. Refreshing graph...');
@@ -8433,10 +8600,15 @@ function updateOnboardFromStatus(s) {
     return true;
   }
   if (drained) {
-    setOnboardStage('complete');
-    setOnboardStatus(injected > 0 ? `Learning complete; ${injected} reviewed notes were injected. Opening dashboard...` : 'Learning complete; no reviewed notes were injected. Opening dashboard...');
-    setTimeout(completeOnboardLearning, 1000);
-    return true;
+    if (s.autoInject === false) {
+      setOnboardStage('complete');
+      setOnboardStatus('Learning complete; automatic injection was disabled. Opening dashboard...');
+      setTimeout(completeOnboardLearning, 1000);
+      return true;
+    }
+    setOnboardStage('review');
+    setOnboardStatus('Learning complete; final live injection is pending...');
+    return false;
   }
   setOnboardStage('review');
   setOnboardStatus(s.autoInject ? 'Final live injection is still running...' : `Processed ${processed}/${total}`);
@@ -8460,6 +8632,55 @@ async function injectOnboardLearning() {
   } catch (e) {
     setOnboardStatus(String(e && e.message || e), true);
     setOnboardInjectVisible(true, false);
+  }
+}
+
+async function retryOnboardInjection() {
+  const landing = document.getElementById('onboard-landing');
+  if (!landing || !landing.dataset.repo || !landing.dataset.outDir) return;
+  try {
+    setOnboardInjectVisible(true, true);
+    setOnboardStatus('Rearming live injection...');
+    const r = await (await dfetch('/onboard/retry-inject', {
+      method: 'POST',
+      headers: {'content-type':'application/json'},
+      body: JSON.stringify({repo: landing.dataset.repo, outDir: landing.dataset.outDir})
+    })).json();
+    if (!r.ok) throw new Error(r.error || 'retry failed');
+    landing.dataset.draining = '1';
+    updateOnboardFromStatus(r.status || {});
+    pollOnboardLearning();
+  } catch (e) {
+    setOnboardStatus(String(e && e.message || e), true);
+    setOnboardInjectVisible(true, false);
+  }
+}
+
+async function retryOnboardPreparation() {
+  const landing = document.getElementById('onboard-landing');
+  if (!landing || !landing.dataset.repo || !landing.dataset.outDir) return;
+  try {
+    setOnboardPrepareVisible(true, true);
+    setOnboardStatus('Rearming project preparation...');
+    const enqueued = await (await dfetch('/onboard/enqueue', {
+      method: 'POST',
+      headers: {'content-type':'application/json'},
+      body: JSON.stringify({repo: landing.dataset.repo, outDir: landing.dataset.outDir, rearm: true})
+    })).json();
+    if (!enqueued.ok) throw new Error(enqueued.error || 'preparation rearm failed');
+    const drained = await (await dfetch('/onboard/drain-queue', {
+      method: 'POST',
+      headers: {'content-type':'application/json'},
+      body: JSON.stringify({repo: landing.dataset.repo, outDir: landing.dataset.outDir, autoInject: true, liveInject: true})
+    })).json();
+    if (!drained.ok) throw new Error(drained.error || 'preparation resume failed');
+    landing.dataset.draining = '1';
+    setOnboardPrepareVisible(false, false);
+    updateOnboardFromStatus(drained.status || {});
+    pollOnboardLearning();
+  } catch (e) {
+    setOnboardStatus(String(e && e.message || e), true);
+    setOnboardPrepareVisible(true, false);
   }
 }
 

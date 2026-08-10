@@ -23,7 +23,7 @@ const fs = require('fs');
 const path = require('path');
 const { defaultOnboardOutDir } = require('../lib/onboard-paths');
 
-const SKIP_DIRS = new Set(['node_modules', 'worktrees', '.git', 'dist', 'build', 'coverage', 'vendor', '.next', 'out', 'tmp', '__pycache__', 'test', 'bench']);
+const SKIP_DIRS = new Set(['node_modules', 'worktrees', '.git', '.zonoid', 'dist', 'build', 'coverage', 'vendor', '.next', 'out', 'tmp', '__pycache__', 'test', 'bench']);
 const CODE_EXT = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx']);
 
 // Generic "this const looks like a shipped default/config" name test. No probe-specific names.

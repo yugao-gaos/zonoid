@@ -95,12 +95,13 @@ try {
   await injectOnboardNotes(notesFile, true, target, async (method, urlPath, body) => {
     dedupeCalls.push({ method, urlPath, body });
     if (method === 'GET' && urlPath.startsWith('/state?workspace=')) {
-      return { tasks: [{ kind: 'note', label: '[ingest] Preserve document progression' }] };
+      return { tasks: [{ id: 'note:distilled-fact', kind: 'note', label: '[ingest] Preserve document progression', summary: enriched.kept[0].summary }] };
     }
     return { ok: true };
   });
   ok('workspace injection dedupes via workspace state', dedupeCalls.some((c) => c.method === 'GET' && c.urlPath === `/state?workspace=${encodeURIComponent(target)}`));
   ok('workspace injection skips existing ingest note', !dedupeCalls.some((c) => c.urlPath === '/overlay/note'));
+  ok('workspace injection repairs evidence edges on an existing note', dedupeCalls.some((c) => c.urlPath === '/overlay/edge' && c.body.to === 'note:distilled-fact'));
 } finally {
   fs.rmSync(TMP, { recursive: true, force: true });
 }

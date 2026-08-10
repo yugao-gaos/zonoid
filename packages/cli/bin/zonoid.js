@@ -4,12 +4,14 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const http = require('http');
 const runtimePaths = require('../../../lib/runtime-paths');
 const graphLifecycle = require('../../../lib/graph-lifecycle');
+const mcpCore = require('../../../lib/mcp-core');
 
 const REPO_URL = 'https://github.com/yugao-gaos/zonoid';
+const DAEMON_HEALTH_SIGNATURE = 'zonoid-orchestrator-health-v1';
 const SKILLS_DIR = path.join(os.homedir(), '.claude', 'skills');
 const CODEX_REPO_SKILLS_DIR = path.join('.codex', 'skills');
 const OPENCODE_REPO_SKILLS_DIR = path.join('.opencode', 'skills');
@@ -533,30 +535,140 @@ function installOpencodeRepoSkills(cwd) {
   return installRepoSkill(cwd, 'zonoid-orchestrator', 'opencode');
 }
 
-function checkDaemon() {
+function probeDaemonHealth(port = ORCH_PORT, timeoutMs = 1500) {
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
     const req = http.request(
-      { hostname: 'localhost', port: 8787, path: '/ping', method: 'GET' },
+      { hostname: 'localhost', port, path: '/health', method: 'GET' },
       (res) => {
-        res.resume();
-        if (res.statusCode === 200) ok('Daemon is running (localhost:8787)');
-        else warn(`Daemon responded with ${res.statusCode}`);
-        resolve();
+        let raw = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => { raw += chunk; });
+        res.on('end', () => {
+          let body = null;
+          try { body = raw ? JSON.parse(raw) : {}; } catch { /* old daemon response */ }
+          const identified = res.headers['x-zonoid-health-signature'] === DAEMON_HEALTH_SIGNATURE;
+          const ready = identified && res.statusCode === 200 && body && body.ok === true && body.phase === 'ready';
+          finish({ reachable: true, identified, ready, statusCode: res.statusCode, body });
+        });
       }
     );
-    req.on('error', () => {
-      fix('Daemon not running — starting it...');
-      spawnSync('node', [path.join(INSTALL_DIR, 'daemon.js')], { detached: true, stdio: 'ignore', windowsHide: true });
-      ok('Daemon started.');
-      resolve();
+    req.on('error', () => finish({ reachable: false, ready: false }));
+    req.setTimeout(timeoutMs, () => {
+      // A listening daemon can be temporarily unresponsive during startup. Treat that as
+      // reachable so init waits instead of launching a second process on the same port.
+      finish({ reachable: true, ready: false, timedOut: true });
+      req.destroy();
     });
-    req.setTimeout(1500, () => { req.destroy(); warn('Daemon ping timed out'); resolve(); });
     req.end();
   });
 }
 
-function registerWorkspace(cwd, workspace) {
+function childHasExited(child) {
+  return child.exitCode !== null || child.signalCode !== null;
+}
+
+function daemonReport(deps, kind, message) {
+  if (deps && deps.quiet === true) return;
+  if (kind === 'ok') ok(message);
+  else if (kind === 'warn') warn(message);
+  else fix(message);
+}
+
+function waitForChildExit(child, timeoutMs) {
+  if (childHasExited(child)) return Promise.resolve(true);
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = (exited) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.removeListener('exit', onExit);
+      child.removeListener('error', onExit);
+      resolve(exited);
+    };
+    const onExit = () => finish(true);
+    const timer = setTimeout(() => finish(childHasExited(child)), timeoutMs);
+    child.once('exit', onExit);
+    child.once('error', onExit);
+  });
+}
+
+async function terminateSpawnedChild(child, graceMs = 1000) {
+  if (!child || childHasExited(child)) return;
+  try { child.kill('SIGTERM'); } catch { return; }
+  if (await waitForChildExit(child, graceMs)) return;
+  try { child.kill('SIGKILL'); } catch { return; }
+  await waitForChildExit(child, graceMs);
+}
+
+async function checkDaemon(deps = {}) {
+  const port = deps.port || ORCH_PORT;
+  const healthTimeoutMs = deps.healthTimeoutMs || 1500;
+  const startupTimeoutMs = deps.startupTimeoutMs || 15000;
+  const pollMs = deps.pollMs || 100;
+  const childCleanupGraceMs = deps.childCleanupGraceMs || 1000;
+  let spawnedChild = null;
+  const initial = await probeDaemonHealth(port, healthTimeoutMs);
+  if (initial.ready) {
+    daemonReport(deps, 'ok', `Daemon is running (localhost:${port})`);
+    return true;
+  }
+
+  if (!initial.reachable) {
+    daemonReport(deps, 'fix', 'Daemon not running — starting it...');
+    const daemonPath = deps.daemonPath || path.join(INSTALL_DIR, 'daemon.js');
+    const daemonEnv = { ...process.env, ...(deps.env || {}), ORCH_PORT: String(port) };
+    spawnedChild = spawn(process.execPath, [daemonPath], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+      env: daemonEnv,
+    });
+    spawnedChild.on('error', (err) => daemonReport(deps, 'warn', `Could not start daemon: ${err.message}`));
+    spawnedChild.unref();
+  } else {
+    daemonReport(deps, 'fix', 'Daemon is still starting — waiting for it...');
+  }
+
+  const deadline = Date.now() + startupTimeoutMs;
+  while (Date.now() < deadline) {
+    const health = await probeDaemonHealth(port, healthTimeoutMs);
+    if (health.ready) {
+      daemonReport(deps, 'ok', `Daemon is ready (localhost:${port})`);
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+  daemonReport(deps, 'warn', `Daemon did not become ready within ${startupTimeoutMs}ms`);
+  await terminateSpawnedChild(spawnedChild, childCleanupGraceMs);
+  return false;
+}
+
+function daemonJsonHeaders(body, deps = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(body),
+  };
+  const token = Object.prototype.hasOwnProperty.call(deps, 'token') ? deps.token : mcpCore.readToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+function registerWorkspace(cwd, workspace, deps = {}) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return false;
+      settled = true;
+      resolve(value);
+      return true;
+    };
     // Resolve cwd -> its containing repo root (nearest ancestor with .graph/.git); fall back to the
     // cwd itself when no marker is found so the daemon still gets a path to register.
     let repoPath = cwd;
@@ -568,27 +680,46 @@ function registerWorkspace(cwd, workspace) {
     if (workspace) payload.workspace = workspace;
     const body = JSON.stringify(payload);
     const req = http.request(
-      { hostname: 'localhost', port: 8787, path: '/workspace', method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },
+      { hostname: 'localhost', port: deps.port || ORCH_PORT, path: '/workspace', method: 'POST',
+        headers: daemonJsonHeaders(body, deps) },
       (res) => {
-        res.resume();
-        ok(`Workspace registered (${res.statusCode})`);
-        resolve(res.statusCode >= 200 && res.statusCode < 300 ? repoPath : null);
+        let raw = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => { raw += chunk; });
+        res.on('end', () => {
+          let parsed = null;
+          try { parsed = raw ? JSON.parse(raw) : {}; } catch { /* handled below */ }
+          const accepted = res.statusCode >= 200 && res.statusCode < 300
+            && parsed && parsed.ok === true;
+          if (accepted) {
+            if (finish(repoPath)) daemonReport(deps, 'ok', `Workspace registered (${res.statusCode})`);
+          } else {
+            const detail = parsed && parsed.error ? `: ${parsed.error}` : '';
+            if (finish(null)) {
+              daemonReport(deps, 'warn', `Could not register workspace (daemon returned ${res.statusCode}${detail})`);
+            }
+          }
+        });
       }
     );
-    req.on('error', () => { warn('Could not register workspace (daemon may still be starting)'); resolve(null); });
-    req.setTimeout(3000, () => { req.destroy(); resolve(null); });
+    req.on('error', () => {
+      if (finish(null)) daemonReport(deps, 'warn', 'Could not register workspace (daemon may still be starting)');
+    });
+    req.setTimeout(deps.registrationTimeoutMs || 3000, () => {
+      if (finish(null)) daemonReport(deps, 'warn', 'Could not register workspace (request timed out)');
+      req.destroy(new Error('daemon workspace registration timed out'));
+    });
     req.write(body);
     req.end();
   });
 }
 
-function postDaemonJson(route, payload, timeoutMs = 120000) {
+function postDaemonJson(route, payload, timeoutMs = 120000, deps = {}) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify(payload);
     const req = http.request(
-      { hostname: 'localhost', port: 8787, path: route, method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },
+      { hostname: 'localhost', port: deps.port || ORCH_PORT, path: route, method: 'POST',
+        headers: daemonJsonHeaders(body, deps) },
       (res) => {
         let raw = '';
         res.setEncoding('utf8');
@@ -612,7 +743,12 @@ function postDaemonJson(route, payload, timeoutMs = 120000) {
 }
 
 async function startWorkspaceOnboarding(repoPath, deps = {}) {
-  const post = deps.post || postDaemonJson;
+  const post = deps.post || ((route, payload) => postDaemonJson(
+    route,
+    payload,
+    deps.onboardingTimeoutMs || deps.timeoutMs || 120000,
+    deps
+  ));
   try {
     const enqueued = await post('/onboard/enqueue', { repo: repoPath });
     if (!enqueued || !enqueued.ok || !enqueued.outDir) {
@@ -627,10 +763,45 @@ async function startWorkspaceOnboarding(repoPath, deps = {}) {
     if (!drained || !drained.ok) {
       throw new Error((drained && drained.error) || 'onboarding drain queue failed');
     }
-    ok(enqueued.reused ? 'Project onboarding resumed in background.' : 'Project onboarding queued in background.');
+    daemonReport(deps, 'ok', enqueued.reused ? 'Project onboarding resumed in background.' : 'Project onboarding queued in background.');
     return { ok: true, outDir: enqueued.outDir, reused: !!enqueued.reused };
   } catch (err) {
-    warn(`Could not start project onboarding: ${err && err.message ? err.message : err}`);
+    daemonReport(deps, 'warn', `Could not start project onboarding: ${err && err.message ? err.message : err}`);
+    return { ok: false, error: String(err && err.message ? err.message : err) };
+  }
+}
+
+async function startWorkspaceInitialization(cwd, workspace, deps = {}) {
+  let repoPath = cwd;
+  try {
+    const { registrationRepoRoot } = require(path.join(INSTALL_DIR, 'lib', 'workspace-registry.js'));
+    repoPath = registrationRepoRoot(cwd) || cwd;
+  } catch { /* older installs fall back to the requested cwd */ }
+  const post = deps.post || ((route, payload) => postDaemonJson(
+    route,
+    payload,
+    deps.transactionTimeoutMs || deps.onboardingTimeoutMs || deps.registrationTimeoutMs || deps.timeoutMs || 120000,
+    deps
+  ));
+  try {
+    const payload = { repo: repoPath };
+    if (workspace) payload.workspace_id = workspace;
+    const accepted = await post('/onboard/init', payload);
+    if (!accepted || accepted.ok !== true || accepted.accepted !== true
+        || accepted.registered !== true || !accepted.graph_repo || !accepted.outDir) {
+      throw new Error((accepted && accepted.error) || 'daemon did not accept the workspace onboarding transaction');
+    }
+    daemonReport(deps, 'ok', accepted.reused
+      ? 'Workspace registration and project onboarding resumed.'
+      : 'Workspace registration and project onboarding queued.');
+    return {
+      ok: true,
+      repo: accepted.graph_repo,
+      outDir: accepted.outDir,
+      reused: !!accepted.reused,
+    };
+  } catch (err) {
+    daemonReport(deps, 'warn', `Could not initialize workspace onboarding: ${err && err.message ? err.message : err}`);
     return { ok: false, error: String(err && err.message ? err.message : err) };
   }
 }
@@ -1665,6 +1836,28 @@ async function init(opts = {}) {
   console.log(`Install dir:  ${INSTALL_DIR}`);
   console.log(`Harness:      ${harnesses.join(', ')}\n`);
 
+  // Treat daemon readiness, workspace registration, and durable onboarding enqueue as the
+  // transaction boundary for init. Until all three are accepted, do not migrate runtime state,
+  // install skills/services, or write any project config/hooks. The preflight is quiet so a failed
+  // init never prints a success marker for work that will not be completed.
+  const daemonDeps = { ...(opts.daemonDeps || {}), quiet: true };
+  const daemonReady = await checkDaemon(daemonDeps);
+  if (!daemonReady) {
+    const port = daemonDeps.port || ORCH_PORT;
+    throw new Error(
+      `Initialization aborted: no verified Zonoid daemon is ready on localhost:${port}. ` +
+      'Workspace registration and project onboarding were not attempted.'
+    );
+  }
+  const initialization = await startWorkspaceInitialization(cwd, opts.workspace, daemonDeps);
+  if (!initialization.ok) {
+    throw new Error(`Initialization aborted: workspace registration and project onboarding were not durably accepted: ${initialization.error}`);
+  }
+
+  section('0. Daemon preflight');
+  ok(`Daemon verified (localhost:${daemonDeps.port || ORCH_PORT})`);
+  ok('Workspace registration and project onboarding accepted.');
+
   const runtimeMigration = runtimePaths.migrateLegacyRuntime();
   ZONOID_DATA_DIR = runtimeMigration.dataDir;
   if (runtimeMigration.migrated) {
@@ -1703,9 +1896,7 @@ async function init(opts = {}) {
 
   section('5. Daemon');
   if (opts.service) installService();
-  await checkDaemon();
-  const registeredRepo = await registerWorkspace(cwd, opts.workspace);
-  if (registeredRepo) await startWorkspaceOnboarding(registeredRepo);
+  ok(`Daemon is ready (localhost:${daemonDeps.port || ORCH_PORT})`);
 
   section('6. Graph auto-commit hook');
   checkGraphAutocommitHook(cwd, { enable: opts.enableGraphAutocommit });
@@ -1839,7 +2030,12 @@ if (require.main === module) {
     prePushTestHookScript,
     checkPrePushTestHook,
     parseOnboardArgs,
+    init,
+    checkDaemon,
+    registerWorkspace,
+    postDaemonJson,
     startWorkspaceOnboarding,
+    startWorkspaceInitialization,
     dashboardUrl,
     renderClaudeInstructions,
     parseGraphArgs,
