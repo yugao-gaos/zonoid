@@ -1585,6 +1585,121 @@ test('invalid publication quarantine stays fail-closed across every queue/status
   }
 });
 
+test('invalid publication recovery rejects queue/status FIFOs without blocking and survives restart', () => {
+  const stateModule = require.resolve('../lib/onboard-state');
+  const childSource = `
+    const state = require(process.argv[1]);
+    const result = state.reconcileOnboardPublication(process.argv[2]);
+    if (!result.ok) {
+      process.stderr.write(JSON.stringify(result));
+      process.exit(2);
+    }
+  `;
+  const runRecovery = (outDir, crashAfter = null) => child_process.spawnSync(
+    process.execPath,
+    ['-e', childSource, stateModule, outDir],
+    {
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: 3000,
+      env: {
+        ...process.env,
+        ...(crashAfter ? { ZONOID_TEST_ONBOARD_PUBLICATION_CRASH_AFTER: crashAfter } : {}),
+      },
+    }
+  );
+  const makeFifo = (file) => child_process.spawnSync('mkfifo', [file], {
+    encoding: 'utf8', windowsHide: true,
+  }).status === 0;
+
+  const cases = [
+    {
+      name: 'queue-fifo',
+      make(repo, outDir) {
+        const retryGeneration = 'generation-queue-fifo-reprepare';
+        fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+          repo,
+          outDir,
+          preparationState: 'running',
+          preparationGeneration: retryGeneration,
+          preparationOwner: 'dead-owner',
+          preparationPid: 99999999,
+          preparationLeaseExpiresAt: Date.now() - 1,
+          queueGeneration: 'generation-before-poison',
+          injectionGeneration: 'generation-before-poison',
+        }));
+        return {
+          supported: makeFifo(path.join(outDir, 'onboard-queue.json')),
+          crashAfter: 'invalid_status_commit',
+          retryGeneration,
+        };
+      },
+    },
+    {
+      name: 'status-fifo',
+      make(_repo, outDir) {
+        fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+          generation: 'generation-untrusted-status-fifo',
+          total: 1,
+          cursor: 0,
+          kept: [],
+          rejected: [],
+          pending: [{ title: 'untrusted' }],
+        }));
+        return {
+          supported: makeFifo(path.join(outDir, 'onboard-drain-status.json')),
+          crashAfter: 'invalid_queue_quarantine',
+          retryGeneration: null,
+        };
+      },
+    },
+  ];
+
+  for (const fixture of cases) {
+    const hd = freshModule();
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), `hd-invalid-${fixture.name}-`));
+    const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+    const queueFile = path.join(outDir, 'onboard-queue.json');
+    const statusFile = path.join(outDir, 'onboard-drain-status.json');
+    const journal = path.join(outDir, 'onboard-publication-intent.json');
+    try {
+      fs.mkdirSync(outDir, { recursive: true });
+      const expected = fixture.make(repo, outDir);
+      if (!expected.supported) continue;
+      fs.writeFileSync(journal, JSON.stringify({ version: 1, generation: 'shallow-untrusted' }));
+
+      const crashed = runRecovery(outDir, expected.crashAfter);
+      assert.notEqual(crashed.error && crashed.error.code, 'ETIMEDOUT',
+        `${fixture.name}: hostile canonical files must not block recovery`);
+      assert.equal(crashed.status, 87, crashed.stderr);
+      assert.equal(fs.existsSync(journal), true,
+        `${fixture.name}: a crash must leave the poison journal as the canonical fence`);
+
+      const restarted = runRecovery(outDir);
+      assert.notEqual(restarted.error && restarted.error.code, 'ETIMEDOUT',
+        `${fixture.name}: restarted recovery must not block`);
+      assert.equal(restarted.status, 0, restarted.stderr);
+      assert.equal(fs.existsSync(journal), false, fixture.name);
+      assert.equal(fs.existsSync(queueFile), false, fixture.name);
+      const status = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+      assert.equal(status.queueGeneration, null, fixture.name);
+      assert.equal(status.injectionGeneration, null, fixture.name);
+      assert.equal(status.preparationState, expected.retryGeneration ? 'pending' : 'failed', fixture.name);
+
+      const due = hd.findPendingLearnerQueues(repo);
+      if (expected.retryGeneration) {
+        assert.equal(due.length, 1, fixture.name);
+        assert.equal(due[0].preparationDue, true, fixture.name);
+        assert.equal(due[0].generation, expected.retryGeneration, fixture.name);
+      } else {
+        assert.deepEqual(due, [], fixture.name);
+      }
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  }
+});
+
 test('registered headless reconciliation removes malformed journals without blocking later discovery', () => {
   const hd = freshModule();
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-publication-invalid-registered-'));
