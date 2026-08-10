@@ -11,6 +11,8 @@ const { spawn } = require('child_process');
 
 const onboardRoute = require('../routes/onboard');
 const learner = require('../scripts/onboard-learn');
+const onboardInitTransaction = require('../lib/onboard-init-transaction');
+const workspaceRegistry = require('../lib/workspace-registry');
 const {
   defaultOnboardOutDir,
   legacyGraphOnboardOutDir,
@@ -1343,5 +1345,150 @@ test('explicit preparation rearm replaces a failed force generation instead of r
     assert.equal(status.error, null);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('init atomically rearms a failed force replacement backed by an old queue', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-force-rearm-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-force-data-'));
+  const registryFile = path.join(dataDir, 'workspaces.json');
+  const sent = [];
+  try {
+    writeQueue(outDir, 1, 1, [{ title: 'Old generation note' }], 'generation-old');
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo,
+      outDir,
+      preparationGeneration: 'generation-failed-force',
+      preparationState: 'failed',
+      preparationForce: true,
+      autoInject: true,
+      batchSize: 20,
+      error: 'forced preparation failed',
+    }));
+    const ctx = {
+      ...makeCtx({ repo }, sent, () => {}, [repo]),
+      WORKSPACES_FILE: registryFile,
+      registrationRepoRoot: (candidate) => path.resolve(candidate),
+      setWorkspace: () => {},
+    };
+    await onboardRoute(ctx)('/onboard/init', 'POST', {}, {}, new URL('http://localhost/onboard/init'));
+
+    assert.equal(sent[0].status, 200);
+    assert.equal(sent[0].payload.queued, true);
+    assert.equal(sent[0].payload.reused, false);
+    assert.equal(sent[0].payload.preparationState, 'pending');
+    const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.preparationState, 'pending');
+    assert.equal(status.preparationForce, false);
+    assert.notEqual(status.preparationGeneration, 'generation-failed-force');
+    assert.equal(status.queueGeneration, null, 'the failed generation old queue cannot be accepted as ready');
+    assert.ok(workspaceRegistry.allRepos(workspaceRegistry.loadRegistry(registryFile)).includes(repo));
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('tampered, shallow, and stale init intents are quarantined without project or registry mutation', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-intent-quarantine-'));
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-intent-data-'));
+  const registryFile = path.join(dataDir, 'workspaces.json');
+  const outDir = defaultOnboardOutDir(repo);
+  const statusFile = path.join(outDir, 'onboard-drain-status.json');
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    const current = {
+      repo, outDir, autoInject: true, batchSize: 20,
+      preparationState: 'ready', queueGeneration: 'generation-current',
+    };
+    fs.writeFileSync(statusFile, JSON.stringify(current));
+    const valid = onboardInitTransaction.createIntent({
+      repo,
+      outDir,
+      workspaceId: path.basename(repo),
+      beforeStatus: current,
+      desiredStatus: current,
+      ensureRuntimeIgnore: false,
+    });
+    const journals = onboardInitTransaction.journalDir(registryFile);
+    fs.mkdirSync(journals, { recursive: true });
+    const tampered = { ...valid, desiredStatus: { ...valid.desiredStatus, queueGeneration: 'generation-tampered' } };
+    fs.writeFileSync(path.join(journals, `${valid.id}.json`), JSON.stringify(tampered));
+    const shallowId = 'b'.repeat(32);
+    fs.writeFileSync(path.join(journals, `${shallowId}.json`), JSON.stringify({
+      version: 1,
+      id: shallowId,
+      repo,
+      outDir,
+      workspaceId: path.basename(repo),
+      desiredStatus: { repo, outDir, autoInject: true, batchSize: 20 },
+    }));
+
+    const beforeStatus = fs.readFileSync(statusFile);
+    onboardInitTransaction.reconcilePending(registryFile);
+    assert.deepEqual(fs.readFileSync(statusFile), beforeStatus);
+    assert.deepEqual(workspaceRegistry.allRepos(workspaceRegistry.loadRegistry(registryFile)), []);
+    assert.equal(fs.existsSync(path.join(journals, `${valid.id}.json.invalid`)), true);
+    assert.equal(fs.existsSync(path.join(journals, `${shallowId}.json.invalid`)), true);
+
+    const stale = onboardInitTransaction.createIntent({
+      repo,
+      outDir,
+      workspaceId: path.basename(repo),
+      beforeStatus: {},
+      desiredStatus: {
+        repo, outDir, autoInject: true, batchSize: 20,
+        preparationState: 'pending', preparationGeneration: 'generation-stale',
+      },
+      ensureRuntimeIgnore: false,
+    });
+    onboardInitTransaction.writeIntent(registryFile, stale);
+    onboardInitTransaction.reconcilePending(registryFile);
+    assert.deepEqual(fs.readFileSync(statusFile), beforeStatus);
+    assert.deepEqual(workspaceRegistry.allRepos(workspaceRegistry.loadRegistry(registryFile)), []);
+    assert.equal(fs.existsSync(path.join(journals, `${stale.id}.json.invalid`)), true);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('reconciliation preserves two valid intents including the strict legacy journal shape', () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-intent-valid-data-'));
+  const registryFile = path.join(dataDir, 'workspaces.json');
+  const repos = [
+    fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-intent-valid-a-')),
+    fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-intent-valid-b-')),
+  ];
+  try {
+    const intents = repos.map((repo, index) => {
+      const outDir = defaultOnboardOutDir(repo);
+      const desiredStatus = {
+        repo, outDir, autoInject: true, batchSize: 20,
+        preparationState: 'pending', preparationGeneration: `generation-valid-${index}`,
+      };
+      return onboardInitTransaction.createIntent({
+        repo, outDir, workspaceId: `workspace-${index}`, beforeStatus: {}, desiredStatus,
+      });
+    });
+    onboardInitTransaction.writeIntent(registryFile, intents[0]);
+    const legacy = { ...intents[1], version: 1 };
+    delete legacy.desiredStatusDigest;
+    delete legacy.intentDigest;
+    fs.mkdirSync(onboardInitTransaction.journalDir(registryFile), { recursive: true });
+    fs.writeFileSync(onboardInitTransaction.journalFile(registryFile, legacy.id), JSON.stringify(legacy));
+
+    const recovered = onboardInitTransaction.reconcilePending(registryFile);
+    assert.equal(recovered.length, 2);
+    const registered = workspaceRegistry.allRepos(workspaceRegistry.loadRegistry(registryFile));
+    assert.deepEqual(new Set(registered), new Set(repos));
+    for (const [index, repo] of repos.entries()) {
+      const status = JSON.parse(fs.readFileSync(path.join(defaultOnboardOutDir(repo), 'onboard-drain-status.json'), 'utf8'));
+      assert.equal(status.preparationGeneration, `generation-valid-${index}`);
+    }
+  } finally {
+    for (const repo of repos) fs.rmSync(repo, { recursive: true, force: true });
+    fs.rmSync(dataDir, { recursive: true, force: true });
   }
 });

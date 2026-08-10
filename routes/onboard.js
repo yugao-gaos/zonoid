@@ -14,6 +14,7 @@ const {
   mutateOnboardStatus,
   confirmedInjectedCount,
   liveOnboardInjectionLease: liveInjectionLease,
+  validateOnboardQueue,
 } = require('../lib/onboard-state');
 
 const DEFAULT_DRAIN_BATCH_SIZE = 20;
@@ -26,15 +27,6 @@ function readJSON(file, def) {
 
 function newQueueGeneration() {
   return `onboard-${crypto.randomBytes(12).toString('hex')}`;
-}
-
-function queueGeneration(q) {
-  if (!q || typeof q !== 'object') return null;
-  if (typeof q.generation === 'string' && q.generation.trim()) return q.generation.trim();
-  // Legacy queues predate explicit generations. Their candidate set is immutable while cursor,
-  // kept, and inflight progress change, so it is a safe compatibility fingerprint.
-  const stable = JSON.stringify({ total: Number(q.total) || 0, pending: Array.isArray(q.pending) ? q.pending : [] });
-  return `legacy-${crypto.createHash('sha1').update(stable).digest('hex')}`;
 }
 
 function countOrZero(value) {
@@ -93,7 +85,8 @@ function summarizeInflight(q) {
 
 function queueStatus(outDir) {
   const q = readJSON(path.join(outDir, 'onboard-queue.json'), null);
-  if (!q || typeof q.total !== 'number' || typeof q.cursor !== 'number') return null;
+  const validated = validateOnboardQueue(q);
+  if (!validated.ok) return null;
   const processed = q.cursor;
   const remaining = Math.max(0, q.total - q.cursor);
   const kept = Array.isArray(q.kept) ? q.kept.length : 0;
@@ -109,7 +102,7 @@ function queueStatus(outDir) {
     keptNotes,
     remaining,
     drainDone: remaining === 0,
-    queueGeneration: queueGeneration(q),
+    queueGeneration: validated.generation,
     ...summarizeInflight(q),
   };
 }
@@ -464,7 +457,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         let reuseQueue = false;
         let reusePreparation = false;
         try {
-          reuseQueue = lockedSameRepo && !!lockedStatus;
+          const forceReplacementPending = lockedMeta.preparationForce === true
+            && ['pending', 'running', 'failed'].includes(lockedMeta.preparationState);
+          reuseQueue = lockedSameRepo && !!lockedStatus && !forceReplacementPending;
           reusePreparation = lockedSameRepo && ['pending', 'running'].includes(lockedMeta.preparationState);
           const needsPreparation = !reuseQueue && !reusePreparation;
           const needsDrainPatch = lockedMeta.autoInject !== true
@@ -475,6 +470,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
             outDir,
             batchSize: DEFAULT_DRAIN_BATCH_SIZE,
             autoInject: true,
+            ...(reuseQueue ? {
+              preparationState: 'ready',
+              preparationGeneration: null,
+              preparationForce: false,
+              queueGeneration: lockedStatus.queueGeneration,
+            } : {}),
             ...(needsPreparation || needsDrainPatch ? { updatedAt: new Date().toISOString() } : {}),
           };
           intent = onboardInitTransaction.createIntent({

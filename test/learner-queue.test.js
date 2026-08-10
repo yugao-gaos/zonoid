@@ -198,15 +198,15 @@ function readJSON(p) {
     { title: 'Note A', summary: 'summary A', evidence: 'lib/a.js:10', kind: 'invariant', source: '0' },
     { title: 'Note B', summary: 'summary B', evidence: 'lib/b.js:5', kind: 'gotcha', source: '1' },
   ];
-  const rejectedNotes = [
-    { candidate: 'Git 1', reason: 'restatement' },
-  ];
+  const rejectedNotes = Array.from({ length: 10 }, (_, i) => ({
+    candidate: `Rejected ${i + 1}`, reason: 'restatement',
+  }));
   const queue = {
     total: 12,
     cursor: 12, // already drained
     kept: keptNotes,
     rejected: rejectedNotes,
-    pending: [], // drained, pending irrelevant
+    pending: Array.from({ length: 12 }, (_, i) => ({ title: `Candidate ${i + 1}` })),
   };
   fs.writeFileSync(path.join(dir, 'onboard-queue.json'), JSON.stringify(queue, null, 2));
 
@@ -349,14 +349,14 @@ function readJSON(p) {
 
   learner.completeQueueBatch(qf, r2, {
     kept: [{ title: 'Later', summary: 'later', evidence: 'x', kind: 'gotcha' }],
-    rejected: [],
+    rejected: [{ candidate: 'Later rejected', reason: 'restatement' }],
   }, dir, dir, 'opus');
   q = readJSON(qf);
   ok('out-of-order completion does not advance past gap', q && q.cursor === 0);
 
   learner.completeQueueBatch(qf, r1, {
     kept: [{ title: 'First', summary: 'first', evidence: 'x', kind: 'gotcha' }],
-    rejected: [],
+    rejected: [{ candidate: 'First rejected', reason: 'restatement' }],
   }, dir, dir, 'opus');
   q = readJSON(qf);
   ok('cursor advances through contiguous completed slices', q && q.cursor === 4);
@@ -392,7 +392,17 @@ function readJSON(p) {
     rejected: [],
     pending: Array.from({ length: 3 }, (_, i) => ({ title: `Cand ${i}`, summary: 's', kind: 'gotcha' })),
     inflight: {
-      0: { count: 2, pid: 99999999, startedAt: 1000, expiresAt: 11000 },
+      0: {
+        count: 2,
+        generation: learner.queueGeneration({
+          total: 3,
+          pending: Array.from({ length: 3 }, (_, i) => ({ title: `Cand ${i}`, summary: 's', kind: 'gotcha' })),
+        }),
+        reservationId: 'dead-owner-reservation',
+        pid: 99999999,
+        startedAt: 1000,
+        expiresAt: 11000,
+      },
     },
   }, null, 2));
 

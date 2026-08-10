@@ -707,6 +707,34 @@ test('headless zero-kept finalization persists the shared not-needed terminal st
   }
 });
 
+test('malformed completed queues fail closed and never finalize as not needed', () => {
+  const hd = freshModule();
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-malformed-terminal-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  const statusFile = path.join(outDir, 'onboard-drain-status.json');
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      generation: 'generation-malformed', total: 2, cursor: 2, pending: [],
+    }));
+    fs.writeFileSync(statusFile, JSON.stringify({
+      repo, outDir, autoInject: true, injectionGeneration: 'generation-malformed', injectionState: 'pending',
+    }));
+    const before = fs.readFileSync(statusFile);
+    assert.deepEqual(hd.findPendingLearnerQueues(repo), []);
+    assert.equal(hd._persistNoInjectionNeeded(repo, outDir), false);
+    assert.deepEqual(fs.readFileSync(statusFile), before);
+
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      generation: 'generation-impossible', total: 1, cursor: 0,
+      kept: [{ title: 'Unprocessed result' }], rejected: [], pending: [],
+    }));
+    assert.deepEqual(hd.findPendingLearnerQueues(repo), []);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test('preparation scavenging removes only old inactive staging below a validated outDir', () => {
   const savedAge = process.env.HEADLESS_DRAIN_PREPARATION_SCAVENGE_AGE_MS;
   process.env.HEADLESS_DRAIN_PREPARATION_SCAVENGE_AGE_MS = '1000';
@@ -927,7 +955,7 @@ test('completed kept queues atomically reconstruct a missing final notes artifac
   try {
     fs.mkdirSync(outDir, { recursive: true });
     fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
-      generation: 'generation-missing-notes', total: 1, cursor: 1,
+      generation: 'generation-missing-notes', total: 2, cursor: 2,
       kept, rejected, pending: [],
     }));
     fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({ repo, outDir, autoInject: true }));
@@ -963,7 +991,7 @@ test('final artifact recovery replaces corrupt or cross-generation data but neve
     const queueFile = path.join(outDir, 'onboard-queue.json');
     const notesFile = path.join(outDir, 'onboard-notes.json');
     fs.writeFileSync(queueFile, JSON.stringify({
-      generation: 'generation-current', total: 1, cursor: 1, kept,
+      generation: 'generation-current', total: 2, cursor: 2, kept,
       rejected: [{ candidate: 'Rejected current', reason: 'duplicate' }], pending: [],
     }));
     fs.writeFileSync(notesFile, JSON.stringify({

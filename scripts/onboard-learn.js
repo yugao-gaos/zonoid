@@ -51,6 +51,7 @@ const {
   confirmInjectedNote,
   confirmedInjectedCount,
   onboardQueueGeneration,
+  validateOnboardQueue,
   writeOnboardNotesArtifact,
   loadGenerationMatchedOnboardNotes,
 } = require('../lib/onboard-state');
@@ -430,14 +431,9 @@ function withQueueLock(qf, fn) {
 }
 
 function normalizeQueue(queue) {
-  if (!queue || typeof queue !== 'object') return null;
-  queue.total = Number(queue.total) || 0;
-  queue.cursor = Math.max(0, Number(queue.cursor) || 0);
-  if (!Array.isArray(queue.kept)) queue.kept = [];
-  if (!Array.isArray(queue.rejected)) queue.rejected = [];
-  if (!Array.isArray(queue.pending)) queue.pending = [];
-  if (!queue.inflight || typeof queue.inflight !== 'object' || Array.isArray(queue.inflight)) queue.inflight = {};
-  if (!queue.completed || typeof queue.completed !== 'object' || Array.isArray(queue.completed)) queue.completed = {};
+  if (!validateOnboardQueue(queue).ok) return null;
+  if (queue.inflight === undefined) queue.inflight = {};
+  if (queue.completed === undefined) queue.completed = {};
   return queue;
 }
 
@@ -542,6 +538,12 @@ function completeQueueBatch(qf, reservation, result, repoAbs, outDir, model) {
     if (!inflight || inflight.generation !== reservation.generation
         || inflight.reservationId !== reservation.reservationId) {
       return { ...queue, stale: true, staleReason: 'reservation_replaced' };
+    }
+    if (!Array.isArray(result && result.kept) || !Array.isArray(result && result.rejected)
+        || result.kept.length + result.rejected.length !== reservation.count) {
+      delete queue.inflight[key];
+      writeJSONAtomic(qf, queue);
+      throw new Error('learner batch did not classify every reserved onboarding candidate');
     }
     delete queue.inflight[key];
     // Do not expire sibling reservations here. Expiry only makes a slice available to a future
@@ -763,12 +765,14 @@ async function inject(notesFile, confirm, workspace, expectedGeneration) {
 
 function assertCurrentInjectionGeneration(outDir, expectedGeneration) {
   if (!expectedGeneration) return;
-  const current = queueGeneration(loadJSON(queueFilePath(outDir), null));
+  const queue = loadJSON(queueFilePath(outDir), null);
+  const validated = validateOnboardQueue(queue, { expectedGeneration });
+  const current = queueGeneration(queue);
   const status = readOnboardStatus(outDir);
   const replacement = status.preparationGeneration && status.preparationGeneration !== expectedGeneration
     ? status.preparationGeneration
     : null;
-  if (current !== expectedGeneration || replacement) {
+  if (!validated.ok || replacement) {
     const err = new Error(`stale onboarding generation ${expectedGeneration}; current generation is ${replacement || current || 'missing'}`);
     err.code = 'STALE_ONBOARDING_GENERATION';
     throw err;
@@ -989,7 +993,7 @@ function previewKeptNotes(queue, limit = 64) {
 function queueStatus(outDir) {
   const qf = queueFilePath(outDir);
   const queue = readQueue(qf);
-  if (!queue) {
+  if (!validateOnboardQueue(queue).ok) {
     console.error(`[learn] No queue file at ${qf}. Run --enqueue first.`);
     process.exit(1);
   }
