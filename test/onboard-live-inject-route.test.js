@@ -379,6 +379,7 @@ test('every onboarding route validates the canonical repo and output before touc
   const cases = [
     { path: '/onboard/enqueue', method: 'POST', body: { repo, outDir } },
     { path: '/onboard/drain-queue', method: 'POST', body: { repo, outDir } },
+    { path: '/onboard/cancel-inject', method: 'POST', body: { repo, outDir } },
     { path: '/onboard/inject', method: 'POST', body: { repo, outDir } },
     { path: '/onboard/retry-inject', method: 'POST', body: { repo, outDir } },
     { path: '/onboard/drain-next', method: 'POST', body: { repo, outDir } },
@@ -713,7 +714,7 @@ test('force replacement allocates a fresh generation and invalidates the old inj
   }
 });
 
-test('force replacement conflicts with a live injection lease, then succeeds after expiry and fences old writes', async () => {
+test('force replacement waits for the exact live injection incarnation after expiry and rejects PID reuse', async () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-force-live-injection-'));
   const outDir = defaultOnboardOutDir(repo);
   const generation = 'generation-live';
@@ -734,6 +735,7 @@ test('force replacement conflicts with a live injection lease, then succeeds aft
       injecting: true,
       injectionOwner: 'live-owner',
       injectionPid: process.pid,
+      injectionProcessIdentity: onboardState.processIncarnation(process.pid),
       injectionLeaseExpiresAt: Date.now() + 60000,
     }));
     const statusBeforeConflict = fs.readFileSync(statusFile);
@@ -755,11 +757,21 @@ test('force replacement conflicts with a live injection lease, then succeeds aft
     const expired = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
     expired.injectionLeaseExpiresAt = Date.now() - 1;
     fs.writeFileSync(statusFile, JSON.stringify(expired));
+    const expiredStillBlocked = [];
+    await onboardRoute(makeCtx({ repo, outDir, force: true }, expiredStillBlocked, () => {}, [repo]))(
+      '/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue')
+    );
+    assert.equal(expiredStillBlocked[0].status, 409,
+      'lease age cannot authorize replacement while the exact writer incarnation is alive');
+
+    const reusedPid = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+    reusedPid.injectionProcessIdentity = 'darwin:reused-pid:older-incarnation';
+    fs.writeFileSync(statusFile, JSON.stringify(reusedPid));
     const accepted = [];
     await onboardRoute(makeCtx({ repo, outDir, force: true }, accepted, () => {}, [repo]))(
       '/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue')
     );
-    assert.equal(accepted[0].status, 200);
+    assert.equal(accepted[0].status, 200, 'a PID occupied by a different incarnation is not the old writer');
     const replacement = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
     assert.notEqual(replacement.preparationGeneration, generation);
     assert.equal(replacement.injectionOwner, null);
@@ -897,6 +909,45 @@ test('confirmed injection fails closed when graph state cannot establish the ide
     );
     assert.equal(noteCreates, 0);
     assert.equal(fs.existsSync(path.join(outDir, 'onboard-injection-receipt.json')), false);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('an explicitly canceled injection owner stops before its next graph write', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-inject-owner-canceled-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const generation = 'generation-canceled-owner';
+  const owner = 'inject-owner-canceled';
+  const kept = [{ title: 'Canceled', summary: 'Must not write', kind: 'decision' }];
+  let graphRequests = 0;
+  try {
+    writeQueue(outDir, 1, 1, kept, generation);
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ generation, kept, rejected: [] }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo, outDir, injectionGeneration: generation, injectionState: 'running', injecting: true,
+      injectionOwner: owner, injectionPid: process.pid,
+      injectionProcessIdentity: onboardState.processIncarnation(process.pid),
+    }));
+    const canceled = [];
+    await onboardRoute(makeCtx({ repo, outDir }, canceled, () => {}, [repo]))(
+      '/onboard/cancel-inject', 'POST', {}, {}, new URL('http://localhost/onboard/cancel-inject')
+    );
+    assert.equal(canceled[0].status, 202);
+    const cancelStatus = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(cancelStatus.injectionCancelRequestedOwner, owner);
+    assert.equal(cancelStatus.injectionOwner, owner, 'cancellation retains ownership until the writer exits');
+    assert.equal(onboardState.liveOnboardInjectionLease({
+      ...cancelStatus, injectionLeaseExpiresAt: Date.now() - 1,
+    }).live, true, 'cancellation and lease expiry still cannot authorize a concurrent replacement');
+    await assert.rejects(
+      learner.injectOnboardNotes(path.join(outDir, 'onboard-notes.json'), true, repo, async () => {
+        graphRequests++;
+        return {};
+      }, { expectedGeneration: generation, expectedOwner: owner }),
+      /stale onboarding generation/
+    );
+    assert.equal(graphRequests, 0);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }

@@ -327,9 +327,17 @@ try {
   const staleLock = `${addFile}.lock`;
   fs.writeFileSync(staleLock, JSON.stringify({ pid: process.pid, owner: 'stale-test-owner', at: 1 }));
   fs.utimesSync(staleLock, new Date(0), new Date(0));
-  const recovered = reg.addRepo(addFile, { workspace: 'second', repo: '/repos/four' }, { staleMs: 1, waitMs: 1000 });
-  ok('addRepo reclaims an explicitly stale live-owner lock', recovered.workspaces.second.repos.includes('/repos/four'));
-  ok('addRepo removes its replacement lock after stale-owner recovery', !fs.existsSync(staleLock));
+  const staleLiveBytes = fs.readFileSync(staleLock, 'utf8');
+  let staleLiveTimedOut = false;
+  try {
+    reg.addRepo(addFile, { workspace: 'second', repo: '/repos/four' }, { staleMs: 1, waitMs: 35 });
+  } catch (err) { staleLiveTimedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('addRepo never reclaims an aged well-formed live-owner lock',
+    staleLiveTimedOut && fs.readFileSync(staleLock, 'utf8') === staleLiveBytes);
+  fs.unlinkSync(staleLock);
+  const recovered = reg.addRepo(addFile, { workspace: 'second', repo: '/repos/four' });
+  ok('addRepo proceeds after the live legacy owner releases its lock',
+    recovered.workspaces.second.repos.includes('/repos/four'));
 
   // Empty/truncated/malformed locks can be the brief create-before-owner-write window. A fresh one
   // must remain untouched, while an unchanged sufficiently stale one is safe to recover.

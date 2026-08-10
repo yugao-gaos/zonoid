@@ -461,7 +461,10 @@ function readJSON(p) {
       count: 2, generation: 'generation-overlap', reservationId: 'token', pid: process.pid,
       startedAt: 1000, expiresAt: 2000,
     } },
-    completed: { 1: { count: 1, kept: [], rejected: [{ reason: 'duplicate slice' }] } },
+    completed: { 1: {
+      count: 1, kept: [], rejected: [{ reason: 'duplicate slice' }],
+      generation: 'generation-overlap', reservationId: 'completed-token', completedAt: 1500,
+    } },
   };
   ok('inflight and completed ranges cannot overlap',
     onboardState.validateOnboardQueue(overlapping).reason === 'overlapping_queue_ranges');
@@ -473,6 +476,14 @@ function readJSON(p) {
         count: 1, kept: [candidate], rejected: [], generation: 'generation-completed-owner',
       } },
     }).reason === 'invalid_completed_owner');
+  const explicitOwnerlessCompleted = {
+    generation: 'generation-explicit-ownerless', total: 2, cursor: 0,
+    kept: [], rejected: [], pending: [candidate, candidate],
+    completed: { 0: { count: 1, kept: [candidate], rejected: [] } },
+  };
+  ok('explicit-generation completed slices require the full reservation identity',
+    onboardState.validateOnboardQueue(explicitOwnerlessCompleted, { allowLegacy: true }).reason
+      === 'invalid_completed_owner');
   ok('safe legacy completed slice without reservation identity remains readable',
     onboardState.validateOnboardQueue({
       total: 2, cursor: 0, kept: [], rejected: [], pending: [candidate, candidate],
@@ -498,6 +509,13 @@ function readJSON(p) {
   const impossible = learner.reserveQueueBatch(qf, 1, Infinity, 1000, 10000);
   ok('ownerless full coverage cannot become permanent all_slices_inflight',
     impossible.status === 'missing_queue' && fs.readFileSync(qf).equals(impossibleBytes));
+
+  fs.writeFileSync(qf, JSON.stringify(explicitOwnerlessCompleted, null, 2));
+  const staleCompletedBytes = fs.readFileSync(qf);
+  const staleCompleted = learner.reserveQueueBatch(qf, 1, Infinity, 1000, 10000);
+  ok('ownerless explicit completed results never flush into the contiguous cursor',
+    staleCompleted.status === 'missing_queue'
+      && fs.readFileSync(qf).equals(staleCompletedBytes));
 
   const valid = {
     generation: 'generation-valid-batch', total: 1, cursor: 0,
@@ -575,6 +593,16 @@ function readJSON(p) {
   let reclaimed = false;
   learner.withQueueLock(qf, () => { reclaimed = true; }, { waitMs: 100 });
   ok('well-formed dead queue lock owner is safely reclaimed', reclaimed && !fs.existsSync(lock));
+
+  const legacyLiveBytes = JSON.stringify({ pid: process.pid, owner: 'legacy-live-owner', at: 1 });
+  fs.writeFileSync(lock, legacyLiveBytes);
+  fs.utimesSync(lock, new Date(0), new Date(0));
+  let legacyLiveTimedOut = false;
+  try { learner.withQueueLock(qf, () => {}, { staleMs: 1, waitMs: 35 }); }
+  catch (err) { legacyLiveTimedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('aged legacy file locks retain a well-formed live owner',
+    legacyLiveTimedOut && fs.readFileSync(lock, 'utf8') === legacyLiveBytes);
+  fs.unlinkSync(lock);
 
   const held = path.join(lock, 'held');
   const liveOwnerFile = path.join(held, 'owner-11111111111111111111111111111111.json');
