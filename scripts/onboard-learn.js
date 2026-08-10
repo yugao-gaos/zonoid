@@ -52,6 +52,8 @@ const {
   pidAlive,
   liveOnboardInjectionLease,
   mutateOnboardStatus,
+  reconcileOnboardPublication,
+  publishOnboardGeneration,
   confirmInjectedNote,
   confirmedInjectedCount,
   onboardQueueGeneration,
@@ -909,55 +911,69 @@ function enqueue(inDir, outDir, repoAbs) {
     rejected: [],
     pending: candidates,
   };
-  const publishLocked = () => {
-    writeJSONAtomic(queueFilePath(outDir), queue);
-    try { fs.rmSync(path.join(outDir, INJECTION_RECEIPT_FILE), { force: true }); } catch { /* runtime artifact */ }
-    if (queue.total === 0) writeOnboardNotesArtifact(outDir, queue, generation);
-    else try { fs.rmSync(path.join(outDir, 'onboard-notes.json'), { force: true }); } catch { /* runtime artifact */ }
-  };
   const staging = fs.existsSync(path.join(outDir, '.onboard-preparation.json'));
+  let publishedQueue = queue;
   if (!staging) {
-    const replaced = withQueueLock(queueFilePath(outDir), () => mutateOnboardStatus(outDir, (status) => {
-      if (liveOnboardInjectionLease(status).live) return undefined;
-      publishLocked();
-      return {
-        ...status,
-        ...(repoAbs ? { repo: repoAbs } : {}),
-        outDir,
-        preparationState: 'ready',
-        preparationGeneration: null,
-        preparationForce: false,
-        queueGeneration: generation,
-        total: queue.total,
-        injected: false,
-        injectedGeneration: null,
-        injectedAt: null,
-        injectedKept: 0,
-        injectionGeneration: generation,
-        injectionState: queue.total > 0 ? 'pending' : 'not_needed',
-        injectionOwner: null,
-        injectionPid: null,
-        injectionProcessIdentity: null,
-        injectionLeaseExpiresAt: null,
-        injectionCancelRequestedOwner: null,
-        injectionCancelRequestedAt: null,
-        injectionAttempts: 0,
-        injectionRetryAt: null,
-        injectionRetryCapped: false,
-        injectionError: null,
-        injectionFailedAt: null,
-        injecting: false,
-        error: null,
-        lastError: null,
-      };
-    }));
+    const replaced = publishOnboardGeneration({
+      outDir,
+      queue,
+      files: {
+        [INJECTION_RECEIPT_FILE]: null,
+        'onboard-notes.json': queue.total === 0
+          ? { generation, kept: queue.kept, rejected: queue.rejected }
+          : null,
+      },
+      statusMutator: (status) => {
+        if (liveOnboardInjectionLease(status).live) return undefined;
+        return {
+          ...status,
+          ...(repoAbs ? { repo: repoAbs } : {}),
+          outDir,
+          preparationState: 'ready',
+          preparationGeneration: null,
+          preparationForce: false,
+          queueGeneration: generation,
+          total: queue.total,
+          injected: false,
+          injectedGeneration: null,
+          injectedAt: null,
+          injectedKept: 0,
+          injectionGeneration: generation,
+          injectionState: queue.total > 0 ? 'pending' : 'not_needed',
+          injectionOwner: null,
+          injectionPid: null,
+          injectionProcessIdentity: null,
+          injectionLeaseExpiresAt: null,
+          injectionCancelRequestedOwner: null,
+          injectionCancelRequestedAt: null,
+          injectionAttempts: 0,
+          injectionRetryAt: null,
+          injectionRetryCapped: false,
+          injectionError: null,
+          injectionFailedAt: null,
+          injecting: false,
+          error: null,
+          lastError: null,
+        };
+      },
+    });
     if (!replaced.applied) throw new Error('cannot replace onboarding queue while injection is running');
-  } else withQueueLock(queueFilePath(outDir), publishLocked);
-  if (!candidates.length) {
+    publishedQueue = loadJSON(queueFilePath(outDir), queue);
+  } else {
+    // A preparation staging directory is private to one miner attempt. Its final queue/status pair
+    // is committed later by publishPreparedQueue in the real output directory.
+    withQueueLock(queueFilePath(outDir), () => {
+      writeJSONAtomic(queueFilePath(outDir), queue);
+      try { fs.rmSync(path.join(outDir, INJECTION_RECEIPT_FILE), { force: true }); } catch { /* staging artifact */ }
+      if (queue.total === 0) writeOnboardNotesArtifact(outDir, queue, generation);
+      else try { fs.rmSync(path.join(outDir, 'onboard-notes.json'), { force: true }); } catch { /* staging artifact */ }
+    });
+  }
+  if (!publishedQueue.total) {
     console.error(`[learn] enqueue: no mined candidates in ${inDir}; wrote a completed empty queue.`);
     return;
   }
-  console.error(`[learn] enqueue: ${candidates.length} candidates written to ${queueFilePath(outDir)}`);
+  console.error(`[learn] enqueue: ${publishedQueue.total} candidates written to ${queueFilePath(outDir)}`);
   console.error(`[learn] Run --drain --batch 50 (repeat) until --queue-status shows done:true, then --inject --confirm.`);
 }
 
@@ -1053,6 +1069,11 @@ async function main() {
   const inDir = path.resolve(arg('in', defaultOnboardOutDir(repoAbs)));
   const outDir = inDir; // output always co-located with input
   const notesFile = path.join(inDir, 'onboard-notes.json');
+
+  if (!has('enqueue')) {
+    const reconciled = reconcileOnboardPublication(outDir);
+    if (!reconciled.ok) throw new Error(`could not reconcile onboarding publication: ${reconciled.error}`);
+  }
 
   if (has('inject')) {
     const expectedGeneration = arg('generation', queueGeneration(loadJSON(queueFilePath(outDir), null)));
