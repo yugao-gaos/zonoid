@@ -132,6 +132,36 @@ test('POST /onboard/enqueue reuses completed route queue instead of overwriting 
   }
 });
 
+test('POST /onboard/enqueue resumes a valid partial queue without overwriting progress or project work', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-resume-'));
+  const repo = tmpDir;
+  const outDir = defaultOnboardOutDir(repo);
+  const source = path.join(repo, 'src', 'worked-on.js');
+  const sourceBody = 'exports.alreadyBuilt = true;\n';
+  const sent = [];
+
+  try {
+    fs.mkdirSync(path.dirname(source), { recursive: true });
+    fs.writeFileSync(source, sourceBody);
+    writeQueue(outDir, 9, 4, [{ title: 'Kept already', summary: 'Do not discard', kind: 'decision' }]);
+    const before = fs.readFileSync(path.join(outDir, 'onboard-queue.json'), 'utf8');
+
+    const route = onboardRoute(makeCtx({ repo }, sent, () => {}));
+    const handled = await route('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
+
+    assert.equal(handled, true);
+    assert.equal(sent[0].status, 200);
+    assert.equal(sent[0].payload.ok, true);
+    assert.equal(sent[0].payload.reused, true);
+    assert.equal(sent[0].payload.completed, false);
+    assert.equal(sent[0].payload.remaining, 5);
+    assert.equal(fs.readFileSync(path.join(outDir, 'onboard-queue.json'), 'utf8'), before);
+    assert.equal(fs.readFileSync(source, 'utf8'), sourceBody);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
 test('POST /onboard/enqueue defaults to ignored .zonoid onboarding outDir', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-default-'));
   const repo = tmpDir;

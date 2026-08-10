@@ -139,8 +139,20 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const outDir = b.outDir || defaultOnboardOutDir(repo);
     const existingStatus = queueStatus(outDir);
     const existingMeta = readDrainMeta(outDir);
-    if (!b.force && existingStatus && existingStatus.total > 0 && existingStatus.drainDone && existingMeta.repo === repo) {
-      send(res, 200, { ok: true, total: existingStatus.total, remaining: existingStatus.remaining, outDir, reused: true, completed: true });
+    const sameRepo = existingMeta.repo
+      ? path.resolve(existingMeta.repo) === path.resolve(repo)
+      : path.resolve(outDir) === path.resolve(defaultOnboardOutDir(repo));
+    // Repeated init/dashboard requests must resume an existing queue at its current cursor. Re-mining
+    // an incomplete queue would discard already-kept notes and make normal idempotent setup destructive.
+    if (!b.force && existingStatus && sameRepo) {
+      send(res, 200, {
+        ok: true,
+        total: existingStatus.total,
+        remaining: existingStatus.remaining,
+        outDir,
+        reused: true,
+        completed: existingStatus.drainDone,
+      });
       return true;
     }
     const { spawnSync } = require('child_process');

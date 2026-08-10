@@ -571,6 +571,39 @@ test('findPendingLearnerQueues discovers default .zonoid/onboard outDir without 
   }
 });
 
+test('findRegisteredLearnerQueues discovers project queues without a daemon-global workspace', () => {
+  const hd = freshModule();
+  const repos = [
+    fs.mkdtempSync(path.join(os.tmpdir(), 'hd-registered-a-')),
+    fs.mkdtempSync(path.join(os.tmpdir(), 'hd-registered-b-')),
+  ];
+  try {
+    for (const [index, repo] of repos.entries()) {
+      const source = path.join(repo, 'src', `feature-${index}.js`);
+      const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+      fs.mkdirSync(path.dirname(source), { recursive: true });
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.writeFileSync(source, `exports.feature = ${index};\n`);
+      fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+        total: 10 + index,
+        cursor: 3,
+        kept: [],
+        rejected: [],
+        pending: [],
+      }));
+    }
+
+    const queues = hd.findRegisteredLearnerQueues({ registeredWorkspaces: repos });
+    assert.equal(queues.length, 2);
+    assert.deepEqual(new Set(queues.map((queue) => queue.repo)), new Set(repos));
+    assert.deepEqual(new Set(queues.map((queue) => queue.workspaceRoot)), new Set(repos));
+    assert.equal(fs.readFileSync(path.join(repos[0], 'src', 'feature-0.js'), 'utf8'), 'exports.feature = 0;\n');
+    assert.equal(fs.readFileSync(path.join(repos[1], 'src', 'feature-1.js'), 'utf8'), 'exports.feature = 1;\n');
+  } finally {
+    for (const repo of repos) fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test('findPendingLearnerQueues discovers legacy dashboard bench/onboard outDir', () => {
   const hd = freshModule();
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-bench-'));
