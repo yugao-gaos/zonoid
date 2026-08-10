@@ -109,6 +109,10 @@ const baseEnv = () => ({ ORCH_TUNING_FILE: FILE });
     tuning.get('drain_max_iterations', { ...baseEnv(), HEADLESS_DRAIN_MAX_ITERATIONS: 'lots' }) === 50);
   ok('(5) explicit value honoured',
     tuning.get('drain_max_iterations', { ...baseEnv(), HEADLESS_DRAIN_MAX_ITERATIONS: '12' }) === 12);
+  ok('(5) legacy negative disable sentinel is preserved',
+    tuning.get('drain_max_iterations', { ...baseEnv(), HEADLESS_DRAIN_MAX_ITERATIONS: '-1' }) === -1);
+  ok('(5) negative disable sentinel can be persisted',
+    tuning.validate({ drain_max_iterations: -1 }).ok === true);
   ok('(5) per-tick caps report unset as null (derived at the call site)',
     tuning.get('judge_max_per_tick', baseEnv()) === null && tuning.raw('judge_max_per_tick', baseEnv()) === undefined);
 }
