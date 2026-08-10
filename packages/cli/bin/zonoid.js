@@ -570,13 +570,69 @@ function registerWorkspace(cwd, workspace) {
     const req = http.request(
       { hostname: 'localhost', port: 8787, path: '/workspace', method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },
-      (res) => { res.resume(); ok(`Workspace registered (${res.statusCode})`); resolve(); }
+      (res) => {
+        res.resume();
+        ok(`Workspace registered (${res.statusCode})`);
+        resolve(res.statusCode >= 200 && res.statusCode < 300 ? repoPath : null);
+      }
     );
-    req.on('error', () => { warn('Could not register workspace (daemon may still be starting)'); resolve(); });
-    req.setTimeout(3000, () => { req.destroy(); resolve(); });
+    req.on('error', () => { warn('Could not register workspace (daemon may still be starting)'); resolve(null); });
+    req.setTimeout(3000, () => { req.destroy(); resolve(null); });
     req.write(body);
     req.end();
   });
+}
+
+function postDaemonJson(route, payload, timeoutMs = 120000) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify(payload);
+    const req = http.request(
+      { hostname: 'localhost', port: 8787, path: route, method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },
+      (res) => {
+        let raw = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => { raw += chunk; });
+        res.on('end', () => {
+          let parsed = null;
+          try { parsed = raw ? JSON.parse(raw) : {}; } catch { /* handled below */ }
+          if (res.statusCode < 200 || res.statusCode >= 300 || !parsed) {
+            reject(new Error((parsed && parsed.error) || `daemon returned ${res.statusCode}`));
+            return;
+          }
+          resolve(parsed);
+        });
+      }
+    );
+    req.on('error', reject);
+    req.setTimeout(timeoutMs, () => req.destroy(new Error('daemon onboarding request timed out')));
+    req.write(body);
+    req.end();
+  });
+}
+
+async function startWorkspaceOnboarding(repoPath, deps = {}) {
+  const post = deps.post || postDaemonJson;
+  try {
+    const enqueued = await post('/onboard/enqueue', { repo: repoPath });
+    if (!enqueued || !enqueued.ok || !enqueued.outDir) {
+      throw new Error((enqueued && enqueued.error) || 'onboarding enqueue failed');
+    }
+    const drained = await post('/onboard/drain-queue', {
+      repo: repoPath,
+      outDir: enqueued.outDir,
+      autoInject: true,
+      liveInject: true,
+    });
+    if (!drained || !drained.ok) {
+      throw new Error((drained && drained.error) || 'onboarding drain queue failed');
+    }
+    ok(enqueued.reused ? 'Project onboarding resumed in background.' : 'Project onboarding queued in background.');
+    return { ok: true, outDir: enqueued.outDir, reused: !!enqueued.reused };
+  } catch (err) {
+    warn(`Could not start project onboarding: ${err && err.message ? err.message : err}`);
+    return { ok: false, error: String(err && err.message ? err.message : err) };
+  }
 }
 
 // ── main ────────────────────────────────────────────────────────────────────
@@ -1590,7 +1646,7 @@ function printNextSteps(harness, cwd = process.cwd()) {
     console.log('  Tip: if Claude says "no task claimed", that\'s the gate working —');
     console.log('  Claude will create a task automatically before editing.');
   }
-  console.log('    Repo learning: run `npx @zonoid/cli onboard` to mine, validate, and review KB notes');
+  console.log('    Repo learning starts automatically in the background; open the dashboard to monitor it.');
 }
 
 async function init(opts = {}) {
@@ -1648,7 +1704,8 @@ async function init(opts = {}) {
   section('5. Daemon');
   if (opts.service) installService();
   await checkDaemon();
-  await registerWorkspace(cwd, opts.workspace);
+  const registeredRepo = await registerWorkspace(cwd, opts.workspace);
+  if (registeredRepo) await startWorkspaceOnboarding(registeredRepo);
 
   section('6. Graph auto-commit hook');
   checkGraphAutocommitHook(cwd, { enable: opts.enableGraphAutocommit });
@@ -1782,6 +1839,7 @@ if (require.main === module) {
     prePushTestHookScript,
     checkPrePushTestHook,
     parseOnboardArgs,
+    startWorkspaceOnboarding,
     dashboardUrl,
     renderClaudeInstructions,
     parseGraphArgs,

@@ -3227,7 +3227,10 @@ if (require.main === module) {
     });
   }
 
-  const headlessDrainRunner = createHeadlessDrainRunner({ headlessDrain, getState: () => state });
+  const headlessDrainRunner = createHeadlessDrainRunner({
+    headlessDrain,
+    getState: () => ({ ...state, registeredWorkspaces: Array.from(registeredWorkspaces()) }),
+  });
   requestHeadlessDrainWake = headlessDrainRunner.requestWake;
 
   // Headless SPAWN executor (full-autonomy path): when a managed graph loop decides action:'spawn'
