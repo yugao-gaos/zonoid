@@ -14,6 +14,7 @@ const {
   mutateOnboardStatus,
   confirmedInjectedCount,
   liveOnboardInjectionLease: liveInjectionLease,
+  liveOnboardPreparationLease: livePreparationLease,
   validateOnboardQueue,
 } = require('../lib/onboard-state');
 
@@ -205,6 +206,7 @@ function pendingPreparation(repo, outDir, current, force) {
     preparationStage: null,
     preparationRequestedAt: new Date().toISOString(),
     preparationForce: force === true,
+    preparationOwner: null,
     preparationPid: null,
     preparationLeaseExpiresAt: null,
     queueGeneration: null,
@@ -457,7 +459,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
         const registryBefore = snapshotFile(registryFile);
         const registryBackupBefore = snapshotFile(`${registryFile}.bak`);
-        const statusBefore = snapshotFile(statusFile);
+        const statusBefore = onboardInitTransaction.snapshotStatusFile(statusFile);
+        if (statusBefore.exists && statusBefore.kind !== 'file') {
+          const invalid = new Error(`onboarding status pre-image is not a readable regular file (${statusBefore.kind})`);
+          invalid.code = 'ONBOARD_STATUS_PREIMAGE_UNREADABLE';
+          throw invalid;
+        }
         const outDirExisted = fs.existsSync(outDir);
         const registryEntriesBefore = new Set(fs.readdirSync(path.dirname(registryFile)));
         let intent = null;
@@ -491,6 +498,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
             outDir,
             workspaceId,
             beforeStatus: lockedMeta,
+            beforeStatusSnapshot: statusBefore,
             desiredStatus,
             ensureRuntimeIgnore: resolved.kind === 'default',
           });
@@ -539,6 +547,11 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
             if (intent && statusRollback && statusRollback.owned
                 && (statusRollback.stale || registryRolledBack)) {
               onboardInitTransaction.removeIntent(registryFile, intent);
+            } else if (intent) {
+              // A request that reports failure must not leave a valid roll-forward journal behind.
+              // If exact rollback could not settle ownership, quarantine this transaction and let a
+              // concurrent accepted generation (if any) remain authoritative.
+              onboardInitTransaction.quarantineIntent(registryFile, intent.id);
             }
           } catch { /* preserve primary error */ }
           if (registryRolledBack) removeNewRegistryTransactionFiles(registryFile, registryEntriesBefore);
@@ -629,20 +642,25 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     try {
       const preparationGeneration = newQueueGeneration();
       const queued = mutateOnboardStatus(outDir, (current) => {
-        if (b.force === true && liveInjectionLease(current).live) return undefined;
+        if (liveInjectionLease(current).live || livePreparationLease(current).live) return undefined;
         return {
           ...pendingPreparation(repo, outDir, current, b.force === true || (rearm && existingMeta.preparationForce === true)),
           preparationGeneration,
         };
       });
       if (!queued.applied) {
-        const lease = liveInjectionLease(queued.value);
+        const injectionLease = liveInjectionLease(queued.value);
+        const preparationLease = livePreparationLease(queued.value);
+        const preparing = preparationLease.live && !injectionLease.live;
+        const lease = preparing ? preparationLease : injectionLease;
         send(res, 409, {
           ok: false,
           retryable: true,
-          conflict: 'injection_in_progress',
+          conflict: preparing ? 'preparation_in_progress' : 'injection_in_progress',
           retryAt: lease.expiresAt,
-          error: 'cannot replace onboarding while live injection is writing the current generation; retry after it finishes',
+          error: preparing
+            ? 'cannot replace onboarding while preparation is running for the current generation; retry after it finishes'
+            : 'cannot replace onboarding while live injection is writing the current generation; retry after it finishes',
         });
         return true;
       }
