@@ -917,15 +917,54 @@ function readJSON(p) {
     legacyLiveTimedOut && fs.readFileSync(lock, 'utf8') === legacyLiveBytes);
   fs.unlinkSync(lock);
 
+  const currentIncarnation = onboardState.processIncarnation(process.pid);
+  let publishedOwner = null;
+  learner.withQueueLock(qf, () => {
+    const ownerDir = path.join(lock, 'held');
+    const ownerPath = path.join(ownerDir, fs.readdirSync(ownerDir)[0]);
+    publishedOwner = JSON.parse(fs.readFileSync(ownerPath, 'utf8'));
+  });
+  ok('new queue lock owners persist their exact process incarnation',
+    publishedOwner && Object.prototype.hasOwnProperty.call(publishedOwner, 'processIncarnation')
+      && publishedOwner.processIncarnation === currentIncarnation);
+
+  const stateModule = require.resolve('../lib/onboard-state');
+  const crashedOwner = spawnSync(NODE, ['-e', [
+    "const {withFileLock}=require(process.argv[1]);",
+    "withFileLock(process.argv[2],()=>process.exit(86));",
+  ].join(''), stateModule, qf], { encoding: 'utf8', windowsHide: true });
+  ok('hard-exited queue lock owner leaves a new incarnation-bearing record',
+    crashedOwner.status === 86 && fs.existsSync(lock)
+      && Object.prototype.hasOwnProperty.call(JSON.parse(fs.readFileSync(
+        path.join(lock, 'held', fs.readdirSync(path.join(lock, 'held'))[0]), 'utf8'
+      )), 'processIncarnation'));
+  let restartedOwnerReclaimed = false;
+  learner.withQueueLock(qf, () => { restartedOwnerReclaimed = true; }, { waitMs: 100 });
+  ok('a restarted process reclaims the dead prior incarnation lock',
+    restartedOwnerReclaimed && !fs.existsSync(lock));
+
   const held = path.join(lock, 'held');
   const liveOwnerFile = path.join(held, 'owner-11111111111111111111111111111111.json');
   fs.mkdirSync(held, { recursive: true });
-  fs.writeFileSync(liveOwnerFile, JSON.stringify({ pid: process.pid, owner: 'live-owner', at: Date.now() }));
+  fs.writeFileSync(liveOwnerFile, JSON.stringify({
+    pid: process.pid, processIncarnation: currentIncarnation, owner: 'live-owner', at: Date.now(),
+  }));
   let liveTimedOut = false;
   try { learner.withQueueLock(qf, () => {}, { staleMs: 60000, waitMs: 35 }); }
   catch (err) { liveTimedOut = /timed out waiting/.test(String(err && err.message)); }
-  ok('fresh live directory owner remains authoritative', liveTimedOut && fs.existsSync(liveOwnerFile));
+  ok('an exact live queue lock incarnation remains authoritative', liveTimedOut && fs.existsSync(liveOwnerFile));
   fs.rmSync(lock, { recursive: true, force: true });
+
+  const reusedOwnerFile = path.join(held, 'owner-12121212121212121212121212121212.json');
+  fs.mkdirSync(held, { recursive: true });
+  fs.writeFileSync(reusedOwnerFile, JSON.stringify({
+    pid: process.pid, processIncarnation: 'test:older-process-incarnation',
+    owner: 'reused-pid-owner', at: Date.now(),
+  }));
+  let reusedPidReclaimed = false;
+  learner.withQueueLock(qf, () => { reusedPidReclaimed = true; }, { staleMs: 60000, waitMs: 100 });
+  ok('a queue lock held by a reused PID incarnation is recovered immediately',
+    reusedPidReclaimed && !fs.existsSync(lock));
 
   const deadOwnerFile = path.join(held, 'owner-22222222222222222222222222222222.json');
   fs.mkdirSync(held, { recursive: true });
