@@ -27,7 +27,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     analyticsState, analyticsFlush, PUBLIC, loops, taskTranscript, usageCached,
     staleClaimKeys, releaseClaim, reapAgent, saveAgents, cache, targetOverlay, buildGraph,
     embedStatus, isTruthy, sessionCount,
-    WORKSPACES_FILE, graphStore, loadRegistry, repoToWorkspace, repoRoot } = ctx;
+    WORKSPACES_FILE, graphStore, loadRegistry, repoToWorkspace, repoRoot, registrationRepoRoot } = ctx;
 
   if (p === '/ping') { send(res, 200, { ok: true, sessions: sessionCount() }); return true; }
 
@@ -128,27 +128,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // creates its .graph). We only substitute repoRoot's result when it CLIMBED to a STRICT ANCESTOR
     // — i.e. b.path is genuinely nested inside an existing repo — so a fresh top-level workspace dir is
     // never silently re-homed onto a stray ancestor marker.
-    const resolvedRoot = repoRoot(requestedGraphRepo);
-    const norm = (s) => {
-      const resolved = path.resolve(s).replace(/[/\\]+$/, '');
-      try { return fs.realpathSync(resolved).replace(/[/\\]+$/, ''); }
-      catch { return resolved; }
-    };
-    // Climb ONLY when repoRoot found a STRICT ancestor (b.path is genuinely nested in a repo) and that
-    // ancestor is not a filesystem "container" root (system temp / home / fs root) — an incidental
-    // `.graph`/`.git` left in such a container must never re-home a fresh top-level workspace dir.
-    // NOTE (U7, note note-mqj20ekamwy): the container-root guard is now ALSO enforced inside
-    // lib/workspace-registry.repoRoot itself (so hooks + CLI callers benefit), meaning repoRoot can no
-    // longer return a container root and this local `containers` check is redundant. It is kept as
-    // cheap defense-in-depth at the climb seam (the climb decision is route-specific and reads clearer
-    // with the guard inline); both layers agree, so the behavior is unchanged.
-    const os = require('os');
-    const containers = new Set([norm(os.tmpdir()), norm(os.homedir())]);
-    const climbed = resolvedRoot
-      && norm(resolvedRoot) !== norm(requestedGraphRepo)
-      && !containers.has(norm(resolvedRoot))
-      && path.dirname(norm(resolvedRoot)) !== norm(resolvedRoot); // not the fs root
-    const repoRootPath = climbed ? resolvedRoot : requestedGraphRepo;
+    const repoRootPath = (registrationRepoRoot || require('../lib/workspace-registry').registrationRepoRoot)(requestedGraphRepo);
     const workspaceId = b.workspace_id || b.workspace || path.basename(repoRootPath);
     setWorkspace(repoRootPath, { ...b, path: repoRootPath, workspace: workspaceId });
     send(res, 200, { ok: true, workspace_id: workspaceId, graph_repo: repoRootPath, workspace: repoRootPath }); return true;

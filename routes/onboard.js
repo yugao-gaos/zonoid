@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const workspaceRegistry = require('../lib/workspace-registry');
 const {
   resolveOnboardPaths,
   ensureOnboardRuntimeIgnored,
@@ -138,6 +139,86 @@ function sendPathError(send, res, err) {
 function pathsNameSameDirectory(left, right) {
   try { return fs.realpathSync(path.resolve(left)) === fs.realpathSync(path.resolve(right)); }
   catch { return path.resolve(left) === path.resolve(right); }
+}
+
+function snapshotFile(file) {
+  try { return { exists: true, bytes: fs.readFileSync(file) }; }
+  catch (err) {
+    if (err && err.code === 'ENOENT') return { exists: false, bytes: null };
+    throw err;
+  }
+}
+
+function restoreFile(file, snapshot) {
+  if (snapshot.exists) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, snapshot.bytes);
+  } else {
+    try { fs.unlinkSync(file); } catch (err) { if (!err || err.code !== 'ENOENT') throw err; }
+  }
+}
+
+function removeEmptyParents(start, stop) {
+  const boundary = path.resolve(stop);
+  let cursor = path.resolve(start);
+  while (cursor !== boundary && path.dirname(cursor) !== cursor) {
+    try { fs.rmdirSync(cursor); } catch { break; }
+    cursor = path.dirname(cursor);
+  }
+}
+
+function removeNewTransactionFiles(outDir, entriesBefore, registryFile, registryTmpBefore) {
+  let entries = [];
+  try { entries = fs.readdirSync(outDir); } catch { /* output directory may already be gone */ }
+  for (const name of entries) {
+    if (entriesBefore.has(name)) continue;
+    if (name === 'onboard-drain-status.json.lock'
+        || /^onboard-drain-status\.json\.[^.]+\.[a-f0-9]+\.tmp$/.test(name)) {
+      try { fs.unlinkSync(path.join(outDir, name)); } catch { /* best-effort rollback */ }
+    }
+  }
+  const registryTmp = `${registryFile}.${process.pid}.tmp`;
+  if (!registryTmpBefore) {
+    try { fs.unlinkSync(registryTmp); } catch { /* best-effort rollback */ }
+  }
+}
+
+function injectionRetryIsCapped(status, meta) {
+  if (!status || !status.queueGeneration || !status.drainDone || status.kept <= 0) return false;
+  if (meta.injectionGeneration !== status.queueGeneration) return false;
+  const attempts = countOrZero(meta.injectionAttempts);
+  return meta.injectionRetryCapped === true
+    || (meta.injectionState === 'failed' && attempts >= injectionMaxAttempts());
+}
+
+function pendingPreparation(repo, outDir, current, force) {
+  return {
+    ...current,
+    repo,
+    outDir,
+    preparationGeneration: newQueueGeneration(),
+    preparationState: 'pending',
+    preparationStage: null,
+    preparationRequestedAt: new Date().toISOString(),
+    preparationForce: force === true,
+    preparationPid: null,
+    preparationLeaseExpiresAt: null,
+    queueGeneration: null,
+    injected: false,
+    injectedGeneration: null,
+    injectedKept: 0,
+    injectionGeneration: null,
+    injectionState: 'idle',
+    injectionOwner: null,
+    injectionPid: null,
+    injectionLeaseExpiresAt: null,
+    injectionAttempts: 0,
+    injectionRetryAt: null,
+    injectionRetryCapped: false,
+    injectionError: null,
+    injecting: false,
+    error: null,
+  };
 }
 
 function buildDrainJob(repo, outDir, patch = {}) {
@@ -294,6 +375,124 @@ function runNode(args, options = {}) {
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, notifyChange } = ctx;
 
+  if (p === '/onboard/init' && m === 'POST') {
+    const b = await readBody(req);
+    const requestedRepo = b.repo || b.graph_repo;
+    if (!requestedRepo || typeof requestedRepo !== 'string') {
+      send(res, 400, { ok: false, error: 'repo required' }); return true;
+    }
+    if (b.workspace_id !== undefined && (typeof b.workspace_id !== 'string' || !b.workspace_id.trim())) {
+      send(res, 400, { ok: false, error: 'workspace_id must be a non-empty string' }); return true;
+    }
+
+    let resolved;
+    try {
+      const repoCandidate = (ctx.registrationRepoRoot || workspaceRegistry.registrationRepoRoot)(requestedRepo, {
+        registeredRepos: Array.from(ctx.registeredWorkspaces ? ctx.registeredWorkspaces() : []),
+      });
+      resolved = resolveOnboardPaths({
+        repo: repoCandidate,
+        outDir: b.outDir,
+        // This endpoint validates a prospective registration read-only. The candidate is admitted
+        // only for this validation call; it is not visible to any other route until commit below.
+        registeredWorkspaces: [repoCandidate],
+      });
+    } catch (err) {
+      sendPathError(send, res, err);
+      return true;
+    }
+
+    const { repo, outDir } = resolved;
+    const workspaceId = (b.workspace_id && b.workspace_id.trim()) || path.basename(repo);
+    const existingStatus = queueStatus(outDir);
+    const existingMeta = readDrainMeta(outDir);
+    const sameRepo = existingMeta.repo
+      ? pathsNameSameDirectory(existingMeta.repo, repo)
+      : resolved.kind === 'default';
+    if (sameRepo && injectionRetryIsCapped(existingStatus, existingMeta)) {
+      send(res, 409, {
+        ok: false,
+        code: 'onboarding_injection_retry_capped',
+        retryable: false,
+        error: 'existing onboarding queue is injection-failed and retry-capped; explicitly retry injection before init can succeed',
+      });
+      return true;
+    }
+
+    const registryFile = ctx.WORKSPACES_FILE;
+    if (!registryFile) {
+      send(res, 500, { ok: false, error: 'workspace registry is unavailable' }); return true;
+    }
+    const statusFile = path.join(outDir, 'onboard-drain-status.json');
+    let registryBefore;
+    let registryBackupBefore;
+    let statusBefore;
+    const outDirExisted = fs.existsSync(outDir);
+    const outDirEntriesBefore = new Set(outDirExisted ? fs.readdirSync(outDir) : []);
+    const registryTmp = `${registryFile}.${process.pid}.tmp`;
+    const registryTmpBefore = fs.existsSync(registryTmp);
+    try {
+      registryBefore = snapshotFile(registryFile);
+      registryBackupBefore = snapshotFile(`${registryFile}.bak`);
+      statusBefore = snapshotFile(statusFile);
+
+      const reuseQueue = sameRepo && !!existingStatus;
+      const reusePreparation = sameRepo && ['pending', 'running'].includes(existingMeta.preparationState);
+      const needsPreparation = !reuseQueue && !reusePreparation;
+      const needsDrainPatch = existingMeta.autoInject !== true
+        || countOrZero(existingMeta.batchSize) !== DEFAULT_DRAIN_BATCH_SIZE;
+      if (needsPreparation || needsDrainPatch) {
+        mutateOnboardStatus(outDir, (current) => ({
+          ...(needsPreparation ? pendingPreparation(repo, outDir, current, false) : current),
+          repo,
+          outDir,
+          batchSize: DEFAULT_DRAIN_BATCH_SIZE,
+          autoInject: true,
+        }));
+      }
+
+      const currentRegistry = workspaceRegistry.loadRegistry(registryFile);
+      const alreadyRegistered = !!(currentRegistry.workspaces[workspaceId]
+        && currentRegistry.workspaces[workspaceId].repos.includes(repo));
+      const registry = alreadyRegistered
+        ? currentRegistry
+        : workspaceRegistry.addRepo(registryFile, { workspace: workspaceId, repo });
+      if (!registry.workspaces[workspaceId] || !registry.workspaces[workspaceId].repos.includes(repo)) {
+        throw new Error('workspace registration was not durably persisted');
+      }
+    } catch (err) {
+      try { if (statusBefore) restoreFile(statusFile, statusBefore); } catch { /* preserve primary error */ }
+      try { if (registryBefore) restoreFile(registryFile, registryBefore); } catch { /* preserve primary error */ }
+      try { if (registryBackupBefore) restoreFile(`${registryFile}.bak`, registryBackupBefore); } catch { /* preserve primary error */ }
+      removeNewTransactionFiles(outDir, outDirEntriesBefore, registryFile, registryTmpBefore);
+      if (!outDirExisted) removeEmptyParents(outDir, repo);
+      send(res, 500, {
+        ok: false,
+        error: `workspace registration and onboarding transaction failed: ${err && err.message ? err.message : err}`,
+      });
+      return true;
+    }
+
+    // Registration and durable drain intent are now committed. Warming graph/Git integration and
+    // adding the local runtime ignore are idempotent post-commit effects, never pre-acceptance writes.
+    try { if (typeof ctx.setWorkspace === 'function') ctx.setWorkspace(repo, { workspace: workspaceId }); } catch { /* lazy routes can warm later */ }
+    try { if (resolved.kind === 'default') ensureOnboardRuntimeIgnored(repo); } catch { /* advisory */ }
+    if (notifyChange) notifyChange(repo);
+    send(res, 200, {
+      ok: true,
+      accepted: true,
+      registered: true,
+      graph_repo: repo,
+      workspace_id: workspaceId,
+      outDir,
+      reused: !!(sameRepo && (existingStatus || ['pending', 'running'].includes(existingMeta.preparationState))),
+      queued: !(sameRepo && (existingStatus || ['pending', 'running'].includes(existingMeta.preparationState))),
+      preparing: !(sameRepo && existingStatus),
+      preparationState: existingStatus ? (existingMeta.preparationState || 'ready') : 'pending',
+    });
+    return true;
+  }
+
   if (p === '/onboard/enqueue' && m === 'POST') {
     const b = await readBody(req);
     if (!b.repo) { send(res, 400, { ok: false, error: 'repo required' }); return true; }
@@ -342,31 +541,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const queued = mutateOnboardStatus(outDir, (current) => {
         if (b.force === true && liveInjectionLease(current).live) return undefined;
         return {
-          ...current,
-          repo,
-          outDir,
+          ...pendingPreparation(repo, outDir, current, b.force === true || (rearm && existingMeta.preparationForce === true)),
           preparationGeneration,
-          preparationState: 'pending',
-          preparationStage: null,
-          preparationRequestedAt: new Date().toISOString(),
-          preparationForce: b.force === true || (rearm && existingMeta.preparationForce === true),
-          preparationPid: null,
-          preparationLeaseExpiresAt: null,
-          queueGeneration: null,
-          injected: false,
-          injectedGeneration: null,
-          injectedKept: 0,
-          injectionGeneration: null,
-          injectionState: 'idle',
-          injectionOwner: null,
-          injectionPid: null,
-          injectionLeaseExpiresAt: null,
-          injectionAttempts: 0,
-          injectionRetryAt: null,
-          injectionRetryCapped: false,
-          injectionError: null,
-          injecting: false,
-          error: null,
         };
       });
       if (!queued.applied) {
