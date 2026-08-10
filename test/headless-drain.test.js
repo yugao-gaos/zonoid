@@ -875,6 +875,200 @@ test('a replacement queue generation never inherits the previous generation inje
   }
 });
 
+test('completed queues remain discoverable through a persisted generic error until final injection commits', () => {
+  const hd = freshModule();
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-final-generic-error-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    const kept = [{ title: 'Recover', summary: 'Recover the final commit' }];
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      generation: 'generation-final-error', total: 1, cursor: 1, kept, rejected: [], pending: [],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept, rejected: [] }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo, outDir, autoInject: true, error: 'onboarding drain exited 1', lastError: 'onboarding drain exited 1',
+    }));
+
+    const due = hd.findPendingLearnerQueues(repo);
+    assert.equal(due.length, 1, 'a generic status error must not hide unfinished final injection');
+    assert.equal(due[0].remaining, 0);
+    assert.equal(due[0].injectDue, true);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('completed kept queues with a missing final notes file stay due for bounded injection retry', () => {
+  const hd = freshModule();
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-final-missing-notes-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      generation: 'generation-missing-notes', total: 1, cursor: 1,
+      kept: [{ title: 'Missing final file' }], rejected: [], pending: [],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({ repo, outDir, autoInject: true }));
+    const due = hd.findPendingLearnerQueues(repo);
+    assert.equal(due.length, 1);
+    assert.equal(due[0].injectDue, true,
+      'missing injection input must surface as a retryable/capped failure instead of disappearing');
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('a receipt-complete final injection crash is recovered and clears its stale generic error', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-final-receipt-recovery-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  const kept = [{ title: 'Durable', summary: 'Graph write already committed' }];
+  let hd;
+  const mocked = freshModuleWithMockedSpawn(() => makeFakeChild({ code: 0 }));
+  hd = mocked.hd;
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      generation: 'generation-final-receipt', total: 1, cursor: 1, kept, rejected: [], pending: [],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept, rejected: [] }));
+    hd._writeInjectionReceipt(outDir, 'generation-final-receipt', [hd._onboardNoteId(kept[0], 0)]);
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo, outDir, autoInject: true, error: 'onboarding drain exited 1', lastError: 'onboarding drain exited 1',
+      injectionGeneration: 'generation-final-receipt', injectionState: 'running',
+      injectionOwner: 'dead-final-owner', injectionPid: 99999991, injectionLeaseExpiresAt: Date.now() - 1,
+    }));
+
+    await hd.runDueDrains({ workspace: repo, registeredWorkspaces: [repo] }, noopHttp(), {
+      ...judgeDeps({ depth: 0, eagerNodes: [] }),
+      ...labelDeps({ journal: [], labeledKeys: [] }),
+      ...mockBackendDeps().deps,
+    });
+
+    const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(mocked.calls.length, 1);
+    assert.equal(status.injectionState, 'succeeded');
+    assert.equal(status.injectedGeneration, 'generation-final-receipt');
+    assert.equal(status.injectedKept, 1);
+    assert.equal(status.error, null);
+    assert.equal(status.lastError, null);
+    assert.equal(hd.findPendingLearnerQueues(repo).length, 0);
+  } finally {
+    mocked.restore();
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('headless injection claim preserves a live cross-process owner and takes over after owner death', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-injection-owner-cas-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  const generation = 'generation-owner-cas';
+  const kept = [{ title: 'CAS', summary: 'One graph writer at a time' }];
+  const liveChild = child_process.spawn(process.execPath, ['-e', 'setTimeout(() => {}, 30000)'], {
+    stdio: 'ignore', windowsHide: true,
+  });
+  let hd;
+  const mocked = freshModuleWithMockedSpawn(() => {
+    hd._writeInjectionReceipt(outDir, generation, [hd._onboardNoteId(kept[0], 0)]);
+    return makeFakeChild({ code: 0 });
+  });
+  hd = mocked.hd;
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      generation, total: 1, cursor: 1, kept, rejected: [], pending: [],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept, rejected: [] }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo, outDir, autoInject: true, injectionGeneration: generation, injectionState: 'running',
+      injecting: true, injectionOwner: 'other-daemon-owner',
+      injectionLeaseExpiresAt: Date.now() + 30000,
+    }));
+
+    const preSpawnBlocked = await hd._injectLearnerQueue(repo, outDir, { timeoutMs: 5000 });
+    assert.equal(preSpawnBlocked.stale, true);
+    assert.equal(mocked.calls.length, 0, 'an owner lease is live before its child pid is published');
+
+    let status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    status.injectionPid = liveChild.pid;
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify(status));
+    const blocked = await hd._injectLearnerQueue(repo, outDir, { timeoutMs: 5000 });
+    assert.equal(blocked.stale, true);
+    assert.equal(mocked.calls.length, 0, 'a losing claim must not spawn another graph writer');
+    status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.injectionOwner, 'other-daemon-owner');
+    assert.equal(status.injectionPid, liveChild.pid);
+
+    liveChild.kill('SIGKILL');
+    await new Promise((resolve) => liveChild.once('close', resolve));
+    const recovered = await hd._injectLearnerQueue(repo, outDir, { timeoutMs: 5000 });
+    assert.equal(recovered.exitCode, 0);
+    assert.equal(mocked.calls.length, 1, 'a dead owner may be replaced by one recovery writer');
+    status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.injectionState, 'succeeded');
+    assert.equal(status.injectionOwner, null);
+  } finally {
+    try { liveChild.kill('SIGKILL'); } catch { /* already exited */ }
+    mocked.restore();
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('shared injection lease makes live owners exclusive but expires live and dead pids deterministically', () => {
+  const { liveOnboardInjectionLease } = require('../lib/onboard-state');
+  const now = Date.now();
+  const base = {
+    injectionState: 'running', injectionOwner: 'lease-owner', injectionPid: process.pid,
+  };
+  assert.equal(liveOnboardInjectionLease({ ...base, injectionLeaseExpiresAt: now + 1000 }, now).live, true);
+  assert.equal(liveOnboardInjectionLease({ ...base, injectionLeaseExpiresAt: now - 1 }, now).live, false,
+    'an expired lease may be taken over even before its old process exits');
+  assert.equal(liveOnboardInjectionLease({
+    ...base, injectionPid: 99999991, injectionLeaseExpiresAt: now + 1000,
+  }, now).live, false, 'a dead owner releases its lease before the deadline');
+});
+
+test('completed zero-kept and autoInject false queues repair stale generic errors without injection', async () => {
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  const repos = [];
+  const options = {
+    ...judgeDeps({ depth: 0, eagerNodes: [] }),
+    ...labelDeps({ journal: [], labeledKeys: [] }),
+    ...mockBackendDeps().deps,
+  };
+  try {
+    for (const item of [
+      { suffix: 'zero', kept: [], autoInject: true, terminal: 'not_needed' },
+      { suffix: 'disabled', kept: [{ title: 'Manual' }], autoInject: false, terminal: 'idle' },
+    ]) {
+      const repo = fs.mkdtempSync(path.join(os.tmpdir(), `hd-final-repair-${item.suffix}-`));
+      repos.push(repo);
+      const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+        generation: `generation-${item.suffix}`, total: 1, cursor: 1,
+        kept: item.kept, rejected: item.kept.length ? [] : [{ title: 'Rejected' }], pending: [],
+      }));
+      fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept: item.kept, rejected: [] }));
+      fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+        repo, outDir, autoInject: item.autoInject, error: 'onboarding drain exited 1', lastError: 'onboarding drain exited 1',
+      }));
+
+      assert.equal(hd.findPendingLearnerQueues(repo).length, 1, `${item.suffix} needs one status-repair pass`);
+      await hd.runDueDrains({ workspace: repo, registeredWorkspaces: [repo] }, noopHttp(), options);
+      const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+      assert.equal(status.error, null);
+      assert.equal(status.lastError, null);
+      assert.equal(status.injectionState || 'idle', item.terminal);
+      assert.equal(hd.findPendingLearnerQueues(repo).length, 0);
+    }
+    assert.equal(calls.length, 0, 'terminal status repair must not start an injector');
+  } finally {
+    restore();
+    for (const repo of repos) fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test('partial injection crash advances only the confirmed current-generation receipt', async () => {
   const savedMax = process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS;
   process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS = '2';

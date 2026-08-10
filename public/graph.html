@@ -8088,7 +8088,9 @@ tick(); setInterval(tick, 30000);   // safety poll
 // the gated learning flow.
 let onboardAutoStartInFlight = false;
 let onboardPollTimer = null;
+let onboardPollFailures = 0;
 const ONBOARD_POLL_MS = 1200;
+const ONBOARD_POLL_MAX_MS = 10000;
 
 async function hasInjectedOnboardNotes() {
   try {
@@ -8105,6 +8107,7 @@ async function hasInjectedOnboardNotes() {
 async function checkOnboardingState() {
   const workspace = currentOnboardWorkspace();
   const storedOutDir = localStorage.getItem(onboardStoreKey('outdir')) || '';
+  let storedQueueStatusUnavailable = false;
 
   if (workspace && !storedOutDir) {
     for (const candidateOutDir of candidateOnboardOutDirs(workspace)) {
@@ -8140,6 +8143,11 @@ async function checkOnboardingState() {
     try {
       const r = await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(workspace) + '&outDir=' + encodeURIComponent(storedOutDir));
       const st = await r.json();
+      if (r.status === 400 || r.status === 404) {
+        localStorage.removeItem(onboardStoreKey('outdir'));
+      } else if (!r.ok || !st.ok) {
+        throw new Error(st.error || 'status unavailable');
+      }
       if (st.ok && st.status && onboardStatusComplete(st.status)) {
         completeOnboardLearning();
         return;
@@ -8159,9 +8167,24 @@ async function checkOnboardingState() {
         return;
       }
     } catch (e) {
-      // Fall through to auto-start. The status endpoint may be
-      // unavailable before the queue has been created.
+      storedQueueStatusUnavailable = true;
     }
+  }
+
+  // A stored queue means onboarding was already in progress. If its first reload probe is transiently
+  // unavailable, keep that queue authoritative and re-arm live polling instead of trusting old ingest
+  // notes or the browser completion latch and hiding unfinished final injection.
+  if (workspace && storedOutDir && storedQueueStatusUnavailable) {
+    showOnboardLanding();
+    const landing = document.getElementById('onboard-landing');
+    if (landing) {
+      landing.dataset.repo = workspace;
+      landing.dataset.outDir = storedOutDir;
+      landing.dataset.draining = '1';
+    }
+    setOnboardStatus('Onboarding status is temporarily unavailable. Retrying...', true);
+    pollOnboardLearning();
+    return;
   }
 
   // Queue state is authoritative over the browser's completion latch and previously injected
@@ -8327,6 +8350,7 @@ function renderOnboardCloud(status={}) {
 function completeOnboardLearning() {
   clearTimeout(onboardPollTimer);
   onboardPollTimer = null;
+  onboardPollFailures = 0;
   if (onboardCloudRenderState.raf) cancelAnimationFrame(onboardCloudRenderState.raf);
   onboardCloudRenderState.raf = null;
   if (onboardCloudRenderState.sim) onboardCloudRenderState.sim.stop();
@@ -8428,13 +8452,21 @@ async function pollOnboardLearning() {
   try {
     const st = await (await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(landing.dataset.repo) + '&outDir=' + encodeURIComponent(landing.dataset.outDir))).json();
     if (!st.ok) throw new Error(st.error || 'status unavailable');
+    onboardPollFailures = 0;
+    landing.dataset.draining = '1';
     if (updateOnboardFromStatus(st.status || {})) {
       return;
     }
     onboardPollTimer = setTimeout(pollOnboardLearning, ONBOARD_POLL_MS);
   } catch (e) {
     setOnboardStatus(String(e && e.message || e), true);
-    if (landing) landing.dataset.draining = '';
+    // Status HTTP, network, and JSON failures are observational only. The daemon still owns the
+    // durable queue, so keep the landing live and retry with a bounded exponential delay.
+    onboardPollFailures++;
+    if (landing) landing.dataset.draining = '1';
+    const retryMs = Math.min(ONBOARD_POLL_MAX_MS,
+      ONBOARD_POLL_MS * Math.pow(2, Math.min(4, Math.max(0, onboardPollFailures - 1))));
+    onboardPollTimer = setTimeout(pollOnboardLearning, retryMs);
   }
 }
 
