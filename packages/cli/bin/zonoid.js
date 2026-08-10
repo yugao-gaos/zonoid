@@ -4,10 +4,11 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const http = require('http');
 const runtimePaths = require('../../../lib/runtime-paths');
 const graphLifecycle = require('../../../lib/graph-lifecycle');
+const mcpCore = require('../../../lib/mcp-core');
 
 const REPO_URL = 'https://github.com/yugao-gaos/zonoid';
 const SKILLS_DIR = path.join(os.homedir(), '.claude', 'skills');
@@ -533,29 +534,90 @@ function installOpencodeRepoSkills(cwd) {
   return installRepoSkill(cwd, 'zonoid-orchestrator', 'opencode');
 }
 
-function checkDaemon() {
+function probeDaemonHealth(port = ORCH_PORT, timeoutMs = 1500) {
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
     const req = http.request(
-      { hostname: 'localhost', port: 8787, path: '/ping', method: 'GET' },
+      { hostname: 'localhost', port, path: '/health', method: 'GET' },
       (res) => {
-        res.resume();
-        if (res.statusCode === 200) ok('Daemon is running (localhost:8787)');
-        else warn(`Daemon responded with ${res.statusCode}`);
-        resolve();
+        let raw = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => { raw += chunk; });
+        res.on('end', () => {
+          let body = null;
+          try { body = raw ? JSON.parse(raw) : {}; } catch { /* old daemon response */ }
+          const ready = res.statusCode === 200 && (!body || body.phase == null || body.phase === 'ready');
+          finish({ reachable: true, ready, statusCode: res.statusCode, body });
+        });
       }
     );
-    req.on('error', () => {
-      fix('Daemon not running — starting it...');
-      spawnSync('node', [path.join(INSTALL_DIR, 'daemon.js')], { detached: true, stdio: 'ignore', windowsHide: true });
-      ok('Daemon started.');
-      resolve();
+    req.on('error', () => finish({ reachable: false, ready: false }));
+    req.setTimeout(timeoutMs, () => {
+      // A listening daemon can be temporarily unresponsive during startup. Treat that as
+      // reachable so init waits instead of launching a second process on the same port.
+      finish({ reachable: true, ready: false, timedOut: true });
+      req.destroy();
     });
-    req.setTimeout(1500, () => { req.destroy(); warn('Daemon ping timed out'); resolve(); });
     req.end();
   });
 }
 
-function registerWorkspace(cwd, workspace) {
+async function checkDaemon(deps = {}) {
+  const port = deps.port || ORCH_PORT;
+  const healthTimeoutMs = deps.healthTimeoutMs || 1500;
+  const startupTimeoutMs = deps.startupTimeoutMs || 15000;
+  const pollMs = deps.pollMs || 100;
+  const initial = await probeDaemonHealth(port, healthTimeoutMs);
+  if (initial.ready) {
+    ok(`Daemon is running (localhost:${port})`);
+    return true;
+  }
+
+  if (!initial.reachable) {
+    fix('Daemon not running — starting it...');
+    const daemonPath = deps.daemonPath || path.join(INSTALL_DIR, 'daemon.js');
+    const daemonEnv = { ...process.env, ...(deps.env || {}), ORCH_PORT: String(port) };
+    const child = spawn(process.execPath, [daemonPath], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+      env: daemonEnv,
+    });
+    child.on('error', (err) => warn(`Could not start daemon: ${err.message}`));
+    child.unref();
+  } else {
+    fix('Daemon is still starting — waiting for it...');
+  }
+
+  const deadline = Date.now() + startupTimeoutMs;
+  while (Date.now() < deadline) {
+    const health = await probeDaemonHealth(port, healthTimeoutMs);
+    if (health.ready) {
+      ok(`Daemon is ready (localhost:${port})`);
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+  warn(`Daemon did not become ready within ${startupTimeoutMs}ms`);
+  return false;
+}
+
+function daemonJsonHeaders(body, deps = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(body),
+  };
+  const token = Object.prototype.hasOwnProperty.call(deps, 'token') ? deps.token : mcpCore.readToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+function registerWorkspace(cwd, workspace, deps = {}) {
   return new Promise((resolve) => {
     // Resolve cwd -> its containing repo root (nearest ancestor with .graph/.git); fall back to the
     // cwd itself when no marker is found so the daemon still gets a path to register.
@@ -568,12 +630,17 @@ function registerWorkspace(cwd, workspace) {
     if (workspace) payload.workspace = workspace;
     const body = JSON.stringify(payload);
     const req = http.request(
-      { hostname: 'localhost', port: 8787, path: '/workspace', method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },
+      { hostname: 'localhost', port: deps.port || ORCH_PORT, path: '/workspace', method: 'POST',
+        headers: daemonJsonHeaders(body, deps) },
       (res) => {
         res.resume();
-        ok(`Workspace registered (${res.statusCode})`);
-        resolve(res.statusCode >= 200 && res.statusCode < 300 ? repoPath : null);
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          ok(`Workspace registered (${res.statusCode})`);
+          resolve(repoPath);
+        } else {
+          warn(`Could not register workspace (daemon returned ${res.statusCode})`);
+          resolve(null);
+        }
       }
     );
     req.on('error', () => { warn('Could not register workspace (daemon may still be starting)'); resolve(null); });
@@ -583,12 +650,12 @@ function registerWorkspace(cwd, workspace) {
   });
 }
 
-function postDaemonJson(route, payload, timeoutMs = 120000) {
+function postDaemonJson(route, payload, timeoutMs = 120000, deps = {}) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify(payload);
     const req = http.request(
-      { hostname: 'localhost', port: 8787, path: route, method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },
+      { hostname: 'localhost', port: deps.port || ORCH_PORT, path: route, method: 'POST',
+        headers: daemonJsonHeaders(body, deps) },
       (res) => {
         let raw = '';
         res.setEncoding('utf8');
@@ -1839,6 +1906,9 @@ if (require.main === module) {
     prePushTestHookScript,
     checkPrePushTestHook,
     parseOnboardArgs,
+    checkDaemon,
+    registerWorkspace,
+    postDaemonJson,
     startWorkspaceOnboarding,
     dashboardUrl,
     renderClaudeInstructions,
