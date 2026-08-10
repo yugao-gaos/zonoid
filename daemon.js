@@ -64,6 +64,7 @@ const headlessDrain = require('./lib/headless-drain');
 const headlessSpawn = require('./lib/headless-spawn');
 const { createHeadlessDrainRunner } = require('./lib/headless-drain-runner');
 const registry = require('./lib/workspace-registry');
+const onboardInitTransaction = require('./lib/onboard-init-transaction');
 const repoTarget = require('./lib/repo-target');
 const requestIdentity = require('./lib/request-identity');
 const runtimePaths = require('./lib/runtime-paths');
@@ -472,6 +473,15 @@ function restoreLoops() {
 // report live progress while the synchronous per-phase loads run.
 const yieldLoop = () => new Promise((r) => setImmediate(r));
 async function loadState() {
+  // Resolve every write-ahead onboarding intent before the registry is enumerated or non-health
+  // routes become available. A crash between status and registry therefore cannot strand a queue
+  // outside registeredWorkspaces(), and a crash after registry commit cannot expose a project whose
+  // durable onboarding intent is missing.
+  const recoveredOnboardInits = onboardInitTransaction.reconcilePending(WORKSPACES_FILE);
+  if (recoveredOnboardInits.length) {
+    process.stdout.write(`orchestrator: reconciled ${recoveredOnboardInits.length} onboarding init transaction(s)\n`);
+  }
+
   // Phase 1: workspace registry warm-up. P3 removed the daemon-global default pointer, so there is
   // NO single workspace to restore on boot. Instead we lazily warm every REGISTERED workspace's
   // overlay into the per-workspace cache (and run the one-time blind-edge migration on each), so the
@@ -2892,11 +2902,9 @@ const ctx = {
     // basename(p) — a single-repo workspace, preserving today's behavior — unless an explicit
     // bind.workspace names a group. registry.addRepo migrates any legacy v1 array, is atomic, and
     // is idempotent (re-adding the same repo is a no-op).
-    try {
-      fs.mkdirSync(BASE, { recursive: true });
-      const workspace = (opts && opts.workspace) || path.basename(p);
-      registry.addRepo(WORKSPACES_FILE, { workspace, repo: p });
-    } catch { /* best effort */ }
+    fs.mkdirSync(BASE, { recursive: true });
+    const workspace = (opts && opts.workspace) || path.basename(p);
+    registry.addRepo(WORKSPACES_FILE, { workspace, repo: p });
     const harnessName = opts.harness || (sessionId && state.sessions[sessionId] && state.sessions[sessionId].harness) || 'claude';
     try {
       runUsageReconcile(ctx, { harness: harnessName, workspace: p, session: sessionId || opts.session_id || null });

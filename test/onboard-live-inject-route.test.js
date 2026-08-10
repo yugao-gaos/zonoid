@@ -566,7 +566,10 @@ test('force replacement conflicts with a live injection lease, then succeeds aft
   const generation = 'generation-live';
   const kept = [{ title: 'Live', summary: 'Live generation', kind: 'decision', evidence_refs: ['source:live'] }];
   const statusFile = path.join(outDir, 'onboard-drain-status.json');
+  const excludeFile = path.join(repo, '.git', 'info', 'exclude');
   try {
+    fs.mkdirSync(path.dirname(excludeFile), { recursive: true });
+    fs.writeFileSync(excludeFile, 'preserve-this-rule\n');
     writeQueue(outDir, 1, 1, kept, generation);
     fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept, rejected: [] }));
     fs.writeFileSync(statusFile, JSON.stringify({
@@ -580,6 +583,8 @@ test('force replacement conflicts with a live injection lease, then succeeds aft
       injectionPid: process.pid,
       injectionLeaseExpiresAt: Date.now() + 60000,
     }));
+    const statusBeforeConflict = fs.readFileSync(statusFile);
+    const excludeBeforeConflict = fs.readFileSync(excludeFile);
 
     const blocked = [];
     await onboardRoute(makeCtx({ repo, outDir, force: true }, blocked, () => {}, [repo]))(
@@ -589,6 +594,10 @@ test('force replacement conflicts with a live injection lease, then succeeds aft
     assert.equal(blocked[0].payload.retryable, true);
     assert.equal(blocked[0].payload.conflict, 'injection_in_progress');
     assert.equal(JSON.parse(fs.readFileSync(statusFile, 'utf8')).injectionOwner, 'live-owner');
+    assert.deepEqual(fs.readFileSync(statusFile), statusBeforeConflict,
+      'a rejected force CAS must not mutate onboarding status bytes');
+    assert.deepEqual(fs.readFileSync(excludeFile), excludeBeforeConflict,
+      'a rejected force CAS must not mutate Git exclude bytes');
 
     const expired = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
     expired.injectionLeaseExpiresAt = Date.now() - 1;
@@ -601,6 +610,8 @@ test('force replacement conflicts with a live injection lease, then succeeds aft
     const replacement = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
     assert.notEqual(replacement.preparationGeneration, generation);
     assert.equal(replacement.injectionOwner, null);
+    assert.match(fs.readFileSync(excludeFile, 'utf8'), /^\.zonoid\/$/m,
+      'the accepted force CAS may add the runtime ignore');
 
     let graphRequests = 0;
     await assert.rejects(

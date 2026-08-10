@@ -130,7 +130,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // never silently re-homed onto a stray ancestor marker.
     const repoRootPath = (registrationRepoRoot || require('../lib/workspace-registry').registrationRepoRoot)(requestedGraphRepo);
     const workspaceId = b.workspace_id || b.workspace || path.basename(repoRootPath);
-    setWorkspace(repoRootPath, { ...b, path: repoRootPath, workspace: workspaceId });
+    try {
+      setWorkspace(repoRootPath, { ...b, path: repoRootPath, workspace: workspaceId });
+    } catch (e) {
+      send(res, 500, { ok: false, error: `workspace registration failed: ${String(e && e.message || e)}` });
+      return true;
+    }
     send(res, 200, { ok: true, workspace_id: workspaceId, graph_repo: repoRootPath, workspace: repoRootPath }); return true;
   }
 
