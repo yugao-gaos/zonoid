@@ -391,6 +391,7 @@ try { GIT_HEAD = require('child_process').execFileSync('git', ['-C', __dirname, 
 // Capability flags, bumped per change — cheap self-description so a restart script can verify the
 // new code is actually serving (beyond the git head).
 const FEATURES = { perRequestWorkspaceWrites: true, perRequestWorkspaceReads: true, gatedSearch: true };
+const DAEMON_HEALTH_SIGNATURE = 'zonoid-orchestrator-health-v1';
 
 // MCP tool-usage counters (persisted; see lib/analytics.js). Recorded via POST /analytics/tool-call
 // beacons fired by mcp-core's tools/call dispatch on BOTH transports; flushed debounced.
@@ -2775,7 +2776,7 @@ function readTranscript(p, maxLines = 200) {
 
 function send(res, code, body, type = 'application/json') {
   if (res.headersSent) return false;
-  res.writeHead(code, { 'Content-Type': type, 'Access-Control-Allow-Origin': '*', 'Connection': 'close' });
+  res.writeHead(code, { 'Content-Type': type, 'Access-Control-Allow-Origin': '*', 'Connection': 'close', 'X-Zonoid-Health-Signature': DAEMON_HEALTH_SIGNATURE });
   res.end(type === 'application/json' ? JSON.stringify(body) : body);
   return true;
 }

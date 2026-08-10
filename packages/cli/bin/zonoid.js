@@ -11,6 +11,7 @@ const graphLifecycle = require('../../../lib/graph-lifecycle');
 const mcpCore = require('../../../lib/mcp-core');
 
 const REPO_URL = 'https://github.com/yugao-gaos/zonoid';
+const DAEMON_HEALTH_SIGNATURE = 'zonoid-orchestrator-health-v1';
 const SKILLS_DIR = path.join(os.homedir(), '.claude', 'skills');
 const CODEX_REPO_SKILLS_DIR = path.join('.codex', 'skills');
 const OPENCODE_REPO_SKILLS_DIR = path.join('.opencode', 'skills');
@@ -551,8 +552,9 @@ function probeDaemonHealth(port = ORCH_PORT, timeoutMs = 1500) {
         res.on('end', () => {
           let body = null;
           try { body = raw ? JSON.parse(raw) : {}; } catch { /* old daemon response */ }
-          const ready = res.statusCode === 200 && (!body || body.phase == null || body.phase === 'ready');
-          finish({ reachable: true, ready, statusCode: res.statusCode, body });
+          const identified = res.headers['x-zonoid-health-signature'] === DAEMON_HEALTH_SIGNATURE;
+          const ready = identified && res.statusCode === 200 && body && body.ok === true && body.phase === 'ready';
+          finish({ reachable: true, identified, ready, statusCode: res.statusCode, body });
         });
       }
     );
@@ -567,11 +569,44 @@ function probeDaemonHealth(port = ORCH_PORT, timeoutMs = 1500) {
   });
 }
 
+function childHasExited(child) {
+  return child.exitCode !== null || child.signalCode !== null;
+}
+
+function waitForChildExit(child, timeoutMs) {
+  if (childHasExited(child)) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (exited) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.removeListener('exit', onExit);
+      child.removeListener('error', onExit);
+      resolve(exited);
+    };
+    const onExit = () => finish(true);
+    const timer = setTimeout(() => finish(childHasExited(child)), timeoutMs);
+    child.once('exit', onExit);
+    child.once('error', onExit);
+  });
+}
+
+async function terminateSpawnedChild(child, graceMs = 1000) {
+  if (!child || childHasExited(child)) return;
+  try { child.kill('SIGTERM'); } catch { return; }
+  if (await waitForChildExit(child, graceMs)) return;
+  try { child.kill('SIGKILL'); } catch { return; }
+  await waitForChildExit(child, graceMs);
+}
+
 async function checkDaemon(deps = {}) {
   const port = deps.port || ORCH_PORT;
   const healthTimeoutMs = deps.healthTimeoutMs || 1500;
   const startupTimeoutMs = deps.startupTimeoutMs || 15000;
   const pollMs = deps.pollMs || 100;
+  const childCleanupGraceMs = deps.childCleanupGraceMs || 1000;
+  let spawnedChild = null;
   const initial = await probeDaemonHealth(port, healthTimeoutMs);
   if (initial.ready) {
     ok(`Daemon is running (localhost:${port})`);
@@ -582,14 +617,14 @@ async function checkDaemon(deps = {}) {
     fix('Daemon not running — starting it...');
     const daemonPath = deps.daemonPath || path.join(INSTALL_DIR, 'daemon.js');
     const daemonEnv = { ...process.env, ...(deps.env || {}), ORCH_PORT: String(port) };
-    const child = spawn(process.execPath, [daemonPath], {
+    spawnedChild = spawn(process.execPath, [daemonPath], {
       detached: true,
       stdio: 'ignore',
       windowsHide: true,
       env: daemonEnv,
     });
-    child.on('error', (err) => warn(`Could not start daemon: ${err.message}`));
-    child.unref();
+    spawnedChild.on('error', (err) => warn(`Could not start daemon: ${err.message}`));
+    spawnedChild.unref();
   } else {
     fix('Daemon is still starting — waiting for it...');
   }
@@ -604,6 +639,7 @@ async function checkDaemon(deps = {}) {
     await new Promise((resolve) => setTimeout(resolve, pollMs));
   }
   warn(`Daemon did not become ready within ${startupTimeoutMs}ms`);
+  await terminateSpawnedChild(spawnedChild, childCleanupGraceMs);
   return false;
 }
 
