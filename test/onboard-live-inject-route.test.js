@@ -1549,6 +1549,99 @@ test('init atomically rearms a failed force replacement backed by an old queue',
   }
 });
 
+test('post-commit Git exclude EACCES settles the init journal and later retries without replay', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-exclude-eacces-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-exclude-data-'));
+  const registryFile = path.join(dataDir, 'workspaces.json');
+  const excludeFile = path.join(repo, '.git', 'info', 'exclude');
+  const sent = [];
+  const runtimeErrors = [];
+  try {
+    fs.mkdirSync(path.dirname(excludeFile), { recursive: true });
+    fs.writeFileSync(excludeFile, 'preserve-existing-rule\n');
+    fs.chmodSync(excludeFile, 0o400);
+    const ctx = {
+      ...makeCtx({ repo }, sent, () => {}, [repo]),
+      WORKSPACES_FILE: registryFile,
+      registrationRepoRoot: (candidate) => path.resolve(candidate),
+      setWorkspace: () => {},
+      onboardRuntimeIgnoreError: (error) => runtimeErrors.push(error),
+    };
+    await onboardRoute(ctx)('/onboard/init', 'POST', {}, {}, new URL('http://localhost/onboard/init'));
+
+    assert.equal(sent[0].status, 200, 'advisory Git metadata failure must not change acceptance');
+    assert.equal(runtimeErrors.length, 1);
+    assert.equal(runtimeErrors[0].code, 'EACCES');
+    assert.equal(fs.readFileSync(excludeFile, 'utf8'), 'preserve-existing-rule\n');
+    const statusFile = path.join(outDir, 'onboard-drain-status.json');
+    const statusBytes = fs.readFileSync(statusFile);
+    const registryBytes = fs.readFileSync(registryFile);
+    const journals = onboardInitTransaction.journalDir(registryFile);
+    assert.equal(!fs.existsSync(journals) || fs.readdirSync(journals).length === 0, true,
+      'a committed init must settle its journal before advisory exclusion');
+
+    assert.deepEqual(onboardInitTransaction.reconcilePending(registryFile), [],
+      'restart reconciliation must not replay an already committed transaction');
+    assert.deepEqual(fs.readFileSync(statusFile), statusBytes);
+    assert.deepEqual(fs.readFileSync(registryFile), registryBytes);
+
+    const stillReadOnly = onboardInitTransaction.retryRegisteredRuntimeIgnore(repo);
+    assert.equal(stillReadOnly.attempted, true);
+    assert.equal(stillReadOnly.ok, false);
+    assert.deepEqual(fs.readFileSync(statusFile), statusBytes);
+    assert.deepEqual(fs.readFileSync(registryFile), registryBytes);
+
+    fs.chmodSync(excludeFile, 0o600);
+    const retried = onboardInitTransaction.retryRegisteredRuntimeIgnore(repo);
+    assert.deepEqual({ attempted: retried.attempted, ok: retried.ok, applied: retried.applied },
+      { attempted: true, ok: true, applied: true });
+    assert.match(fs.readFileSync(excludeFile, 'utf8'), /^\.zonoid\/$/m);
+    assert.deepEqual(fs.readFileSync(statusFile), statusBytes,
+      'later advisory maintenance must not rewrite onboarding status');
+    assert.deepEqual(fs.readFileSync(registryFile), registryBytes,
+      'later advisory maintenance must not rewrite workspace registration');
+  } finally {
+    try { fs.chmodSync(excludeFile, 0o600); } catch { /* missing fixture */ }
+    fs.rmSync(repo, { recursive: true, force: true });
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('runtime ignore warming is a no-throw advisory for missing, corrupt, unborn, and linked Git metadata', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-runtime-ignore-shapes-'));
+  try {
+    const nonGit = path.join(root, 'non-git');
+    const corrupt = path.join(root, 'corrupt-git');
+    const unborn = path.join(root, 'unborn-git');
+    const linked = path.join(root, 'linked-worktree');
+    for (const repo of [nonGit, corrupt, unborn, linked]) fs.mkdirSync(repo);
+
+    assert.deepEqual(onboardInitTransaction.tryRuntimeIgnore(nonGit), { ok: true, applied: false });
+    fs.writeFileSync(path.join(corrupt, '.git'), 'not a gitdir pointer\n');
+    assert.deepEqual(onboardInitTransaction.tryRuntimeIgnore(corrupt), { ok: true, applied: false });
+
+    const unbornExclude = path.join(unborn, '.git', 'info', 'exclude');
+    fs.mkdirSync(path.dirname(unbornExclude), { recursive: true });
+    fs.writeFileSync(unbornExclude, 'unborn-local-rule\n');
+    assert.deepEqual(onboardInitTransaction.tryRuntimeIgnore(unborn), { ok: true, applied: true });
+    assert.match(fs.readFileSync(unbornExclude, 'utf8'), /^\.zonoid\/$/m);
+
+    const commonGit = path.join(root, 'common.git');
+    const linkedGit = path.join(commonGit, 'worktrees', 'linked');
+    const linkedExclude = path.join(commonGit, 'info', 'exclude');
+    fs.mkdirSync(linkedGit, { recursive: true });
+    fs.mkdirSync(path.dirname(linkedExclude), { recursive: true });
+    fs.writeFileSync(path.join(linked, '.git'), `gitdir: ${linkedGit}\n`);
+    fs.writeFileSync(path.join(linkedGit, 'commondir'), '../..\n');
+    fs.writeFileSync(linkedExclude, 'linked-local-rule\n');
+    assert.deepEqual(onboardInitTransaction.tryRuntimeIgnore(linked), { ok: true, applied: true });
+    assert.match(fs.readFileSync(linkedExclude, 'utf8'), /^\.zonoid\/$/m);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('init rollback is an exact-image CAS and preserves a concurrent accepted generation and temp', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-cas-'));
   const outDir = defaultOnboardOutDir(repo);

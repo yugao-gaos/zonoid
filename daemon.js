@@ -479,12 +479,19 @@ function restoreLoops() {
 // Yields to the event loop between phases so /health (whitelisted through the 503 gate) can
 // report live progress while the synchronous per-phase loads run.
 const yieldLoop = () => new Promise((r) => setImmediate(r));
+function reportOnboardRuntimeIgnoreError(error, repo) {
+  process.stderr.write(
+    `orchestrator: onboarding runtime ignore unavailable for ${repo}: ${error && error.message ? error.message : error}\n`
+  );
+}
 async function loadState() {
   // Resolve every write-ahead onboarding intent before the registry is enumerated or non-health
   // routes become available. A crash between status and registry therefore cannot strand a queue
   // outside registeredWorkspaces(), and a crash after registry commit cannot expose a project whose
   // durable onboarding intent is missing.
-  const recoveredOnboardInits = onboardInitTransaction.reconcilePending(WORKSPACES_FILE);
+  const recoveredOnboardInits = onboardInitTransaction.reconcilePending(WORKSPACES_FILE, {
+    onRuntimeIgnoreError: reportOnboardRuntimeIgnoreError,
+  });
   if (recoveredOnboardInits.length) {
     process.stdout.write(`orchestrator: reconciled ${recoveredOnboardInits.length} onboarding init transaction(s)\n`);
   }
@@ -509,6 +516,7 @@ async function loadState() {
   advanceBoot('workspace');
   await yieldLoop();
   for (const ws of registeredWorkspaces()) {
+    onboardInitTransaction.retryRegisteredRuntimeIgnore(ws, { onError: reportOnboardRuntimeIgnoreError });
     try {
       if (!registry.isActiveRepoPath(ws)) continue;
       // Sync an already-configured submodule before opening overlay/graph state. Ordinary .graph
@@ -2952,6 +2960,7 @@ const ctx = {
   loadRegistry: () => registry.loadRegistry(WORKSPACES_FILE),
   repoToWorkspace: registry.repoToWorkspace,
   registrationRepoRoot: registry.registrationRepoRoot,
+  onboardRuntimeIgnoreError: reportOnboardRuntimeIgnoreError,
   workspaceForRepo: (repoPath) => registry.repoToWorkspace(registry.loadRegistry(WORKSPACES_FILE)).get(repoPath) || null,
   repoRoot: registry.repoRoot,
   send, sendOp, readBody, notifyChange, graphAutoflush, buildGraph, readGraphSnapshot, targetOverlay, overlayFor, resolveRepo, resolveRepoTarget, nodeExistsInGraph, registeredWorkspaces,
@@ -3288,6 +3297,15 @@ if (require.main === module) {
   // bound to a closed conversation is otherwise never re-evaluated). decideAll already sweeps on each
   // heartbeat; this catches the un-driven case. Cheap; unref'd so it never holds the process open.
   setInterval(() => { try { sweepStaleLoops(); ensureManagedGraphLoops(); } catch { /* best effort */ } }, 60000).unref();
+  // Retry advisory Git exclusion independently of onboarding publication settlement. A repo may
+  // become writable or acquire valid Git metadata after init; failure never affects daemon health.
+  setInterval(() => {
+    for (const ws of registeredWorkspaces()) {
+      onboardInitTransaction.retryRegisteredRuntimeIgnore(ws, {
+        onError: reportOnboardRuntimeIgnoreError,
+      });
+    }
+  }, 300000).unref();
 
   // Periodic claim sweep: release orphaned in_progress claims when no route (buildGraph) is being
   // called — catches the case after a Claude app restart where the user hasn't issued any command
