@@ -37,7 +37,7 @@ function writeQueue(outDir, total, cursor, kept = [], generation) {
     cursor,
     kept,
     rejected: [],
-    pending: [],
+    pending: Array.from({ length: total }, (_, index) => ({ title: `candidate-${index}` })),
     ...(generation ? { generation } : {}),
   }));
 }

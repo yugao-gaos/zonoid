@@ -47,11 +47,16 @@ const overlayStore = require('../lib/overlay');
 const { defaultOnboardOutDir } = require('../lib/onboard-paths');
 const { readToken } = require('../lib/mcp-core');
 const {
+  INJECTION_RECEIPT_FILE,
   readOnboardStatus,
+  pidAlive,
+  liveOnboardInjectionLease,
+  mutateOnboardStatus,
   confirmInjectedNote,
   confirmedInjectedCount,
   onboardQueueGeneration,
   validateOnboardQueue,
+  withFileLock,
   writeOnboardNotesArtifact,
   loadGenerationMatchedOnboardNotes,
 } = require('../lib/onboard-state');
@@ -384,50 +389,12 @@ function queueFilePath(outDir) {
   return path.join(outDir, 'onboard-queue.json');
 }
 
-function sleepSync(ms) {
-  const buf = new SharedArrayBuffer(4);
-  Atomics.wait(new Int32Array(buf), 0, 0, ms);
-}
-
-function isPidAlive(pid) {
-  const n = Number(pid);
-  if (!Number.isInteger(n) || n <= 0) return false;
-  try {
-    process.kill(n, 0);
-    return true;
-  } catch (err) {
-    return !!(err && err.code === 'EPERM');
-  }
-}
-
-function withQueueLock(qf, fn) {
-  const lock = `${qf}.lock`;
-  fs.mkdirSync(path.dirname(qf), { recursive: true });
-  const deadline = Date.now() + QUEUE_LOCK_WAIT_MS;
-  let fd = null;
-  while (fd == null) {
-    try {
-      fd = fs.openSync(lock, 'wx');
-      fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, at: Date.now() }));
-    } catch (err) {
-      if (!err || err.code !== 'EEXIST') throw err;
-      try {
-        const st = fs.statSync(lock);
-        if (Date.now() - st.mtimeMs > QUEUE_LOCK_STALE_MS) {
-          fs.unlinkSync(lock);
-          continue;
-        }
-      } catch { /* lock disappeared; retry */ }
-      if (Date.now() >= deadline) throw new Error(`timed out waiting for queue lock ${lock}`);
-      sleepSync(50);
-    }
-  }
-  try {
-    return fn();
-  } finally {
-    try { fs.closeSync(fd); } catch { /* ignore */ }
-    try { fs.unlinkSync(lock); } catch { /* ignore */ }
-  }
+function withQueueLock(qf, fn, opts = {}) {
+  return withFileLock(qf, fn, {
+    waitMs: QUEUE_LOCK_WAIT_MS,
+    staleMs: QUEUE_LOCK_STALE_MS,
+    ...opts,
+  });
 }
 
 function normalizeQueue(queue) {
@@ -445,7 +412,7 @@ function cleanupExpiredInflight(queue, nowMs = Date.now()) {
   normalizeQueue(queue);
   for (const [start, entry] of Object.entries(queue.inflight || {})) {
     const expired = entry && entry.expiresAt && Number(entry.expiresAt) <= nowMs;
-    const deadOwner = entry && entry.pid && !isPidAlive(entry.pid);
+    const deadOwner = entry && entry.pid && !pidAlive(entry.pid);
     if (!entry || expired || deadOwner) delete queue.inflight[start];
   }
 }
@@ -480,10 +447,18 @@ function coveredIntervalAt(queue, index) {
 }
 
 function reserveQueueBatch(qf, batchSize, maxCandidates, nowMs = Date.now(), reservationTtlMs = DEFAULT_TIMEOUT_MS * 2) {
+  const batchLimit = Number(batchSize);
+  const candidateLimit = maxCandidates === Infinity ? Infinity : Number(maxCandidates);
+  const reservationNow = Number(nowMs);
+  if (!Number.isFinite(batchLimit) || Math.floor(batchLimit) <= 0
+      || (candidateLimit !== Infinity && (!Number.isFinite(candidateLimit) || Math.floor(candidateLimit) <= 0))
+      || !Number.isFinite(reservationNow) || reservationNow < 0) {
+    return { status: 'invalid_batch_size' };
+  }
   return withQueueLock(qf, () => {
     const queue = normalizeQueue(readQueue(qf));
     if (!queue) return { status: 'missing_queue' };
-    cleanupExpiredInflight(queue, nowMs);
+    cleanupExpiredInflight(queue, reservationNow);
     flushCompleted(queue);
     if (queue.cursor >= queue.total) {
       writeJSONAtomic(qf, queue);
@@ -502,16 +477,21 @@ function reserveQueueBatch(qf, batchSize, maxCandidates, nowMs = Date.now(), res
       return { status: 'all_slices_inflight', total: queue.total, kept: queue.kept.length };
     }
 
-    const count = Math.min(batchSize, maxCandidates, queue.total - start);
+    const count = Math.min(Math.floor(batchLimit), candidateLimit === Infinity ? Infinity : Math.floor(candidateLimit), queue.total - start);
+    if (!Number.isInteger(count) || count <= 0) return { status: 'invalid_batch_size' };
     const generation = queueGeneration(queue);
     const reservationId = crypto.randomBytes(12).toString('hex');
+    const requestedTtl = Number(reservationTtlMs);
+    const leaseMs = Number.isFinite(requestedTtl) && requestedTtl > 0
+      ? Math.max(1000, requestedTtl)
+      : DEFAULT_TIMEOUT_MS;
     queue.inflight[String(start)] = {
       count,
       generation,
       reservationId,
       pid: process.pid,
-      startedAt: nowMs,
-      expiresAt: nowMs + Math.max(1000, Number(reservationTtlMs) || DEFAULT_TIMEOUT_MS),
+      startedAt: reservationNow,
+      expiresAt: reservationNow + leaseMs,
     };
     writeJSONAtomic(qf, queue);
     return {
@@ -550,6 +530,9 @@ function completeQueueBatch(qf, reservation, result, repoAbs, outDir, model) {
     // reserve call; an exact still-current token remains allowed to finish until it is replaced.
     queue.completed[key] = {
       count: reservation.count,
+      generation: reservation.generation,
+      reservationId: reservation.reservationId,
+      completedAt: Date.now(),
       kept: Array.isArray(result.kept) ? result.kept : [],
       rejected: Array.isArray(result.rejected) ? result.rejected : [],
     };
@@ -907,20 +890,66 @@ async function injectDocumentStructure(inDir, workspace, httpRequest = request, 
 }
 
 // ---- --enqueue: assemble all candidates and write queue file (no LLM) ----------------------
-function enqueue(inDir, outDir) {
+function enqueue(inDir, outDir, repoAbs) {
   let candidates = gatherCandidates(inDir);
   fs.mkdirSync(outDir, { recursive: true });
-  if (!candidates.length) {
-    const queue = { total: 0, cursor: 0, kept: [], rejected: [], pending: [] };
+  // Sort by priority (config > asset > doc > git > struct). No cap at enqueue time. Every direct
+  // enqueue is a replacement generation, even when the mined candidates are byte-identical.
+  candidates = sortByPriority(candidates);
+  const generation = `onboard-${crypto.randomBytes(12).toString('hex')}`;
+  const queue = {
+    generation,
+    total: candidates.length,
+    cursor: 0,
+    kept: [],
+    rejected: [],
+    pending: candidates,
+  };
+  const publish = () => withQueueLock(queueFilePath(outDir), () => {
     writeJSONAtomic(queueFilePath(outDir), queue);
-    writeOnboardNotesArtifact(outDir, queue, queueGeneration(queue));
+    try { fs.rmSync(path.join(outDir, INJECTION_RECEIPT_FILE), { force: true }); } catch { /* runtime artifact */ }
+    if (queue.total === 0) writeOnboardNotesArtifact(outDir, queue, generation);
+    else try { fs.rmSync(path.join(outDir, 'onboard-notes.json'), { force: true }); } catch { /* runtime artifact */ }
+  });
+  const staging = fs.existsSync(path.join(outDir, '.onboard-preparation.json'));
+  if (!staging) {
+    const replaced = mutateOnboardStatus(outDir, (status) => {
+      if (liveOnboardInjectionLease(status).live) return undefined;
+      publish();
+      return {
+        ...status,
+        ...(repoAbs ? { repo: repoAbs } : {}),
+        outDir,
+        preparationState: 'ready',
+        preparationGeneration: null,
+        preparationForce: false,
+        queueGeneration: generation,
+        total: queue.total,
+        injected: false,
+        injectedGeneration: null,
+        injectedAt: null,
+        injectedKept: 0,
+        injectionGeneration: generation,
+        injectionState: queue.total > 0 ? 'pending' : 'not_needed',
+        injectionOwner: null,
+        injectionPid: null,
+        injectionLeaseExpiresAt: null,
+        injectionAttempts: 0,
+        injectionRetryAt: null,
+        injectionRetryCapped: false,
+        injectionError: null,
+        injectionFailedAt: null,
+        injecting: false,
+        error: null,
+        lastError: null,
+      };
+    });
+    if (!replaced.applied) throw new Error('cannot replace onboarding queue while injection is running');
+  } else publish();
+  if (!candidates.length) {
     console.error(`[learn] enqueue: no mined candidates in ${inDir}; wrote a completed empty queue.`);
     return;
   }
-  // Sort by priority (config > asset > doc > git > struct). No cap at enqueue time.
-  candidates = sortByPriority(candidates);
-  const queue = { total: candidates.length, cursor: 0, kept: [], rejected: [], pending: candidates };
-  writeJSONAtomic(queueFilePath(outDir), queue);
   console.error(`[learn] enqueue: ${candidates.length} candidates written to ${queueFilePath(outDir)}`);
   console.error(`[learn] Run --drain --batch 50 (repeat) until --queue-status shows done:true, then --inject --confirm.`);
 }
@@ -1026,7 +1055,7 @@ async function main() {
 
   if (has('queue-status')) { queueStatus(outDir); return; }
 
-  if (has('enqueue')) { enqueue(inDir, outDir); return; }
+  if (has('enqueue')) { enqueue(inDir, outDir, repoAbs); return; }
 
   if (has('drain')) {
     const batchSize = Math.max(1, parseInt(arg('batch', '50'), 10) || 50);
@@ -1092,6 +1121,7 @@ module.exports = {
   reserveQueueBatch,
   completeQueueBatch,
   failQueueBatch,
+  withQueueLock,
   flushCompleted,
   queueGeneration,
   EXIT_TIMEOUT,

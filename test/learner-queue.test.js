@@ -14,6 +14,7 @@ const { spawnSync } = require('child_process');
 const LEARN = path.resolve(__dirname, '../scripts/onboard-learn.js');
 const NODE = process.execPath;
 const learner = require('../scripts/onboard-learn');
+const onboardState = require('../lib/onboard-state');
 const backend = require('../lib/llm-backend');
 const overlayStore = require('../lib/overlay');
 
@@ -324,6 +325,61 @@ function readJSON(p) {
   ok('enqueue re-run resets cursor to 0', q2 && q2.cursor === 0);
   ok('enqueue re-run produces same total', q1 && q2 && q1.total === q2.total);
   ok('enqueue re-run resets kept to []', q2 && q2.kept.length === 0);
+  ok('enqueue re-run always allocates a fresh explicit generation', q1 && q2
+    && typeof q1.generation === 'string' && typeof q2.generation === 'string'
+    && q1.generation !== q2.generation);
+}
+
+// ---- TEST 7: direct re-enqueue resets generation-scoped injection state ---
+{
+  const repo = fakeRepo(tmpDir());
+  const dir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  writeFakeMined(dir);
+  run(['--repo', repo, '--in', dir, '--enqueue']);
+  const qf = path.join(dir, 'onboard-queue.json');
+  const first = readJSON(qf);
+  const priorNote = { title: 'Prior', summary: 'already injected', kind: 'decision' };
+  fs.writeFileSync(qf, JSON.stringify({
+    ...first, cursor: first.total, kept: [priorNote], rejected: [],
+  }, null, 2));
+  fs.writeFileSync(path.join(dir, 'onboard-notes.json'), JSON.stringify({
+    generation: first.generation, kept: [priorNote], rejected: [],
+  }));
+  fs.writeFileSync(path.join(dir, onboardState.INJECTION_RECEIPT_FILE), JSON.stringify({
+    generation: first.generation, confirmed: [onboardState.onboardNoteId(priorNote, 0)],
+  }));
+  fs.writeFileSync(path.join(dir, 'onboard-drain-status.json'), JSON.stringify({
+    repo, outDir: dir, autoInject: true, queueGeneration: first.generation,
+    injectionGeneration: first.generation, injectionState: 'succeeded',
+    injected: true, injectedGeneration: first.generation, injectedKept: 1,
+  }));
+
+  const rerun = run(['--repo', repo, '--in', dir, '--enqueue']);
+  const second = readJSON(qf);
+  const status = readJSON(path.join(dir, 'onboard-drain-status.json'));
+  const due = require('../lib/headless-drain').findPendingLearnerQueues(repo);
+  ok('direct re-enqueue succeeds after a prior injected generation', rerun.status === 0);
+  ok('direct re-enqueue fences an identical prior generation', second && second.generation !== first.generation);
+  ok('direct re-enqueue clears stale receipt and final notes artifacts',
+    !fs.existsSync(path.join(dir, onboardState.INJECTION_RECEIPT_FILE))
+      && !fs.existsSync(path.join(dir, 'onboard-notes.json')));
+  ok('direct re-enqueue resets the injection watermark to pending current generation', status
+    && status.queueGeneration === second.generation && status.injectionGeneration === second.generation
+    && status.injectionState === 'pending' && status.injected === false && status.injectedKept === 0);
+  ok('headless discovery schedules the directly re-enqueued generation', due.length === 1
+    && due[0].generation === second.generation && due[0].remaining === second.total);
+
+  const beforeQueue = fs.readFileSync(qf);
+  fs.writeFileSync(path.join(dir, 'onboard-drain-status.json'), JSON.stringify({
+    ...status, injectionState: 'running', injecting: true,
+    injectionOwner: 'live-owner', injectionPid: process.pid,
+    injectionLeaseExpiresAt: Date.now() + 60000,
+  }));
+  const blocked = run(['--repo', repo, '--in', dir, '--enqueue']);
+  ok('direct re-enqueue refuses to replace a live injection owner', blocked.status !== 0
+    && /injection is running/.test(blocked.stderr));
+  ok('rejected live-owner replacement leaves queue bytes unchanged',
+    fs.readFileSync(qf).equals(beforeQueue));
 }
 
 // ---- TEST 7: queue reservations allow parallel non-overlapping batches ----
@@ -353,6 +409,10 @@ function readJSON(p) {
   }, dir, dir, 'opus');
   q = readJSON(qf);
   ok('out-of-order completion does not advance past gap', q && q.cursor === 0);
+  ok('completed sparse slice retains its generation and reservation identity', q && q.completed['2']
+    && q.completed['2'].generation === r2.generation
+    && q.completed['2'].reservationId === r2.reservationId
+    && Number.isFinite(q.completed['2'].completedAt));
 
   learner.completeQueueBatch(qf, r1, {
     kept: [{ title: 'First', summary: 'first', evidence: 'x', kind: 'gotcha' }],
@@ -361,6 +421,147 @@ function readJSON(p) {
   q = readJSON(qf);
   ok('cursor advances through contiguous completed slices', q && q.cursor === 4);
   ok('kept results merge in cursor order', q && q.kept[0].title === 'First' && q.kept[1].title === 'Later');
+}
+
+// ---- TEST 10: impossible partial queues and empty batches fail closed ------
+{
+  const candidate = { title: 'Candidate', summary: 's', kind: 'gotcha' };
+  const partialWithoutCoverage = {
+    generation: 'generation-no-coverage', total: 2, cursor: 0,
+    kept: [], rejected: [], pending: [candidate],
+  };
+  ok('partial queue requires exact candidate coverage',
+    onboardState.validateOnboardQueue(partialWithoutCoverage).reason === 'invalid_pending_coverage');
+  ok('partial queue candidate coverage cannot contain empty slots',
+    onboardState.validateOnboardQueue({
+      ...partialWithoutCoverage, total: 1, pending: [null],
+    }).reason === 'invalid_pending_candidate');
+
+  const ownerless = {
+    generation: 'generation-ownerless', total: 1, cursor: 0,
+    kept: [], rejected: [], pending: [candidate],
+    inflight: { 0: { count: 1, generation: 'generation-ownerless', reservationId: 'token' } },
+  };
+  ok('ownerless reservation is rejected',
+    onboardState.validateOnboardQueue(ownerless).reason === 'invalid_inflight_owner');
+  const invalidLease = {
+    ...ownerless,
+    generation: 'generation-invalid-lease',
+    inflight: { 0: {
+      count: 1, generation: 'generation-invalid-lease', reservationId: 'token', pid: process.pid,
+      startedAt: 1000, expiresAt: 1000,
+    } },
+  };
+  ok('reservation requires a finite advancing lease',
+    onboardState.validateOnboardQueue(invalidLease).reason === 'invalid_inflight_lease');
+  const overlapping = {
+    generation: 'generation-overlap', total: 3, cursor: 0,
+    kept: [], rejected: [], pending: [candidate, candidate, candidate],
+    inflight: { 0: {
+      count: 2, generation: 'generation-overlap', reservationId: 'token', pid: process.pid,
+      startedAt: 1000, expiresAt: 2000,
+    } },
+    completed: { 1: { count: 1, kept: [], rejected: [{ reason: 'duplicate slice' }] } },
+  };
+  ok('inflight and completed ranges cannot overlap',
+    onboardState.validateOnboardQueue(overlapping).reason === 'overlapping_queue_ranges');
+  ok('completed slice identity is either legacy-absent or complete and generation-matched',
+    onboardState.validateOnboardQueue({
+      generation: 'generation-completed-owner', total: 2, cursor: 0,
+      kept: [], rejected: [], pending: [candidate, candidate],
+      completed: { 0: {
+        count: 1, kept: [candidate], rejected: [], generation: 'generation-completed-owner',
+      } },
+    }).reason === 'invalid_completed_owner');
+  ok('safe legacy completed slice without reservation identity remains readable',
+    onboardState.validateOnboardQueue({
+      total: 2, cursor: 0, kept: [], rejected: [], pending: [candidate, candidate],
+      completed: { 0: { count: 1, kept: [candidate], rejected: [] } },
+    }).ok === true);
+  ok('expected generation fencing takes precedence over replacement queue internals',
+    onboardState.validateOnboardQueue(ownerless, { expectedGeneration: 'generation-previous' }).reason
+      === 'generation_replaced');
+
+  const dir = tmpDir();
+  const qf = path.join(dir, 'onboard-queue.json');
+  fs.writeFileSync(qf, JSON.stringify(ownerless, null, 2));
+  const impossibleBytes = fs.readFileSync(qf);
+  const impossible = learner.reserveQueueBatch(qf, 1, Infinity, 1000, 10000);
+  ok('ownerless full coverage cannot become permanent all_slices_inflight',
+    impossible.status === 'missing_queue' && fs.readFileSync(qf).equals(impossibleBytes));
+
+  const valid = {
+    generation: 'generation-valid-batch', total: 1, cursor: 0,
+    kept: [], rejected: [], pending: [candidate],
+  };
+  fs.writeFileSync(qf, JSON.stringify(valid, null, 2));
+  const validBytes = fs.readFileSync(qf);
+  const emptyBatch = learner.reserveQueueBatch(qf, 0, Infinity, 1000, 10000);
+  const emptyCap = learner.reserveQueueBatch(qf, 1, 0, 1000, 10000);
+  ok('zero batch and zero cap never create empty reservations',
+    emptyBatch.status === 'invalid_batch_size' && emptyCap.status === 'invalid_batch_size'
+      && fs.readFileSync(qf).equals(validBytes));
+
+  fs.writeFileSync(qf, JSON.stringify({
+    ...valid,
+    inflight: { 0: {
+      count: 1, generation: valid.generation, reservationId: 'expired-live-owner', pid: process.pid,
+      startedAt: 1000, expiresAt: 2000,
+    } },
+  }, null, 2));
+  const expired = learner.reserveQueueBatch(qf, 1, Infinity, 2001, 10000);
+  ok('expired live-owner slice is reclaimed instead of returning permanent all_slices_inflight',
+    expired.status === 'reserved' && expired.start === 0 && expired.reservationId !== 'expired-live-owner');
+}
+
+// ---- TEST 11: queue lock reclaim/release never unlinks a replacement -------
+{
+  const dir = tmpDir();
+  const qf = path.join(dir, 'onboard-queue.json');
+  const lock = `${qf}.lock`;
+  fs.writeFileSync(lock, '');
+  fs.utimesSync(lock, new Date(0), new Date(0));
+  const replacementBytes = JSON.stringify({ pid: process.pid, owner: 'replacement-live', at: Date.now() });
+  let incumbentFd = null;
+  let replaced = false;
+  const swappingFs = new Proxy(fs, { get(target, key) {
+    if (key === 'openSync') return (file, flags, ...args) => {
+      const opened = target.openSync(file, flags, ...args);
+      if (file === lock && flags === 'r') incumbentFd = opened;
+      return opened;
+    };
+    if (key === 'readFileSync') return (file, ...args) => {
+      const value = target.readFileSync(file, ...args);
+      if (!replaced && file === incumbentFd) {
+        replaced = true;
+        target.unlinkSync(lock);
+        target.writeFileSync(lock, replacementBytes);
+      }
+      return value;
+    };
+    return target[key];
+  } });
+  let timedOut = false;
+  try {
+    learner.withQueueLock(qf, () => {}, { fsImpl: swappingFs, staleMs: 60000, waitMs: 35 });
+  } catch (err) { timedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('stale reclaim stable-snapshot check preserves a replacement live lock', replaced && timedOut
+    && fs.readFileSync(lock, 'utf8') === replacementBytes);
+  fs.unlinkSync(lock);
+
+  const releaseReplacement = JSON.stringify({ pid: process.pid, owner: 'release-replacement', at: Date.now() });
+  learner.withQueueLock(qf, () => {
+    fs.unlinkSync(lock);
+    fs.writeFileSync(lock, releaseReplacement);
+  });
+  ok('old queue lock owner release preserves a replacement token',
+    fs.readFileSync(lock, 'utf8') === releaseReplacement);
+  fs.unlinkSync(lock);
+
+  fs.writeFileSync(lock, JSON.stringify({ pid: 2147483647, owner: 'dead-owner', at: Date.now() }));
+  let reclaimed = false;
+  learner.withQueueLock(qf, () => { reclaimed = true; }, { waitMs: 100 });
+  ok('well-formed dead queue lock owner is safely reclaimed', reclaimed && !fs.existsSync(lock));
 }
 
 // ---- TEST 8: failed reservation becomes retryable -------------------------
