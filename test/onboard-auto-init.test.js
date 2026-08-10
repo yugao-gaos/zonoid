@@ -95,11 +95,12 @@ async function waitFor(check, timeoutMs = 15000) {
   throw new Error('timed out waiting for onboarding state');
 }
 
-function runFullInit(repo, dataDir, homeDir, port, daemonDeps = {}) {
+function runFullInit(repo, dataDir, homeDir, port, daemonDeps = {}, initOpts = {}) {
   const source = `
     const { init } = require(${JSON.stringify(CLI_PATH)});
     init({
       harnesses: ['cursor'],
+      ...JSON.parse(process.env.INIT_OPTS),
       daemonDeps: JSON.parse(process.env.INIT_DAEMON_DEPS),
     }).then(() => {
       console.log('FULL_INIT_OK');
@@ -111,7 +112,7 @@ function runFullInit(repo, dataDir, homeDir, port, daemonDeps = {}) {
   return spawnSync(process.execPath, ['-e', source], {
     cwd: repo,
     encoding: 'utf8',
-    timeout: 30000,
+    timeout: 60000,
     env: {
       ...process.env,
       HOME: homeDir,
@@ -121,6 +122,7 @@ function runFullInit(repo, dataDir, homeDir, port, daemonDeps = {}) {
       ORCH_PORT: String(port),
       ORCH_TOKEN: '',
       INIT_DAEMON_DEPS: JSON.stringify({ port, ...daemonDeps }),
+      INIT_OPTS: JSON.stringify(initOpts),
     },
   });
 }
@@ -136,7 +138,160 @@ function prepareInitRepo(prefix) {
   git(repo, ['init']);
   git(repo, ['config', 'user.name', 'test']);
   git(repo, ['config', 'user.email', 'test@example.com']);
+  fs.mkdirSync(path.join(repo, 'src'));
+  fs.writeFileSync(path.join(repo, 'README.md'), '# Existing project\n');
+  fs.writeFileSync(path.join(repo, 'src', 'index.js'), 'module.exports = () => 42;\n');
+  git(repo, ['add', 'README.md', 'src/index.js']);
+  git(repo, ['commit', '-m', 'existing project']);
+  fs.writeFileSync(path.join(repo, 'work-in-progress.txt'), 'valuable uncommitted work\n');
+  fs.mkdirSync(path.join(homeDir, '.config'), { recursive: true });
+  fs.writeFileSync(path.join(homeDir, '.config', 'user-preference'), 'preserve me\n');
+  fs.writeFileSync(path.join(dataDir, 'existing-state.json'), '{"preserve":true}\n');
   return { fixtureDir, repo, dataDir, homeDir };
+}
+
+function snapshotTree(root) {
+  const entries = {};
+  const visit = (relative) => {
+    const absolute = relative ? path.join(root, relative) : root;
+    for (const name of fs.readdirSync(absolute).sort()) {
+      const childRelative = relative ? path.join(relative, name) : name;
+      const child = path.join(root, childRelative);
+      const stat = fs.lstatSync(child);
+      if (stat.isSymbolicLink()) {
+        entries[childRelative] = { type: 'symlink', target: fs.readlinkSync(child) };
+      } else if (stat.isDirectory()) {
+        entries[childRelative] = { type: 'directory', mode: stat.mode & 0o777 };
+        visit(childRelative);
+      } else {
+        entries[childRelative] = {
+          type: 'file',
+          mode: stat.mode & 0o777,
+          content: fs.readFileSync(child).toString('base64'),
+        };
+      }
+    }
+  };
+  visit('');
+  return entries;
+}
+
+function snapshotInitFixture(fixture) {
+  return {
+    repoTree: snapshotTree(fixture.repo),
+    homeTree: snapshotTree(fixture.homeDir),
+    dataTree: snapshotTree(fixture.dataDir),
+    head: git(fixture.repo, ['rev-parse', 'HEAD']),
+    status: git(fixture.repo, ['status', '--porcelain=v1', '--untracked-files=all']),
+  };
+}
+
+function initOutput(client) {
+  return `${client.stdout || ''}\n${client.stderr || ''}`;
+}
+
+function assertInitFailedWithoutMutation(client, before, fixture) {
+  const output = initOutput(client);
+  assert.notEqual(client.status, 0, output);
+  assert.match(output, /FULL_INIT_FAILURE Initialization aborted:/);
+  assert.doesNotMatch(output, /FULL_INIT_OK|✓ Done|\s✓\s/,
+    `failed init must not print success markers:\n${output}`);
+  assert.deepEqual(snapshotInitFixture(fixture), before,
+    `failed init changed project, home config/skills, Git state, or daemon data:\n${output}`);
+}
+
+async function startInitProtocolServer(fixture, port, behavior = {}) {
+  const serverPath = path.join(fixture.fixtureDir, 'init-protocol-server.js');
+  const readyFile = path.join(fixture.fixtureDir, 'init-protocol-ready');
+  const requestLog = path.join(fixture.fixtureDir, 'init-protocol-requests.jsonl');
+  fs.writeFileSync(serverPath, `
+    'use strict';
+    const fs = require('node:fs');
+    const http = require('node:http');
+    const path = require('node:path');
+    const behavior = JSON.parse(process.env.INIT_SERVER_BEHAVIOR);
+    const expectedAuth = behavior.expectedToken ? 'Bearer ' + behavior.expectedToken : null;
+    function responseFor(route) {
+      if (route === '/workspace') return behavior.registration || {};
+      if (route === '/onboard/enqueue') return behavior.enqueue || {};
+      if (route === '/onboard/drain-queue') return behavior.drain || {};
+      return {};
+    }
+    function write(res, status, body, headers = {}) {
+      res.writeHead(status, { 'Content-Type': 'application/json', ...headers });
+      res.end(JSON.stringify(body));
+    }
+    const server = http.createServer((req, res) => {
+      let raw = '';
+      req.setEncoding('utf8');
+      req.on('data', (chunk) => { raw += chunk; });
+      req.on('end', () => {
+        let body = null;
+        try { body = raw ? JSON.parse(raw) : null; } catch {}
+        fs.appendFileSync(process.env.INIT_SERVER_REQUEST_LOG, JSON.stringify({
+          method: req.method,
+          route: req.url,
+          authorization: req.headers.authorization || null,
+          localPort: req.socket.localPort,
+          body,
+        }) + '\\n');
+        if (req.url === '/health') {
+          write(res, 200, { ok: true, phase: 'ready' }, {
+            'X-Zonoid-Health-Signature': 'zonoid-orchestrator-health-v1',
+          });
+          return;
+        }
+        if (req.url.startsWith('/search')) {
+          write(res, 200, { ok: true, results: [] });
+          return;
+        }
+        if (expectedAuth && req.headers.authorization !== expectedAuth) {
+          write(res, 401, { ok: false, error: 'unauthorized' });
+          return;
+        }
+        const spec = responseFor(req.url);
+        if (spec.hang) return;
+        if (req.url === '/workspace' && !Object.prototype.hasOwnProperty.call(spec, 'body')) {
+          write(res, spec.status || 200, { ok: true, graph_repo: body && body.path, workspace: body && body.path });
+          return;
+        }
+        if (req.url === '/onboard/enqueue' && !Object.prototype.hasOwnProperty.call(spec, 'body')) {
+          write(res, spec.status || 200, {
+            ok: true,
+            outDir: path.join(body.repo, '.zonoid', 'onboard', 'test'),
+            queued: true,
+            preparationState: 'pending',
+          });
+          return;
+        }
+        if (req.url === '/onboard/drain-queue' && !Object.prototype.hasOwnProperty.call(spec, 'body')) {
+          write(res, spec.status || 200, { ok: true, status: { preparationState: 'pending' } });
+          return;
+        }
+        write(res, spec.status || 200, Object.prototype.hasOwnProperty.call(spec, 'body') ? spec.body : { ok: false });
+      });
+    });
+    server.listen(Number(process.env.INIT_SERVER_PORT), '127.0.0.1', () => {
+      fs.writeFileSync(process.env.INIT_SERVER_READY, 'ready');
+    });
+  `);
+  const child = spawn(process.execPath, [serverPath], {
+    env: {
+      ...process.env,
+      INIT_SERVER_PORT: String(port),
+      INIT_SERVER_READY: readyFile,
+      INIT_SERVER_REQUEST_LOG: requestLog,
+      INIT_SERVER_BEHAVIOR: JSON.stringify(behavior),
+    },
+    stdio: 'ignore',
+  });
+  await waitFor(() => fs.existsSync(readyFile), 2000);
+  return { child, requestLog };
+}
+
+function readInitRequests(requestLog) {
+  if (!fs.existsSync(requestLog)) return [];
+  return fs.readFileSync(requestLog, 'utf8').trim().split(/\r?\n/).filter(Boolean).map(JSON.parse);
 }
 
 async function runHeadlessPreparation(repo, outDir) {
@@ -242,9 +397,12 @@ test('init lifecycle arms onboarding without a dashboard and leaves accumulated 
     const cliSource = fs.readFileSync(path.join(__dirname, '..', 'packages', 'cli', 'bin', 'zonoid.js'), 'utf8');
     const readyAt = cliSource.indexOf('const daemonReady = await checkDaemon(daemonDeps);');
     const registerAt = cliSource.indexOf('const registeredRepo = await registerWorkspace(cwd, opts.workspace, daemonDeps);');
-    const onboardAt = cliSource.indexOf('if (registeredRepo) await startWorkspaceOnboarding(registeredRepo, daemonDeps);');
-    assert.ok(readyAt >= 0 && registerAt > readyAt && onboardAt > registerAt,
-      'init must verify the daemon before registering and arm onboarding immediately afterward');
+    const onboardAt = cliSource.indexOf('const onboarding = await startWorkspaceOnboarding(registeredRepo, daemonDeps);');
+    const localMutationAt = cliSource.indexOf('const runtimeMigration = runtimePaths.migrateLegacyRuntime();');
+    const successOutputAt = cliSource.indexOf("ok(`Daemon verified (localhost:${daemonDeps.port || ORCH_PORT})`);");
+    assert.ok(readyAt >= 0 && registerAt > readyAt && onboardAt > registerAt
+      && localMutationAt > onboardAt && successOutputAt > onboardAt,
+      'init must verify, register, and durably enqueue onboarding before local setup mutates or prints success');
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -363,6 +521,7 @@ test('full init rejects a real HTTP impostor without sending mutations or termin
   });
   try {
     assert.ok(await waitForHealthResponse(port), 'impostor process came up');
+    const before = snapshotInitFixture(fixture);
     assert.equal(await checkDaemon({
       port,
       startupTimeoutMs: 250,
@@ -375,7 +534,7 @@ test('full init rejects a real HTTP impostor without sending mutations or termin
       healthTimeoutMs: 50,
       pollMs: 25,
     });
-    assert.notEqual(client.status, 0, client.stdout || client.stderr);
+    assertInitFailedWithoutMutation(client, before, fixture);
     assert.match(`${client.stdout}\n${client.stderr}`, /Initialization aborted: no verified Zonoid daemon is ready/);
     const requests = fs.readFileSync(requestLog, 'utf8').trim().split(/\r?\n/).filter(Boolean);
     assert.equal(requests.some((request) => request === 'POST /workspace'), false,
@@ -420,12 +579,13 @@ test('full init aborts against an unresponsive service without sending mutations
 
   try {
     await waitFor(() => fs.existsSync(readyFile), 2000);
+    const before = snapshotInitFixture(fixture);
     const client = runFullInit(fixture.repo, fixture.dataDir, fixture.homeDir, port, {
       startupTimeoutMs: 250,
       healthTimeoutMs: 50,
       pollMs: 25,
     });
-    assert.notEqual(client.status, 0, client.stdout || client.stderr);
+    assertInitFailedWithoutMutation(client, before, fixture);
     assert.match(`${client.stdout}\n${client.stderr}`, /Initialization aborted: no verified Zonoid daemon is ready/);
     const requests = fs.readFileSync(requestLog, 'utf8').trim().split(/\r?\n/).filter(Boolean);
     assert.equal(requests.some((request) => request === 'POST /workspace'), false,
@@ -436,6 +596,205 @@ test('full init aborts against an unresponsive service without sending mutations
   } finally {
     if (processIsAlive(service.pid)) service.kill('SIGKILL');
     await waitForProcessExit(service.pid);
+    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+  }
+});
+
+test('full init aborts cleanly when a cold daemon executable is unavailable', async () => {
+  const fixture = prepareInitRepo('zonoid-unavailable-daemon-init-');
+  const port = await testPort();
+  try {
+    const before = snapshotInitFixture(fixture);
+    const client = runFullInit(fixture.repo, fixture.dataDir, fixture.homeDir, port, {
+      daemonPath: path.join(fixture.fixtureDir, 'missing-daemon.js'),
+      startupTimeoutMs: 250,
+      healthTimeoutMs: 50,
+      pollMs: 25,
+      childCleanupGraceMs: 50,
+    }, { service: true });
+    assertInitFailedWithoutMutation(client, before, fixture);
+    assert.match(initOutput(client), /no verified Zonoid daemon is ready/);
+  } finally {
+    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+  }
+});
+
+test('full init rejects registration and enqueue errors transactionally', async (t) => {
+  const cases = [
+    {
+      name: 'registration auth 4xx',
+      behavior: { expectedToken: 'different-token' },
+      expectedLastRoute: '/workspace',
+    },
+    {
+      name: 'registration 5xx',
+      behavior: { expectedToken: 'transaction-token', registration: { status: 503, body: { ok: false, error: 'registration unavailable' } } },
+      expectedLastRoute: '/workspace',
+    },
+    {
+      name: 'registration timeout',
+      behavior: { expectedToken: 'transaction-token', registration: { hang: true } },
+      deps: { registrationTimeoutMs: 100 },
+      expectedLastRoute: '/workspace',
+    },
+    {
+      name: 'registration non-accepted 2xx',
+      behavior: { expectedToken: 'transaction-token', registration: { status: 200, body: { ok: false } } },
+      expectedLastRoute: '/workspace',
+    },
+    {
+      name: 'enqueue 4xx',
+      behavior: { expectedToken: 'transaction-token', enqueue: { status: 400, body: { ok: false, error: 'bad enqueue' } } },
+      expectedLastRoute: '/onboard/enqueue',
+    },
+    {
+      name: 'enqueue 5xx',
+      behavior: { expectedToken: 'transaction-token', enqueue: { status: 503, body: { ok: false, error: 'enqueue unavailable' } } },
+      expectedLastRoute: '/onboard/enqueue',
+    },
+    {
+      name: 'enqueue timeout',
+      behavior: { expectedToken: 'transaction-token', enqueue: { hang: true } },
+      deps: { onboardingTimeoutMs: 100 },
+      expectedLastRoute: '/onboard/enqueue',
+    },
+    {
+      name: 'enqueue non-accepted 2xx',
+      behavior: { expectedToken: 'transaction-token', enqueue: { status: 200, body: { ok: false } } },
+      expectedLastRoute: '/onboard/enqueue',
+    },
+  ];
+
+  for (const scenario of cases) {
+    await t.test(scenario.name, async () => {
+      const fixture = prepareInitRepo(`zonoid-init-${scenario.name.replace(/[^a-z]+/g, '-')}-`);
+      const port = await testPort();
+      const server = await startInitProtocolServer(fixture, port, scenario.behavior);
+      try {
+        const before = snapshotInitFixture(fixture);
+        const client = runFullInit(fixture.repo, fixture.dataDir, fixture.homeDir, port, {
+          token: 'transaction-token',
+          registrationTimeoutMs: 500,
+          onboardingTimeoutMs: 500,
+          ...scenario.deps,
+        });
+        assertInitFailedWithoutMutation(client, before, fixture);
+
+        const requests = readInitRequests(server.requestLog);
+        const mutations = requests.filter((request) => request.method === 'POST');
+        assert.ok(mutations.length > 0, JSON.stringify(requests));
+        assert.equal(mutations.at(-1).route, scenario.expectedLastRoute, JSON.stringify(requests));
+        assert.equal(mutations.some((request) => request.route === '/onboard/drain-queue'), false,
+          `drain must not be armed after a rejected transaction: ${JSON.stringify(requests)}`);
+        for (const request of mutations) {
+          assert.equal(request.authorization, 'Bearer transaction-token');
+          assert.equal(request.localPort, port);
+        }
+      } finally {
+        if (processIsAlive(server.child.pid)) server.child.kill('SIGKILL');
+        await waitForProcessExit(server.child.pid);
+        fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+test('full init forwards custom daemon dependencies and is repeatable after acceptance', async () => {
+  const fixture = prepareInitRepo('zonoid-init-success-');
+  const port = await testPort();
+  const token = 'custom-port-token';
+  const server = await startInitProtocolServer(fixture, port, { expectedToken: token });
+  const before = snapshotInitFixture(fixture);
+  try {
+    const first = runFullInit(fixture.repo, fixture.dataDir, fixture.homeDir, port, {
+      token,
+      registrationTimeoutMs: 1000,
+      onboardingTimeoutMs: 1000,
+    });
+    assert.equal(first.status, 0, initOutput(first));
+    assert.match(initOutput(first), /FULL_INIT_OK/);
+    assert.match(initOutput(first), /✓ Workspace registration and project onboarding accepted\./);
+
+    const firstRequests = readInitRequests(server.requestLog);
+    const firstMutations = firstRequests.filter((request) => request.method === 'POST');
+    assert.deepEqual(firstMutations.map((request) => request.route), [
+      '/workspace',
+      '/onboard/enqueue',
+      '/onboard/drain-queue',
+    ]);
+    for (const request of firstMutations) {
+      assert.equal(request.authorization, `Bearer ${token}`);
+      assert.equal(request.localPort, port);
+    }
+    const canonicalRepo = fs.realpathSync(fixture.repo);
+    assert.deepEqual(firstMutations[0].body, { path: canonicalRepo });
+    assert.deepEqual(firstMutations[1].body, { repo: canonicalRepo });
+    assert.equal(firstMutations[2].body.repo, canonicalRepo);
+    assert.equal(firstMutations[2].body.autoInject, true);
+
+    const afterFirst = snapshotInitFixture(fixture);
+    assert.equal(afterFirst.head, before.head, 'successful init must not commit or rewrite project history');
+    assert.equal(fs.readFileSync(path.join(fixture.repo, 'src', 'index.js'), 'utf8'), 'module.exports = () => 42;\n');
+    assert.equal(fs.readFileSync(path.join(fixture.repo, 'work-in-progress.txt'), 'utf8'), 'valuable uncommitted work\n');
+    assert.match(afterFirst.status, /work-in-progress\.txt/);
+
+    const second = runFullInit(fixture.repo, fixture.dataDir, fixture.homeDir, port, {
+      token,
+      registrationTimeoutMs: 1000,
+      onboardingTimeoutMs: 1000,
+    });
+    assert.equal(second.status, 0, initOutput(second));
+    assert.match(initOutput(second), /FULL_INIT_OK/);
+    assert.deepEqual(snapshotInitFixture(fixture), afterFirst,
+      'repeat init must leave every project/config/skill/hook byte and Git state unchanged');
+
+    const allRequests = readInitRequests(server.requestLog);
+    const mutationRoutes = allRequests.filter((request) => request.method === 'POST').map((request) => request.route);
+    assert.deepEqual(mutationRoutes, [
+      '/workspace', '/onboard/enqueue', '/onboard/drain-queue',
+      '/workspace', '/onboard/enqueue', '/onboard/drain-queue',
+    ]);
+    assert.ok(allRequests.every((request) => request.localPort === port), JSON.stringify(allRequests));
+  } finally {
+    if (processIsAlive(server.child.pid)) server.child.kill('SIGKILL');
+    await waitForProcessExit(server.child.pid);
+    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+  }
+});
+
+test('full init starts a cold token-protected daemon on a custom port', async () => {
+  const fixture = prepareInitRepo('zonoid-init-cold-auth-');
+  const port = await testPort();
+  const token = 'cold-init-token';
+  fs.writeFileSync(path.join(fixture.dataDir, 'token'), `${token}\n`);
+  const beforeHead = git(fixture.repo, ['rev-parse', 'HEAD']);
+  try {
+    const client = runFullInit(fixture.repo, fixture.dataDir, fixture.homeDir, port, {
+      port,
+      token,
+      daemonPath: DAEMON_PATH,
+      startupTimeoutMs: 15000,
+      registrationTimeoutMs: 3000,
+      onboardingTimeoutMs: 3000,
+      env: {
+        CLAUDE_PLUGIN_DATA: fixture.dataDir,
+        ORCH_TOKEN: '',
+        CLAUDE_CODE_SESSION_ID: '',
+        HEADLESS_DRAIN_MAX_ITERATIONS: '-1',
+      },
+    });
+    assert.equal(client.status, 0, initOutput(client));
+    assert.match(initOutput(client), /FULL_INIT_OK/);
+    assert.equal(git(fixture.repo, ['rev-parse', 'HEAD']), beforeHead);
+    assert.equal(fs.readFileSync(path.join(fixture.repo, 'work-in-progress.txt'), 'utf8'), 'valuable uncommitted work\n');
+
+    const workspaces = await daemonRequest(port, 'GET', '/workspaces', undefined, token);
+    assert.equal(workspaces.status, 200);
+    assert.match(JSON.stringify(workspaces.payload), new RegExp(fixture.repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.equal(fs.existsSync(path.join(fixture.repo, '.zonoid', 'onboard')), true,
+      'accepted cold init must persist its onboarding request');
+  } finally {
+    await stopDaemon(port);
     fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
   }
 });
