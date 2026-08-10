@@ -22,7 +22,6 @@ const beforeInCheck = (first, second) => {
   const b = checkOnboardingBody.indexOf(second);
   return a >= 0 && b >= 0 && a < b;
 };
-const lastInCheck = (needle) => checkOnboardingBody.lastIndexOf(needle);
 const functionBody = (name) => {
   const match = html.match(new RegExp(`function ${name}\\(s\\) \\{([\\s\\S]*?)\\n\\}`));
   return match ? match[1] : '';
@@ -38,7 +37,7 @@ ok('old step cards are removed', !html.includes('data-onboard-step=') && !html.i
 ok('old progress bar is removed', !html.includes('id="onboardProgressFill"') && !html.includes('ol-progress-track'));
 ok('processed kept injected status is present', html.includes('id="onboardProgressStat"') && html.includes('kept ${Math.max') && html.includes('injected ${Math.max'));
 ok('kept note labels prefer status titles', html.includes('const keptNotes = Array.isArray(s.keptNotes)') && html.includes('noteLabel(i, `kept note ${i + 1}`)'));
-ok('missing ingest notes auto-start learning', /showOnboardLanding\(\);\s*renderOnboardCloud[\s\S]*if \(workspace\) ensureOnboardLearning\(workspace\);/.test(html));
+ok('missing ingest notes auto-start learning', /showOnboardLanding\(\);\s*renderOnboardCloud[\s\S]*if \(workspace\) await ensureOnboardLearning\(workspace\);/.test(html));
 ok('auto-start calls enqueue endpoint', html.includes("dfetch('/onboard/enqueue'"));
 ok('auto-start calls drain endpoint', html.includes("dfetch('/onboard/drain-queue'"));
 ok('auto-start requests live auto inject', html.includes('autoInject: true') && html.includes('liveInject: true'));
@@ -47,13 +46,14 @@ ok('completed latch is consulted only after persisted queue recovery', /if \(wor
 ok('ingest note helper handles search result shapes', /async function hasInjectedOnboardNotes\(\) \{[\s\S]*dfetch\('\/search\?q=ingest&k=5'\)[\s\S]*const items = Array\.isArray\(data\) \? data : \(data\.results \|\| \[\]\);[\s\S]*return items\.some\(n => n\.kind === 'note'[\s\S]*n\.title\.startsWith\('\[ingest\]'\)\);[\s\S]*return null;[\s\S]*\}/.test(html));
 ok('persisted default and legacy queues outrank previously injected notes', beforeInCheck('for (const candidateOutDir of candidateOnboardOutDirs(workspace))', 'const onboardNotesPresent = await hasInjectedOnboardNotes();'));
 ok('stored queue state outranks previously injected notes', beforeInCheck('if (workspace && storedOutDir)', 'const onboardNotesPresent = await hasInjectedOnboardNotes();'));
-ok('search failure blocks fresh auto-start after queue recovery chance', beforeInCheck('if (workspace && storedOutDir)', 'if (onboardNotesPresent === null)') && lastInCheck('showOnboardLanding();') > checkOnboardingBody.indexOf('if (onboardNotesPresent === null)') && /if \(onboardNotesPresent === null\) \{\s*return;\s*\}/.test(checkOnboardingBody));
+ok('search failure blocks fresh auto-start after queue recovery chance', beforeInCheck('if (workspace && storedOutDir)', 'if (onboardNotesPresent === null)') && /if \(onboardNotesPresent === null\) \{[\s\S]*scheduleOnboardDiscoveryRetry\([\s\S]*return;[\s\S]*\}/.test(checkOnboardingBody));
 ok('default onboarding output uses ignored .zonoid state', /function defaultOnboardOutDir\(workspace\) \{[\s\S]*'\.zonoid'[\s\S]*'onboard'[\s\S]*\}/.test(html));
 ok('legacy onboarding output candidates are still checked', /function legacyOnboardOutDirs\(workspace\) \{[\s\S]*'\.graph'[\s\S]*'bench'[\s\S]*'onboard'[\s\S]*\}/.test(html));
-ok('missing ingest notes can still recover default and legacy queues', /for \(const candidateOutDir of candidateOnboardOutDirs\(workspace\)\) \{[\s\S]*\/onboard\/drain-queue\?repo=[\s\S]*candidateOutDir[\s\S]*onboardStatusComplete\(st\.status\)[\s\S]*localStorage\.setItem\(onboardStoreKey\('outdir'\), candidateOutDir\)[\s\S]*No existing default\/legacy queue/.test(html));
+ok('missing ingest notes can still recover default and legacy queues', /for \(const candidateOutDir of candidateOnboardOutDirs\(workspace\)\) \{[\s\S]*\/onboard\/drain-queue\?repo=[\s\S]*candidateOutDir[\s\S]*if \(r\.status === 404\) continue;[\s\S]*onboardStatusComplete\(st\.status\)[\s\S]*localStorage\.setItem\(onboardStoreKey\('outdir'\), candidateOutDir\)/.test(html));
 ok('stored completed job exits onboarding before note search restart', /if \(st\.ok && st\.status && onboardStatusComplete\(st\.status\)\) \{[\s\S]*completeOnboardLearning\(\);[\s\S]*return;[\s\S]*\}/.test(html));
 ok('stored incomplete job resumes before falling back to note discovery', beforeInCheck('if (workspace && storedOutDir)', 'const onboardNotesPresent = await hasInjectedOnboardNotes();') && /if \(workspace && storedOutDir\) \{[\s\S]*if \(st\.ok && st\.status\) \{[\s\S]*showOnboardLanding\(\);[\s\S]*updateOnboardFromStatus\(st\.status\)/.test(checkOnboardingBody));
-ok('stored incomplete queue restarts drain via POST resume path', /const shouldResumeDrain = onboardStatusNeedsResume\(st\.status\);[\s\S]*landing\.dataset\.draining = shouldResumeDrain \? '' : '1';[\s\S]*if \(shouldResumeDrain\) ensureOnboardLearning\(workspace\);\s*else pollOnboardLearning\(\);/.test(html));
+ok('stored incomplete queue restarts drain via POST resume path', /const shouldResumeDrain = onboardStatusNeedsResume\(st\.status\);[\s\S]*landing\.dataset\.draining = shouldResumeDrain \? '' : '1';[\s\S]*if \(shouldResumeDrain\) await ensureOnboardLearning\(workspace\);\s*else pollOnboardLearning\(\);/.test(html));
+ok('pre-outDir discovery failures use reload-persisted bounded retry', html.includes("onboardStoreKey('discovery_failures')") && /function scheduleOnboardDiscoveryRetry\(message\) \{[\s\S]*Math\.min\(ONBOARD_POLL_MAX_MS,[\s\S]*setTimeout\([\s\S]*checkOnboardingState\(\)/.test(html));
 ok('stored queue reload treats transient status failure as retryable durable state', /if \(workspace && storedOutDir && storedQueueStatusUnavailable\) \{[\s\S]*landing\.dataset\.repo = workspace;[\s\S]*landing\.dataset\.outDir = storedOutDir;[\s\S]*landing\.dataset\.draining = '1';[\s\S]*pollOnboardLearning\(\);[\s\S]*return;/.test(html));
 ok('resume predicate covers incomplete recovered inactive statuses', /function onboardStatusNeedsResume\(s\) \{[\s\S]*s\.done !== true[\s\S]*s\.recovered[\s\S]*s\.active === false[\s\S]*!s\.injected/.test(html));
 ok('shared cloud renderer is reused for onboarding', html.includes("renderCloud(buildOnboardCloudState(status), { mode: 'onboard'"));

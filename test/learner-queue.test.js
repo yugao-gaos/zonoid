@@ -220,6 +220,12 @@ function readJSON(p) {
   const qAfter = readJSON(path.join(dir, 'onboard-queue.json'));
   ok('drain does not advance cursor past total', qAfter && qAfter.cursor === 12);
 
+  const recoveredNotes = readJSON(path.join(dir, 'onboard-notes.json'));
+  ok('already-drained queue reconstructs a missing final notes artifact', recoveredNotes
+    && recoveredNotes.generation === learner.queueGeneration(qAfter)
+    && JSON.stringify(recoveredNotes.kept) === JSON.stringify(keptNotes)
+    && JSON.stringify(recoveredNotes.rejected) === JSON.stringify(rejectedNotes));
+
   const statusRun = run(['--repo', repo, '--in', dir, '--queue-status']);
   let status = null;
   try { status = JSON.parse(statusRun.stdout.trim()); } catch { /* ignore */ }

@@ -50,6 +50,9 @@ const {
   readOnboardStatus,
   confirmInjectedNote,
   confirmedInjectedCount,
+  onboardQueueGeneration,
+  writeOnboardNotesArtifact,
+  loadGenerationMatchedOnboardNotes,
 } = require('../lib/onboard-state');
 // Load secrets from a gitignored .env.local (then .env) at the repo root into process.env without
 // overriding the real environment. Individual backend providers decide which credentials matter.
@@ -439,10 +442,7 @@ function normalizeQueue(queue) {
 }
 
 function queueGeneration(queue) {
-  if (!queue || typeof queue !== 'object') return null;
-  if (typeof queue.generation === 'string' && queue.generation.trim()) return queue.generation.trim();
-  const stable = JSON.stringify({ total: Number(queue.total) || 0, pending: Array.isArray(queue.pending) ? queue.pending : [] });
-  return `legacy-${crypto.createHash('sha1').update(stable).digest('hex')}`;
+  return onboardQueueGeneration(queue);
 }
 
 function cleanupExpiredInflight(queue, nowMs = Date.now()) {
@@ -491,6 +491,7 @@ function reserveQueueBatch(qf, batchSize, maxCandidates, nowMs = Date.now(), res
     flushCompleted(queue);
     if (queue.cursor >= queue.total) {
       writeJSONAtomic(qf, queue);
+      writeOnboardNotesArtifact(path.dirname(qf), queue, queueGeneration(queue));
       return { status: 'already_drained', total: queue.total, kept: queue.kept.length };
     }
 
@@ -552,8 +553,7 @@ function completeQueueBatch(qf, reservation, result, repoAbs, outDir, model) {
     };
     flushCompleted(queue);
     writeJSONAtomic(qf, queue);
-    const notesFile = path.join(outDir, 'onboard-notes.json');
-    writeJSONAtomic(notesFile, { kept: queue.kept, rejected: queue.rejected });
+    writeOnboardNotesArtifact(outDir, queue, queueGeneration(queue));
     if (queue.cursor >= queue.total) {
       fs.writeFileSync(path.join(outDir, 'onboard-learn-report.json'),
         JSON.stringify({ repo: repoAbs, candidates: queue.total, kept: queue.kept.length, rejected: queue.rejected.length, model, queue_mode: true }, null, 2) + '\n');
@@ -776,15 +776,21 @@ function assertCurrentInjectionGeneration(outDir, expectedGeneration) {
 }
 
 async function injectOnboardNotes(notesFile, confirm, workspace, httpRequest = request, options = {}) {
-  const data = loadJSON(notesFile, null);
+  const outDir = path.dirname(notesFile);
+  const expectedGeneration = options.expectedGeneration || null;
+  const matched = expectedGeneration
+    ? loadGenerationMatchedOnboardNotes(outDir, expectedGeneration)
+    : null;
+  const data = matched && matched.ok ? matched.artifact : loadJSON(notesFile, null);
+  if (matched && !matched.ok) {
+    throw new Error(`onboarding notes artifact is not current (${matched.reason})`);
+  }
   if (!data || !Array.isArray(data.kept)) {
     console.error(`No validated notes at ${notesFile}. Run the learn pass first.`); process.exit(1);
   }
   const structureFile = path.join(path.dirname(notesFile), 'doc-structure.json');
   const structure = loadJSON(structureFile, { nodes: [], edges: [] });
   const kept = data.kept;
-  const outDir = path.dirname(notesFile);
-  const expectedGeneration = options.expectedGeneration || null;
   if (!confirm) {
     console.log('=== onboard-learn --inject DRY RUN (no --confirm) ===');
     console.log(`daemon target: ${DAEMON}${workspace ? ` (workspace ${workspace})` : ''}`);
@@ -903,7 +909,7 @@ function enqueue(inDir, outDir) {
   if (!candidates.length) {
     const queue = { total: 0, cursor: 0, kept: [], rejected: [], pending: [] };
     writeJSONAtomic(queueFilePath(outDir), queue);
-    writeJSONAtomic(path.join(outDir, 'onboard-notes.json'), { kept: [], rejected: [] });
+    writeOnboardNotesArtifact(outDir, queue, queueGeneration(queue));
     console.error(`[learn] enqueue: no mined candidates in ${inDir}; wrote a completed empty queue.`);
     return;
   }
@@ -1083,5 +1089,6 @@ module.exports = {
   completeQueueBatch,
   failQueueBatch,
   flushCompleted,
+  queueGeneration,
   EXIT_TIMEOUT,
 };

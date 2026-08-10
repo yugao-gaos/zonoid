@@ -153,6 +153,154 @@ function dashboardPollHarness(sequence) {
   `)(sequence.slice());
 }
 
+function dashboardDiscoveryHarness(sequence, initialStorage = {}) {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'graph.html'), 'utf8');
+  const sourceFor = (name) => {
+    const asyncMarker = `async function ${name}(`;
+    const marker = `function ${name}(`;
+    const asyncStart = html.indexOf(asyncMarker);
+    const start = asyncStart >= 0 ? asyncStart : html.indexOf(marker);
+    assert.notEqual(start, -1, `${name} must exist in the dashboard`);
+    let depth = 0;
+    let opened = false;
+    for (let i = start; i < html.length; i++) {
+      if (html[i] === '{') { depth++; opened = true; }
+      if (html[i] === '}') depth--;
+      if (opened && depth === 0) return html.slice(start, i + 1);
+    }
+    throw new Error(`could not extract ${name}`);
+  };
+  return Function('sequence', 'initialStorage', `'use strict';
+    let onboardAutoStartInFlight = false;
+    let onboardDiscoveryInFlight = false;
+    let onboardDiscoveryTimer = null;
+    const ONBOARD_POLL_MS = 1200;
+    const ONBOARD_POLL_MAX_MS = 10000;
+    const scheduled = [];
+    const requests = [];
+    const storage = new Map(Object.entries(initialStorage));
+    const landing = { dataset: {} };
+    const document = { getElementById(id) { return id === 'onboard-landing' ? landing : null; } };
+    const localStorage = {
+      getItem(key) { return storage.has(key) ? storage.get(key) : null; },
+      setItem(key, value) { storage.set(key, String(value)); },
+      removeItem(key) { storage.delete(key); },
+    };
+    function currentOnboardWorkspace() { return '/repo'; }
+    function onboardStoreKey(suffix) { return 'onboard_' + suffix + '_/repo'; }
+    function onboardCompletedKey() { return onboardStoreKey('completed'); }
+    function candidateOnboardOutDirs() { return ['/repo/default', '/repo/legacy-a', '/repo/legacy-b']; }
+    function showOnboardLanding() {}
+    function renderOnboardCloud() {}
+    function setOnboardInjectVisible() {}
+    function setOnboardPrepareVisible() {}
+    function setOnboardStage() {}
+    function setOnboardProgress() {}
+    function setOnboardStatus() {}
+    function updateOnboardFromStatus(status) { return status.stop === true; }
+    function onboardStatusComplete(status) { return status.complete === true; }
+    function onboardStatusNeedsResume(status) { return status.resume === true; }
+    let completed = 0;
+    let polled = 0;
+    function completeOnboardLearning() { completed++; }
+    function pollOnboardLearning() { polled++; }
+    function clearTimeout() {}
+    function setTimeout(fn, ms) { const timer = { fn, ms }; scheduled.push(timer); return timer; }
+    async function dfetch(url, options = {}) {
+      const next = sequence.shift();
+      if (!next) throw new Error('unexpected request ' + url);
+      const method = options.method || 'GET';
+      requests.push({ url, method });
+      if (next.networkError) throw new Error(next.networkError);
+      const status = next.status === undefined ? 200 : next.status;
+      return {
+        status,
+        ok: next.ok === undefined ? status >= 200 && status < 300 : next.ok,
+        async json() {
+          if (next.jsonError) throw new Error(next.jsonError);
+          return next.body;
+        },
+      };
+    }
+    ${sourceFor('hasInjectedOnboardNotes')}
+    ${sourceFor('scheduleOnboardDiscoveryRetry')}
+    ${sourceFor('clearOnboardDiscoveryRetry')}
+    ${sourceFor('ensureOnboardLearning')}
+    ${sourceFor('checkOnboardingState')}
+    return {
+      async check() { await checkOnboardingState(); },
+      async runNext() { const timer = scheduled.shift(); if (!timer) throw new Error('no scheduled retry'); await timer.fn(); },
+      state() { return { requests: requests.slice(), scheduled: scheduled.map(t => t.ms),
+        storage: Object.fromEntries(storage), completed, polled, landing: JSON.parse(JSON.stringify(landing)) }; },
+    };
+  `)(sequence.slice(), initialStorage);
+}
+
+test('pre-outDir candidate and search failures stay inconclusive with reload-persisted bounded retry', async () => {
+  const completedKey = 'onboard_completed_/repo';
+  const first = dashboardDiscoveryHarness([{ networkError: 'candidate offline' }], { [completedKey]: '1' });
+  await first.check();
+  const firstState = first.state();
+  assert.equal(firstState.completed, 0, 'a transient candidate probe must not trust the stale completion latch');
+  assert.deepEqual(firstState.scheduled, [1200]);
+  assert.equal(firstState.storage['onboard_discovery_failures_/repo'], '1');
+
+  const reloaded = dashboardDiscoveryHarness([{ jsonError: 'candidate JSON truncated' }], firstState.storage);
+  await reloaded.check();
+  assert.deepEqual(reloaded.state().scheduled, [2400], 'the bounded retry attempt survives a reload');
+
+  const searchFailure = dashboardDiscoveryHarness([
+    { status: 404, body: { ok: false } },
+    { status: 404, body: { ok: false } },
+    { status: 404, body: { ok: false } },
+    { jsonError: 'search JSON truncated' },
+  ]);
+  await searchFailure.check();
+  const searchState = searchFailure.state();
+  assert.deepEqual(searchState.scheduled, [1200]);
+  assert.equal(searchState.requests.some((r) => r.method === 'POST'), false,
+    'an inconclusive search must not start a fresh enqueue');
+});
+
+test('enqueue and drain response loss retries discovery without duplicating accepted work', async () => {
+  const enqueueLoss = dashboardDiscoveryHarness([
+    { status: 404, body: { ok: false } },
+    { status: 404, body: { ok: false } },
+    { status: 404, body: { ok: false } },
+    { body: { results: [] } },
+    { jsonError: 'enqueue response lost' },
+    { body: { ok: true, status: { resume: true } } },
+    { body: { ok: true, status: { stop: true } } },
+  ]);
+  await enqueueLoss.check();
+  assert.deepEqual(enqueueLoss.state().scheduled, [1200]);
+  await enqueueLoss.runNext();
+  const enqueueRecovered = enqueueLoss.state();
+  assert.equal(enqueueRecovered.requests.filter((r) => r.url === '/onboard/enqueue').length, 1,
+    'candidate recovery finds the accepted queue instead of enqueuing it twice');
+  assert.equal(enqueueRecovered.requests.filter((r) => r.url === '/onboard/drain-queue').length, 1);
+
+  const drainLoss = dashboardDiscoveryHarness([
+    { status: 404, body: { ok: false } },
+    { status: 404, body: { ok: false } },
+    { status: 404, body: { ok: false } },
+    { body: { results: [] } },
+    { body: { ok: true, outDir: '/repo/default', total: 1, remaining: 1 } },
+    { jsonError: 'drain response lost' },
+  ]);
+  await drainLoss.check();
+  const lostState = drainLoss.state();
+  assert.equal(lostState.storage['onboard_outdir_/repo'], '/repo/default');
+  const afterReload = dashboardDiscoveryHarness([
+    { body: { ok: true, status: { resume: false } } },
+  ], lostState.storage);
+  await afterReload.check();
+  const recovered = afterReload.state();
+  assert.equal(recovered.requests.some((r) => r.method === 'POST'), false,
+    'reload observes the already accepted drain instead of posting another enqueue or drain');
+  assert.equal(recovered.polled, 1);
+});
+
 test('onboarding routes accept only the default and documented legacy roots of a registered repo', async () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-supported-roots-'));
   const roots = [defaultOnboardOutDir(repo), legacyGraphOnboardOutDir(repo), legacyBenchOnboardOutDir(repo)];
