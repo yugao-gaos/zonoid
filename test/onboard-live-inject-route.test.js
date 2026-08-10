@@ -4,11 +4,24 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
+const http = require('http');
 const os = require('os');
 const path = require('path');
+const { spawn } = require('child_process');
 
 const onboardRoute = require('../routes/onboard');
 const { defaultOnboardOutDir } = require('../lib/onboard-paths');
+
+function runNode(args, env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, args, { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '', stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.on('error', reject);
+    child.on('close', (code) => resolve({ code, stdout, stderr }));
+  });
+}
 
 function writeQueue(outDir, total, cursor, kept = [], generation) {
   fs.mkdirSync(outDir, { recursive: true });
@@ -294,6 +307,82 @@ test('force replacement allocates a fresh generation and invalidates the old inj
     assert.equal(status.done, false);
     assert.equal(dashboardStatusComplete(status), false);
   } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('real injector honors ORCH_PORT and shared bearer auth when ORCH_DAEMON is absent', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-inject-transport-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const token = 'custom-port-injection-token';
+  const requests = [];
+  const notes = [];
+  const server = http.createServer((req, res) => {
+    let raw = '';
+    req.on('data', (chunk) => { raw += chunk; });
+    req.on('end', () => {
+      requests.push({ method: req.method, url: req.url, authorization: req.headers.authorization, body: raw });
+      if (req.headers.authorization !== `Bearer ${token}`) {
+        res.writeHead(401, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: 'unauthorized' }));
+        return;
+      }
+      res.writeHead(200, { 'content-type': 'application/json' });
+      if (req.method === 'GET' && req.url.startsWith('/state')) res.end(JSON.stringify({ tasks: notes.map((note) => ({ ...note })) }));
+      else if (req.method === 'POST' && req.url === '/overlay/note') {
+        const body = JSON.parse(raw);
+        notes.push({ id: `note:transport-${notes.length + 1}`, label: body.title, summary: body.summary });
+        res.end(JSON.stringify({ key: notes[notes.length - 1].id }));
+      }
+      else res.end('{}');
+    });
+  });
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    const generation = 'generation-transport';
+    const kept = [{ title: 'Transport', summary: 'Uses configured daemon', kind: 'decision' }];
+    writeQueue(outDir, 1, 1, kept, generation);
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept, rejected: [] }));
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    const port = server.address().port;
+    const env = { ...process.env, ORCH_PORT: String(port), ORCH_TOKEN: token };
+    delete env.ORCH_DAEMON;
+    const result = await runNode([
+      path.join(__dirname, '..', 'scripts', 'onboard-learn.js'),
+      '--repo', repo, '--in', outDir, '--inject', '--confirm', '--generation', generation,
+    ], env);
+
+    assert.equal(result.code, 0, result.stderr);
+    const duplicate = await runNode([
+      path.join(__dirname, '..', 'scripts', 'onboard-learn.js'),
+      '--repo', repo, '--in', outDir, '--inject', '--confirm', '--generation', generation,
+    ], env);
+    assert.equal(duplicate.code, 0, duplicate.stderr);
+    assert.ok(requests.some((request) => request.url.startsWith('/state')));
+    assert.equal(requests.filter((request) => request.url === '/overlay/note').length, 1,
+      'a retry confirms the durable duplicate without creating a second note');
+
+    const replacementGeneration = 'generation-transport-replacement';
+    const replacementKept = [{ title: 'Transport', summary: 'Uses the replacement endpoint', kind: 'decision' }];
+    writeQueue(outDir, 1, 1, replacementKept, replacementGeneration);
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept: replacementKept, rejected: [] }));
+    const replacement = await runNode([
+      path.join(__dirname, '..', 'scripts', 'onboard-learn.js'),
+      '--repo', repo, '--in', outDir, '--inject', '--confirm', '--generation', replacementGeneration,
+    ], env);
+    assert.equal(replacement.code, 0, replacement.stderr);
+    const noteRequests = requests.filter((request) => request.url === '/overlay/note');
+    assert.equal(noteRequests.length, 2, 'same title with changed content creates a current-generation note');
+    assert.equal(JSON.parse(noteRequests[1].body).supersedes, 'note:transport-1');
+    assert.ok(requests.every((request) => request.authorization === `Bearer ${token}`));
+    const receipt = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-injection-receipt.json'), 'utf8'));
+    assert.equal(receipt.generation, replacementGeneration);
+    assert.equal(receipt.confirmed.length, 1);
+  } finally {
+    await new Promise((resolve) => server.close(() => resolve()));
     fs.rmSync(repo, { recursive: true, force: true });
   }
 });

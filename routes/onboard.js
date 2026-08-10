@@ -7,20 +7,18 @@ const {
   onboardRuntimeRoot,
   ensureOnboardRuntimeIgnored,
 } = require('../lib/onboard-paths');
+const {
+  readOnboardStatus,
+  patchOnboardStatus,
+  mutateOnboardStatus,
+  confirmedInjectedCount,
+} = require('../lib/onboard-state');
 
-const DRAIN_STATUS_FILE = 'onboard-drain-status.json';
 const DEFAULT_DRAIN_BATCH_SIZE = 20;
 const DEFAULT_INJECTION_MAX_ATTEMPTS = 3;
 
 function readJSON(file, def) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')); } catch { return def; }
-}
-
-function writeJSONAtomic(file, data) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + '\n');
-  fs.renameSync(tmp, file);
 }
 
 function newQueueGeneration() {
@@ -54,10 +52,6 @@ function isPidAlive(pid) {
   } catch (err) {
     return !!(err && err.code === 'EPERM');
   }
-}
-
-function drainStatusFile(outDir) {
-  return path.join(outDir, DRAIN_STATUS_FILE);
 }
 
 function summarizeInflight(q) {
@@ -114,14 +108,11 @@ function queueStatus(outDir) {
 }
 
 function readDrainMeta(outDir) {
-  return readJSON(drainStatusFile(outDir), null) || {};
+  return readOnboardStatus(outDir);
 }
 
 function writeDrainMeta(outDir, patch) {
-  const prev = readDrainMeta(outDir);
-  const next = { ...prev, ...patch, updatedAt: new Date().toISOString() };
-  writeJSONAtomic(drainStatusFile(outDir), next);
-  return next;
+  return patchOnboardStatus(outDir, patch).value;
 }
 
 function buildDrainJob(repo, outDir, patch = {}) {
@@ -360,27 +351,64 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const generation = status.queueGeneration;
     const previous = readDrainMeta(outDir);
     const attempt = countOrZero(previous.injectionAttempts) + 1;
+    const owner = `inject-route-${process.pid}-${crypto.randomBytes(8).toString('hex')}`;
     try {
-      writeDrainMeta(outDir, {
-        repo, outDir, injecting: true, injectionGeneration: generation, injectionState: 'running',
-        injectionAttempts: attempt, injectionRetryAt: null, injectionRetryCapped: false,
-        injectionError: null, error: null,
+      const claimed = mutateOnboardStatus(outDir, (meta) => {
+        const current = queueStatus(outDir);
+        if (!current || current.queueGeneration !== generation) return undefined;
+        if (meta.preparationGeneration && meta.preparationGeneration !== generation) return undefined;
+        return {
+          ...meta,
+          repo, outDir, injecting: true, injectionGeneration: generation, injectionState: 'running',
+          injectionOwner: owner, injectionPid: process.pid,
+          injectionAttempts: attempt, injectionRetryAt: null, injectionRetryCapped: false,
+          injectionError: null, error: null,
+        };
       });
-      await runNode([learnScript, '--repo', repo, '--in', outDir, '--inject', '--confirm']);
-      const injectedKept = (queueStatus(outDir) || {}).kept || 0;
-      writeDrainMeta(outDir, {
-        repo, outDir, injecting: false, injected: true, injectedGeneration: generation,
-        injectionGeneration: generation, injectionState: 'succeeded', injectionAttempts: 0,
-        injectionRetryAt: null, injectionRetryCapped: false, injectionError: null,
-        injectedKept, injectedAt: new Date().toISOString(), error: null,
+      if (!claimed.applied) {
+        send(res, 409, { ok: false, stale: true, error: 'onboarding generation was replaced before injection started' });
+        return true;
+      }
+      await runNode([learnScript, '--repo', repo, '--in', outDir, '--inject', '--confirm', '--generation', generation]);
+      const notes = (readJSON(path.join(outDir, 'onboard-notes.json'), {}) || {}).kept || [];
+      const injectedKept = confirmedInjectedCount(outDir, generation, notes);
+      if (injectedKept < notes.length) throw new Error(`inject confirmed ${injectedKept} of ${notes.length} current-generation notes`);
+      const committed = mutateOnboardStatus(outDir, (meta) => {
+        const current = queueStatus(outDir);
+        if (!current || current.queueGeneration !== generation
+            || meta.injectionGeneration !== generation || meta.injectionOwner !== owner) return undefined;
+        return {
+          ...meta,
+          repo, outDir, injecting: false, injected: true, injectedGeneration: generation,
+          injectionGeneration: generation, injectionState: 'succeeded', injectionOwner: null, injectionPid: null,
+          injectionAttempts: 0, injectionRetryAt: null, injectionRetryCapped: false, injectionError: null,
+          injectedKept, injectedAt: new Date().toISOString(), error: null,
+        };
       });
+      if (!committed.applied) {
+        send(res, 409, { ok: false, stale: true, error: 'onboarding generation was replaced during injection' });
+        return true;
+      }
     } catch (err) {
       const error = String(err && err.message || err);
-      writeDrainMeta(outDir, {
-        repo, outDir, injecting: false, injectionGeneration: generation, injectionState: 'failed',
-        injectionAttempts: attempt, injectionRetryAt: null, injectionRetryCapped: true,
-        injectionError: error, error,
+      const notes = (readJSON(path.join(outDir, 'onboard-notes.json'), {}) || {}).kept || [];
+      const injectedKept = confirmedInjectedCount(outDir, generation, notes);
+      const committed = mutateOnboardStatus(outDir, (meta) => {
+        const current = queueStatus(outDir);
+        if (!current || current.queueGeneration !== generation
+            || meta.injectionGeneration !== generation || meta.injectionOwner !== owner) return undefined;
+        return {
+          ...meta,
+          repo, outDir, injecting: false, injected: false, injectedKept,
+          injectionGeneration: generation, injectionState: 'failed', injectionOwner: null, injectionPid: null,
+          injectionAttempts: attempt, injectionRetryAt: null, injectionRetryCapped: true,
+          injectionError: error, error,
+        };
       });
+      if (!committed.applied) {
+        send(res, 409, { ok: false, stale: true, error: 'onboarding generation was replaced during injection' });
+        return true;
+      }
       send(res, 500, { ok: false, error: `inject failed: ${err && err.message ? err.message : err}` }); return true;
     }
     const jobKey = `${repo}::${outDir}`;

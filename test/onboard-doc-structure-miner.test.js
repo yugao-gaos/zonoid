@@ -95,7 +95,7 @@ try {
   await injectOnboardNotes(notesFile, true, target, async (method, urlPath, body) => {
     dedupeCalls.push({ method, urlPath, body });
     if (method === 'GET' && urlPath.startsWith('/state?workspace=')) {
-      return { tasks: [{ kind: 'note', label: '[ingest] Preserve document progression' }] };
+      return { tasks: [{ kind: 'note', label: '[ingest] Preserve document progression', summary: enriched.kept[0].summary }] };
     }
     return { ok: true };
   });
