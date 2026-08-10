@@ -8089,6 +8089,8 @@ tick(); setInterval(tick, 30000);   // safety poll
 let onboardAutoStartInFlight = false;
 let onboardPollTimer = null;
 let onboardPollFailures = 0;
+let onboardDiscoveryInFlight = false;
+let onboardDiscoveryTimer = null;
 const ONBOARD_POLL_MS = 1200;
 const ONBOARD_POLL_MAX_MS = 10000;
 
@@ -8096,6 +8098,7 @@ async function hasInjectedOnboardNotes() {
   try {
     const res = await dfetch('/search?q=ingest&k=5');
     const data = await res.json();
+    if (!res.ok) throw new Error(data && data.error || 'onboarding note search unavailable');
     // /search returns { results: [...] } or an array directly — handle both.
     const items = Array.isArray(data) ? data : (data.results || []);
     return items.some(n => n.kind === 'note' && typeof n.title === 'string' && n.title.startsWith('[ingest]'));
@@ -8104,7 +8107,31 @@ async function hasInjectedOnboardNotes() {
   }
 }
 
+function scheduleOnboardDiscoveryRetry(message) {
+  clearTimeout(onboardDiscoveryTimer);
+  const key = onboardStoreKey('discovery_failures');
+  const failures = Math.max(0, Number(localStorage.getItem(key)) || 0) + 1;
+  localStorage.setItem(key, String(failures));
+  const retryMs = Math.min(ONBOARD_POLL_MAX_MS,
+    ONBOARD_POLL_MS * Math.pow(2, Math.min(4, failures - 1)));
+  showOnboardLanding();
+  setOnboardStatus(message || 'Onboarding discovery is temporarily unavailable. Retrying...', true);
+  onboardDiscoveryTimer = setTimeout(() => {
+    onboardDiscoveryTimer = null;
+    return checkOnboardingState();
+  }, retryMs);
+}
+
+function clearOnboardDiscoveryRetry() {
+  clearTimeout(onboardDiscoveryTimer);
+  onboardDiscoveryTimer = null;
+  localStorage.removeItem(onboardStoreKey('discovery_failures'));
+}
+
 async function checkOnboardingState() {
+  if (onboardDiscoveryInFlight) return;
+  onboardDiscoveryInFlight = true;
+  try {
   const workspace = currentOnboardWorkspace();
   const storedOutDir = localStorage.getItem(onboardStoreKey('outdir')) || '';
   let storedQueueStatusUnavailable = false;
@@ -8114,11 +8141,15 @@ async function checkOnboardingState() {
       try {
         const r = await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(workspace) + '&outDir=' + encodeURIComponent(candidateOutDir));
         const st = await r.json();
+        if (r.status === 404) continue;
+        if (!r.ok || !st.ok) throw new Error(st.error || 'candidate onboarding status unavailable');
         if (st.ok && st.status && onboardStatusComplete(st.status)) {
+          clearOnboardDiscoveryRetry();
           completeOnboardLearning();
           return;
         }
         if (st.ok && st.status) {
+          clearOnboardDiscoveryRetry();
           const shouldResumeDrain = onboardStatusNeedsResume(st.status);
           showOnboardLanding();
           localStorage.setItem(onboardStoreKey('outdir'), candidateOutDir);
@@ -8129,12 +8160,13 @@ async function checkOnboardingState() {
             landing.dataset.draining = shouldResumeDrain ? '' : '1';
           }
           updateOnboardFromStatus(st.status);
-          if (shouldResumeDrain) ensureOnboardLearning(workspace);
+          if (shouldResumeDrain) await ensureOnboardLearning(workspace);
           else pollOnboardLearning();
           return;
         }
       } catch (e) {
-        // No existing default/legacy queue; continue to auto-start.
+        scheduleOnboardDiscoveryRetry('Onboarding queue discovery is temporarily unavailable. Retrying...');
+        return;
       }
     }
   }
@@ -8149,10 +8181,12 @@ async function checkOnboardingState() {
         throw new Error(st.error || 'status unavailable');
       }
       if (st.ok && st.status && onboardStatusComplete(st.status)) {
+        clearOnboardDiscoveryRetry();
         completeOnboardLearning();
         return;
       }
       if (st.ok && st.status) {
+        clearOnboardDiscoveryRetry();
         const shouldResumeDrain = onboardStatusNeedsResume(st.status);
         showOnboardLanding();
         const landing = document.getElementById('onboard-landing');
@@ -8162,7 +8196,7 @@ async function checkOnboardingState() {
           landing.dataset.draining = shouldResumeDrain ? '' : '1';
         }
         updateOnboardFromStatus(st.status);
-        if (shouldResumeDrain) ensureOnboardLearning(workspace);
+        if (shouldResumeDrain) await ensureOnboardLearning(workspace);
         else pollOnboardLearning();
         return;
       }
@@ -8191,27 +8225,33 @@ async function checkOnboardingState() {
   // notes. A force replacement deliberately leaves the old notes live until its new generation is
   // ready, so checking notes/latch first would hide the replacement while it is pending.
   if (workspace && !storedOutDir && localStorage.getItem(onboardCompletedKey()) === '1') {
+    clearOnboardDiscoveryRetry();
     completeOnboardLearning();
     return;
   }
 
   const onboardNotesPresent = await hasInjectedOnboardNotes();
   if (onboardNotesPresent === true) {
+    clearOnboardDiscoveryRetry();
     completeOnboardLearning();
     return;
   }
 
   if (onboardNotesPresent === null) {
+    scheduleOnboardDiscoveryRetry('Onboarding note discovery is temporarily unavailable. Retrying...');
     return;
   }
 
   showOnboardLanding();
   renderOnboardCloud({ total: 0, processed: 0, kept: 0, injectedKept: 0 });
-  if (workspace) ensureOnboardLearning(workspace);
+  if (workspace) await ensureOnboardLearning(workspace);
   else {
     setOnboardStage('mine');
     setOnboardStatus('Waiting for workspace path...', true);
     setTimeout(checkOnboardingState, 1000);
+  }
+  } finally {
+    onboardDiscoveryInFlight = false;
   }
 }
 
@@ -8353,6 +8393,7 @@ function completeOnboardLearning() {
   onboardPollFailures = 0;
   if (onboardCloudRenderState.raf) cancelAnimationFrame(onboardCloudRenderState.raf);
   onboardCloudRenderState.raf = null;
+  clearOnboardDiscoveryRetry();
   if (onboardCloudRenderState.sim) onboardCloudRenderState.sim.stop();
   disposeCloudThree(document.getElementById('onboardCloudSvg'));
   const cloud = document.querySelector('.ol-cloud');
@@ -8411,12 +8452,13 @@ async function ensureOnboardLearning(repo) {
       localStorage.removeItem(onboardCompletedKey());
       setOnboardStage('mine');
       setOnboardStatus('Mining candidates...');
-      const enq = await (await dfetch('/onboard/enqueue', {
+      const enqResponse = await dfetch('/onboard/enqueue', {
         method: 'POST',
         headers: {'content-type':'application/json'},
         body: JSON.stringify({repo})
-      })).json();
-      if (!enq.ok) throw new Error(enq.error || 'enqueue failed');
+      });
+      const enq = await enqResponse.json();
+      if (!enqResponse.ok || !enq.ok) throw new Error(enq.error || 'enqueue failed');
       outDir = enq.outDir;
       localStorage.setItem(onboardStoreKey('outdir'), outDir);
       setOnboardProgress(enq.total - enq.remaining, enq.total, 0, 0);
@@ -8428,17 +8470,20 @@ async function ensureOnboardLearning(repo) {
     landing.dataset.draining = '1';
     setOnboardStage('validate');
     setOnboardStatus(storedOutDir ? 'Resuming learning queue...' : 'Learning queued...');
-    const dr = await (await dfetch('/onboard/drain-queue', {
+    const drainResponse = await dfetch('/onboard/drain-queue', {
       method: 'POST',
       headers: {'content-type':'application/json'},
       body: JSON.stringify({repo, outDir, autoInject: true, liveInject: true})
-    })).json();
-    if (!dr.ok) throw new Error(dr.error || 'drain failed');
+    });
+    const dr = await drainResponse.json();
+    if (!drainResponse.ok || !dr.ok) throw new Error(dr.error || 'drain failed');
+    clearOnboardDiscoveryRetry();
     if (!updateOnboardFromStatus(dr.status || {})) pollOnboardLearning();
   } catch (e) {
     setOnboardStatus(String(e && e.message || e), true);
     const landing = document.getElementById('onboard-landing');
     if (landing) landing.dataset.draining = '';
+    scheduleOnboardDiscoveryRetry('Onboarding setup is temporarily unavailable. Retrying...');
   } finally {
     onboardAutoStartInFlight = false;
   }

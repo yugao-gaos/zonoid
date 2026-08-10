@@ -773,13 +773,18 @@ test('findPendingLearnerQueues treats completed auto-inject queue as due until i
   try {
     fs.mkdirSync(outDir, { recursive: true });
     fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      generation: 'generation-manual-complete',
       total: 2,
       cursor: 2,
       kept: [{ title: 'A', summary: 'B' }],
       rejected: [],
       pending: [],
     }));
-    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept: [], rejected: [] }));
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({
+      generation: 'generation-manual-complete',
+      kept: [{ title: 'A', summary: 'B' }],
+      rejected: [],
+    }));
     fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({ repo: tmpDir, outDir }));
     const queues = hd.findPendingLearnerQueues(tmpDir);
     assert.equal(queues.length, 1);
@@ -798,13 +803,18 @@ test('findPendingLearnerQueues respects autoInject false for completed queues', 
   try {
     fs.mkdirSync(outDir, { recursive: true });
     fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      generation: 'generation-manual-disabled',
       total: 2,
       cursor: 2,
       kept: [{ title: 'A', summary: 'B' }],
       rejected: [],
       pending: [],
     }));
-    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept: [], rejected: [] }));
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({
+      generation: 'generation-manual-disabled',
+      kept: [{ title: 'A', summary: 'B' }],
+      rejected: [],
+    }));
     fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({ repo: tmpDir, outDir, autoInject: false }));
     const queues = hd.findPendingLearnerQueues(tmpDir);
     assert.equal(queues.length, 0);
@@ -899,22 +909,87 @@ test('completed queues remain discoverable through a persisted generic error unt
   }
 });
 
-test('completed kept queues with a missing final notes file stay due for bounded injection retry', () => {
-  const hd = freshModule();
+test('completed kept queues atomically reconstruct a missing final notes artifact before injection', async () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-final-missing-notes-'));
   const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  const kept = [{ title: 'Missing final file', summary: 'Recover from the completed queue' }];
+  const rejected = [{ candidate: 'Noise', reason: 'restatement' }];
+  let hd;
+  const mocked = freshModuleWithMockedSpawn(() => {
+    const artifact = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-notes.json'), 'utf8'));
+    assert.equal(artifact.generation, 'generation-missing-notes');
+    assert.deepEqual(artifact.kept, kept);
+    assert.deepEqual(artifact.rejected, rejected);
+    hd._writeInjectionReceipt(outDir, artifact.generation, [hd._onboardNoteId(kept[0], 0)]);
+    return makeFakeChild({ code: 0 });
+  });
+  hd = mocked.hd;
   try {
     fs.mkdirSync(outDir, { recursive: true });
     fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
       generation: 'generation-missing-notes', total: 1, cursor: 1,
-      kept: [{ title: 'Missing final file' }], rejected: [], pending: [],
+      kept, rejected, pending: [],
     }));
     fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({ repo, outDir, autoInject: true }));
     const due = hd.findPendingLearnerQueues(repo);
     assert.equal(due.length, 1);
-    assert.equal(due[0].injectDue, true,
-      'missing injection input must surface as a retryable/capped failure instead of disappearing');
+    assert.equal(due[0].injectDue, true);
+
+    const result = await hd._injectLearnerQueue(repo, outDir, { timeoutMs: 5000 });
+    assert.equal(result.exitCode, 0);
+    assert.equal(mocked.calls.length, 1);
+    const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.injectionState, 'succeeded');
+    assert.equal(status.injectedKept, 1);
   } finally {
+    mocked.restore();
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('final artifact recovery replaces corrupt or cross-generation data but never repairs a partial queue', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-final-artifact-fence-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  const kept = [{ title: 'Current', summary: 'Only the current generation may inject' }];
+  let hd;
+  const mocked = freshModuleWithMockedSpawn(() => {
+    const artifact = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-notes.json'), 'utf8'));
+    hd._writeInjectionReceipt(outDir, artifact.generation, [hd._onboardNoteId(kept[0], 0)]);
+    return makeFakeChild({ code: 0 });
+  });
+  hd = mocked.hd;
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    const queueFile = path.join(outDir, 'onboard-queue.json');
+    const notesFile = path.join(outDir, 'onboard-notes.json');
+    fs.writeFileSync(queueFile, JSON.stringify({
+      generation: 'generation-current', total: 1, cursor: 1, kept,
+      rejected: [{ candidate: 'Rejected current', reason: 'duplicate' }], pending: [],
+    }));
+    fs.writeFileSync(notesFile, JSON.stringify({
+      generation: 'generation-old', kept: [{ title: 'Old' }], rejected: [],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({ repo, outDir, autoInject: true }));
+
+    const repaired = await hd._injectLearnerQueue(repo, outDir, { timeoutMs: 5000 });
+    assert.equal(repaired.exitCode, 0);
+    const artifact = JSON.parse(fs.readFileSync(notesFile, 'utf8'));
+    assert.equal(artifact.generation, 'generation-current');
+    assert.deepEqual(artifact.kept, kept);
+    assert.deepEqual(artifact.rejected, [{ candidate: 'Rejected current', reason: 'duplicate' }]);
+
+    fs.writeFileSync(queueFile, JSON.stringify({
+      generation: 'generation-partial', total: 2, cursor: 1, kept: [{ title: 'Partial' }],
+      rejected: [], pending: [{ title: 'A' }, { title: 'B' }],
+    }));
+    fs.writeFileSync(notesFile, '{corrupt');
+    const rejectedPartial = await hd._injectLearnerQueue(repo, outDir, { timeoutMs: 5000 });
+    assert.equal(rejectedPartial.stale, true);
+    assert.match(rejectedPartial.staleReason, /artifact/);
+    assert.equal(fs.readFileSync(notesFile, 'utf8'), '{corrupt', 'partial queues must not invent a replacement artifact');
+    assert.equal(mocked.calls.length, 1, 'the partial corrupt artifact must not reach graph injection');
+  } finally {
+    mocked.restore();
     fs.rmSync(repo, { recursive: true, force: true });
   }
 });
@@ -1049,7 +1124,6 @@ test('completed zero-kept and autoInject false queues repair stale generic error
         generation: `generation-${item.suffix}`, total: 1, cursor: 1,
         kept: item.kept, rejected: item.kept.length ? [] : [{ title: 'Rejected' }], pending: [],
       }));
-      fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept: item.kept, rejected: [] }));
       fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
         repo, outDir, autoInject: item.autoInject, error: 'onboarding drain exited 1', lastError: 'onboarding drain exited 1',
       }));
@@ -1060,6 +1134,9 @@ test('completed zero-kept and autoInject false queues repair stale generic error
       assert.equal(status.error, null);
       assert.equal(status.lastError, null);
       assert.equal(status.injectionState || 'idle', item.terminal);
+      const artifact = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-notes.json'), 'utf8'));
+      assert.equal(artifact.generation, `generation-${item.suffix}`);
+      assert.deepEqual(artifact.kept, item.kept);
       assert.equal(hd.findPendingLearnerQueues(repo).length, 0);
     }
     assert.equal(calls.length, 0, 'terminal status repair must not start an injector');
@@ -1216,7 +1293,7 @@ test('failed injection persists backoff metadata and retries automatically to su
     const code = injectionRuns++ === 0 ? 1 : 0;
     if (code === 0) {
       hd._writeInjectionReceipt(outDir, 'generation-retry', [
-        hd._onboardNoteId({ title: 'Retry' }, 0),
+        hd._onboardNoteId({ title: 'Retry', summary: 'Retry' }, 0),
       ]);
     }
     return makeFakeChild({ code });
