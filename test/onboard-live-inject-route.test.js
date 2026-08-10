@@ -108,6 +108,51 @@ function dashboardStatusUpdater() {
   `)();
 }
 
+function dashboardPollHarness(sequence) {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'graph.html'), 'utf8');
+  const start = html.indexOf('async function pollOnboardLearning() {');
+  assert.notEqual(start, -1, 'pollOnboardLearning must exist in the dashboard');
+  let depth = 0;
+  let opened = false;
+  let source = '';
+  for (let i = start; i < html.length; i++) {
+    if (html[i] === '{') { depth++; opened = true; }
+    if (html[i] === '}') depth--;
+    if (opened && depth === 0) { source = html.slice(start, i + 1); break; }
+  }
+  assert.ok(source);
+  return Function('sequence', `'use strict';
+    let onboardPollTimer = null;
+    let onboardPollFailures = 0;
+    const ONBOARD_POLL_MS = 1200;
+    const ONBOARD_POLL_MAX_MS = 10000;
+    const scheduled = [];
+    const visible = [];
+    const landing = { dataset: { repo: '/repo', outDir: '/repo/.zonoid/onboard/repo', draining: '1' } };
+    const document = { getElementById(id) { return id === 'onboard-landing' ? landing : null; } };
+    function clearTimeout() {}
+    function setTimeout(fn, ms) { const timer = { fn, ms }; scheduled.push(timer); return timer; }
+    function setOnboardStatus(message, isError) { visible.push({ message, isError: !!isError }); }
+    function updateOnboardFromStatus(status) { visible.push({ status }); return status.stop === true; }
+    async function dfetch() {
+      const next = sequence.shift();
+      if (!next) throw new Error('unexpected status request');
+      if (next.networkError) throw new Error(next.networkError);
+      return { async json() {
+        if (next.jsonError) throw new Error(next.jsonError);
+        return next.body;
+      } };
+    }
+    ${source}
+    return {
+      async poll() { await pollOnboardLearning(); },
+      async runNext() { const timer = scheduled.shift(); if (!timer) throw new Error('no scheduled retry'); await timer.fn(); },
+      state() { return { scheduled: scheduled.map(t => t.ms), failures: onboardPollFailures,
+        draining: landing.dataset.draining, visible: JSON.parse(JSON.stringify(visible)) }; }
+    };
+  `)(sequence.slice());
+}
+
 test('onboarding routes accept only the default and documented legacy roots of a registered repo', async () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-supported-roots-'));
   const roots = [defaultOnboardOutDir(repo), legacyGraphOnboardOutDir(repo), legacyBenchOnboardOutDir(repo)];
@@ -379,6 +424,32 @@ test('generic learner failure is reported retryable while queue work remains and
     assert.equal(sent[1].payload.status.error, null);
     assert.equal(sent[1].payload.status.injectionState, 'not_needed');
     assert.equal(sent[1].payload.status.done, true);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('generic learner failure remains retryable after the queue cursor reaches final injection', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-final-recovery-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const sent = [];
+  const kept = [{ title: 'Final', summary: 'Still needs graph injection' }];
+  try {
+    writeQueue(outDir, 1, 1, kept, 'generation-final-recovery');
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept, rejected: [] }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo, outDir, autoInject: true, error: 'onboarding drain exited 1',
+    }));
+    const route = onboardRoute(makeCtx({}, sent, () => {}, [repo]));
+    const url = new URL(`http://localhost/onboard/drain-queue?repo=${encodeURIComponent(repo)}&outDir=${encodeURIComponent(outDir)}`);
+    await route('/onboard/drain-queue', 'GET', {}, {}, url);
+
+    const status = sent[0].payload.status;
+    assert.equal(status.remaining, 0);
+    assert.equal(status.done, false);
+    assert.equal(status.injected, false);
+    assert.equal(status.retryablePending, true, 'finalization recovery must keep the UI polling');
+    assert.equal(dashboardStatusUpdater().apply(status).stopped, false);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -695,6 +766,37 @@ test('dashboard keeps retryable learner errors live, clears them on success, and
     injectionError: 'inject retry', error: 'inject retry',
   });
   assert.equal(backoff.stopped, false, 'automatic backoff keeps polling');
+});
+
+test('dashboard status poll survives network and JSON failures, bounds backoff, and resumes without reload', async () => {
+  const dashboard = dashboardPollHarness([
+    { networkError: 'socket reset' },
+    { jsonError: 'truncated JSON' },
+    { body: { ok: true, status: { stop: false } } },
+    { body: { ok: true, status: { stop: true } } },
+  ]);
+
+  await dashboard.poll();
+  let state = dashboard.state();
+  assert.equal(state.draining, '1');
+  assert.deepEqual(state.scheduled, [1200]);
+  assert.equal(state.failures, 1);
+
+  await dashboard.runNext();
+  state = dashboard.state();
+  assert.equal(state.draining, '1');
+  assert.deepEqual(state.scheduled, [2400]);
+  assert.equal(state.failures, 2);
+
+  await dashboard.runNext();
+  state = dashboard.state();
+  assert.equal(state.failures, 0, 'a successful status response resets transient backoff');
+  assert.deepEqual(state.scheduled, [1200]);
+
+  await dashboard.runNext();
+  state = dashboard.state();
+  assert.deepEqual(state.scheduled, [], 'a terminal status stops only after a successful response');
+  assert.ok(state.visible.some((item) => /socket reset|truncated JSON/.test(item.message || '')));
 });
 
 test('real injector honors ORCH_PORT and shared bearer auth when ORCH_DAEMON is absent', async () => {
