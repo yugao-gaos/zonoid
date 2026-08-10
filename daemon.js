@@ -63,6 +63,7 @@ const { taskEmbedText } = require('./lib/node-tags');
 const headlessDrain = require('./lib/headless-drain');
 const headlessSpawn = require('./lib/headless-spawn');
 const { createHeadlessDrainRunner } = require('./lib/headless-drain-runner');
+const tuning = require('./lib/tuning');
 const registry = require('./lib/workspace-registry');
 const onboardInitTransaction = require('./lib/onboard-init-transaction');
 const repoTarget = require('./lib/repo-target');
@@ -3212,13 +3213,19 @@ if (require.main === module) {
       try {
         const dcfg = headlessDrain.effectiveConfig();
         const bcfg = headlessDrain.backoffConfig();
+        const tcfg = tuning.effective();
         process.stdout.write(
           `[boot] tuning: pid=${process.pid} node=${process.version} head=${GIT_HEAD || '?'} data=${BASE}`
           + ` log=${daemonLog.logPath() || 'off'} stale_minutes=${STALE_MINUTES_DEFAULT}`
           + ` drain.max_concurrency=${dcfg.maxConcurrency} drain.max_iterations=${dcfg.maxIterations}`
           + ` drain.token_budget=${dcfg.tokenBudget} drain.timeout_ms=${dcfg.timeoutMs}`
+          + ` drain.continuous_ms=${tcfg.continuous_delay_ms} drain.idle_poll_ms=${tcfg.idle_poll_ms}`
+          + ` drain.retry_ms=${tcfg.retry_delay_ms} spawn.timeout_ms=${tcfg.spawn_timeout_ms}`
           + ` backoff.base_ms=${bcfg.baseMs} backoff.cap_ms=${bcfg.capMs}\n`
         );
+        // Second line: WHERE the persisted tuning lives and which knobs are off their default.
+        // Every knob above is hot-reloadable via POST /config/tuning — none of them need a restart.
+        process.stdout.write(`[boot] ${tuning.summaryLine()}\n`);
       } catch (e) { process.stderr.write(`[boot] tuning line failed: ${e && e.message || e}\n`); }
       writeDaemonPidfile(); // advertise our pid for the cross-platform singleton guard (early, pre-loadState)
 
