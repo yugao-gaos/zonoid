@@ -18,7 +18,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { defaultOnboardOutDir } = require('../lib/onboard-paths');
 
-const SKIP_DIRS = new Set(['node_modules', 'worktrees', '.git', 'dist', 'build', 'coverage', 'vendor']);
+const SKIP_DIRS = new Set(['node_modules', 'worktrees', '.git', '.zonoid', 'dist', 'build', 'coverage', 'vendor']);
 
 // Sentence carries durable rationale if it matches a "why / must / never / tradeoff" cue.
 const CUE_RE = /\b(must|never|always|do not|don'?t|because|instead of|rather than|chose|prefer|avoid|gotcha|caveat|warning|note that|invariant|requires?|ensure|so that|otherwise|the reason|key insight|trade-?off|deliberately|by design)\b/i;

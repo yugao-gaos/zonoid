@@ -24,17 +24,46 @@ function arg(name, def) {
   return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : def;
 }
 
-function git(repo, args) {
-  const r = spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true });
-  if (r.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${r.stderr || r.status}`);
-  return r.stdout;
+function gitResult(repo, args) {
+  return spawnSync('git', ['-C', repo, ...args], {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+    windowsHide: true,
+  });
+}
+
+function gitError(args, result) {
+  const detail = result && (result.stderr || (result.error && result.error.message) || result.status);
+  return new Error(`git ${args.join(' ')} failed: ${detail}`);
 }
 
 function readLog(repo, max) {
+  const probeArgs = ['rev-parse', '--is-inside-work-tree'];
+  const probe = gitResult(repo, probeArgs);
+  if (probe.status !== 0 || String(probe.stdout || '').trim() !== 'true') {
+    // Plain non-Git directories are valid onboarding targets. A present-but-broken .git marker is
+    // different: hiding that corruption as "no history" would silently discard useful evidence.
+    if (fs.existsSync(path.join(repo, '.git'))) throw gitError(probeArgs, probe);
+    return [];
+  }
+
+  const headArgs = ['rev-parse', '--verify', 'HEAD'];
+  const head = gitResult(repo, headArgs);
+  if (head.status !== 0) {
+    // An unborn repository has no HEAD but is otherwise healthy. `git status` is the authoritative
+    // discriminator: it succeeds for an unborn repo and fails for corrupted Git metadata.
+    const statusArgs = ['status', '--porcelain=v1'];
+    const status = gitResult(repo, statusArgs);
+    if (status.status === 0) return [];
+    throw gitError(headArgs, head);
+  }
+
   const fmt = `${REC_SEP}%H${FLD_SEP}%s${FLD_SEP}%b${FLD_SEP}`;
   const logArgs = ['log', `--pretty=format:${fmt}`, '--name-status'];
   if (max) logArgs.push(`-n${max}`);
-  const out = git(repo, logArgs);
+  const logged = gitResult(repo, logArgs);
+  if (logged.status !== 0) throw gitError(logArgs, logged);
+  const out = logged.stdout;
   const records = out.split(REC_SEP).filter((r) => r.trim());
   return records.map((rec) => {
     const [sha, subject, rest] = rec.split(FLD_SEP);

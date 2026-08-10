@@ -14,6 +14,7 @@ const onboardRoute = require('../routes/onboard');
 
 const DAEMON_PATH = path.join(__dirname, '..', 'daemon.js');
 const CLI_PATH = path.join(__dirname, '..', 'packages', 'cli', 'bin', 'zonoid.js');
+const GIT_MINER_PATH = path.join(__dirname, '..', 'scripts', 'onboard-mine-git.js');
 
 function git(repo, args) {
   return execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', windowsHide: true }).trim();
@@ -84,6 +85,46 @@ async function stopDaemon(port) {
   } catch { /* daemon already stopped */ }
 }
 
+async function waitFor(check, timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const value = await check();
+    if (value) return value;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error('timed out waiting for onboarding state');
+}
+
+async function runHeadlessPreparation(repo, outDir) {
+  const savedLease = process.env.HEADLESS_DRAIN_GLOBAL_LEASE;
+  process.env.HEADLESS_DRAIN_GLOBAL_LEASE = '0';
+  try {
+    const modulePath = require.resolve('../lib/headless-drain');
+    delete require.cache[modulePath];
+    const headlessDrain = require('../lib/headless-drain');
+    const result = await headlessDrain.runDueDrains(
+      { workspace: repo, registeredWorkspaces: [repo] },
+      null,
+      {
+        judgeDeps: {
+          overlayLoad: () => ({}),
+          judgeLib: { judgeQueueDepth: () => 0, eagerJudgeNodes: () => [], buildQueue: () => [] },
+        },
+        labelDeps: {
+          readJsonl: () => [], rowKey: () => '', journalPath: () => '', labeledPath: () => '',
+        },
+      }
+    );
+    const preparation = result.drains.find((entry) => entry.operation === 'preparation' && entry.outDir === outDir);
+    assert.ok(preparation, `headless worker did not prepare ${outDir}: ${JSON.stringify(result)}`);
+    assert.equal(preparation.exitCode, 0);
+    return result;
+  } finally {
+    if (savedLease === undefined) delete process.env.HEADLESS_DRAIN_GLOBAL_LEASE;
+    else process.env.HEADLESS_DRAIN_GLOBAL_LEASE = savedLease;
+  }
+}
+
 function routePost(calls) {
   return async (route, body) => {
     const call = { route, body };
@@ -119,24 +160,38 @@ test('init lifecycle arms onboarding without a dashboard and leaves accumulated 
     git(repo, ['add', '-A']);
     git(repo, ['commit', '-m', 'accumulated project work']);
     const headBefore = git(repo, ['rev-parse', 'HEAD']);
+    const statusBefore = git(repo, ['status', '--porcelain=v1', '--untracked-files=all']);
 
+    const startedAt = Date.now();
     const result = await startWorkspaceOnboarding(repo, {
       post: routePost(calls),
     });
 
     assert.equal(result.ok, true);
+    assert.ok(Date.now() - startedAt < 2000, 'CLI onboarding startup must only persist and arm work');
     assert.deepEqual(calls.map((call) => call.route), ['/onboard/enqueue', '/onboard/drain-queue']);
     assert.deepEqual(calls[0].body, { repo });
     assert.equal(calls[1].body.repo, repo);
     assert.equal(calls[1].body.autoInject, true);
     assert.equal(calls[1].body.liveInject, true);
+    assert.equal(calls[0].response.payload.preparationState, 'pending');
+    assert.equal(calls[1].response.payload.status.preparationState, 'pending');
+    assert.equal(fs.existsSync(path.join(result.outDir, 'onboard-queue.json')), false,
+      'enqueue must return before miners run');
+    const pending = JSON.parse(fs.readFileSync(path.join(result.outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(pending.preparationState, 'pending', 'restart-safe preparation intent must be persisted before return');
+
+    await runHeadlessPreparation(repo, result.outDir);
     const queue = JSON.parse(fs.readFileSync(path.join(result.outDir, 'onboard-queue.json'), 'utf8'));
     const status = JSON.parse(fs.readFileSync(path.join(result.outDir, 'onboard-drain-status.json'), 'utf8'));
     assert.ok(queue.total > 0, 'existing project content must be mined before any dashboard opens');
     assert.equal(status.repo, repo);
     assert.equal(status.autoInject, true);
+    assert.equal(status.preparationState, 'ready');
     assert.equal(fs.readFileSync(source, 'utf8'), sourceBody);
     assert.equal(git(repo, ['rev-parse', 'HEAD']), headBefore);
+    assert.equal(git(repo, ['status', '--porcelain=v1', '--untracked-files=all']), statusBefore,
+      'workspace-local onboarding metadata must not dirty project status');
     assert.equal(git(repo, ['diff', '--', 'src/feature.js']), '');
 
     const cliSource = fs.readFileSync(path.join(__dirname, '..', 'packages', 'cli', 'bin', 'zonoid.js'), 'utf8');
@@ -176,6 +231,7 @@ test('empty and zero-commit projects onboard without inventing project history',
     fs.writeFileSync(zeroCommitSource, 'exports.uncommittedWork = true;\n');
     fs.writeFileSync(path.join(repos[1].path, 'README.md'), '# Zero-commit project\n\nUseful work exists before the first commit.\n');
     for (const repoCase of repos) {
+      const statusBefore = repoCase.empty ? null : git(repoCase.path, ['status', '--porcelain=v1', '--untracked-files=all']);
       const calls = [];
       const result = await startWorkspaceOnboarding(repoCase.path, {
         post: routePost(calls),
@@ -183,17 +239,19 @@ test('empty and zero-commit projects onboard without inventing project history',
 
       assert.equal(result.ok, true, `${repoCase.label} should onboard without an HTTP 500`);
       assert.deepEqual(calls.map((call) => call.route), ['/onboard/enqueue', '/onboard/drain-queue']);
+      assert.equal(fs.existsSync(path.join(result.outDir, 'onboard-queue.json')), false);
+      assert.equal(calls[1].response.payload.status.preparing, true);
+      await runHeadlessPreparation(repoCase.path, result.outDir);
       const queue = JSON.parse(fs.readFileSync(path.join(result.outDir, 'onboard-queue.json'), 'utf8'));
-      assert.equal(calls[1].response.status, 200);
-      assert.equal(calls[1].response.payload.status.error, null);
+      const status = JSON.parse(fs.readFileSync(path.join(result.outDir, 'onboard-drain-status.json'), 'utf8'));
+      assert.equal(status.error, null);
+      assert.equal(status.preparationState, 'ready');
       if (repoCase.empty) {
         assert.deepEqual(queue, { total: 0, cursor: 0, kept: [], rejected: [], pending: [] });
-        assert.equal(calls[1].response.payload.status.done, true);
-        assert.equal(calls[1].response.payload.status.noCandidates, true);
       } else {
         assert.ok(queue.total > 0, 'non-git miners must retain useful zero-commit project evidence');
-        assert.equal(calls[1].response.payload.status.done, false);
-        assert.equal(calls[1].response.payload.status.noCandidates, false);
+        assert.equal(git(repoCase.path, ['status', '--porcelain=v1', '--untracked-files=all']), statusBefore,
+          'zero-commit project status must be unchanged apart from ignored runtime metadata');
       }
     }
 
@@ -323,7 +381,8 @@ test('token-authenticated init registers the workspace and queues onboarding', a
         CLAUDE_PLUGIN_DATA: dataDir,
         ORCH_TOKEN: '',
         CLAUDE_CODE_SESSION_ID: '',
-        HEADLESS_DRAIN_MAX_ITERATIONS: '-1',
+        HEADLESS_DRAIN_MAX_ITERATIONS: '10',
+        HEADLESS_DRAIN_CONTINUOUS_DELAY_MS: '50',
       },
     }), true);
     assert.equal((await daemonRequest(port, 'POST', '/workspace', { path: repo })).status, 401,
@@ -338,6 +397,7 @@ test('token-authenticated init registers the workspace and queues onboarding', a
         if (!repo || !onboarding || !onboarding.ok) process.exitCode = 1;
       })().catch((err) => { console.error(err); process.exitCode = 1; });
     `;
+    const clientStartedAt = Date.now();
     const client = spawnSync(process.execPath, ['-e', clientSource], {
       encoding: 'utf8',
       timeout: 60000,
@@ -350,6 +410,7 @@ test('token-authenticated init registers the workspace and queues onboarding', a
       },
     });
     assert.equal(client.status, 0, client.stderr || client.stdout);
+    assert.ok(Date.now() - clientStartedAt < 3000, 'CLI init must not wait for repository mining');
     const resultLine = String(client.stdout || '').split(/\r?\n/).find((line) => line.startsWith('CLI_INIT_RESULT '));
     assert.ok(resultLine, `missing CLI init result in output:\n${client.stdout}`);
     const result = JSON.parse(resultLine.slice('CLI_INIT_RESULT '.length));
@@ -359,10 +420,81 @@ test('token-authenticated init registers the workspace and queues onboarding', a
     const workspaces = await daemonRequest(port, 'GET', '/workspaces', undefined, token);
     assert.equal(workspaces.status, 200);
     assert.match(JSON.stringify(workspaces.payload), new RegExp(repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-    assert.ok(fs.existsSync(path.join(result.onboarding.outDir, 'onboard-queue.json')));
+    const healthStartedAt = Date.now();
+    const health = await daemonRequest(port, 'GET', '/health');
+    assert.equal(health.status, 200);
+    assert.ok(Date.now() - healthStartedAt < 1000, 'daemon health must stay responsive while onboarding runs');
+    await waitFor(() => fs.existsSync(path.join(result.onboarding.outDir, 'onboard-queue.json')));
+    const prepared = JSON.parse(fs.readFileSync(path.join(result.onboarding.outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(prepared.preparationState, 'ready');
   } finally {
     await stopDaemon(port);
     fs.rmSync(dataDir, { recursive: true, force: true });
     fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('daemon boot resumes a persisted preparation request created before the daemon existed', async () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-onboard-restart-data-'));
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-onboard-restart-repo-'));
+  const port = await testPort();
+  let response = null;
+  try {
+    const handler = onboardRoute({
+      readBody: async () => ({ repo }),
+      send: (_res, status, payload) => { response = { status, payload }; },
+      notifyChange: () => {},
+    });
+    await handler('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
+    assert.equal(response.status, 200);
+    const outDir = response.payload.outDir;
+    assert.equal(JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8')).preparationState, 'pending');
+    assert.equal(fs.existsSync(path.join(outDir, 'onboard-queue.json')), false);
+
+    assert.equal(await checkDaemon({
+      port,
+      daemonPath: DAEMON_PATH,
+      startupTimeoutMs: 15000,
+      env: {
+        ...process.env,
+        CLAUDE_PLUGIN_DATA: dataDir,
+        ORCH_TOKEN: '',
+        CLAUDE_CODE_SESSION_ID: '',
+        HEADLESS_DRAIN_MAX_ITERATIONS: '10',
+        HEADLESS_DRAIN_CONTINUOUS_DELAY_MS: '50',
+      },
+    }), true);
+    assert.equal((await daemonRequest(port, 'POST', '/workspace', { path: repo })).status, 200);
+    await waitFor(() => fs.existsSync(path.join(outDir, 'onboard-queue.json')));
+    const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.preparationState, 'ready');
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-queue.json'), 'utf8')),
+      { total: 0, cursor: 0, kept: [], rejected: [], pending: [] });
+  } finally {
+    await stopDaemon(port);
+    fs.rmSync(dataDir, { recursive: true, force: true });
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('Git miner treats unborn history as empty but reports corrupted Git metadata', () => {
+  const unborn = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-git-miner-unborn-'));
+  const broken = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-git-miner-broken-'));
+  try {
+    git(unborn, ['init']);
+    const unbornOut = path.join(unborn, 'runtime');
+    const unbornRun = spawnSync(process.execPath, [GIT_MINER_PATH, '--repo', unborn, '--out', unbornOut], { encoding: 'utf8' });
+    assert.equal(unbornRun.status, 0, unbornRun.stderr);
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(unbornOut, 'git-notes.json'), 'utf8')), []);
+
+    fs.writeFileSync(path.join(broken, '.git'), 'gitdir: missing-git-directory\n');
+    const brokenOut = path.join(broken, 'runtime');
+    const brokenRun = spawnSync(process.execPath, [GIT_MINER_PATH, '--repo', broken, '--out', brokenOut], { encoding: 'utf8' });
+    assert.notEqual(brokenRun.status, 0, 'broken Git metadata must not be reported as a successful empty history');
+    assert.match(brokenRun.stderr, /git rev-parse .* failed/i);
+    assert.equal(fs.existsSync(path.join(brokenOut, 'git-notes.json')), false);
+  } finally {
+    fs.rmSync(unborn, { recursive: true, force: true });
+    fs.rmSync(broken, { recursive: true, force: true });
   }
 });
