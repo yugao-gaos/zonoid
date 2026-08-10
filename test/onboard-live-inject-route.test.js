@@ -12,6 +12,8 @@ const { spawn } = require('child_process');
 const onboardRoute = require('../routes/onboard');
 const learner = require('../scripts/onboard-learn');
 const onboardInitTransaction = require('../lib/onboard-init-transaction');
+const onboardState = require('../lib/onboard-state');
+const headlessDrain = require('../lib/headless-drain');
 const workspaceRegistry = require('../lib/workspace-registry');
 const {
   defaultOnboardOutDir,
@@ -1380,10 +1382,280 @@ test('init atomically rearms a failed force replacement backed by an old queue',
     assert.equal(sent[0].payload.preparationState, 'pending');
     const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
     assert.equal(status.preparationState, 'pending');
-    assert.equal(status.preparationForce, false);
+    assert.equal(status.preparationForce, true,
+      'failed forced replacement intent must survive init rearm while the old queue exists');
     assert.notEqual(status.preparationGeneration, 'generation-failed-force');
     assert.equal(status.queueGeneration, null, 'the failed generation old queue cannot be accepted as ready');
+    const due = headlessDrain.findPendingLearnerQueues(repo);
+    assert.equal(due.length, 1);
+    assert.equal(due[0].preparationDue, true);
+    assert.equal(due[0].generation, status.preparationGeneration);
+    assert.equal(due[0].injectDue, false, 'headless selection must never inject the superseded old queue');
     assert.ok(workspaceRegistry.allRepos(workspaceRegistry.loadRegistry(registryFile)).includes(repo));
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('init rollback is an exact-image CAS and preserves a concurrent accepted generation and temp', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-cas-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-cas-data-'));
+  const registryFile = path.join(dataDir, 'workspaces.json');
+  const statusFile = path.join(outDir, 'onboard-drain-status.json');
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    const beforeStatus = { repo, outDir, preparationState: 'failed', preparationForce: true, error: 'failed' };
+    const beforeBytes = Buffer.from(JSON.stringify(beforeStatus, null, 4) + '\n');
+    fs.writeFileSync(statusFile, beforeBytes);
+    const desiredStatus = {
+      repo, outDir, autoInject: true, batchSize: 20,
+      preparationState: 'pending', preparationForce: true,
+      preparationGeneration: 'generation-owned', queueGeneration: null,
+    };
+    const intent = onboardInitTransaction.createIntent({
+      repo, outDir, workspaceId: path.basename(repo), beforeStatus, desiredStatus,
+    });
+    onboardInitTransaction.writeIntent(registryFile, intent);
+    onboardInitTransaction.ensureIntentStatus(intent);
+    const ownedTemp = `${statusFile}.999999.deadbeef.tmp`;
+    fs.writeFileSync(ownedTemp, 'abandoned owned write');
+
+    const restored = onboardInitTransaction.rollbackIntentStatus(registryFile, intent, {
+      exists: true,
+      bytes: beforeBytes,
+    });
+    assert.equal(restored.applied, true);
+    assert.deepEqual(fs.readFileSync(statusFile), beforeBytes, 'rollback restores the exact byte pre-image');
+    assert.equal(fs.existsSync(ownedTemp), false, 'owned stale atomic temp is reaped under the status lock');
+    onboardInitTransaction.removeIntent(registryFile, intent);
+
+    const rewrittenIntent = onboardInitTransaction.createIntent({
+      repo,
+      outDir,
+      workspaceId: path.basename(repo),
+      beforeStatus,
+      desiredStatus: { ...desiredStatus, preparationGeneration: 'generation-logically-same' },
+    });
+    onboardInitTransaction.writeIntent(registryFile, rewrittenIntent);
+    onboardInitTransaction.ensureIntentStatus(rewrittenIntent);
+    const logicallySameBytes = Buffer.from(JSON.stringify(rewrittenIntent.desiredStatus));
+    fs.writeFileSync(statusFile, logicallySameBytes);
+    const exactSkipped = onboardInitTransaction.rollbackIntentStatus(registryFile, rewrittenIntent, {
+      exists: true,
+      bytes: beforeBytes,
+    });
+    assert.equal(exactSkipped.stale, true, 'logical equality alone cannot authorize rollback');
+    assert.deepEqual(fs.readFileSync(statusFile), logicallySameBytes);
+    onboardInitTransaction.removeIntent(registryFile, rewrittenIntent);
+    fs.writeFileSync(statusFile, beforeBytes);
+
+    const replacementIntent = onboardInitTransaction.createIntent({
+      repo,
+      outDir,
+      workspaceId: path.basename(repo),
+      beforeStatus,
+      desiredStatus: { ...desiredStatus, preparationGeneration: 'generation-stale-intent' },
+    });
+    onboardInitTransaction.writeIntent(registryFile, replacementIntent);
+    onboardInitTransaction.ensureIntentStatus(replacementIntent);
+    const concurrent = {
+      ...desiredStatus,
+      preparationGeneration: 'generation-concurrent-accepted',
+      preparationRequestedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(statusFile, JSON.stringify(concurrent, null, 2) + '\n');
+    const foreignTemp = `${statusFile}.123456.cafebabe.tmp`;
+    fs.writeFileSync(foreignTemp, 'foreign generation temp');
+    const concurrentBytes = fs.readFileSync(statusFile);
+
+    const skipped = onboardInitTransaction.rollbackIntentStatus(registryFile, replacementIntent, {
+      exists: true,
+      bytes: beforeBytes,
+    });
+    assert.equal(skipped.applied, false);
+    assert.equal(skipped.stale, true);
+    assert.deepEqual(fs.readFileSync(statusFile), concurrentBytes,
+      'failed old intent must not restore over a concurrent accepted generation');
+    assert.equal(fs.readFileSync(foreignTemp, 'utf8'), 'foreign generation temp',
+      'failed old intent must not reap another generation temp');
+    onboardInitTransaction.removeIntent(registryFile, replacementIntent);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('onboarding status lock finalizer never unlinks a replacement owner lock', () => {
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-status-lock-owner-'));
+  const file = path.join(outDir, 'onboard-drain-status.json');
+  const lock = `${file}.lock`;
+  const replacement = JSON.stringify({ pid: process.pid, owner: 'replacement-owner', at: Date.now() });
+  try {
+    onboardState.withFileLock(file, () => {
+      fs.unlinkSync(lock);
+      fs.writeFileSync(lock, replacement);
+    });
+    assert.equal(fs.readFileSync(lock, 'utf8'), replacement);
+  } finally {
+    fs.rmSync(outDir, { recursive: true, force: true });
+  }
+});
+
+test('init exceptions after each durable write restore the exact old force image', async (t) => {
+  for (const boundary of ['journal', 'status', 'registry']) {
+    await t.test(boundary, async () => {
+      const repo = fs.mkdtempSync(path.join(os.tmpdir(), `onboard-init-write-fail-${boundary}-`));
+      const outDir = defaultOnboardOutDir(repo);
+      const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), `onboard-init-write-data-${boundary}-`));
+      const registryFile = path.join(dataDir, 'workspaces.json');
+      const statusFile = path.join(outDir, 'onboard-drain-status.json');
+      const sent = [];
+      try {
+        writeQueue(outDir, 2, 1, [{ title: 'Old partial' }], 'generation-old-partial');
+        const oldStatus = {
+          repo,
+          outDir,
+          preparationGeneration: 'generation-old-failed-force',
+          preparationState: 'failed',
+          preparationForce: true,
+          autoInject: true,
+          batchSize: 20,
+          error: 'forced preparation failed',
+        };
+        const oldBytes = Buffer.from(JSON.stringify(oldStatus, null, 4) + '\n');
+        fs.writeFileSync(statusFile, oldBytes);
+        const queueBytes = fs.readFileSync(path.join(outDir, 'onboard-queue.json'));
+        const ctx = {
+          ...makeCtx({ repo }, sent, () => {}, [repo]),
+          WORKSPACES_FILE: registryFile,
+          registrationRepoRoot: (candidate) => path.resolve(candidate),
+          setWorkspace: () => {},
+          onboardInitBoundary: (seen) => {
+            if (seen === boundary) throw new Error(`injected ${boundary} failure`);
+          },
+        };
+        await onboardRoute(ctx)('/onboard/init', 'POST', {}, {}, new URL('http://localhost/onboard/init'));
+
+        assert.equal(sent[0].status, 500);
+        assert.deepEqual(fs.readFileSync(statusFile), oldBytes);
+        assert.deepEqual(fs.readFileSync(path.join(outDir, 'onboard-queue.json')), queueBytes);
+        assert.equal(fs.existsSync(registryFile), false);
+        assert.equal(fs.existsSync(`${statusFile}.lock`), false);
+        assert.equal(fs.readdirSync(outDir).some((name) => /^onboard-drain-status\.json\..+\.tmp$/.test(name)), false);
+        const journals = onboardInitTransaction.journalDir(registryFile);
+        assert.equal(!fs.existsSync(journals) || fs.readdirSync(journals).length === 0, true);
+      } finally {
+        fs.rmSync(repo, { recursive: true, force: true });
+        fs.rmSync(dataDir, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+test('failed init rollback cannot overwrite a generation accepted after its journal/status writes', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-route-cas-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-route-cas-data-'));
+  const registryFile = path.join(dataDir, 'workspaces.json');
+  const statusFile = path.join(outDir, 'onboard-drain-status.json');
+  const sent = [];
+  let concurrentBytes;
+  const foreignTemp = `${statusFile}.123456.facefeed.tmp`;
+  try {
+    writeQueue(outDir, 1, 1, [{ title: 'Old' }], 'generation-old');
+    fs.writeFileSync(statusFile, JSON.stringify({
+      repo, outDir, autoInject: true, batchSize: 20,
+      preparationState: 'failed', preparationForce: true,
+      preparationGeneration: 'generation-failed', error: 'forced preparation failed',
+    }));
+    const ctx = {
+      ...makeCtx({ repo }, sent, () => {}, [repo]),
+      WORKSPACES_FILE: registryFile,
+      registrationRepoRoot: (candidate) => path.resolve(candidate),
+      setWorkspace: () => {},
+      onboardInitBoundary: (boundary) => {
+        if (boundary !== 'status') return;
+        const current = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+        const concurrent = {
+          ...current,
+          preparationGeneration: 'generation-concurrent-accepted',
+          preparationRequestedAt: new Date().toISOString(),
+        };
+        concurrentBytes = Buffer.from(JSON.stringify(concurrent, null, 2) + '\n');
+        fs.writeFileSync(statusFile, concurrentBytes);
+        fs.writeFileSync(foreignTemp, 'concurrent temp');
+        throw new Error('failure after concurrent acceptance');
+      },
+    };
+    await onboardRoute(ctx)('/onboard/init', 'POST', {}, {}, new URL('http://localhost/onboard/init'));
+
+    assert.equal(sent[0].status, 500);
+    assert.deepEqual(fs.readFileSync(statusFile), concurrentBytes);
+    assert.equal(fs.readFileSync(foreignTemp, 'utf8'), 'concurrent temp');
+    assert.equal(fs.existsSync(registryFile), false, 'failure happened before this intent registered the repo');
+    const journals = onboardInitTransaction.journalDir(registryFile);
+    assert.equal(!fs.existsSync(journals) || fs.readdirSync(journals).length === 0, true);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('init force rearm waits for a live old injection, then replaces capped partial old work', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-force-live-old-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-init-force-live-data-'));
+  const registryFile = path.join(dataDir, 'workspaces.json');
+  const statusFile = path.join(outDir, 'onboard-drain-status.json');
+  const sent = [];
+  try {
+    writeQueue(outDir, 3, 1, [{ title: 'Old partial' }], 'generation-old-partial');
+    const live = {
+      repo, outDir, autoInject: true, batchSize: 20,
+      preparationState: 'failed', preparationForce: true,
+      preparationGeneration: 'generation-failed-force', error: 'replacement failed',
+      injectionGeneration: 'generation-old-partial', injectionState: 'running', injecting: true,
+      injectionOwner: 'old-live-owner', injectionPid: process.pid,
+      injectionLeaseExpiresAt: Date.now() + 60_000,
+    };
+    fs.writeFileSync(statusFile, JSON.stringify(live, null, 2) + '\n');
+    const liveBytes = fs.readFileSync(statusFile);
+    const baseCtx = {
+      ...makeCtx({ repo }, sent, () => {}, [repo]),
+      WORKSPACES_FILE: registryFile,
+      registrationRepoRoot: (candidate) => path.resolve(candidate),
+      setWorkspace: () => {},
+    };
+    await onboardRoute(baseCtx)('/onboard/init', 'POST', {}, {}, new URL('http://localhost/onboard/init'));
+    assert.equal(sent[0].status, 409);
+    assert.equal(sent[0].payload.code, 'onboarding_injection_in_progress');
+    assert.deepEqual(fs.readFileSync(statusFile), liveBytes);
+    assert.equal(fs.existsSync(registryFile), false);
+
+    fs.writeFileSync(statusFile, JSON.stringify({
+      ...live,
+      injectionState: 'failed',
+      injecting: false,
+      injectionOwner: null,
+      injectionPid: null,
+      injectionLeaseExpiresAt: null,
+      injectionAttempts: 3,
+      injectionRetryCapped: true,
+    }, null, 2) + '\n');
+    await onboardRoute(baseCtx)('/onboard/init', 'POST', {}, {}, new URL('http://localhost/onboard/init'));
+    assert.equal(sent[1].status, 200);
+    const replacement = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+    assert.equal(replacement.preparationState, 'pending');
+    assert.equal(replacement.preparationForce, true);
+    assert.notEqual(replacement.preparationGeneration, 'generation-failed-force');
+    assert.equal(replacement.queueGeneration, null);
+    assert.equal(replacement.injectionGeneration, null);
+    const due = headlessDrain.findPendingLearnerQueues(repo);
+    assert.equal(due.length, 1);
+    assert.equal(due[0].preparationDue, true);
+    assert.equal(due[0].injectDue, false);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
     fs.rmSync(dataDir, { recursive: true, force: true });
