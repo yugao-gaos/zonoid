@@ -31,6 +31,19 @@ const WS1 = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-wslist-w
 fs.mkdirSync(path.join(WS1, '.graph'), { recursive: true });
 const WS2 = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-wslist-ws2-')));
 fs.mkdirSync(path.join(WS2, '.graph'), { recursive: true });
+const PREBOOT_GHOST = path.join(os.tmpdir(), 'orch-wslist-preboot-ghost-' + Date.now());
+const PREBOOT_FILE = path.join(SANDBOX, 'registered-regular-file');
+fs.writeFileSync(PREBOOT_FILE, 'registry history, not a repo');
+const SYMLINK_TARGET = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-wslist-link-target-')));
+fs.mkdirSync(path.join(SYMLINK_TARGET, '.graph'), { recursive: true });
+const SYMLINK_REPO = path.join(SANDBOX, 'registered-repo-symlink');
+try { fs.symlinkSync(SYMLINK_TARGET, SYMLINK_REPO, 'dir'); } catch { /* symlinks may be unavailable */ }
+const PREBOOT_REPOS = [PREBOOT_GHOST, PREBOOT_FILE];
+if (fs.existsSync(SYMLINK_REPO)) PREBOOT_REPOS.push(SYMLINK_REPO);
+fs.writeFileSync(path.join(SANDBOX, 'workspaces.json'), JSON.stringify({
+  version: 2,
+  workspaces: { preboot: { repos: PREBOOT_REPOS } },
+}, null, 2));
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
@@ -78,6 +91,18 @@ async function waitForPing(ms = 8000) {
   return false;
 }
 
+async function waitForReady(ms = 8000) {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    try {
+      const r = await req('GET', '/health');
+      if (r.status === 200 && r.body.phase === 'ready') return true;
+    } catch { /* */ }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return false;
+}
+
 function spawnDaemon() {
   return spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
@@ -89,6 +114,7 @@ function spawnDaemon() {
   let child = spawnDaemon();
   try {
     ok('daemon came up', await waitForPing());
+    ok('daemon completed boot maintenance', await waitForReady());
 
     // (A) Initial state: no workspace set yet → /workspaces returns the GROUPED shape (a possibly
     // empty array of {name, repos:[], current} group objects).
@@ -99,6 +125,16 @@ function spawnDaemon() {
       // Grouped shape: every top-level entry is a group {name, repos:[]} — NOT a bare repo {path}.
       ok('(A) every entry is a grouped {name,repos[]} (not a flat {path})',
         (r.body.workspaces || []).every((w) => typeof w.name === 'string' && Array.isArray(w.repos)));
+      const entries = repoEntries(r.body);
+      ok('(A) pre-boot absent registry path was not materialized',
+        !fs.existsSync(PREBOOT_GHOST) && !entries.some((w) => w.path === PREBOOT_GHOST));
+      ok('(A) pre-boot regular-file registry path stayed a file',
+        fs.statSync(PREBOOT_FILE).isFile() && !fs.existsSync(path.join(PREBOOT_FILE, '.graph'))
+          && !entries.some((w) => w.path === PREBOOT_FILE));
+      if (fs.existsSync(SYMLINK_REPO)) {
+        ok('(A) symlink to a valid registered repo remains active',
+          entries.some((w) => w.path === SYMLINK_REPO));
+      }
     }
 
     // (B) Register WS1. P3: there is NO daemon-global current pointer — the `current` flag on
@@ -218,6 +254,8 @@ function spawnDaemon() {
       ok('(D) workspaces.json written to disk (v2 shape)', stored && stored.version === 2 && stored.workspaces && typeof stored.workspaces === 'object');
       ok('(D) WS1 in registry file', allRepos(stored).includes(WS1));
       ok('(D) WS2 in registry file', allRepos(stored).includes(WS2));
+      ok('(D) absent and file registry history is preserved',
+        allRepos(stored).includes(PREBOOT_GHOST) && allRepos(stored).includes(PREBOOT_FILE));
     }
 
     // (E) P3: GET /state without ?workspace= 400s (no daemon-global default to fall back onto).
@@ -234,22 +272,20 @@ function spawnDaemon() {
       ok('(F) /state?workspace=WS2 returns WS2 (no global pointer to clobber)', r2.status === 200 && r2.body.workspace === WS2);
     }
 
-    // (G) Ghost path: a path that never existed on disk is dropped from /workspaces.
-    // Inject a nonexistent path directly into the registry file; the daemon reads it fresh.
+    // (G) Repeated reads/background drains do not materialize history-only paths.
     {
-      const GHOST = path.join(os.tmpdir(), 'orch-wslist-ghost-never-existed-' + Date.now());
-      const wsFile = path.join(SANDBOX, 'workspaces.json');
-      let known = [];
-      try { known = JSON.parse(fs.readFileSync(wsFile, 'utf8')); } catch { /* */ }
-      if (!Array.isArray(known)) known = [];
-      if (!known.includes(GHOST)) { known.push(GHOST); fs.writeFileSync(wsFile, JSON.stringify(known)); }
-
-      const r = await req('GET', '/workspaces');
-      ok('(G) /workspaces ok with ghost in registry', r.status === 200 && r.body.ok === true);
-      const entries = repoEntries(r.body);
-      ok('(G) ghost nonexistent path is absent from list', !entries.some((w) => w.path === GHOST));
-      // Real workspaces are still present
-      ok('(G) WS2 still in list despite ghost', entries.some((w) => w.path === WS2));
+      let allAbsent = true;
+      let realPresent = true;
+      for (let i = 0; i < 3; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 75));
+        const r = await req('GET', '/workspaces');
+        const entries = repoEntries(r.body);
+        allAbsent = allAbsent && r.status === 200 && !fs.existsSync(PREBOOT_GHOST)
+          && !entries.some((w) => w.path === PREBOOT_GHOST || w.path === PREBOOT_FILE);
+        realPresent = realPresent && entries.some((w) => w.path === WS2);
+      }
+      ok('(G) repeated /workspaces reads never materialize absent/file history', allAbsent);
+      ok('(G) WS2 stays listed despite inactive registry history', realPresent);
     }
 
     // (H) Removed-dir workspace disappears: delete WS1 from disk; it should drop out of the list.
@@ -261,6 +297,15 @@ function spawnDaemon() {
       const entries = repoEntries(r.body);
       ok('(H) removed WS1 dir no longer in list', !entries.some((w) => w.path === WS1));
       ok('(H) WS2 still present after WS1 removed', entries.some((w) => w.path === WS2));
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      ok('(H) background maintenance does not recreate a mid-run disappearance', !fs.existsSync(WS1));
+
+      // Registry history was preserved, so a valid remount at the same path becomes active again
+      // without re-registering it.
+      fs.mkdirSync(path.join(WS1, '.graph'), { recursive: true });
+      const remounted = await req('GET', '/workspaces');
+      ok('(H) valid reappearance is listed from preserved registry history',
+        repoEntries(remounted.body).some((w) => w.path === WS1));
     }
 
   } finally {
@@ -268,6 +313,8 @@ function spawnDaemon() {
     try { fs.rmSync(SANDBOX, { recursive: true, force: true }); } catch { /* */ }
     try { fs.rmSync(WS1, { recursive: true, force: true }); } catch { /* */ }
     try { fs.rmSync(WS2, { recursive: true, force: true }); } catch { /* */ }
+    try { fs.rmSync(SYMLINK_TARGET, { recursive: true, force: true }); } catch { /* */ }
+    try { fs.rmSync(PREBOOT_GHOST, { recursive: true, force: true }); } catch { /* */ }
   }
 
   console.log('-----');

@@ -60,6 +60,21 @@ function repoRootWithContainers(startDir, { tmpdir, homedir }) {
   return m.exports.repoRoot(startDir);
 }
 
+function workspaceRegistryWithFs(stubFs) {
+  const Module = require('module');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'workspace-registry.js'), 'utf8');
+  const m = new Module('ws-reg-stub-fs', module);
+  m.filename = path.join(__dirname, '..', 'lib', 'workspace-registry.js');
+  m.paths = Module._nodeModulePaths(path.dirname(m.filename));
+  const origLoad = Module._load;
+  Module._load = function (req, parent, isMain) {
+    if (req === 'fs') return stubFs;
+    return origLoad.call(this, req, parent, isMain);
+  };
+  try { m._compile(src, m.filename); } finally { Module._load = origLoad; }
+  return m.exports;
+}
+
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
   if (cond) { console.log(`PASS  ${label}`); pass++; }
@@ -124,6 +139,8 @@ try {
   touchFile(linkedWorktree, '.git', `gitdir: ${linkedGitDir}\n`);
   ok('repoRoot maps a linked worktree with tracked .graph to its primary checkout',
     reg.repoRoot(linkedWorktree) === fs.realpathSync(linkedPrimary));
+  ok('activeRepoRoot maps a registered linked worktree to its primary checkout',
+    reg.activeRepoRoot(linkedWorktree) === fs.realpathSync(linkedPrimary));
   const nestedLinked = touchDir(linkedWorktree, 'src');
   ok('repoRoot maps a nested path in a tracked-graph worktree to its primary checkout',
     reg.repoRoot(nestedLinked) === fs.realpathSync(linkedPrimary));
@@ -313,6 +330,132 @@ try {
   const recovered = reg.addRepo(addFile, { workspace: 'second', repo: '/repos/four' }, { staleMs: 1, waitMs: 1000 });
   ok('addRepo reclaims an explicitly stale live-owner lock', recovered.workspaces.second.repos.includes('/repos/four'));
   ok('addRepo removes its replacement lock after stale-owner recovery', !fs.existsSync(staleLock));
+
+  // Empty/truncated/malformed locks can be the brief create-before-owner-write window. A fresh one
+  // must remain untouched, while an unchanged sufficiently stale one is safe to recover.
+  for (const [label, contents] of [['empty', ''], ['truncated', '{"pid":'], ['malformed', '{}']]) {
+    const malformedFile = path.join(SANDBOX, `malformed-${label}.json`);
+    const malformedLock = `${malformedFile}.lock`;
+    fs.writeFileSync(malformedLock, contents);
+    fs.utimesSync(malformedLock, new Date(0), new Date(0));
+    const value = reg.addRepo(malformedFile, { workspace: 'recovered', repo: `/repos/${label}` },
+      { staleMs: 1, waitMs: 500 });
+    ok(`addRepo reclaims an unchanged stale ${label} lock`,
+      value.workspaces.recovered.repos.includes(`/repos/${label}`));
+    ok(`addRepo releases its owner lock after stale ${label} recovery`, !fs.existsSync(malformedLock));
+  }
+
+  const freshMalformedFile = path.join(SANDBOX, 'fresh-malformed.json');
+  const freshMalformedLock = `${freshMalformedFile}.lock`;
+  fs.writeFileSync(freshMalformedLock, '{"pid":');
+  let freshMalformedTimedOut = false;
+  try {
+    reg.addRepo(freshMalformedFile, { workspace: 'blocked', repo: '/repos/blocked' },
+      { staleMs: 60000, waitMs: 35 });
+  } catch (err) { freshMalformedTimedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('addRepo never reclaims a fresh truncated lock',
+    freshMalformedTimedOut && fs.readFileSync(freshMalformedLock, 'utf8') === '{"pid":');
+  fs.unlinkSync(freshMalformedLock);
+
+  const liveToMalformedFile = path.join(SANDBOX, 'live-to-malformed.json');
+  const liveToMalformedLock = `${liveToMalformedFile}.lock`;
+  fs.writeFileSync(liveToMalformedLock,
+    JSON.stringify({ pid: process.pid, owner: 'live-before-corruption', at: Date.now() }));
+  fs.writeFileSync(liveToMalformedLock, '{"pid":');
+  let liveToMalformedTimedOut = false;
+  try {
+    reg.addRepo(liveToMalformedFile, { workspace: 'blocked', repo: '/repos/live-corrupt' },
+      { staleMs: 60000, waitMs: 35 });
+  } catch (err) { liveToMalformedTimedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('a live lock that becomes malformed is protected while fresh',
+    liveToMalformedTimedOut && fs.readFileSync(liveToMalformedLock, 'utf8') === '{"pid":');
+  fs.utimesSync(liveToMalformedLock, new Date(0), new Date(0));
+  const corruptRecovered = reg.addRepo(liveToMalformedFile,
+    { workspace: 'recovered', repo: '/repos/live-corrupt' }, { staleMs: 1, waitMs: 500 });
+  ok('the unchanged live-to-malformed lock becomes recoverable only after staleness',
+    corruptRecovered.workspaces.recovered.repos.includes('/repos/live-corrupt'));
+
+  const deadOwnerFile = path.join(SANDBOX, 'dead-owner.json');
+  const deadOwnerLock = `${deadOwnerFile}.lock`;
+  fs.writeFileSync(deadOwnerLock, JSON.stringify({ pid: 2147483647, owner: 'dead-owner', at: Date.now() }));
+  const deadRecovered = reg.addRepo(deadOwnerFile, { workspace: 'recovered', repo: '/repos/dead' },
+    { staleMs: 60000, waitMs: 500 });
+  ok('addRepo reclaims a well-formed lock whose owner process is dead',
+    deadRecovered.workspaces.recovered.repos.includes('/repos/dead'));
+
+  const liveOwnerFile = path.join(SANDBOX, 'live-owner.json');
+  const liveOwnerLock = `${liveOwnerFile}.lock`;
+  const liveOwnerBytes = JSON.stringify({ pid: process.pid, owner: 'live-owner', at: Date.now() });
+  fs.writeFileSync(liveOwnerLock, liveOwnerBytes);
+  let liveOwnerTimedOut = false;
+  try {
+    reg.addRepo(liveOwnerFile, { workspace: 'blocked', repo: '/repos/live' },
+      { staleMs: 60000, waitMs: 35 });
+  } catch (err) { liveOwnerTimedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('addRepo leaves a fresh live-owner lock intact',
+    liveOwnerTimedOut && fs.readFileSync(liveOwnerLock, 'utf8') === liveOwnerBytes);
+  fs.unlinkSync(liveOwnerLock);
+
+  // Deterministically replace a stale malformed incumbent between its first snapshot and reclaim
+  // check. The changed inode/content must protect the fresh live lock from the old recovery pass.
+  const replaceFile = path.join(SANDBOX, 'replaced-lock.json');
+  const replaceLock = `${replaceFile}.lock`;
+  fs.writeFileSync(replaceLock, '');
+  fs.utimesSync(replaceLock, new Date(0), new Date(0));
+  const replacementBytes = JSON.stringify({ pid: process.pid, owner: 'replacement-live', at: Date.now() });
+  let incumbentFd = null;
+  let replaced = false;
+  const swappingFs = new Proxy(fs, { get(target, key) {
+    if (key === 'openSync') return (file, flags, ...args) => {
+      const opened = target.openSync(file, flags, ...args);
+      if (file === replaceLock && flags === 'r') incumbentFd = opened;
+      return opened;
+    };
+    if (key === 'readFileSync') return (file, ...args) => {
+      const value = target.readFileSync(file, ...args);
+      if (!replaced && file === incumbentFd) {
+        replaced = true;
+        target.unlinkSync(replaceLock);
+        target.writeFileSync(replaceLock, replacementBytes);
+      }
+      return value;
+    };
+    return target[key];
+  }});
+  let replacementTimedOut = false;
+  try {
+    workspaceRegistryWithFs(swappingFs).addRepo(replaceFile,
+      { workspace: 'blocked', repo: '/repos/replaced' }, { staleMs: 60000, waitMs: 35 });
+  } catch (err) { replacementTimedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('stale malformed recovery never removes a replaced live lock',
+    replaced && replacementTimedOut && fs.readFileSync(replaceLock, 'utf8') === replacementBytes);
+  if (fs.existsSync(replaceLock)) fs.unlinkSync(replaceLock);
+
+  const releaseFile = path.join(SANDBOX, 'release-token.json');
+  const releaseLock = `${releaseFile}.lock`;
+  const releaseReplacement = JSON.stringify({ pid: process.pid, owner: 'release-replacement', at: Date.now() });
+  reg.withRegistryLock(releaseFile, () => {
+    fs.unlinkSync(releaseLock);
+    fs.writeFileSync(releaseLock, releaseReplacement);
+  });
+  ok('an old owner release never unlinks a replacement lock',
+    fs.readFileSync(releaseLock, 'utf8') === releaseReplacement);
+  fs.unlinkSync(releaseLock);
+
+  const activeDir = mk('active-repo-path');
+  const inactiveFile = touchFile(SANDBOX, 'inactive-repo-file');
+  ok('isActiveRepoPath accepts an existing directory', reg.isActiveRepoPath(activeDir));
+  ok('isActiveRepoPath rejects a regular file', !reg.isActiveRepoPath(inactiveFile));
+  ok('isActiveRepoPath rejects an absent path', !reg.isActiveRepoPath(path.join(SANDBOX, 'absent-repo')));
+  ok('activeRepoRoot keeps an existing markerless registered directory active',
+    reg.activeRepoRoot(activeDir) === path.resolve(activeDir));
+  ok('activeRepoRoot leaves an absent registered path inactive',
+    reg.activeRepoRoot(path.join(SANDBOX, 'absent-repo')) === null);
+  const activeLink = path.join(SANDBOX, 'active-repo-link');
+  try { fs.symlinkSync(activeDir, activeLink, 'dir'); } catch { /* symlinks may be unavailable */ }
+  if (fs.existsSync(activeLink)) {
+    ok('isActiveRepoPath accepts a symlink to an existing directory', reg.isActiveRepoPath(activeLink));
+  }
 
   // addRepo validates inputs
   let threw = false;
