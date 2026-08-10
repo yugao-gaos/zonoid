@@ -95,6 +95,50 @@ async function waitFor(check, timeoutMs = 15000) {
   throw new Error('timed out waiting for onboarding state');
 }
 
+function runFullInit(repo, dataDir, homeDir, port, daemonDeps = {}) {
+  const source = `
+    const { init } = require(${JSON.stringify(CLI_PATH)});
+    init({
+      harnesses: ['cursor'],
+      daemonDeps: JSON.parse(process.env.INIT_DAEMON_DEPS),
+    }).then(() => {
+      console.log('FULL_INIT_OK');
+    }).catch((err) => {
+      console.error('FULL_INIT_FAILURE ' + (err && err.message || err));
+      process.exitCode = 1;
+    });
+  `;
+  return spawnSync(process.execPath, ['-e', source], {
+    cwd: repo,
+    encoding: 'utf8',
+    timeout: 30000,
+    env: {
+      ...process.env,
+      HOME: homeDir,
+      USERPROFILE: homeDir,
+      CLAUDE_PLUGIN_DATA: dataDir,
+      CLAUDE_CODE_SESSION_ID: '',
+      ORCH_PORT: String(port),
+      ORCH_TOKEN: '',
+      INIT_DAEMON_DEPS: JSON.stringify({ port, ...daemonDeps }),
+    },
+  });
+}
+
+function prepareInitRepo(prefix) {
+  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  const repo = path.join(fixtureDir, 'repo');
+  const dataDir = path.join(fixtureDir, 'data');
+  const homeDir = path.join(fixtureDir, 'home');
+  fs.mkdirSync(repo);
+  fs.mkdirSync(dataDir);
+  fs.mkdirSync(homeDir);
+  git(repo, ['init']);
+  git(repo, ['config', 'user.name', 'test']);
+  git(repo, ['config', 'user.email', 'test@example.com']);
+  return { fixtureDir, repo, dataDir, homeDir };
+}
+
 async function runHeadlessPreparation(repo, outDir) {
   const savedLease = process.env.HEADLESS_DRAIN_GLOBAL_LEASE;
   process.env.HEADLESS_DRAIN_GLOBAL_LEASE = '0';
@@ -195,9 +239,11 @@ test('init lifecycle arms onboarding without a dashboard and leaves accumulated 
     assert.equal(git(repo, ['diff', '--', 'src/feature.js']), '');
 
     const cliSource = fs.readFileSync(path.join(__dirname, '..', 'packages', 'cli', 'bin', 'zonoid.js'), 'utf8');
-    const registerAt = cliSource.indexOf('const registeredRepo = await registerWorkspace(cwd, opts.workspace);');
-    const onboardAt = cliSource.indexOf('if (registeredRepo) await startWorkspaceOnboarding(registeredRepo);');
-    assert.ok(registerAt >= 0 && onboardAt > registerAt, 'init must arm onboarding immediately after registration');
+    const readyAt = cliSource.indexOf('const daemonReady = await checkDaemon(daemonDeps);');
+    const registerAt = cliSource.indexOf('const registeredRepo = await registerWorkspace(cwd, opts.workspace, daemonDeps);');
+    const onboardAt = cliSource.indexOf('if (registeredRepo) await startWorkspaceOnboarding(registeredRepo, daemonDeps);');
+    assert.ok(readyAt >= 0 && registerAt > readyAt && onboardAt > registerAt,
+      'init must verify the daemon before registering and arm onboarding immediately afterward');
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -296,18 +342,22 @@ test('cold daemon startup is non-blocking and waits until the daemon is ready', 
   }
 });
 
-test('daemon readiness rejects a real HTTP impostor without terminating it', async () => {
+test('full init rejects a real HTTP impostor without sending mutations or terminating it', async () => {
+  const fixture = prepareInitRepo('zonoid-impostor-init-');
   const port = await testPort();
+  const requestLog = path.join(fixture.fixtureDir, 'requests.log');
   const impostorSource = `
     const http = require('node:http');
-    const server = http.createServer((_req, res) => {
+    const fs = require('node:fs');
+    const server = http.createServer((req, res) => {
+      fs.appendFileSync(process.env.IMPOSTOR_REQUEST_LOG, req.method + ' ' + req.url + '\\n');
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, phase: 'ready' }));
     });
     server.listen(Number(process.env.IMPOSTOR_PORT), '127.0.0.1');
   `;
   const impostor = spawn(process.execPath, ['-e', impostorSource], {
-    env: { ...process.env, IMPOSTOR_PORT: String(port) },
+    env: { ...process.env, IMPOSTOR_PORT: String(port), IMPOSTOR_REQUEST_LOG: requestLog },
     stdio: 'ignore',
   });
   try {
@@ -318,10 +368,74 @@ test('daemon readiness rejects a real HTTP impostor without terminating it', asy
       healthTimeoutMs: 50,
       pollMs: 25,
     }), false, 'generic HTTP 200 must not be accepted as Zonoid readiness');
+
+    const client = runFullInit(fixture.repo, fixture.dataDir, fixture.homeDir, port, {
+      startupTimeoutMs: 250,
+      healthTimeoutMs: 50,
+      pollMs: 25,
+    });
+    assert.notEqual(client.status, 0, client.stdout || client.stderr);
+    assert.match(`${client.stdout}\n${client.stderr}`, /Initialization aborted: no verified Zonoid daemon is ready/);
+    const requests = fs.readFileSync(requestLog, 'utf8').trim().split(/\r?\n/).filter(Boolean);
+    assert.equal(requests.some((request) => request === 'POST /workspace'), false,
+      `unsigned service must not receive workspace registration: ${requests.join(', ')}`);
+    assert.equal(requests.some((request) => request.startsWith('POST /onboard/')), false,
+      `unsigned service must not receive onboarding mutations: ${requests.join(', ')}`);
     assert.equal(processIsAlive(impostor.pid), true, 'init must not terminate an independently running process');
   } finally {
     if (processIsAlive(impostor.pid)) impostor.kill('SIGKILL');
     await waitForProcessExit(impostor.pid);
+    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+  }
+});
+
+test('full init aborts against an unresponsive service without sending mutations', async () => {
+  const fixture = prepareInitRepo('zonoid-unresponsive-init-');
+  const port = await testPort();
+  const requestLog = path.join(fixture.fixtureDir, 'requests.log');
+  const readyFile = path.join(fixture.fixtureDir, 'ready');
+  const serviceSource = `
+    const http = require('node:http');
+    const fs = require('node:fs');
+    const server = http.createServer((req, res) => {
+      fs.appendFileSync(process.env.SERVICE_REQUEST_LOG, req.method + ' ' + req.url + '\\n');
+      if (req.url === '/health') return;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, outDir: process.cwd(), status: {} }));
+    });
+    server.listen(Number(process.env.SERVICE_PORT), '127.0.0.1', () => {
+      fs.writeFileSync(process.env.SERVICE_READY_FILE, 'ready');
+    });
+  `;
+  const service = spawn(process.execPath, ['-e', serviceSource], {
+    env: {
+      ...process.env,
+      SERVICE_PORT: String(port),
+      SERVICE_REQUEST_LOG: requestLog,
+      SERVICE_READY_FILE: readyFile,
+    },
+    stdio: 'ignore',
+  });
+
+  try {
+    await waitFor(() => fs.existsSync(readyFile), 2000);
+    const client = runFullInit(fixture.repo, fixture.dataDir, fixture.homeDir, port, {
+      startupTimeoutMs: 250,
+      healthTimeoutMs: 50,
+      pollMs: 25,
+    });
+    assert.notEqual(client.status, 0, client.stdout || client.stderr);
+    assert.match(`${client.stdout}\n${client.stderr}`, /Initialization aborted: no verified Zonoid daemon is ready/);
+    const requests = fs.readFileSync(requestLog, 'utf8').trim().split(/\r?\n/).filter(Boolean);
+    assert.equal(requests.some((request) => request === 'POST /workspace'), false,
+      `unresponsive service must not receive workspace registration: ${requests.join(', ')}`);
+    assert.equal(requests.some((request) => request.startsWith('POST /onboard/')), false,
+      `unresponsive service must not receive onboarding mutations: ${requests.join(', ')}`);
+    assert.equal(processIsAlive(service.pid), true, 'init must not terminate an independently running process');
+  } finally {
+    if (processIsAlive(service.pid)) service.kill('SIGKILL');
+    await waitForProcessExit(service.pid);
+    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
   }
 });
 
