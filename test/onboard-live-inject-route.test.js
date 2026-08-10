@@ -33,12 +33,13 @@ function runNode(args, env) {
 }
 
 function writeQueue(outDir, total, cursor, kept = [], generation) {
+  const rejectedCount = Math.max(0, cursor - kept.length);
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
     total,
     cursor,
     kept,
-    rejected: [],
+    rejected: Array.from({ length: rejectedCount }, (_, index) => ({ reason: `rejected-${index}` })),
     pending: Array.from({ length: total }, (_, index) => ({ title: `candidate-${index}` })),
     ...(generation ? { generation } : {}),
   }));
@@ -1494,10 +1495,16 @@ test('onboarding status lock finalizer never unlinks a replacement owner lock', 
   const replacement = JSON.stringify({ pid: process.pid, owner: 'replacement-owner', at: Date.now() });
   try {
     onboardState.withFileLock(file, () => {
-      fs.unlinkSync(lock);
-      fs.writeFileSync(lock, replacement);
+      const held = path.join(lock, 'held');
+      const own = fs.readdirSync(held).map((name) => path.join(held, name))[0];
+      fs.unlinkSync(own);
+      fs.rmdirSync(held);
+      fs.mkdirSync(held);
+      fs.writeFileSync(path.join(held, 'owner-00000000000000000000000000000000.json'), replacement);
     });
-    assert.equal(fs.readFileSync(lock, 'utf8'), replacement);
+    assert.equal(fs.readFileSync(
+      path.join(lock, 'held', 'owner-00000000000000000000000000000000.json'), 'utf8'
+    ), replacement);
   } finally {
     fs.rmSync(outDir, { recursive: true, force: true });
   }

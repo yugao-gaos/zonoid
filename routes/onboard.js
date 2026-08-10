@@ -85,7 +85,7 @@ function summarizeInflight(q) {
 
 function queueStatus(outDir) {
   const q = readJSON(path.join(outDir, 'onboard-queue.json'), null);
-  const validated = validateOnboardQueue(q);
+  const validated = validateOnboardQueue(q, { allowLegacy: true });
   if (!validated.ok) return null;
   const processed = q.cursor;
   const remaining = Math.max(0, q.total - q.cursor);

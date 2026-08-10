@@ -477,7 +477,16 @@ function readJSON(p) {
     onboardState.validateOnboardQueue({
       total: 2, cursor: 0, kept: [], rejected: [], pending: [candidate, candidate],
       completed: { 0: { count: 1, kept: [candidate], rejected: [] } },
-    }).ok === true);
+    }, { allowLegacy: true }).ok === true);
+  ok('legacy compatibility requires an explicit opt-in',
+    onboardState.validateOnboardQueue({
+      total: 2, cursor: 0, kept: [], rejected: [], pending: [candidate, candidate],
+    }).reason === 'legacy_queue_requires_opt_in');
+  ok('current explicit generations require exact contiguous outcomes',
+    onboardState.validateOnboardQueue({
+      generation: 'generation-missing-outcome', total: 2, cursor: 1,
+      kept: [], rejected: [], pending: [candidate, candidate],
+    }).reason === 'outcome_cursor_mismatch');
   ok('expected generation fencing takes precedence over replacement queue internals',
     onboardState.validateOnboardQueue(ownerless, { expectedGeneration: 'generation-previous' }).reason
       === 'generation_replaced');
@@ -551,17 +560,80 @@ function readJSON(p) {
 
   const releaseReplacement = JSON.stringify({ pid: process.pid, owner: 'release-replacement', at: Date.now() });
   learner.withQueueLock(qf, () => {
-    fs.unlinkSync(lock);
-    fs.writeFileSync(lock, releaseReplacement);
+    const held = path.join(lock, 'held');
+    const own = fs.readdirSync(held).map((name) => path.join(held, name))[0];
+    fs.unlinkSync(own);
+    fs.rmdirSync(held);
+    fs.mkdirSync(held);
+    fs.writeFileSync(path.join(held, 'owner-00000000000000000000000000000000.json'), releaseReplacement);
   });
   ok('old queue lock owner release preserves a replacement token',
-    fs.readFileSync(lock, 'utf8') === releaseReplacement);
-  fs.unlinkSync(lock);
+    fs.readFileSync(path.join(lock, 'held', 'owner-00000000000000000000000000000000.json'), 'utf8') === releaseReplacement);
+  fs.rmSync(lock, { recursive: true, force: true });
 
   fs.writeFileSync(lock, JSON.stringify({ pid: 2147483647, owner: 'dead-owner', at: Date.now() }));
   let reclaimed = false;
   learner.withQueueLock(qf, () => { reclaimed = true; }, { waitMs: 100 });
   ok('well-formed dead queue lock owner is safely reclaimed', reclaimed && !fs.existsSync(lock));
+
+  const held = path.join(lock, 'held');
+  const liveOwnerFile = path.join(held, 'owner-11111111111111111111111111111111.json');
+  fs.mkdirSync(held, { recursive: true });
+  fs.writeFileSync(liveOwnerFile, JSON.stringify({ pid: process.pid, owner: 'live-owner', at: Date.now() }));
+  let liveTimedOut = false;
+  try { learner.withQueueLock(qf, () => {}, { staleMs: 60000, waitMs: 35 }); }
+  catch (err) { liveTimedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('fresh live directory owner remains authoritative', liveTimedOut && fs.existsSync(liveOwnerFile));
+  fs.rmSync(lock, { recursive: true, force: true });
+
+  const deadOwnerFile = path.join(held, 'owner-22222222222222222222222222222222.json');
+  fs.mkdirSync(held, { recursive: true });
+  fs.writeFileSync(deadOwnerFile, JSON.stringify({ pid: 2147483647, owner: 'dead-owner', at: Date.now() }));
+  let deadDirectoryReclaimed = false;
+  learner.withQueueLock(qf, () => { deadDirectoryReclaimed = true; }, { staleMs: 60000, waitMs: 100 });
+  ok('dead directory owner is reclaimed without leaving lock artifacts',
+    deadDirectoryReclaimed && !fs.existsSync(lock));
+
+  const malformedOwnerFile = path.join(held, 'owner-33333333333333333333333333333333.json');
+  fs.mkdirSync(held, { recursive: true });
+  fs.writeFileSync(malformedOwnerFile, '{"pid":');
+  let malformedTimedOut = false;
+  try { learner.withQueueLock(qf, () => {}, { staleMs: 60000, waitMs: 35 }); }
+  catch (err) { malformedTimedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('fresh malformed directory owner is protected during owner-record publication',
+    malformedTimedOut && fs.existsSync(malformedOwnerFile));
+  fs.utimesSync(malformedOwnerFile, new Date(0), new Date(0));
+  let malformedReclaimed = false;
+  learner.withQueueLock(qf, () => { malformedReclaimed = true; }, { staleMs: 1, waitMs: 100 });
+  ok('stale malformed directory owner is recoverable', malformedReclaimed && !fs.existsSync(lock));
+
+  const staleOwnerFile = path.join(held, 'owner-44444444444444444444444444444444.json');
+  const replacementOwnerFile = path.join(held, 'owner-55555555555555555555555555555555.json');
+  const replacementOwnerBytes = JSON.stringify({ pid: process.pid, owner: 'replacement-owner', at: Date.now() });
+  fs.mkdirSync(held, { recursive: true });
+  fs.writeFileSync(staleOwnerFile, JSON.stringify({ pid: 2147483647, owner: 'stale-owner', at: 1 }));
+  let swappedAfterExactUnlink = false;
+  const recoverySwapFs = new Proxy(fs, { get(target, key) {
+    if (key === 'unlinkSync') return (file, ...args) => {
+      const result = target.unlinkSync(file, ...args);
+      if (!swappedAfterExactUnlink && file === staleOwnerFile) {
+        swappedAfterExactUnlink = true;
+        target.rmdirSync(held);
+        target.mkdirSync(held);
+        target.writeFileSync(replacementOwnerFile, replacementOwnerBytes);
+      }
+      return result;
+    };
+    return target[key];
+  } });
+  let recoverySwapTimedOut = false;
+  try {
+    learner.withQueueLock(qf, () => {}, { fsImpl: recoverySwapFs, staleMs: 60000, waitMs: 35 });
+  } catch (err) { recoverySwapTimedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('stale recovery cannot remove a replacement created after exact-owner unlink',
+    swappedAfterExactUnlink && recoverySwapTimedOut
+      && fs.readFileSync(replacementOwnerFile, 'utf8') === replacementOwnerBytes);
+  fs.rmSync(lock, { recursive: true, force: true });
 }
 
 // ---- TEST 8: failed reservation becomes retryable -------------------------
