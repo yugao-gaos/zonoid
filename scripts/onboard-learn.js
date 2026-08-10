@@ -49,6 +49,7 @@ const { readToken } = require('../lib/mcp-core');
 const {
   INJECTION_RECEIPT_FILE,
   readOnboardStatus,
+  readOnboardQueue,
   pidAlive,
   liveOnboardInjectionLease,
   mutateOnboardStatus,
@@ -384,7 +385,7 @@ function capCandidates(cands, max) {
 // inflight/completed: sparse start-index maps used so several drain children can reserve
 // non-overlapping slices and merge them in cursor order.
 function readQueue(queueFilePath) {
-  return loadJSON(queueFilePath, null);
+  return readOnboardQueue(path.dirname(queueFilePath));
 }
 
 function queueFilePath(outDir) {
@@ -750,7 +751,7 @@ async function inject(notesFile, confirm, workspace, expectedGeneration, expecte
 
 function assertCurrentInjectionGeneration(outDir, expectedGeneration, expectedOwner) {
   if (!expectedGeneration) return;
-  const queue = loadJSON(queueFilePath(outDir), null);
+  const queue = readOnboardQueue(outDir);
   const validated = validateOnboardQueue(queue, { expectedGeneration, allowLegacy: true });
   const current = queueGeneration(queue);
   const status = readOnboardStatus(outDir);
@@ -908,7 +909,7 @@ function enqueue(inDir, outDir, repoAbs) {
     const recovered = reconcileOnboardPublication(outDir);
     if (!recovered.ok) throw new Error(`could not reconcile onboarding publication: ${recovered.error}`);
     if (recovered.hadIntent && recovered.settled === 'committed') {
-      const recoveredQueue = loadJSON(queueFilePath(outDir), null);
+      const recoveredQueue = readOnboardQueue(outDir);
       if (!validateOnboardQueue(recoveredQueue, { expectedGeneration: recovered.generation }).ok) {
         throw new Error('recovered onboarding publication has no matching queue');
       }
@@ -974,7 +975,7 @@ function enqueue(inDir, outDir, repoAbs) {
       },
     });
     if (!replaced.applied) throw new Error('cannot replace onboarding queue while injection is running');
-    publishedQueue = loadJSON(queueFilePath(outDir), queue);
+    publishedQueue = readOnboardQueue(outDir) || queue;
   } else {
     // A preparation staging directory is private to one miner attempt. Its final queue/status pair
     // is committed later by publishPreparedQueue in the real output directory.
@@ -1092,7 +1093,7 @@ async function main() {
   }
 
   if (has('inject')) {
-    const expectedGeneration = arg('generation', queueGeneration(loadJSON(queueFilePath(outDir), null)));
+    const expectedGeneration = arg('generation', queueGeneration(readOnboardQueue(outDir)));
     await inject(notesFile, has('confirm'), arg('workspace', repoAbs), expectedGeneration, arg('owner', null));
     return;
   }

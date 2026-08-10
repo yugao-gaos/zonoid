@@ -1700,6 +1700,33 @@ test('invalid publication recovery rejects queue/status FIFOs without blocking a
   }
 });
 
+test('ordinary headless discovery rejects a FIFO queue without a publication journal', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-canonical-queue-fifo-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  const queueFile = path.join(outDir, 'onboard-queue.json');
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    const fifo = child_process.spawnSync('mkfifo', [queueFile], { encoding: 'utf8', windowsHide: true });
+    if (fifo.status !== 0) return;
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({ repo, outDir }));
+    const childSource = `
+      const headless = require(process.argv[1]);
+      process.stdout.write(JSON.stringify(headless.findPendingLearnerQueues(process.argv[2])));
+    `;
+    const discovered = child_process.spawnSync(
+      process.execPath,
+      ['-e', childSource, require.resolve('../lib/headless-drain'), repo],
+      { encoding: 'utf8', windowsHide: true, timeout: 3000 }
+    );
+    assert.notEqual(discovered.error && discovered.error.code, 'ETIMEDOUT',
+      'headless discovery must not block on a canonical FIFO without a journal');
+    assert.equal(discovered.status, 0, discovered.stderr);
+    assert.deepEqual(JSON.parse(discovered.stdout), []);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test('registered headless reconciliation removes malformed journals without blocking later discovery', () => {
   const hd = freshModule();
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-publication-invalid-registered-'));
