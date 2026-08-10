@@ -1890,6 +1890,40 @@ test('onboarding status lock finalizer never unlinks a replacement owner lock', 
   }
 });
 
+test('onboarding status locks persist incarnation and recover a reused PID owner', () => {
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-status-lock-incarnation-'));
+  const file = path.join(outDir, 'onboard-drain-status.json');
+  const lock = `${file}.lock`;
+  try {
+    const expected = onboardState.processIncarnation(process.pid);
+    let ownerRecord = null;
+    onboardState.mutateOnboardStatus(outDir, (status) => {
+      const held = path.join(lock, 'held');
+      ownerRecord = JSON.parse(fs.readFileSync(path.join(held, fs.readdirSync(held)[0]), 'utf8'));
+      return { ...status, preparationState: 'pending' };
+    });
+    assert.equal(Object.prototype.hasOwnProperty.call(ownerRecord, 'processIncarnation'), true);
+    assert.equal(ownerRecord.processIncarnation, expected);
+
+    const held = path.join(lock, 'held');
+    fs.mkdirSync(held, { recursive: true });
+    fs.writeFileSync(path.join(held, 'owner-13131313131313131313131313131313.json'), JSON.stringify({
+      pid: process.pid,
+      processIncarnation: 'test:older-process-incarnation',
+      owner: 'reused-status-owner',
+      at: Date.now(),
+    }));
+    const updated = onboardState.mutateOnboardStatus(outDir, (status) => ({
+      ...status, preparationState: 'failed',
+    }));
+    assert.equal(updated.applied, true);
+    assert.equal(updated.value.preparationState, 'failed');
+    assert.equal(fs.existsSync(lock), false);
+  } finally {
+    fs.rmSync(outDir, { recursive: true, force: true });
+  }
+});
+
 test('init exceptions after each durable write restore the exact old force image', async (t) => {
   for (const boundary of ['journal', 'status', 'registry']) {
     await t.test(boundary, async () => {

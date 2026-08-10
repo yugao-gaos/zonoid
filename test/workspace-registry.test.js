@@ -339,6 +339,31 @@ try {
   ok('addRepo proceeds after the live legacy owner releases its lock',
     recovered.workspaces.second.repos.includes('/repos/four'));
 
+  const currentIncarnation = require('../lib/onboard-state').processIncarnation(process.pid);
+  let registryOwner = null;
+  reg.withRegistryLock(addFile, () => {
+    const held = path.join(`${addFile}.lock`, 'held');
+    registryOwner = JSON.parse(fs.readFileSync(path.join(held, fs.readdirSync(held)[0]), 'utf8'));
+  });
+  ok('new registry lock owners persist their exact process incarnation',
+    registryOwner && Object.prototype.hasOwnProperty.call(registryOwner, 'processIncarnation')
+      && registryOwner.processIncarnation === currentIncarnation);
+
+  const reusedRegistryFile = path.join(SANDBOX, 'reused-pid-registry.json');
+  const reusedRegistryHeld = path.join(`${reusedRegistryFile}.lock`, 'held');
+  fs.mkdirSync(reusedRegistryHeld, { recursive: true });
+  fs.writeFileSync(path.join(reusedRegistryHeld, 'owner-10101010101010101010101010101010.json'), JSON.stringify({
+    pid: process.pid,
+    processIncarnation: 'test:older-process-incarnation',
+    owner: 'reused-registry-owner',
+    at: Date.now(),
+  }));
+  const reusedRegistry = reg.addRepo(reusedRegistryFile,
+    { workspace: 'recovered', repo: '/repos/reused-pid' }, { staleMs: 60000, waitMs: 500 });
+  ok('registry multiwriter recovery does not trust a reused live PID',
+    reusedRegistry.workspaces.recovered.repos.includes('/repos/reused-pid')
+      && !fs.existsSync(`${reusedRegistryFile}.lock`));
+
   // Empty/truncated/malformed locks can be the brief create-before-owner-write window. A fresh one
   // must remain untouched, while an unchanged sufficiently stale one is safe to recover.
   for (const [label, contents] of [['empty', ''], ['truncated', '{"pid":'], ['malformed', '{}']]) {

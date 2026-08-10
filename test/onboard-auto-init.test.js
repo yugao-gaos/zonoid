@@ -1081,6 +1081,88 @@ test('daemon boot ignores an unreadable invalid init journal and quarantines it 
   }
 });
 
+test('daemon restart keeps an invalid journal fenced after status-temp publication crash', async () => {
+  const fixture = prepareInitRepo('zonoid-publication-invalid-restart-');
+  const port = await testPort();
+  const token = 'publication-invalid-restart-token';
+  const registryFile = path.join(fixture.dataDir, 'workspaces.json');
+  const outDir = path.join(fixture.repo, '.zonoid', 'onboard', path.basename(fixture.repo));
+  const queueFile = path.join(outDir, 'onboard-queue.json');
+  const statusFile = path.join(outDir, 'onboard-drain-status.json');
+  const journal = path.join(outDir, 'onboard-publication-intent.json');
+  fs.writeFileSync(path.join(fixture.dataDir, 'token'), `${token}\n`);
+  workspaceRegistry.addRepo(registryFile, { workspace: 'invalid-publication-restart', repo: fixture.repo });
+  fs.mkdirSync(outDir, { recursive: true });
+  fs.writeFileSync(queueFile, JSON.stringify({
+    generation: 'generation-untrusted-restart', total: 1, cursor: 0,
+    kept: [], rejected: [], pending: [{ title: 'untrusted' }],
+  }));
+  fs.writeFileSync(statusFile, JSON.stringify({
+    repo: fixture.repo,
+    outDir,
+    autoInject: true,
+    preparationState: 'running',
+    preparationGeneration: 'generation-restart-reprepare',
+    preparationOwner: 'dead-restart-owner',
+    preparationPid: 999999,
+    preparationLeaseExpiresAt: Date.now() - 1,
+    queueGeneration: 'generation-before-restart',
+    injectionGeneration: 'generation-before-restart',
+  }));
+  fs.writeFileSync(journal, JSON.stringify({ version: 1, generation: 'shallow-untrusted' }));
+  const daemonEnv = {
+    ...process.env,
+    CLAUDE_PLUGIN_DATA: fixture.dataDir,
+    ORCH_TOKEN: '',
+    CLAUDE_CODE_SESSION_ID: '',
+    HEADLESS_DRAIN_MAX_ITERATIONS: '-1',
+    ZONOID_EMBED_PROVIDER: 'local',
+    ZONOID_EMBED_LOCAL_BASE_URL: 'http://127.0.0.1:1',
+  };
+
+  try {
+    const crashed = spawnSync(process.execPath, [DAEMON_PATH], {
+      cwd: fixture.repo,
+      encoding: 'utf8',
+      timeout: 15000,
+      windowsHide: true,
+      env: {
+        ...daemonEnv,
+        ORCH_PORT: String(port),
+        ZONOID_TEST_ONBOARD_PUBLICATION_CRASH_AFTER: 'invalid_status_commit',
+      },
+    });
+    assert.equal(crashed.status, 87, crashed.stderr);
+    assert.equal(fs.existsSync(queueFile), false);
+    assert.equal(fs.existsSync(journal), true,
+      'hard exit after the safe-status temp write must retain the canonical poison fence');
+    assert.ok(fs.readdirSync(outDir).some((name) => (
+      /^onboard-drain-status\.json\.invalid-\d+-[a-f0-9]+\.tmp$/.test(name)
+    )));
+
+    assert.equal(await checkDaemon({
+      port,
+      daemonPath: DAEMON_PATH,
+      startupTimeoutMs: 15000,
+      env: daemonEnv,
+    }), true);
+    const health = await daemonRequest(port, 'GET', '/health');
+    assert.equal(health.status, 200);
+    assert.equal(health.payload.phase, 'ready');
+    assert.equal(fs.existsSync(journal), false);
+    assert.equal(fs.existsSync(queueFile), false);
+    assert.deepEqual(fs.readdirSync(outDir).filter((name) => (
+      /^onboard-drain-status\.json\.invalid-\d+-[a-f0-9]+\.tmp$/.test(name)
+    )), []);
+    const status = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+    assert.equal(status.preparationState, 'pending');
+    assert.equal(status.preparationGeneration, 'generation-restart-reprepare');
+  } finally {
+    await stopDaemon(port);
+    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+  }
+});
+
 test('daemon loadState survives a settled init with read-only Git exclude and retries later', async () => {
   const fixture = prepareInitRepo('zonoid-init-exclude-readonly-');
   const port = await testPort();
