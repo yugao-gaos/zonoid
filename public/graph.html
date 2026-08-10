@@ -603,6 +603,18 @@
   }
   .ol-status { color: #8b949e; font-size: 12px; margin-top: 12px; min-height: 18px; }
   .ol-status.err { color: #f85149; }
+  .ol-retry {
+    display: none;
+    align-self: flex-start;
+    margin-top: 8px;
+    padding: 7px 12px;
+    border: 1px solid #f85149;
+    border-radius: 6px;
+    background: #21262d;
+    color: #f0f6fc;
+    cursor: pointer;
+  }
+  .ol-retry:disabled { cursor: wait; opacity: .65; }
   @keyframes onboardCloudFieldBreathe {
     0%,100% { opacity: .46; transform: scale(.92); }
     50% { opacity: .78; transform: scale(1.04); }
@@ -648,6 +660,7 @@
       </div>
     </div>
     <div class="ol-status" id="onboardStatus"></div>
+    <button class="ol-retry" id="onboardRetryInjectBtn" type="button" onclick="retryOnboardInjection()">Retry live injection</button>
   </div>
 </div>
 <header>
@@ -8092,17 +8105,6 @@ async function checkOnboardingState() {
   const workspace = currentOnboardWorkspace();
   const storedOutDir = localStorage.getItem(onboardStoreKey('outdir')) || '';
 
-  if (workspace && !storedOutDir && localStorage.getItem(onboardCompletedKey()) === '1') {
-    completeOnboardLearning();
-    return;
-  }
-
-  const onboardNotesPresent = await hasInjectedOnboardNotes();
-  if (onboardNotesPresent === true) {
-    completeOnboardLearning();
-    return;
-  }
-
   if (workspace && !storedOutDir) {
     for (const candidateOutDir of candidateOnboardOutDirs(workspace)) {
       try {
@@ -8159,6 +8161,20 @@ async function checkOnboardingState() {
       // Fall through to auto-start. The status endpoint may be
       // unavailable before the queue has been created.
     }
+  }
+
+  // Queue state is authoritative over the browser's completion latch and previously injected
+  // notes. A force replacement deliberately leaves the old notes live until its new generation is
+  // ready, so checking notes/latch first would hide the replacement while it is pending.
+  if (workspace && !storedOutDir && localStorage.getItem(onboardCompletedKey()) === '1') {
+    completeOnboardLearning();
+    return;
+  }
+
+  const onboardNotesPresent = await hasInjectedOnboardNotes();
+  if (onboardNotesPresent === true) {
+    completeOnboardLearning();
+    return;
   }
 
   if (onboardNotesPresent === null) {
@@ -8249,7 +8265,7 @@ function setOnboardProgress(processed, total, kept=0, injected=0, inflight=0) {
 }
 
 function setOnboardInjectVisible(visible, busy) {
-  const btn = document.getElementById('onboardInjectBtn');
+  const btn = document.getElementById('onboardRetryInjectBtn');
   if (!btn) return;
   btn.style.display = visible ? '' : 'none';
   btn.disabled = !!busy;
@@ -8319,8 +8335,11 @@ function completeOnboardLearning() {
 }
 
 function onboardStatusComplete(s) {
-  if (!s || s.error) return false;
-  return !!((s.noCandidates === true && s.done === true) || onboardStatusDrained(s) || (s.done === true && (s.injected || (!s.autoInject && s.needsReview === false))));
+  if (!s || s.error || s.preparing || s.injecting) return false;
+  if (['pending', 'running', 'backoff', 'failed', 'blocked'].includes(s.injectionState)) return false;
+  if (s.noCandidates === true || s.noNotesToInject === true) return s.done === true;
+  if (s.autoInject === false) return s.done === true && onboardStatusDrained(s);
+  return s.done === true && s.injected === true && (!s.injectionState || s.injectionState === 'succeeded');
 }
 
 function onboardStatusDrained(s) {
@@ -8335,7 +8354,9 @@ function onboardStatusDrained(s) {
 }
 
 function onboardStatusNeedsResume(s) {
-  return !!(s && !onboardStatusComplete(s) && (s.done !== true || s.recovered || s.active === false || !s.injected));
+  if (!s || onboardStatusComplete(s)) return false;
+  if (['pending', 'running', 'backoff', 'failed'].includes(s.injectionState) || s.injecting || s.injectionError) return false;
+  return !!(s.done !== true || s.recovered || s.active === false || (s.autoInject !== false && !s.injected));
 }
 
 async function ensureOnboardLearning(repo) {
@@ -8412,9 +8433,25 @@ function updateOnboardFromStatus(s) {
   const injected = typeof s.injectedKept === 'number' ? s.injectedKept : (s.injected ? kept : 0);
   const cloud = document.querySelector('.ol-cloud');
   const drained = onboardStatusDrained(s);
-  if (cloud) cloud.classList.toggle('is-live', !onboardStatusComplete(s) && !s.error);
+  const injectionFailure = !!(s.injectionError || ['backoff', 'failed'].includes(s.injectionState));
+  if (cloud) cloud.classList.toggle('is-live', !onboardStatusComplete(s) && (!s.error || injectionFailure));
   setOnboardProgress(processed, total, kept, injected, inflight);
   renderOnboardCloud({ ...s, total, processed, visualProcessed, kept, inflight, injectedKept: injected });
+  if (injectionFailure) {
+    setOnboardStage('review');
+    const retryAt = Number(s.injectionRetryAt) || 0;
+    const waiting = s.injectionState === 'backoff' && retryAt > Date.now();
+    const seconds = waiting ? Math.max(1, Math.ceil((retryAt - Date.now()) / 1000)) : 0;
+    setOnboardStatus(
+      s.injectionRetryCapped
+        ? `${s.injectionError || s.error} Automatic retries are exhausted.`
+        : (waiting ? `${s.injectionError || s.error} Retrying automatically in ${seconds}s...` : `${s.injectionError || s.error} Retrying automatically...`),
+      true
+    );
+    setOnboardInjectVisible(true, false);
+    return false;
+  }
+  setOnboardInjectVisible(false, false);
   if (s.error) {
     setOnboardStatus(s.error, true);
     return true;
@@ -8439,6 +8476,17 @@ function updateOnboardFromStatus(s) {
     setTimeout(completeOnboardLearning, 800);
     return true;
   }
+  if (s.noNotesToInject === true) {
+    setOnboardStage('complete');
+    setOnboardStatus('Learning complete; no reviewed notes were injected. Opening dashboard...');
+    setTimeout(completeOnboardLearning, 800);
+    return true;
+  }
+  if (s.injecting || s.injectionState === 'running') {
+    setOnboardStage('review');
+    setOnboardStatus('Final live injection is running...');
+    return false;
+  }
   if (s.injected) {
     setOnboardStage('complete');
     setOnboardStatus('Injected. Refreshing graph...');
@@ -8446,10 +8494,15 @@ function updateOnboardFromStatus(s) {
     return true;
   }
   if (drained) {
-    setOnboardStage('complete');
-    setOnboardStatus(injected > 0 ? `Learning complete; ${injected} reviewed notes were injected. Opening dashboard...` : 'Learning complete; no reviewed notes were injected. Opening dashboard...');
-    setTimeout(completeOnboardLearning, 1000);
-    return true;
+    if (s.autoInject === false) {
+      setOnboardStage('complete');
+      setOnboardStatus('Learning complete; automatic injection was disabled. Opening dashboard...');
+      setTimeout(completeOnboardLearning, 1000);
+      return true;
+    }
+    setOnboardStage('review');
+    setOnboardStatus('Learning complete; final live injection is pending...');
+    return false;
   }
   setOnboardStage('review');
   setOnboardStatus(s.autoInject ? 'Final live injection is still running...' : `Processed ${processed}/${total}`);
@@ -8470,6 +8523,27 @@ async function injectOnboardLearning() {
     if (!r.ok) throw new Error(r.error || 'inject failed');
     completeOnboardLearning();
     setTimeout(checkOnboardingState, 1000);
+  } catch (e) {
+    setOnboardStatus(String(e && e.message || e), true);
+    setOnboardInjectVisible(true, false);
+  }
+}
+
+async function retryOnboardInjection() {
+  const landing = document.getElementById('onboard-landing');
+  if (!landing || !landing.dataset.repo || !landing.dataset.outDir) return;
+  try {
+    setOnboardInjectVisible(true, true);
+    setOnboardStatus('Rearming live injection...');
+    const r = await (await dfetch('/onboard/retry-inject', {
+      method: 'POST',
+      headers: {'content-type':'application/json'},
+      body: JSON.stringify({repo: landing.dataset.repo, outDir: landing.dataset.outDir})
+    })).json();
+    if (!r.ok) throw new Error(r.error || 'retry failed');
+    landing.dataset.draining = '1';
+    updateOnboardFromStatus(r.status || {});
+    pollOnboardLearning();
   } catch (e) {
     setOnboardStatus(String(e && e.message || e), true);
     setOnboardInjectVisible(true, false);
