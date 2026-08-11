@@ -4703,20 +4703,42 @@ function setDaemonBase(url){ BASE = normalizeDaemonUrl(url) || DEFAULT_BASE; }
 // the registered set (workspaces.json via GET /workspaces): the single registered ws if there's
 // exactly one, else a picker prompt the user must choose from. Until an explicit ws is chosen, data
 // fetches are GATED (gateOnExplicitWorkspace) so the view never falls back to the global pointer.
-// ?token= is threaded alongside workspace for token-gated deploys.
-let WS = new URLSearchParams(location.search).get('workspace') || '';
+// LAN/token-gated dashboards accept the token in the URL fragment (preferred) or the legacy
+// ?token= query. Capture it in tab-scoped storage, then remove it from the address bar/history.
+const _PAGE_PARAMS = new URLSearchParams(location.search);
+const _HASH_PARAMS = new URLSearchParams(location.hash.replace(/^#/,''));
+const _URL_TOKEN = _HASH_PARAMS.get('token') || _PAGE_PARAMS.get('token') || '';
+let _TOKEN = _URL_TOKEN;
+try {
+  if (_TOKEN) sessionStorage.setItem('zonoid-dashboard-token', _TOKEN);
+  else _TOKEN = sessionStorage.getItem('zonoid-dashboard-token') || '';
+} catch {}
+if (_URL_TOKEN) {
+  _PAGE_PARAMS.delete('token');
+  _HASH_PARAMS.delete('token');
+  const cleanSearch = _PAGE_PARAMS.toString();
+  const cleanHash = _HASH_PARAMS.toString();
+  history.replaceState(null, '', location.pathname + (cleanSearch ? '?' + cleanSearch : '') + (cleanHash ? '#' + cleanHash : ''));
+}
+let WS = _PAGE_PARAMS.get('workspace') || '';
 let WS_RESOLVED = !!WS;   // false until an explicit workspace is chosen (gate for data fetches)
-const _TOKEN = new URLSearchParams(location.search).get('token') || '';
-// dfetch: wrapper that appends workspace= + token= to any per-repo fetch.
-// Leave /health and /cron/usage UNWRAPPED (global endpoints).
+function daemonFetch(url, init) {
+  if (!_TOKEN) return fetch(url, init);
+  const next = Object.assign({}, init || {});
+  const headers = new Headers(next.headers || {});
+  if (!headers.has('Authorization')) headers.set('Authorization', 'Bearer ' + _TOKEN);
+  next.headers = headers;
+  return fetch(url, next);
+}
+// dfetch: wrapper that appends workspace= and authenticates token-gated requests.
+// Global endpoints use daemonFetch directly so they receive auth without workspace scoping.
 function dfetch(pathAndQuery, init) {
   let url = BASE + pathAndQuery;
   const sep = url.includes('?') ? '&' : '?';
   const parts = [];
   if (WS) parts.push('workspace=' + encodeURIComponent(WS));
-  if (_TOKEN) parts.push('token=' + encodeURIComponent(_TOKEN));
   if (parts.length) url += sep + parts.join('&');
-  return fetch(url, init);
+  return daemonFetch(url, init);
 }
 // flattenWorkspaceRepos: GET /workspaces returns U3's GROUPED shape
 //   [{ name, repos:[{path,name,current}], current }] (orphans under "(unregistered)").
@@ -5328,7 +5350,7 @@ let harnessOhCache=null;
 function refreshCronTok(){
   if(cronBusy||Date.now()-cronAt<60000) return;
   cronBusy=true;
-  fetch(BASE+'/cron/usage').then(r=>r.json()).then(d=>{
+  daemonFetch(BASE+'/cron/usage').then(r=>r.json()).then(d=>{
     if(d&&d.entries) cronTokCache=d.entries.reduce((s,e)=>s+(e.input_tokens||0)+(e.output_tokens||0)+(e.cache_read_tokens||0),0);
   }).catch(()=>{}).finally(()=>{ cronAt=Date.now(); cronBusy=false; });
 }
@@ -7306,7 +7328,7 @@ function toggleSettingsPopup(){
 async function checkSettingsConn(){
   const url=(document.getElementById('sp-url').value.trim()||BASE)+'/active-claim?session=ping';
   const dot=document.querySelector('#sp-conn .dot'), lbl=document.getElementById('sp-conn-label');
-  try{ await fetch(url,{signal:AbortSignal.timeout(1500)}); dot.className='dot'; lbl.textContent='Connected'; }
+  try{ await daemonFetch(url,{signal:AbortSignal.timeout(1500)}); dot.className='dot'; lbl.textContent='Connected'; }
   catch{ dot.className='dot err'; lbl.textContent='Unreachable'; }
 }
 async function loadAutomodeState(){
@@ -7554,7 +7576,7 @@ document.addEventListener('click', ev=>{ const p=document.getElementById('cronPo
 document.addEventListener('click', ev=>{ const p=document.getElementById('billingPopup'); if(!p.classList.contains('show')) return; if(p.contains(ev.target)||(ev.target.closest&&ev.target.closest('.hero'))) return; p.classList.remove('show'); });
 
 let _lastCronData=null;
-async function fetchCronData(){ try{ const d=await(await fetch(BASE+'/cron/usage')).json(); _lastCronData=d; return d; }catch{ return null; } }
+async function fetchCronData(){ try{ const d=await(await daemonFetch(BASE+'/cron/usage')).json(); _lastCronData=d; return d; }catch{ return null; } }
 // Agreement rate cache: how often the learned shadow model agrees with Sonnet's verdict.
 // Refreshed at most once per 30 s, in the background, exactly like refreshInfraHero.
 let agreementCache=null, _agreementPromoted=false, _agreementPromotionState=null, _agreementAt=0, _agreementBusy=false;
@@ -7647,7 +7669,7 @@ let _infraAt=0, _infraBusy=false;
 async function refreshInfraHero(){
   if(_infraBusy||Date.now()-_infraAt<30000) return;
   _infraBusy=true; _infraAt=Date.now();
-  const [d, oh]=await Promise.all([fetchCronData(), fetch(BASE+'/harness/overhead').then(r=>r.json()).catch(()=>null)]).finally(()=>{ _infraBusy=false; });
+  const [d, oh]=await Promise.all([fetchCronData(), daemonFetch(BASE+'/harness/overhead').then(r=>r.json()).catch(()=>null)]).finally(()=>{ _infraBusy=false; });
   const entries=(d&&d.entries)||[];
   const cronTotal=entries.reduce((s,e)=>(s+(e.input_tokens||0)+(e.output_tokens||0)+(e.cache_read_tokens||0)),0);
   const rateForH=m=>{ if(m.includes('opus')) return [15,75,1.5]; if(m.includes('haiku')) return [0.8,4,0.08]; if(m.includes('fable')) return [3,15,0.3]; return [3,15,0.3]; };
@@ -7664,7 +7686,7 @@ async function toggleBillingPopup(){
   const el=document.getElementById('billingBody'); el.innerHTML='<div class="empty" style="padding:20px 0">loading…</div>';
   let cf, cd, oh;
   let delta;
-  try{ [cf,cd,oh,delta]=await Promise.all([dfetch('/costflow').then(r=>r.json()), fetchCronData(), fetch(BASE+'/harness/overhead').then(r=>r.json()).catch(()=>null), dfetch('/graph/delta?since=0').then(r=>r.json()).catch(()=>null)]); }catch{ el.innerHTML='<div class="empty">fetch failed</div>'; return; }
+  try{ [cf,cd,oh,delta]=await Promise.all([dfetch('/costflow').then(r=>r.json()), fetchCronData(), daemonFetch(BASE+'/harness/overhead').then(r=>r.json()).catch(()=>null), dfetch('/graph/delta?since=0').then(r=>r.json()).catch(()=>null)]); }catch{ el.innerHTML='<div class="empty">fetch failed</div>'; return; }
 
   const t=cf.economy_totals||cf.totals||{};
   const usageTotals=cf.usage_totals||{};
@@ -7830,7 +7852,7 @@ async function toggleCronPopup(){
   const p=document.getElementById('cronPopup'); p.classList.toggle('show');
   if(!p.classList.contains('show')) return;
   const el=document.getElementById('cronbody'); el.innerHTML='<div class="empty">loading…</div>';
-  let d; try{ d=await(await fetch(BASE+'/cron/usage')).json(); }catch{ el.innerHTML='<div class="empty">fetch failed</div>'; return; }
+  let d; try{ d=await(await daemonFetch(BASE+'/cron/usage')).json(); }catch{ el.innerHTML='<div class="empty">fetch failed</div>'; return; }
   const entries=d.entries||[], byTask=d.byTask||{};
   if(!entries.length){ el.innerHTML='<div class="empty">No data yet</div>'; return; }
   const fmtTs=ts=>{ if(!ts) return '—'; try{ return new Date(ts).toLocaleString(); }catch{ return ts; } };
@@ -7894,25 +7916,58 @@ setView(currentView);              // apply persisted view + toggle state on loa
   function teardownSSE(){
     if (_sseSource){ try{ _sseSource.close(); }catch(e){} _sseSource=null; }
   }
+  function handleSSEMessage(evt){
+    // Workspace-tagged SSE: if the daemon emits `changed:<ws>`, skip the refetch when the
+    // tagged workspace does NOT match our selected WS (the user is viewing a different repo).
+    // A bare 'changed' (legacy / no ws) always triggers a refetch — back-compat.
+    const data = evt && evt.data ? evt.data : '';
+    if (data.startsWith('changed:')) {
+      const evtWs = data.slice('changed:'.length);
+      // WS is the page-level selected workspace ('' means daemon default).
+      // If the tagged ws doesn't match our selected ws (accounting for '' meaning the daemon
+      // default which shows state.workspace), skip — this mutation is for a different repo.
+      if (evtWs !== WS && WS !== '') return;
+      if (WS === '' && evtWs !== '') return;
+    }
+    tick();
+  }
   function setupSSE(){
     teardownSSE();
+    // EventSource cannot attach an Authorization header. For authenticated dashboards, consume
+    // the same event stream with fetch so the bearer token never has to enter the request URL.
+    if (_TOKEN && window.ReadableStream) {
+      const controller = new AbortController();
+      _sseSource = { close(){ controller.abort(); } };
+      dfetch('/events', { headers:{ Accept:'text/event-stream' }, signal:controller.signal, cache:'no-store' })
+        .then(async (res) => {
+          if (!res.ok || !res.body) throw new Error('event stream unavailable');
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let pending = '';
+          while (true) {
+            const next = await reader.read();
+            if (next.done) break;
+            pending = (pending + decoder.decode(next.value, { stream:true })).replace(/\r\n/g,'\n');
+            let boundary;
+            while ((boundary = pending.indexOf('\n\n')) !== -1) {
+              const frame = pending.slice(0, boundary);
+              pending = pending.slice(boundary + 2);
+              const data = frame.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
+              if (data) handleSSEMessage({ data });
+            }
+          }
+          if (!controller.signal.aborted) throw new Error('event stream ended');
+        })
+        .catch(() => {
+          if (controller.signal.aborted) return;
+          teardownSSE();
+          scheduleHealthCheck(500);
+        });
+      return;
+    }
     try{
       _sseSource = new EventSource(BASE + '/events');
-      _sseSource.onmessage = (evt) => {
-        // Workspace-tagged SSE: if the daemon emits `changed:<ws>`, skip the refetch when the
-        // tagged workspace does NOT match our selected WS (the user is viewing a different repo).
-        // A bare 'changed' (legacy / no ws) always triggers a refetch — back-compat.
-        const data = evt && evt.data ? evt.data : '';
-        if (data.startsWith('changed:')) {
-          const evtWs = data.slice('changed:'.length);
-          // WS is the page-level selected workspace ('' means daemon default).
-          // If the tagged ws doesn't match our selected ws (accounting for '' meaning the daemon
-          // default which shows state.workspace), skip — this mutation is for a different repo.
-          if (evtWs !== WS && WS !== '') return;
-          if (WS === '' && evtWs !== '') return;
-        }
-        tick();
-      };
+      _sseSource.onmessage = handleSSEMessage;
       _sseSource.onerror   = () => {
         // SSE error → trigger a health check cycle; don't spam
         teardownSSE();
@@ -7972,7 +8027,7 @@ setView(currentView);              // apply persisted view + toggle state on loa
   async function runHealthCheck(){
     let data = null;
     try {
-      const res = await fetch(BASE + '/health', { cache: 'no-store' });
+      const res = await daemonFetch(BASE + '/health', { cache: 'no-store' });
       // Feature-detect: older daemons return 200 but without phase field
       const text = await res.text();
       try { data = JSON.parse(text); } catch(e){}

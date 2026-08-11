@@ -58,6 +58,7 @@ available but Claude won't use them automatically.
 | `ZONOID_REPO` | `~/.claude/orchestrator` | Install directory (scripts use `__dirname` by default) |
 | `ZONOID_WORKSPACE` | `process.cwd()` | Workspace path for bench scripts and live tests |
 | `ORCH_PORT` | `8787` | Daemon HTTP port |
+| `ORCH_BIND_HOST` | `127.0.0.1` | Daemon listen address. Set to `0.0.0.0` for authenticated LAN access. |
 | `ORCH_TOKEN` | _(unset)_ | Bearer token if daemon auth is enabled |
 | `ORCH_GATE_OFF` | _(unset)_ | Set to `1` to bypass the orch-gate hook |
 | `ZONOID_SKIP_LIVE` | _(unset)_ | Set to `1` to skip live-KB-dependent tests |
@@ -73,6 +74,43 @@ available but Claude won't use them automatically.
 | `VOYAGE_API_KEY` / `COHERE_API_KEY` / `GEMINI_API_KEY` | unset | Hosted embedding provider credentials. Missing keys make the provider return `null` and retrieval falls back lexically. |
 | `ZONOID_OLLAMA_BASE_URL` / `ORCH_OLLAMA_BASE_URL` | `http://127.0.0.1:11434/v1` | OpenAI-compatible base URL for the local Ollama backend used by backend CLI/headless API-kind runs. `OLLAMA_HOST` is also accepted and `/v1` is appended when omitted. |
 | `ORCH_OLLAMA_MODEL` | provider default | Default local Ollama model when `overlay.config.backend.model` is unset. |
+
+### LAN dashboard (opt-in)
+
+The daemon is loopback-only by default. To serve the dashboard to other devices on a trusted LAN,
+bind it to all IPv4 interfaces and configure a strong bearer token. Zonoid refuses a LAN bind when
+no token is configured.
+
+For a foreground daemon:
+
+```sh
+TOKEN="$(openssl rand -hex 32)"
+printf 'Dashboard token: %s\n' "$TOKEN"
+ORCH_BIND_HOST=0.0.0.0 ORCH_TOKEN="$TOKEN" node daemon.js
+```
+
+Then open this on the other device, replacing the IP, workspace, and token:
+
+```text
+http://192.168.1.50:8787/graph?workspace=%2Fpath%2Fto%2Frepo#token=YOUR_TOKEN
+```
+
+The dashboard captures the fragment token in tab-scoped storage, removes it from the address bar,
+and sends it as an `Authorization: Bearer` header. The fragment is not sent in the initial HTTP
+request. For an installed launchd/systemd service, store the token in the runtime data directory
+and reinstall the service with the bind setting so it persists:
+
+```sh
+DATA_DIR="$(node -p 'require("./lib/runtime-paths").resolveDataDir()')"
+install -d -m 700 "$DATA_DIR"
+umask 077
+openssl rand -hex 32 > "$DATA_DIR/token"
+printf 'Dashboard token: '; cat "$DATA_DIR/token"
+ORCH_BIND_HOST=0.0.0.0 npx @zonoid/cli init --service
+```
+
+Allow inbound TCP port `8787` in the host firewall only for the trusted subnet. This mode is plain
+HTTP; use a VPN or a TLS reverse proxy instead when the network is not trusted.
 
 Hosted LLM backend keys may also live in daemon-global `<runtime-data-dir>/backend.env`. This is the
 preferred place when one daemon serves multiple projects: put values such as `ZAI_API_KEY=...` or

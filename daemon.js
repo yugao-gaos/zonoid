@@ -73,6 +73,7 @@ const { ensureManagedGraphLoop } = require('./lib/loop-autostart');
 const { sweepStaleWakeups, sweepOrphanProcesses } = require('./lib/schedule-wakeup');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
+const BIND_HOST = String(process.env.ORCH_BIND_HOST || '127.0.0.1').trim() || '127.0.0.1';
 const PUBLIC = path.join(__dirname, 'public');
 const MAX_ROUTES = 50;
 const BASE = require.main === module
@@ -3023,8 +3024,19 @@ const handler = async (req, res) => {
       return res.end(JSON.stringify({ ok: false, phase: bootState.phase, step: bootState.step, progress: bootState.progress }));
     }
 
-    // Auth gate: when a token is configured, all mutating routes require it.
-    // Public reads of the CURRENT workspace + the dashboard stay open; any ?workspace= read is gated too.
+    // Browser dashboards opened from a file/preview origin preflight the Authorization header.
+    // /mcp keeps its protocol-specific CORS response in routes/mcp.js.
+    if (m === 'OPTIONS' && p !== '/mcp') {
+      res.writeHead(204, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'authorization, content-type, x-orch-token',
+      });
+      return res.end();
+    }
+
+    // Auth gate: loopback mode preserves the existing selective read gate; LAN mode is default-deny
+    // except for health checks and the data-free dashboard shell.
     const mutatingRequest = !['GET', 'HEAD', 'OPTIONS'].includes(m);
     const sensitiveRead = p === '/peek'
       || p === '/active-claim'
@@ -3045,7 +3057,11 @@ const handler = async (req, res) => {
       || p.startsWith('/guidance')
       || p.startsWith('/git/');
     const protectedPath = p === '/mcp' || mutatingRequest || sensitiveRead;
-    if ((protectedPath || u.searchParams.has('graph_repo') || u.searchParams.has('workspace')) && m !== 'OPTIONS' && !authed(req, u)) return send(res, 401, { error: 'unauthorized: bearer token required' });
+    const publicDashboard = (p === '/' || p === '/graph') && (m === 'GET' || m === 'HEAD');
+    const scopedRead = !publicDashboard && (u.searchParams.has('graph_repo') || u.searchParams.has('workspace'));
+    const publicLanRead = publicDashboard || (m === 'GET' && (p === '/health' || p === '/version' || p === '/ping'));
+    const lanProtected = BIND_HOST === '0.0.0.0' && !publicLanRead;
+    if ((lanProtected || protectedPath || scopedRead) && m !== 'OPTIONS' && !authed(req, u)) return send(res, 401, { error: 'unauthorized: bearer token required' });
 
     // Route modules handle all extracted endpoint groups.
     for (const route of routeModules) { if (await route(p, m, req, res, u, null)) return; }
@@ -3075,6 +3091,22 @@ if (require.main === module) {
   process.on('unhandledRejection', (err) => {
     process.stderr.write(`unhandledRejection: ${(err && err.stack) || err}\n`);
   });
+
+  const supportedBindHosts = new Set(['127.0.0.1', '0.0.0.0']);
+  if (!supportedBindHosts.has(BIND_HOST)) {
+    process.stderr.write(
+      `Unsupported ORCH_BIND_HOST=${JSON.stringify(BIND_HOST)}. ` +
+      'Use 127.0.0.1 (default) or 0.0.0.0 (authenticated LAN access).\n'
+    );
+    process.exit(1);
+  }
+  if (BIND_HOST === '0.0.0.0' && !TOKEN) {
+    process.stderr.write(
+      'Refusing ORCH_BIND_HOST=0.0.0.0 without ORCH_TOKEN or a runtime token file; ' +
+      'LAN access must be authenticated.\n'
+    );
+    process.exit(1);
+  }
 
   const server = http.createServer(handler);
 
@@ -3163,7 +3195,8 @@ if (require.main === module) {
       if (err.code === 'EADDRINUSE') {
         if (port === PORT_BASE) {
           // Check if the existing process is already a zonoid daemon.
-          const pingReq = http.get(`http://127.0.0.1:${port}/ping`, (res) => {
+          const probeHost = BIND_HOST === '0.0.0.0' ? '127.0.0.1' : BIND_HOST;
+          const pingReq = http.get({ hostname: probeHost, port, path: '/ping' }, (res) => {
             let body = '';
             res.on('data', (chunk) => { body += chunk; });
             res.on('end', () => {
@@ -3206,8 +3239,11 @@ if (require.main === module) {
         throw err;
       }
     });
-    server.listen(port, '127.0.0.1', () => {
-      process.stdout.write(`orchestrator daemon on http://127.0.0.1:${port}\n`);
+    server.listen(port, BIND_HOST, () => {
+      process.stdout.write(`orchestrator daemon on http://${BIND_HOST}:${port}\n`);
+      if (BIND_HOST === '0.0.0.0') {
+        process.stdout.write(`orchestrator LAN dashboard enabled on TCP ${port} (bearer token required)\n`);
+      }
       // One-line boot tuning summary: the effective knobs a post-mortem reader needs first —
       // where state lives, where the log tees to, and the drain governor's budget/backoff.
       try {
@@ -3231,11 +3267,13 @@ if (require.main === module) {
 
       // Also bind IPv6 loopback so `localhost` resolves on every OS — Windows resolves it to ::1
       // first, which an IPv4-only bind misses. Best-effort + loopback-only (no 0.0.0.0 exposure).
-      try {
-        server6 = http.createServer(handler);
-        server6.on('error', (e) => { if (e.code !== 'EADDRINUSE') process.stderr.write(`IPv6 loopback listener skipped: ${e.message}\n`); });
-        server6.listen(port, '::1');
-      } catch (e) { process.stderr.write(`IPv6 loopback listener skipped: ${e.message}\n`); }
+      if (BIND_HOST === '127.0.0.1') {
+        try {
+          server6 = http.createServer(handler);
+          server6.on('error', (e) => { if (e.code !== 'EADDRINUSE') process.stderr.write(`IPv6 loopback listener skipped: ${e.message}\n`); });
+          server6.listen(port, '::1');
+        } catch (e) { process.stderr.write(`IPv6 loopback listener skipped: ${e.message}\n`); }
+      }
 
       // BIND-EARLY: the port is now held; load state asynchronously so /health (whitelisted
       // through the 503 gate) reports boot progress while everything else gets an honest 503.
