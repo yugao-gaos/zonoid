@@ -837,6 +837,7 @@ async function checkGitIdentity() {
 }
 
 const ORCH_PORT = process.env.ORCH_PORT || '8787';
+const ORCH_BIND_HOST = process.env.ORCH_BIND_HOST || '';
 const PLIST_LABEL = 'com.zonoid.daemon';
 const PLIST_PATH  = path.join(os.homedir(), 'Library', 'LaunchAgents', `${PLIST_LABEL}.plist`);
 const SYSTEMD_UNIT = 'zonoid-daemon.service';
@@ -845,6 +846,9 @@ const SYSTEMD_PATH = path.join(os.homedir(), '.config', 'systemd', 'user', SYSTE
 function installLaunchdService() {
   const nodeBin = process.execPath;
   const daemonJs = path.join(INSTALL_DIR, 'daemon.js');
+  const bindEnvironment = ORCH_BIND_HOST
+    ? `    <key>ORCH_BIND_HOST</key>\n    <string>${ORCH_BIND_HOST}</string>\n`
+    : '';
 
   const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -861,7 +865,7 @@ function installLaunchdService() {
   <dict>
     <key>ORCH_PORT</key>
     <string>${ORCH_PORT}</string>
-    <key>ZONOID_DATA</key>
+${bindEnvironment}    <key>ZONOID_DATA</key>
     <string>${ZONOID_DATA_DIR}</string>
   </dict>
   <key>RunAtLoad</key>
@@ -889,6 +893,7 @@ function installLaunchdService() {
 function installSystemdService() {
   const nodeBin = process.execPath;
   const daemonJs = path.join(INSTALL_DIR, 'daemon.js');
+  const bindEnvironment = ORCH_BIND_HOST ? `Environment=ORCH_BIND_HOST=${ORCH_BIND_HOST}\n` : '';
 
   const unit = `[Unit]
 Description=Zonoid orchestrator daemon
@@ -898,7 +903,7 @@ After=network.target
 Type=simple
 ExecStart=${nodeBin} ${daemonJs}
 Environment=ORCH_PORT=${ORCH_PORT}
-Environment=ZONOID_DATA=${ZONOID_DATA_DIR}
+${bindEnvironment}Environment=ZONOID_DATA=${ZONOID_DATA_DIR}
 Restart=always
 RestartSec=5
 StandardOutput=append:/tmp/zonoid-daemon.log
