@@ -193,6 +193,7 @@ function aggregateCached(ws) {
 function invalidateAggregate(ws) {
   cache.agg.delete(ws);
   cache.aggAt.delete(ws);
+  snapCache.delete(ws);
 }
 
 // (P3) The Phase-1 workspace-fallback observability seam (warnWorkspaceFallback) has been REMOVED:
@@ -291,7 +292,7 @@ function usageCached(p) {
   cache.usage.set(p, v); cache.usageAt.set(p, now);
   return v;
 }
-claudeHarness.tasks.watch(() => { cache.agg.clear(); cache.aggAt.clear(); respCache.clear(); }); // Claude native task dir
+claudeHarness.tasks.watch(() => { cache.agg.clear(); cache.aggAt.clear(); snapCache.clear(); respCache.clear(); }); // Claude native task dir
 // filedrop.watch below covers designated-folder stubs
 filedrop.watch(() => { cache.agg.clear(); cache.aggAt.clear(); respCache.clear(); });      // designated-folder stub drops surface without /sync
 
