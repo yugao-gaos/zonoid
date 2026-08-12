@@ -373,7 +373,7 @@ test('api provider: hosted API keys can come from daemon-global backend.env', as
   ].join('\n'));
   const restore = withEnv({ ORCH_DATA: dataDir });
   try {
-    assert.equal(backend.backendCredentialEnvPath(), pathMod.join(dataDir, 'backend.env'));
+    assert.equal(backend.backendCredentialEnvPath(), pathMod.join(fs.realpathSync(dataDir), 'backend.env'));
     assert.equal(backend.openRouterProvider.isAuthed(), true, 'OpenRouter key resolves from global backend.env');
     assert.equal(backend.zaiProvider.isAuthed(), true, 'Z.AI key resolves from global backend.env');
 
