@@ -294,7 +294,7 @@ function usageCached(p) {
 }
 claudeHarness.tasks.watch(() => { cache.agg.clear(); cache.aggAt.clear(); snapCache.clear(); respCache.clear(); }); // Claude native task dir
 // filedrop.watch below covers designated-folder stubs
-filedrop.watch(() => { cache.agg.clear(); cache.aggAt.clear(); respCache.clear(); });      // designated-folder stub drops surface without /sync
+filedrop.watch(() => { cache.agg.clear(); cache.aggAt.clear(); snapCache.clear(); respCache.clear(); }); // designated-folder stub drops surface without /sync
 
 const ACTION_STATUSES = ['in_progress', 'tested', 'done', 'failed', 'canceled'];
 const ALL_STATUSES = ['not_ready', 'ready', ...ACTION_STATUSES];
@@ -567,7 +567,13 @@ async function loadState() {
   process.stdout.write(`orchestrator boot complete (phase:ready)\n`);
 }
 function saveLoops() { try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(LOOPS_FILE, JSON.stringify(Object.fromEntries(loops))); } catch { /* best effort */ } }
-function saveAgents() { try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(AGENTS_FILE, JSON.stringify(state.agents)); } catch { /* best effort */ } }
+function saveAgents() {
+  try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(AGENTS_FILE, JSON.stringify(state.agents)); } catch { /* best effort */ }
+  // Agent counts and local_in_progress live in buildGraph's cached summary even though the agent
+  // registry is stored outside the workspace overlay. Any agent transition must therefore bust
+  // graph/response caches or /state can pair a current agents[] array with stale summary counts.
+  try { snapCache.clear(); respCache.clear(); } catch { /* caches may not be initialized during boot */ }
+}
 
 // touchAgent: register or heartbeat-stamp an agent in the global registry. Idempotent with
 // /agent/start (SubagentStart hook) — safe to call from both paths. Unknown agents get
@@ -2966,7 +2972,7 @@ const ctx = {
   onboardRuntimeIgnoreError: reportOnboardRuntimeIgnoreError,
   workspaceForRepo: (repoPath) => registry.repoToWorkspace(registry.loadRegistry(WORKSPACES_FILE)).get(repoPath) || null,
   repoRoot: registry.repoRoot,
-  send, sendOp, readBody, notifyChange, graphAutoflush, buildGraph, readGraphSnapshot, targetOverlay, overlayFor, resolveRepo, resolveRepoTarget, nodeExistsInGraph, registeredWorkspaces,
+  send, sendOp, readBody, notifyChange, graphAutoflush, buildGraph, readGraphSnapshot, targetOverlay, overlayFor, invalidateAggregate, resolveRepo, resolveRepoTarget, nodeExistsInGraph, registeredWorkspaces,
   validateMetricSpec, validateBenchmark,
   overlayStore, harness: claudeHarness, harnessRegistry, filedrop, writeTaskStatus, readNativeTask, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
   cache, loops, saveLoops, saveAgents,
