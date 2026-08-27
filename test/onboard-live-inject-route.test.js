@@ -877,24 +877,36 @@ test('force replacement waits for the exact live injection incarnation after exp
   }
 });
 
-test('an exact existing note keeps its graph key and upserts every evidence edge on every retry', async () => {
+test('current-generation receipts skip confirmed notes while unreceipted exact notes repair every evidence edge', async () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-inject-existing-edges-'));
   const outDir = defaultOnboardOutDir(repo);
   const generation = 'generation-existing';
-  const kept = [{
-    title: 'Stable note',
-    summary: 'Stable summary',
-    kind: 'decision',
-    evidence_refs: ['source:a', 'source:b'],
-  }];
+  const kept = [
+    {
+      title: 'Already confirmed',
+      summary: 'Must make no graph writes',
+      kind: 'decision',
+      evidence_refs: ['source:confirmed'],
+    },
+    {
+      title: 'Needs edge repair',
+      summary: 'Exact graph note without a receipt',
+      kind: 'decision',
+      evidence_refs: ['source:a', 'source:b'],
+    },
+  ];
   const calls = [];
   try {
-    writeQueue(outDir, 1, 1, kept, generation);
+    writeQueue(outDir, 2, 2, kept, generation);
     fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept, rejected: [] }));
+    onboardState.writeInjectionReceipt(outDir, generation, [onboardState.onboardNoteId(kept[0], 0)]);
     const request = async (method, url, body) => {
       calls.push({ method, url, body });
       if (method === 'GET' && url.startsWith('/state')) {
-        return { tasks: [{ id: 'note:stable-existing', label: '[ingest] Stable note', summary: 'Stable summary' }] };
+        return { tasks: [
+          { id: 'note:already-confirmed', label: '[ingest] Already confirmed', summary: 'Must make no graph writes' },
+          { id: 'note:needs-repair', label: '[ingest] Needs edge repair', summary: 'Exact graph note without a receipt' },
+        ] };
       }
       if (url === '/overlay/edge') return { ok: true };
       throw new Error(`unexpected request ${method} ${url}`);
@@ -905,14 +917,82 @@ test('an exact existing note keeps its graph key and upserts every evidence edge
 
     assert.equal(calls.filter((call) => call.url === '/overlay/note').length, 0);
     const edges = calls.filter((call) => call.url === '/overlay/edge');
-    assert.equal(edges.length, 4, 'both evidence edges are idempotently upserted on both passes');
-    assert.ok(edges.every((call) => call.body.to === 'note:stable-existing'));
-    assert.deepEqual(edges.map((call) => call.body.from), ['source:a', 'source:b', 'source:a', 'source:b']);
+    assert.equal(edges.length, 2, 'only the unreceipted note repairs its evidence edges');
+    assert.ok(edges.every((call) => call.body.to === 'note:needs-repair'));
+    assert.deepEqual(edges.map((call) => call.body.from), ['source:a', 'source:b']);
     const receipt = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-injection-receipt.json'), 'utf8'));
     assert.equal(receipt.generation, generation);
-    assert.equal(receipt.confirmed.length, 1, 'repeated completion does not duplicate the receipt watermark');
+    assert.equal(receipt.confirmed.length, 2, 'the repaired note advances the receipt exactly once');
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('stale, corrupt, or non-matching receipt identities never skip graph repair', async () => {
+  const cases = [
+    {
+      name: 'wrong generation',
+      receipt: (outDir, generation, note) => onboardState.writeInjectionReceipt(
+        outDir, `${generation}-old`, [onboardState.onboardNoteId(note, 0)]
+      ),
+      kept: (note) => [note],
+    },
+    {
+      name: 'corrupt receipt',
+      receipt: (outDir) => fs.writeFileSync(path.join(outDir, 'onboard-injection-receipt.json'), '{bad json'),
+      kept: (note) => [note],
+    },
+    {
+      name: 'changed evidence',
+      receipt: (outDir, generation, note) => onboardState.writeInjectionReceipt(
+        outDir, generation, [onboardState.onboardNoteId({ ...note, evidence: 'old evidence' }, 0)]
+      ),
+      kept: (note) => [note],
+    },
+    {
+      name: 'changed index',
+      receipt: (outDir, generation, note) => onboardState.writeInjectionReceipt(
+        outDir, generation, [onboardState.onboardNoteId(note, 0)]
+      ),
+      kept: (note) => [{ title: 'Inserted', summary: 'Moves the target index', evidence_refs: [] }, note],
+    },
+  ];
+
+  for (const scenario of cases) {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-inject-receipt-identity-'));
+    const outDir = defaultOnboardOutDir(repo);
+    const generation = `generation-${scenario.name.replace(/\s+/g, '-')}`;
+    const note = {
+      title: 'Identity target',
+      summary: 'Must be repaired',
+      kind: 'decision',
+      evidence: 'current evidence',
+      evidence_refs: ['source:identity'],
+    };
+    const kept = scenario.kept(note);
+    let targetEdgeWrites = 0;
+    try {
+      writeQueue(outDir, kept.length, kept.length, kept, generation);
+      fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept, rejected: [] }));
+      scenario.receipt(outDir, generation, note);
+      await learner.injectOnboardNotes(path.join(outDir, 'onboard-notes.json'), true, repo, async (method, url, body) => {
+        if (method === 'GET' && url.startsWith('/state')) {
+          return { tasks: kept.map((item, index) => ({
+            id: `note:identity-${index}`,
+            label: `[ingest] ${item.title}`,
+            summary: item.summary,
+          })) };
+        }
+        if (url === '/overlay/edge') {
+          if (body.from === 'source:identity') targetEdgeWrites++;
+          return { ok: true };
+        }
+        throw new Error(`unexpected request ${method} ${url}`);
+      }, { expectedGeneration: generation });
+      assert.equal(targetEdgeWrites, 1, `${scenario.name} must not suppress the target evidence repair`);
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
   }
 });
 
