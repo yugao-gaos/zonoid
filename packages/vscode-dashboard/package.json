@@ -1,0 +1,41 @@
+{
+  "name": "zonoid-dashboard",
+  "displayName": "Zonoid Dashboard",
+  "description": "Open the workspace-scoped Zonoid task graph in VS Code or Cursor.",
+  "version": "0.1.0",
+  "publisher": "zonoid",
+  "license": "Apache-2.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:zonoid.openDashboard",
+    "onCommand:zonoid.openDashboardExternal"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "zonoid.openDashboard",
+        "title": "Zonoid: Open Dashboard"
+      },
+      {
+        "command": "zonoid.openDashboardExternal",
+        "title": "Zonoid: Open Dashboard in Browser"
+      }
+    ],
+    "configuration": {
+      "title": "Zonoid",
+      "properties": {
+        "zonoid.dashboardOrigin": {
+          "type": "string",
+          "default": "http://localhost:8787",
+          "description": "Origin of the Zonoid daemon dashboard. VS Code forwards localhost automatically in remote workspaces."
+        }
+      }
+    }
+  }
+}

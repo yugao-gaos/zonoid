@@ -278,6 +278,18 @@ query parameters, or fragments are rejected, and launch URLs never carry the dae
 The daemon remains the dashboard data/API backend; the presentation path does not require CDP,
 private DOM injection, or a custom URL scheme.
 
+VS Code and Cursor can also use the bundled editor panel. `zonoid init --harness cursor`
+installs it additively with the Cursor CLI; the equivalent VS Code command is:
+
+```sh
+code --install-extension /path/to/zonoid/packages/vscode-dashboard/zonoid-dashboard-0.1.0.vsix
+```
+
+Run **Zonoid: Open Dashboard** from the Command Palette for the embedded panel, or
+**Zonoid: Open Dashboard in Browser** for the external fallback. In remote workspaces the
+extension resolves the daemon URL with the editor's public `asExternalUri` API before either
+presentation, so the editor owns localhost forwarding and URL rewriting.
+
 ## MCP tools
 
 47 tools, served identically over both transports (stdio and the daemon's `/mcp` endpoint). The
