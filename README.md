@@ -259,11 +259,24 @@ node bin/install.js --windows-service
 http://localhost:8787/graph?workspace=<url-encoded absolute workspace path>
 ```
 
-In Codex Desktop, call `show_dashboard` for the inline summary, then click its scoped
-`browser_url` (or **Open in Codex browser** in the inline panel) to keep the full dashboard in the
-built-in browser alongside the task. Other clients can open the same ordinary HTTP URL in their
-default browser. The daemon remains the dashboard's loopback data/API backend; this presentation
-path does not require remote hosting, CDP debugging, private DOM injection, or a custom URL scheme.
+Call `show_dashboard` from any MCP client. It returns a versioned `launch` descriptor with the
+inline MCP resource, the workspace-scoped HTTP URL, and capability-based presentation choices.
+Clients can select an MCP App, an embedded web surface, or the universal external-browser fallback
+without relying on client names or private APIs. The legacy `browser_url` and `deep_link` fields
+remain aliases of `launch.url`.
+
+The same contract is available from the command line:
+
+```sh
+zonoid-dashboard --workspace /path/to/repo --json
+zonoid-dashboard --workspace /path/to/repo --open
+```
+
+The default origin is `http://localhost:8787`. Set `ZONOID_DASHBOARD_ORIGIN` or pass `--origin`
+when the daemon is exposed through another HTTP(S) origin. Origins containing credentials, paths,
+query parameters, or fragments are rejected, and launch URLs never carry the daemon auth token.
+The daemon remains the dashboard data/API backend; the presentation path does not require CDP,
+private DOM injection, or a custom URL scheme.
 
 ## MCP tools
 
@@ -337,7 +350,7 @@ Claude Code's native `TaskCreate`; these tools manage them once they exist.)
 
 | Tool | Purpose |
 |---|---|
-| `show_dashboard` | Render the live inline summary and return a scoped `browser_url` for the full dashboard |
+| `show_dashboard` | Render the live inline summary and return a client-neutral launch contract for the scoped full dashboard |
 
 ## Development
 

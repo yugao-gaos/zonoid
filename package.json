@@ -10,6 +10,7 @@
   "main": "daemon.js",
   "bin": {
     "zonoid": "./bin/backfill-merged.js",
+    "zonoid-dashboard": "./bin/dashboard.js",
     "zonoid-install": "./bin/install.js"
   },
   "files": [
