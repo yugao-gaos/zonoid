@@ -446,6 +446,89 @@ test('POST /onboard/drain-queue records status and returns without owning drain 
   }
 });
 
+test('POST /onboard/drain-queue durably arms a cached legacy job for restart discovery', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-legacy-arm-'));
+  const outDir = legacyBenchOnboardOutDir(repo);
+  const sent = [];
+  let notifyCount = 0;
+  const previousJobs = global.__drainJobs;
+
+  try {
+    writeQueue(outDir, 12, 4, [{ title: 'Kept before restart' }]);
+    const queueFile = path.join(outDir, 'onboard-queue.json');
+    const queueBefore = fs.readFileSync(queueFile);
+    assert.equal(headlessDrain.findPendingLearnerQueues(repo).length, 0,
+      'legacy bench queues require an explicit durable arm marker');
+
+    global.__drainJobs = new Map([[`${repo}::${outDir}`, {
+      repo,
+      outDir,
+      total: 12,
+      processed: 4,
+      remaining: 8,
+      kept: 1,
+      done: false,
+      error: null,
+    }]]);
+
+    const route = onboardRoute(makeCtx(
+      { repo, outDir, batchSize: 7, autoInject: true },
+      sent,
+      () => { notifyCount++; }
+    ));
+    await route('/onboard/drain-queue', 'POST', {}, {}, new URL('http://localhost/onboard/drain-queue'));
+
+    assert.equal(sent[0].status, 200);
+    assert.equal(sent[0].payload.message, 'drain already in progress');
+    assert.equal(sent[0].payload.status.processed, 4);
+    assert.equal(sent[0].payload.status.remaining, 8);
+    assert.equal(notifyCount, 1, 'persisting the arm marker must wake the headless scanner');
+    assert.deepEqual(fs.readFileSync(queueFile), queueBefore,
+      'arming must not rewrite legacy queue progress or its synthetic generation');
+
+    const meta = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(meta.repo, repo);
+    assert.equal(meta.outDir, outDir);
+    assert.equal(meta.batchSize, 7);
+    assert.equal(meta.autoInject, true);
+
+    const retryAt = Date.now() + 60_000;
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      ...meta,
+      preparationState: 'ready',
+      queueGeneration: sent[0].payload.status.queueGeneration,
+      injectionGeneration: sent[0].payload.status.queueGeneration,
+      injectionState: 'backoff',
+      injectionAttempts: 2,
+      injectionRetryAt: retryAt,
+      injectionError: '429 retry later',
+      error: '429 retry later',
+    }));
+    await route('/onboard/drain-queue', 'POST', {}, {}, new URL('http://localhost/onboard/drain-queue'));
+    const rearmed = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(rearmed.preparationState, 'ready');
+    assert.equal(rearmed.queueGeneration, sent[0].payload.status.queueGeneration);
+    assert.equal(rearmed.injectionGeneration, sent[0].payload.status.queueGeneration);
+    assert.equal(rearmed.injectionState, 'backoff');
+    assert.equal(rearmed.injectionAttempts, 2);
+    assert.equal(rearmed.injectionRetryAt, retryAt);
+    assert.equal(rearmed.injectionError, '429 retry later');
+    assert.equal(rearmed.error, '429 retry later');
+
+    delete global.__drainJobs;
+    const restarted = headlessDrain.findPendingLearnerQueues(repo);
+    assert.equal(restarted.length, 1, 'the persisted arm marker must survive daemon restart');
+    assert.equal(restarted[0].outDir, outDir);
+    assert.equal(restarted[0].cursor, 4);
+    assert.equal(restarted[0].remaining, 8);
+    assert.equal(restarted[0].batchSize, 7);
+  } finally {
+    if (previousJobs === undefined) delete global.__drainJobs;
+    else global.__drainJobs = previousJobs;
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test('GET /onboard/drain-queue recovers status from queue files after in-memory job loss', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-get-'));
   const outDir = path.join(tmpDir, 'bench', 'onboard', path.basename(tmpDir));

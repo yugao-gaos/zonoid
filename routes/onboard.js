@@ -750,12 +750,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     const { repo, outDir } = resolved;
     const jobKey = `${repo}::${outDir}`;
-    if (drainJobs.has(jobKey)) {
-      const existing = drainJobs.get(jobKey);
-      if (!existing.done && !existing.error) {
-        send(res, 200, { ok: true, status: existing, message: 'drain already in progress' }); return true;
-      }
-    }
+    const existing = drainJobs.get(jobKey);
+    const alreadyInProgress = !!existing && !existing.done && !existing.error;
     const status = queueStatus(outDir);
     const meta = readDrainMeta(outDir);
     const preparationKnown = ['pending', 'running', 'failed', 'ready'].includes(meta.preparationState);
@@ -779,7 +775,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const job = buildDrainJob(repo, outDir);
     drainJobs.set(jobKey, job);
     if (notifyChange) notifyChange();
-    send(res, 200, { ok: true, status: job, message: job.done ? 'queue already empty' : 'queued for headless drain' }); return true;
+    send(res, 200, {
+      ok: true,
+      status: job,
+      message: alreadyInProgress
+        ? 'drain already in progress'
+        : (job.done ? 'queue already empty' : 'queued for headless drain'),
+    });
+    return true;
   }
 
   if (p === '/onboard/inject' && m === 'POST') {
