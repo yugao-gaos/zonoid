@@ -1213,7 +1213,10 @@ test('partial injection crash advances only the confirmed current-generation rec
       ...mockBackendDeps().deps,
     });
     const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
-    assert.equal(status.injectionState, 'backoff');
+    assert.equal(status.injectionState, 'pending');
+    assert.equal(status.injectionAttempts, 0);
+    assert.equal(status.injectionError, null);
+    assert.equal(status.error, null);
     assert.equal(status.injectedKept, 1, 'only the one receipt-confirmed durable note advances the watermark');
     assert.notEqual(status.injectedKept, kept.length, 'aggregate queue kept count must never be used after a partial crash');
   } finally {
@@ -1821,6 +1824,88 @@ test('failed injection persists backoff metadata and retries automatically to su
   }
 });
 
+test('productive injection timeouts reset the failure streak and resume until success', async () => {
+  const savedMax = process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS;
+  const savedBase = process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS;
+  const savedTimeout = process.env.HEADLESS_DRAIN_TIMEOUT_MS;
+  process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS = '2';
+  process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS = '1';
+  process.env.HEADLESS_DRAIN_TIMEOUT_MS = '10';
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-injection-progress-timeout-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  const generation = 'generation-progress-timeout';
+  const kept = [
+    { title: 'A', summary: 'A' },
+    { title: 'B', summary: 'B' },
+    { title: 'C', summary: 'C' },
+  ];
+  let injectionRuns = 0;
+  let hd;
+  const mocked = freshModuleWithMockedSpawn(() => {
+    injectionRuns++;
+    hd._writeInjectionReceipt(outDir, generation, kept.slice(0, injectionRuns).map(
+      (note, index) => hd._onboardNoteId(note, index)
+    ));
+    if (injectionRuns >= kept.length) return makeFakeChild({ code: 0 });
+    const child = makeFakeChild({ never: true });
+    const keepAlive = setTimeout(() => {}, 1000);
+    child.kill = () => {
+      clearTimeout(keepAlive);
+      child.emit('close', null);
+      return true;
+    };
+    return child;
+  });
+  hd = mocked.hd;
+  const { calls, restore } = mocked;
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      generation, total: kept.length, cursor: kept.length, kept, rejected: [], pending: [],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ generation, kept, rejected: [] }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({ repo, outDir, autoInject: true }));
+    const options = {
+      ...judgeDeps({ depth: 0, eagerNodes: [] }),
+      ...labelDeps({ journal: [], labeledKeys: [] }),
+      ...mockBackendDeps().deps,
+    };
+    const state = { workspace: repo, registeredWorkspaces: [repo] };
+
+    for (let confirmed = 1; confirmed < kept.length; confirmed++) {
+      await hd.runDueDrains(state, noopHttp(), options);
+      const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+      assert.equal(status.injectionState, 'pending');
+      assert.equal(status.injectionAttempts, 0, 'productive timeouts do not grow the no-progress streak');
+      assert.equal(status.injectionRetryCapped, false);
+      assert.equal(status.injectedKept, confirmed);
+      assert.equal(status.injectionError, null);
+      assert.equal(status.error, null);
+      status.injectionRetryAt = Date.now() - 1;
+      fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify(status));
+      hd._governor.backoffUntil = Date.now() - 1;
+    }
+
+    await hd.runDueDrains(state, noopHttp(), options);
+    const final = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(calls.length, 3, 'two productive timeouts may exceed the no-progress cap and still finish');
+    assert.equal(final.injectionState, 'succeeded');
+    assert.equal(final.injectedKept, kept.length);
+    assert.equal(final.injectionAttempts, 0);
+    assert.equal(final.injectionRetryCapped, false);
+    assert.equal(final.error, null);
+  } finally {
+    restore();
+    fs.rmSync(repo, { recursive: true, force: true });
+    if (savedMax === undefined) delete process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS;
+    else process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS = savedMax;
+    if (savedBase === undefined) delete process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS;
+    else process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS = savedBase;
+    if (savedTimeout === undefined) delete process.env.HEADLESS_DRAIN_TIMEOUT_MS;
+    else process.env.HEADLESS_DRAIN_TIMEOUT_MS = savedTimeout;
+  }
+});
+
 test('automatic injection retries stop at the configured cap', async () => {
   const savedMax = process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS;
   const savedBase = process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS;
@@ -1854,6 +1939,7 @@ test('automatic injection retries stop at the configured cap', async () => {
     assert.equal(status.injectionAttempts, 2);
     assert.equal(status.injectionRetryCapped, true);
     assert.equal(status.injectionRetryAt, null);
+    assert.equal(status.injectedKept, 0, 'the cap counts consecutive attempts with no receipt progress');
 
     hd._governor.backoffUntil = Date.now() - 1;
     const capped = await hd.runDueDrains(state, noopHttp(), options);

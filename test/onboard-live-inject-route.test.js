@@ -1291,6 +1291,61 @@ test('manual injection retry resets a capped hold and wakes the learner without 
   }
 });
 
+test('direct injection reports receipt progress as pending and resets its failure streak', async () => {
+  const savedBase = process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS;
+  process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS = '1';
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-progress-inject-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const generation = 'generation-route-progress';
+  const kept = [
+    { title: 'A', summary: 'A' },
+    { title: 'B', summary: 'B' },
+  ];
+  const sent = [];
+  let notifyCount = 0;
+  const childProcess = require('child_process');
+  const originalSpawn = childProcess.spawn;
+  try {
+    writeQueue(outDir, kept.length, kept.length, kept, generation);
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ generation, kept, rejected: [] }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo,
+      outDir,
+      autoInject: true,
+      injectionGeneration: generation,
+      injectionState: 'backoff',
+      injectionAttempts: 2,
+      injectedKept: 0,
+    }));
+    childProcess.spawn = () => {
+      onboardState.writeInjectionReceipt(outDir, generation, [onboardState.onboardNoteId(kept[0], 0)]);
+      const child = new (require('events').EventEmitter)();
+      child.pid = process.pid;
+      child.kill = () => { child.emit('close', null); return true; };
+      setImmediate(() => child.emit('close', 1));
+      return child;
+    };
+
+    const route = onboardRoute(makeCtx({ repo, outDir }, sent, () => { notifyCount++; }));
+    await route('/onboard/inject', 'POST', {}, {}, new URL('http://localhost/onboard/inject'));
+
+    assert.equal(sent[0].status, 202);
+    assert.equal(sent[0].payload.progressed, true);
+    assert.equal(sent[0].payload.status.injectionState, 'pending');
+    assert.equal(sent[0].payload.status.injectionAttempts, 0);
+    assert.equal(sent[0].payload.status.injectedKept, 1);
+    assert.equal(sent[0].payload.status.injectionRetryCapped, false);
+    assert.equal(sent[0].payload.status.error, null);
+    assert.ok(sent[0].payload.status.injectionRetryAt > 0);
+    assert.equal(notifyCount, 1);
+  } finally {
+    childProcess.spawn = originalSpawn;
+    fs.rmSync(repo, { recursive: true, force: true });
+    if (savedBase === undefined) delete process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS;
+    else process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS = savedBase;
+  }
+});
+
 test('explicit autoInject false completes a drained queue without claiming injection', async () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-no-auto-inject-'));
   const outDir = defaultOnboardOutDir(repo);

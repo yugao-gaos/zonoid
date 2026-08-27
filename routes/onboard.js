@@ -18,11 +18,14 @@ const {
   liveOnboardInjectionLease: liveInjectionLease,
   liveOnboardPreparationLease: livePreparationLease,
   validateOnboardQueue,
+  loadGenerationMatchedOnboardNotes,
   reconcileOnboardPublication,
 } = require('../lib/onboard-state');
 
 const DEFAULT_DRAIN_BATCH_SIZE = 20;
 const DEFAULT_INJECTION_MAX_ATTEMPTS = 3;
+const DEFAULT_INJECTION_BACKOFF_BASE_MS = 5 * 1000;
+const DEFAULT_INJECTION_BACKOFF_CAP_MS = 60 * 1000;
 const DEFAULT_INJECTION_LEASE_MS = 5 * 60 * 1000;
 
 function readJSON(file, def) {
@@ -40,6 +43,12 @@ function countOrZero(value) {
 
 function injectionMaxAttempts() {
   return Math.max(1, Number(process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS) || DEFAULT_INJECTION_MAX_ATTEMPTS);
+}
+
+function injectionRetryDelay(attempts) {
+  const baseMs = Math.max(1, Number(process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS) || DEFAULT_INJECTION_BACKOFF_BASE_MS);
+  const capMs = Math.max(1, Number(process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_CAP_MS) || DEFAULT_INJECTION_BACKOFF_CAP_MS);
+  return Math.min(capMs, baseMs * Math.pow(2, Math.max(0, attempts - 1)));
 }
 
 function injectionLeaseMs() {
@@ -813,8 +822,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       send(res, 200, { ok: true, injected: false, notNeeded: true, status: job });
       return true;
     }
-    const previous = readDrainMeta(outDir);
-    const attempt = countOrZero(previous.injectionAttempts) + 1;
+    const matched = loadGenerationMatchedOnboardNotes(outDir, generation);
+    const attemptNotes = matched.ok ? matched.artifact.kept : [];
+    const confirmedAtStart = confirmedInjectedCount(outDir, generation, attemptNotes);
+    let attempt = 1;
     const owner = `inject-route-${process.pid}-${crypto.randomBytes(8).toString('hex')}`;
     const leaseMs = injectionLeaseMs();
     const leaseExpiresAt = Date.now() + leaseMs;
@@ -824,6 +835,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         if (!current || current.queueGeneration !== generation) return undefined;
         if (meta.preparationGeneration && meta.preparationGeneration !== generation) return undefined;
         if (liveInjectionLease(meta).live) return undefined;
+        const nextAttempt = (meta.injectionGeneration === generation ? countOrZero(meta.injectionAttempts) : 0) + 1;
         return {
           ...meta,
           repo, outDir, injecting: true, injectionGeneration: generation, injectionState: 'running',
@@ -831,7 +843,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           injectionProcessIdentity: processIncarnation(process.pid),
           injectionLeaseExpiresAt: leaseExpiresAt,
           injectionCancelRequestedOwner: null, injectionCancelRequestedAt: null,
-          injectionAttempts: attempt, injectionRetryAt: null, injectionRetryCapped: false,
+          injectionAttempts: nextAttempt, injectionRetryAt: null, injectionRetryCapped: false,
           injectionError: null, error: null,
         };
       });
@@ -850,6 +862,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         send(res, 409, { ok: false, stale: true, error: 'onboarding generation was replaced before injection started' });
         return true;
       }
+      attempt = countOrZero(claimed.value.injectionAttempts);
       await runNode([learnScript, '--repo', repo, '--in', outDir, '--inject', '--confirm', '--generation', generation, '--owner', owner], {
         timeoutMs: leaseMs,
         onSpawn: (child) => mutateOnboardStatus(outDir, (meta) => {
@@ -887,8 +900,11 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
     } catch (err) {
       const error = String(err && err.message || err);
-      const notes = (readJSON(path.join(outDir, 'onboard-notes.json'), {}) || {}).kept || [];
-      const injectedKept = confirmedInjectedCount(outDir, generation, notes);
+      const injectedKept = confirmedInjectedCount(outDir, generation, attemptNotes);
+      const progressed = injectedKept > confirmedAtStart;
+      const failureStreak = progressed ? 0 : attempt;
+      const capped = !progressed && failureStreak >= injectionMaxAttempts();
+      const retryAt = capped ? null : Date.now() + injectionRetryDelay(failureStreak);
       const committed = mutateOnboardStatus(outDir, (meta) => {
         const current = queueStatus(outDir, { statusLocked: true });
         if (!current || current.queueGeneration !== generation
@@ -896,19 +912,43 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         return {
           ...meta,
           repo, outDir, injecting: false, injected: false, injectedKept,
-          injectionGeneration: generation, injectionState: 'failed', injectionOwner: null, injectionPid: null,
+          injectionGeneration: generation,
+          injectionState: progressed ? 'pending' : (capped ? 'failed' : 'backoff'),
+          injectionOwner: null, injectionPid: null,
           injectionProcessIdentity: null,
           injectionLeaseExpiresAt: null,
           injectionCancelRequestedOwner: null, injectionCancelRequestedAt: null,
-          injectionAttempts: attempt, injectionRetryAt: null, injectionRetryCapped: true,
-          injectionError: error, error,
+          injectionAttempts: failureStreak, injectionRetryAt: retryAt, injectionRetryCapped: capped,
+          injectionError: progressed ? null : error,
+          injectionFailedAt: progressed ? null : new Date().toISOString(),
+          lastError: progressed ? null : error,
+          error: progressed ? null : error,
         };
       });
       if (!committed.applied) {
         send(res, 409, { ok: false, stale: true, error: 'onboarding generation was replaced during injection' });
         return true;
       }
-      send(res, 500, { ok: false, error: `inject failed: ${err && err.message ? err.message : err}` }); return true;
+      if (progressed) {
+        const job = buildDrainJob(repo, outDir);
+        drainJobs.set(`${repo}::${outDir}`, job);
+        if (notifyChange) notifyChange();
+        send(res, 202, {
+          ok: true,
+          injected: false,
+          progressed: true,
+          status: job,
+          message: 'injection advanced and will resume automatically',
+        });
+        return true;
+      }
+      send(res, 500, {
+        ok: false,
+        retryable: !capped,
+        retryAt,
+        error: `inject failed: ${err && err.message ? err.message : err}`,
+      });
+      return true;
     }
     const jobKey = `${repo}::${outDir}`;
     if (drainJobs.has(jobKey)) {
