@@ -166,11 +166,14 @@ async function waitForPing(ms = 10000) {
     let dashOut = null;
     try { dashOut = JSON.parse(dashResult.content[0].text); } catch { /* */ }
     ok('show_dashboard result parses', dashOut !== null);
-    ok('show_dashboard returns browser_url for Codex built-in browser', dashOut && dashOut.browser_url === dashOut.deep_link);
+    ok('show_dashboard preserves browser_url and deep_link aliases', dashOut && dashOut.browser_url === dashOut.deep_link);
     ok('show_dashboard with workspace returns deep_link', dashOut && typeof dashOut.deep_link === 'string' && dashOut.deep_link.includes(encodeURIComponent(WS_A)));
     ok('show_dashboard deep_link points to /graph', dashOut && dashOut.deep_link && dashOut.deep_link.includes('/graph'));
     ok('show_dashboard browser_url does not leak an auth token', dashOut && !/[#?&](?:token|auth)=/i.test(dashOut.browser_url));
     ok('show_dashboard workspace echoed back', dashOut && dashOut.workspace === WS_A);
+    ok('show_dashboard returns versioned client-neutral launch contract', dashOut && dashOut.launch && dashOut.launch.version === 1 && dashOut.launch.url === dashOut.browser_url);
+    ok('show_dashboard launch contract has universal fallback', dashOut && dashOut.launch && dashOut.launch.fallback_surface === 'external_browser');
+    ok('show_dashboard launch contract does not leak an auth token', dashOut && !/[#?&](?:token|auth)=/i.test(JSON.stringify(dashOut.launch)));
 
     const mcpShowDashQueryWs = await req('POST', `/mcp?workspace=${encodeURIComponent(WS_A)}`, {
       jsonrpc: '2.0', id: 3, method: 'tools/call',
