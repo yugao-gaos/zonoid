@@ -166,8 +166,10 @@ async function waitForPing(ms = 10000) {
     let dashOut = null;
     try { dashOut = JSON.parse(dashResult.content[0].text); } catch { /* */ }
     ok('show_dashboard result parses', dashOut !== null);
+    ok('show_dashboard returns browser_url for Codex built-in browser', dashOut && dashOut.browser_url === dashOut.deep_link);
     ok('show_dashboard with workspace returns deep_link', dashOut && typeof dashOut.deep_link === 'string' && dashOut.deep_link.includes(encodeURIComponent(WS_A)));
     ok('show_dashboard deep_link points to /graph', dashOut && dashOut.deep_link && dashOut.deep_link.includes('/graph'));
+    ok('show_dashboard browser_url does not leak an auth token', dashOut && !/[#?&](?:token|auth)=/i.test(dashOut.browser_url));
     ok('show_dashboard workspace echoed back', dashOut && dashOut.workspace === WS_A);
 
     const mcpShowDashQueryWs = await req('POST', `/mcp?workspace=${encodeURIComponent(WS_A)}`, {
@@ -176,7 +178,7 @@ async function waitForPing(ms = 10000) {
     });
     let dashQueryWs = null;
     try { dashQueryWs = JSON.parse(mcpShowDashQueryWs.body.result.content[0].text); } catch { /* */ }
-    ok('/mcp?workspace=A injects workspace into show_dashboard', dashQueryWs && dashQueryWs.workspace === WS_A && dashQueryWs.deep_link.includes(encodeURIComponent(WS_A)));
+    ok('/mcp?workspace=A injects workspace into show_dashboard', dashQueryWs && dashQueryWs.workspace === WS_A && dashQueryWs.browser_url === dashQueryWs.deep_link && dashQueryWs.deep_link.includes(encodeURIComponent(WS_A)));
 
     // Without workspace arg: back-compat (no deep_link, just rendered:true note)
     const mcpShowDashNoWs = await req('POST', '/mcp', {
@@ -188,6 +190,7 @@ async function waitForPing(ms = 10000) {
     try { dashNoWs = JSON.parse(mcpShowDashNoWs.body.result.content[0].text); } catch { /* */ }
     ok('show_dashboard without workspace has rendered:true', dashNoWs && dashNoWs.rendered === true);
     ok('show_dashboard without workspace has no deep_link (back-compat)', !dashNoWs || dashNoWs.deep_link === undefined);
+    ok('show_dashboard without workspace has no browser_url (back-compat)', !dashNoWs || dashNoWs.browser_url === undefined);
 
     // ── Newly fixed direct API reads should also honor ?workspace= ─────────────
     const ovA = overlayStore.load(WS_A);

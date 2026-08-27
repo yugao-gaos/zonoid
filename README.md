@@ -259,6 +259,12 @@ node bin/install.js --windows-service
 http://localhost:8787/graph?workspace=<url-encoded absolute workspace path>
 ```
 
+In Codex Desktop, call `show_dashboard` for the inline summary, then click its scoped
+`browser_url` (or **Open in Codex browser** in the inline panel) to keep the full dashboard in the
+built-in browser alongside the task. Other clients can open the same ordinary HTTP URL in their
+default browser. The daemon remains the dashboard's loopback data/API backend; this presentation
+path does not require remote hosting, CDP debugging, private DOM injection, or a custom URL scheme.
+
 ## MCP tools
 
 47 tools, served identically over both transports (stdio and the daemon's `/mcp` endpoint). The
@@ -331,7 +337,7 @@ Claude Code's native `TaskCreate`; these tools manage them once they exist.)
 
 | Tool | Purpose |
 |---|---|
-| `show_dashboard` | Render the task-graph dashboard inline in the conversation (interactive, live-updating) |
+| `show_dashboard` | Render the live inline summary and return a scoped `browser_url` for the full dashboard |
 
 ## Development
 
