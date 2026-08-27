@@ -259,11 +259,48 @@ node bin/install.js --windows-service
 http://localhost:8787/graph?workspace=<url-encoded absolute workspace path>
 ```
 
-In Codex Desktop, call `show_dashboard` for the inline summary, then click its scoped
-`browser_url` (or **Open in Codex browser** in the inline panel) to keep the full dashboard in the
-built-in browser alongside the task. Other clients can open the same ordinary HTTP URL in their
-default browser. The daemon remains the dashboard's loopback data/API backend; this presentation
-path does not require remote hosting, CDP debugging, private DOM injection, or a custom URL scheme.
+Call `show_dashboard` from any MCP client. It returns a versioned `launch` descriptor with the
+inline MCP resource, the workspace-scoped HTTP URL, and capability-based presentation choices.
+Clients can select an MCP App, an embedded web surface, or the universal external-browser fallback
+without relying on client names or private APIs. The legacy `browser_url` and `deep_link` fields
+remain aliases of `launch.url`.
+
+The same contract is available from the command line:
+
+```sh
+zonoid-dashboard --workspace /path/to/repo --json
+zonoid-dashboard --workspace /path/to/repo --open
+```
+
+The default origin is `http://localhost:8787`. Set `ZONOID_DASHBOARD_ORIGIN` or pass `--origin`
+when the daemon is exposed through another HTTP(S) origin. Origins containing credentials, paths,
+query parameters, or fragments are rejected, and launch URLs never carry the daemon auth token.
+The daemon remains the dashboard data/API backend; the presentation path does not require CDP,
+private DOM injection, or a custom URL scheme.
+
+VS Code and Cursor can also use the bundled editor panel. `zonoid init --harness cursor`
+installs it additively with the Cursor CLI; the equivalent VS Code command is:
+
+```sh
+code --install-extension /path/to/zonoid/packages/vscode-dashboard/zonoid-dashboard-0.1.0.vsix
+```
+
+Run **Zonoid: Open Dashboard** from the Command Palette for the embedded panel, or
+**Zonoid: Open Dashboard in Browser** for the external fallback. In remote workspaces the
+extension resolves the daemon URL with the editor's public `asExternalUri` API before either
+presentation, so the editor owns localhost forwarding and URL rewriting.
+
+Claude Desktop can install the bundled
+`packages/claude-dashboard-mcpb/zonoid-dashboard.mcpb` extension and render the existing MCP App.
+The extension is a small launcher, not a second dashboard: installation asks for the existing
+Zonoid checkout that contains `mcp-graph.js`. Rebuild the checked artifact deterministically with
+`npm run build:claude-dashboard`. Claude Code keeps its existing `.mcp.json` wiring and uses
+`show_dashboard` or `zonoid-dashboard --open`; it does not render Claude Desktop extensions.
+
+OpenCode gets a `dashboard_open` plugin tool and an additive project command at
+`.opencode/commands/dashboard.md`. Run `/dashboard` in the TUI to invoke it. OpenCode does not
+embed arbitrary dashboard HTML in the TUI, so the tool opens the validated, workspace-scoped URL
+in the system browser and still returns the complete launch descriptor if the opener fails.
 
 ## MCP tools
 
@@ -337,7 +374,7 @@ Claude Code's native `TaskCreate`; these tools manage them once they exist.)
 
 | Tool | Purpose |
 |---|---|
-| `show_dashboard` | Render the live inline summary and return a scoped `browser_url` for the full dashboard |
+| `show_dashboard` | Render the live inline summary and return a client-neutral launch contract for the scoped full dashboard |
 
 ## Development
 

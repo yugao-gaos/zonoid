@@ -12,6 +12,7 @@ import { injectClassifiedContext, postWorkspace } from './lib/prompt-context.js'
 const require = createRequire(import.meta.url);
 const scheduleWakeup = require('./lib/schedule-wakeup.js');
 const { createWakeDelivery } = require('./lib/wake-delivery.js');
+const { dashboardOpen } = require('./lib/dashboard.js');
 
 const sessionAgents = new Map();
 
@@ -138,6 +139,30 @@ export const ZonoidPlugin: Plugin = async ({ client, directory, worktree }) => {
             notify_pattern: 'ORCH_SCHEDULED_TASK',
             delivery: { supported: delivery.ok === true, via: 'sdk-promptAsync' },
           }, null, 2);
+        },
+      }),
+
+      dashboard_open: tool({
+        description:
+          'Open the workspace-scoped Zonoid dashboard in the system browser and return its client-neutral launch descriptor.',
+        args: {
+          open: tool.schema.boolean().optional().describe('Open the system browser (default: true)'),
+          origin: tool.schema.string().optional().describe('Optional validated http(s) dashboard origin'),
+        },
+        async execute(args, ctx) {
+          const ws = ctx.worktree || ctx.directory || workspace;
+          try {
+            return JSON.stringify(await dashboardOpen({
+              workspace: ws,
+              origin: args.origin,
+              open: args.open !== false,
+            }), null, 2);
+          } catch (error) {
+            return JSON.stringify({
+              ok: false,
+              error: error instanceof Error ? error.message : String(error),
+            }, null, 2);
+          }
         },
       }),
     },
