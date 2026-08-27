@@ -5,15 +5,17 @@
  * validated, NON-OBVIOUS semantic KB by putting a bounded LLM judge in front of mined evidence.
  *
  * The static miners are recall-leaning and noisy (e.g. 137 doc "candidates" for this repo, most
- * of them restatements). This learner runs the dashboard-selected agentic CLI backend against
- * compact evidence snippets so it must:
+ * of them restatements). This learner runs the dashboard-selected LLM backend against compact
+ * evidence snippets so it must:
  *   1. VALIDATE or REFUTE each mined hypothesis against bounded evidence prepared by this script,
  *   2. KEEP only NON-OBVIOUS, load-bearing knowledge — a convention, an invariant, the gotcha
  *      behind a revert, a "why X not Y" — that a competent dev would NOT infer in 30s of reading,
  *   3. explicitly REJECT restatements of current code (a note that just narrates a function adds
  *      nothing), and MAY ADD a few high-value notes it discovered while reading that the miners
  *      missed.
- * It writes onboard-notes.json (validated) + onboard-learn-report.json (kept/rejected w/ reasons).
+ * The dashboard-selected backend validates the batch through either its agentic CLI invocation or
+ * its in-process API call. It writes onboard-notes.json (validated) + onboard-learn-report.json
+ * (kept/rejected w/ reasons).
  *
  * DRY-RUN BY DEFAULT and REVERSIBLE: the agent only WRITES A JSON FILE (read-only on the graph).
  * Injection into the live graph is a SEPARATE, explicit --confirm step that reuses the existing
@@ -79,6 +81,8 @@ const MCP_OFF = (() => {
 const DAEMON = process.env.ORCH_DAEMON || `http://localhost:${Number(process.env.ORCH_PORT) || 8787}`;
 const PREFIX = '[ingest] '; // reuse the existing reversible prefix so injected nodes stay uniform
 const DEFAULT_TIMEOUT_MS = 600 * 1000;
+const API_LEARNER_MIN_TOKENS = 2048;
+const API_LEARNER_MAX_TOKENS = 32768;
 const QUEUE_LOCK_STALE_MS = 30 * 1000;
 const QUEUE_LOCK_WAIT_MS = 5000;
 const EXIT_TIMEOUT = 124;
@@ -220,8 +224,9 @@ function boundedCandidatesForPrompt(repoAbs, candidates) {
 }
 
 // ---- the agent's instruction: validate hypotheses, keep only non-obvious notes -------------
-function buildPrompt(repoAbs, candidates, outFile, maxKeep) {
+function buildPrompt(repoAbs, candidates, outFile, maxKeep, opts = {}) {
   const bounded = boundedCandidatesForPrompt(repoAbs, candidates);
+  const apiResponse = opts.responseMode === 'api';
   return `You are ONBOARDING onto an unfamiliar codebase at ${repoAbs}. Your job is to build a
 small, HIGH-VALUE knowledge base of NON-OBVIOUS facts about THIS project — the kind of thing a
 new engineer only learns after weeks, or by getting burned.
@@ -229,8 +234,9 @@ new engineer only learns after weeks, or by getting burned.
 This is a BOUNDED learner pass. Do NOT inspect the repo. Do NOT run shell commands. Do NOT use
 git, grep, cat, ls, file reads, web access, or any tool to gather more evidence. The bounded
 evidence below is the entire record you may judge from. If the evidence does not prove a
-candidate, REJECT it as "unverifiable". The only filesystem action you may perform is creating or
-overwriting the required JSON output file.
+candidate, REJECT it as "unverifiable". ${apiResponse
+    ? 'Do not perform any filesystem action; return the required JSON object directly in your response.'
+    : 'The only filesystem action you may perform is creating or overwriting the required JSON output file.'}
 
 Below are ${candidates.length} CANDIDATE hypotheses auto-mined from this repo's git history, docs,
 and module structure. They are NOISY — many are restatements of what the code obviously does, or
@@ -257,7 +263,7 @@ reject the listed candidates.
 
 Keep AT MOST ${maxKeep} notes total. Quality over coverage — a KB of restatements is a failure.
 
-When done, write a JSON file to ${outFile} with EXACTLY this shape (no prose around it):
+When done, ${apiResponse ? 'return a JSON object directly in your response' : `write a JSON file to ${outFile}`} with EXACTLY this shape (no prose around it):
 {
   "kept": [
     { "title": "<=80 char imperative/declarative", "summary": "1-3 sentences, the load-bearing fact + WHY it matters", "evidence": "file:line or commit sha you verified against", "kind": "convention|invariant|gotcha|decision", "source": "<candidate index or 'discovered'>" }
@@ -266,7 +272,9 @@ When done, write a JSON file to ${outFile} with EXACTLY this shape (no prose aro
     { "candidate": "<short id/title>", "reason": "restatement | stale | unverifiable | generic" }
   ]
 }
-Create or overwrite that JSON file. Do not create any other files. Do not touch the orchestrator graph.
+${apiResponse
+    ? 'Return only that JSON object. Do not create files. Do not touch the orchestrator graph.'
+    : 'Create or overwrite that JSON file. Do not create any other files. Do not touch the orchestrator graph.'}
 
 === BOUNDED CANDIDATES ===
 ${bounded.map((c) => JSON.stringify(c)).join('\n')}
@@ -578,8 +586,14 @@ function resolveLearnerBackend(repoAbs, requestedModel, deps = {}) {
   const active = backends.getActiveBackend(overlay);
   const provider = active && active.provider;
   if (!provider) throw new Error('no active LLM backend provider is registered');
+  if (provider.kind === 'api') {
+    if (typeof provider.callApi !== 'function') {
+      throw new Error(`${provider.displayName || provider.id} does not implement the learner API call contract`);
+    }
+    return { ...active, provider, model: requestedModel || active.model || undefined };
+  }
   if (provider.kind !== 'agentic-cli') {
-    throw new Error(`learner requires an agentic CLI backend; active backend "${provider.id}" is ${provider.kind}`);
+    throw new Error(`learner does not support active backend "${provider.id}" of kind ${provider.kind}`);
   }
   if (typeof provider.isAvailable === 'function' && !provider.isAvailable()) {
     throw new Error(`${provider.displayName || provider.id} CLI is not available`);
@@ -588,6 +602,62 @@ function resolveLearnerBackend(repoAbs, requestedModel, deps = {}) {
     throw new Error(`${provider.displayName || provider.id} is not authenticated for headless use`);
   }
   return { ...active, provider, model: requestedModel || active.model || undefined };
+}
+
+function buildLearnerApiRequest(repoAbs, candidates, outFile, active, maxKeep, timeoutMs) {
+  const prompt = buildPrompt(repoAbs, candidates, outFile, maxKeep, { responseMode: 'api' });
+  const maxTokens = Math.max(API_LEARNER_MIN_TOKENS, Math.min(
+    API_LEARNER_MAX_TOKENS,
+    (candidates.length * 256) + (maxKeep * 256),
+  ));
+  return {
+    messages: [
+      { role: 'system', content: 'Classify every onboarding candidate and return only the requested JSON object.' },
+      { role: 'user', content: prompt },
+    ],
+    model: active.model,
+    key: active.config && active.config.key,
+    maxTokens,
+    responseFormat: { type: 'json_object' },
+    timeoutMs,
+  };
+}
+
+function parseLearnerApiResult(text, candidateCount) {
+  let parsed;
+  try {
+    parsed = JSON.parse(String(text || '').replace(/^\uFEFF/, '').trim());
+  } catch (err) {
+    throw new Error(`learner API returned invalid JSON: ${err && err.message ? err.message : err}`);
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)
+      || !Array.isArray(parsed.kept) || !Array.isArray(parsed.rejected)) {
+    throw new Error('learner API response must contain kept[] and rejected[] arrays');
+  }
+  if (parsed.kept.length + parsed.rejected.length !== candidateCount) {
+    throw new Error(`learner API classified ${parsed.kept.length + parsed.rejected.length}/${candidateCount} candidates`);
+  }
+  return parsed;
+}
+
+async function runApiLearner(repoAbs, candidates, outFile, active, maxKeep, timeoutMs) {
+  const provider = active.provider;
+  const effectiveModel = active.model || provider.defaultModel || '(provider default)';
+  console.error(`[learn] running API validation (provider=${provider.id}, model=${effectiveModel}, ${candidates.length} candidates)…`);
+  const t0 = Date.now();
+  try {
+    const response = await provider.callApi(buildLearnerApiRequest(
+      repoAbs, candidates, outFile, active, maxKeep, timeoutMs,
+    ));
+    const result = parseLearnerApiResult(response && response.text, candidates.length);
+    writeJSONAtomic(outFile, result);
+    console.error(`[learn] API validation finished in ${Math.round((Date.now() - t0) / 1000)}s`);
+    return 0;
+  } catch (err) {
+    const message = err && err.message ? err.message : String(err);
+    console.error(`[learn] API validation FAILED (provider=${provider.id}, model=${effectiveModel}): ${message}`);
+    return /timed?\s*out/i.test(message) ? EXIT_TIMEOUT : 1;
+  }
 }
 
 function buildLearnerInvocation(repoAbs, candidates, outFile, model, maxKeep, deps = {}) {
@@ -682,11 +752,20 @@ function runLearnerProcess(invocation, repoAbs, timeoutMs) {
   });
 }
 
-async function runLearner(repoAbs, candidates, outFile, model, maxKeep, timeoutMs = DEFAULT_TIMEOUT_MS) {
+async function runLearner(repoAbs, candidates, outFile, model, maxKeep, timeoutMs = DEFAULT_TIMEOUT_MS, deps = {}) {
   let active;
+  try {
+    active = resolveLearnerBackend(repoAbs, model, deps);
+  } catch (err) {
+    console.error(`[learn] FATAL: ${err && err.message ? err.message : err}`);
+    return 1;
+  }
+  if (active.provider.kind === 'api') {
+    return runApiLearner(repoAbs, candidates, outFile, active, maxKeep, timeoutMs);
+  }
   let invocation;
   try {
-    ({ active, invocation } = buildLearnerInvocation(repoAbs, candidates, outFile, model, maxKeep));
+    ({ invocation } = buildLearnerInvocation(repoAbs, candidates, outFile, model, maxKeep, deps));
   } catch (err) {
     console.error(`[learn] FATAL: ${err && err.message ? err.message : err}`);
     return 1;
@@ -1160,6 +1239,9 @@ module.exports = {
   evidenceRefsForNote,
   resolveLearnerBackend,
   buildLearnerInvocation,
+  buildLearnerApiRequest,
+  parseLearnerApiResult,
+  runLearner,
   buildPrompt,
   boundedCandidatesForPrompt,
   buildLearnerProcessEnv,
