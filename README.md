@@ -290,6 +290,18 @@ Run **Zonoid: Open Dashboard** from the Command Palette for the embedded panel, 
 extension resolves the daemon URL with the editor's public `asExternalUri` API before either
 presentation, so the editor owns localhost forwarding and URL rewriting.
 
+Claude Desktop can install the bundled
+`packages/claude-dashboard-mcpb/zonoid-dashboard.mcpb` extension and render the existing MCP App.
+The extension is a small launcher, not a second dashboard: installation asks for the existing
+Zonoid checkout that contains `mcp-graph.js`. Rebuild the checked artifact deterministically with
+`npm run build:claude-dashboard`. Claude Code keeps its existing `.mcp.json` wiring and uses
+`show_dashboard` or `zonoid-dashboard --open`; it does not render Claude Desktop extensions.
+
+OpenCode gets a `dashboard_open` plugin tool and an additive project command at
+`.opencode/commands/dashboard.md`. Run `/dashboard` in the TUI to invoke it. OpenCode does not
+embed arbitrary dashboard HTML in the TUI, so the tool opens the validated, workspace-scoped URL
+in the system browser and still returns the complete launch descriptor if the opener fails.
+
 ## MCP tools
 
 47 tools, served identically over both transports (stdio and the daemon's `/mcp` endpoint). The
