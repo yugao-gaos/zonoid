@@ -57,8 +57,9 @@ const {
   mutateOnboardStatus,
   reconcileOnboardPublication,
   publishOnboardGeneration,
+  onboardNoteId,
+  confirmedInjectedNoteIds,
   confirmInjectedNote,
-  confirmedInjectedCount,
   onboardQueueGeneration,
   validateOnboardQueue,
   withFileLock,
@@ -895,9 +896,17 @@ async function injectOnboardNotes(notesFile, confirm, workspace, httpRequest = r
     if (expectedGeneration) throw new Error(`could not read /state for idempotent injection: ${e.message}`);
     console.error(`WARN: could not read /state for idempotency (${e.message}); proceeding without skip-set.`);
   }
+  const confirmedNoteIds = expectedGeneration
+    ? confirmedInjectedNoteIds(outDir, expectedGeneration)
+    : new Set();
   let created = 0, skipped = 0, evidenceEdges = 0;
   for (const [index, n] of kept.entries()) {
     assertCurrent();
+    const noteId = onboardNoteId(n, index);
+    if (expectedGeneration && confirmedNoteIds.has(noteId)) {
+      skipped++;
+      continue;
+    }
     const title = PREFIX + n.title;
     const titleMatches = existing.get(title) || [];
     const exact = titleMatches.find((t) => String(t.summary || '') === String(n.summary || ''));
@@ -938,12 +947,17 @@ async function injectOnboardNotes(notesFile, confirm, workspace, httpRequest = r
     }
     // A note is not durably complete until every evidence edge has been upserted. If an edge write
     // fails, no receipt advances; the next pass finds the exact note key and repairs all edges.
-    if (expectedGeneration) confirmInjectedNote(outDir, expectedGeneration, n, index);
+    if (expectedGeneration) {
+      confirmInjectedNote(outDir, expectedGeneration, n, index);
+      confirmedNoteIds.add(noteId);
+    }
   }
   console.log(`document structure nodes upserted: ${structureResult.nodes}, provenance edges upserted: ${structureResult.edges}`);
   console.log(`notes created: ${created}, skipped (already present): ${skipped}, evidence edges: ${evidenceEdges}`);
   console.log(`Reversible: every injected node is titled '${PREFIX}…' — filter/remove like other ingest nodes.`);
-  const confirmed = expectedGeneration ? confirmedInjectedCount(outDir, expectedGeneration, kept) : created + skipped;
+  const confirmed = expectedGeneration
+    ? kept.reduce((count, note, index) => count + (confirmedNoteIds.has(onboardNoteId(note, index)) ? 1 : 0), 0)
+    : created + skipped;
   return { created, skipped, confirmed, evidenceEdges, structure: structureResult };
 }
 
