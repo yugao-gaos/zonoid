@@ -1485,6 +1485,67 @@ function checkCursorHooks(cwd) {
   log('Trust the workspace in Cursor so project hooks run.');
 }
 
+const DASHBOARD_EXTENSION_ID = 'zonoid.zonoid-dashboard';
+
+function dashboardExtensionVsixPath() {
+  return path.join(INSTALL_DIR, 'packages', 'vscode-dashboard', 'zonoid-dashboard-0.1.0.vsix');
+}
+
+function dashboardExtensionInstallDirs(editor, version, homeDir = os.homedir()) {
+  const folder = `${DASHBOARD_EXTENSION_ID}-${version}`;
+  const roots = editor === 'cursor'
+    ? ['.cursor/extensions', '.cursor-server/extensions']
+    : ['.vscode/extensions', '.vscode-server/extensions', '.vscode-server-insiders/extensions'];
+  return roots.map((root) => path.join(homeDir, root, folder));
+}
+
+// Install through the editor's documented CLI so the extension lands in the
+// correct local or remote extension host. The helper is editor-neutral: Cursor
+// init calls it with "cursor", and VS Code users can use the same path with
+// "code". Missing editor CLIs are non-fatal because the MCP/hooks wiring is
+// still useful and the exact manual command is printed.
+function installDashboardExtension(editor = 'cursor', options = {}) {
+  const spawnImpl = options.spawnImpl || spawnSync;
+  const vsixPath = options.vsixPath || dashboardExtensionVsixPath();
+  if (!fs.existsSync(vsixPath)) {
+    warn(`Dashboard extension package missing at ${vsixPath}`);
+    return { ok: false, reason: 'vsix_missing', editor, vsixPath };
+  }
+
+  const version = JSON.parse(fs.readFileSync(path.join(INSTALL_DIR, 'packages', 'vscode-dashboard', 'package.json'), 'utf8')).version;
+  const installDirs = dashboardExtensionInstallDirs(editor, version, options.homeDir);
+  if (installDirs.some((dir) => fs.existsSync(dir))) {
+    ok(`${editor} dashboard extension already installed (${DASHBOARD_EXTENSION_ID}@${version})`);
+    return { ok: true, installed: false, current: true, editor, vsixPath };
+  }
+  const expected = `${DASHBOARD_EXTENSION_ID}@${version}`.toLowerCase();
+  const list = spawnImpl(editor, ['--list-extensions', '--show-versions'], {
+    encoding: 'utf8', windowsHide: true,
+  });
+  if (list.error || list.status == null) {
+    warn(`${editor} CLI unavailable — install the dashboard panel manually:`);
+    log(`${editor} --install-extension "${vsixPath}"`);
+    return { ok: false, reason: 'cli_unavailable', editor, vsixPath };
+  }
+  const installed = String(list.stdout || '').split(/\r?\n/).map((line) => line.trim().toLowerCase());
+  if (installed.includes(expected)) {
+    ok(`${editor} dashboard extension already installed (${DASHBOARD_EXTENSION_ID}@${version})`);
+    return { ok: true, installed: false, current: true, editor, vsixPath };
+  }
+
+  fix(`Installing Zonoid dashboard extension in ${editor}...`);
+  const result = spawnImpl(editor, ['--install-extension', vsixPath, '--force'], {
+    encoding: 'utf8', windowsHide: true,
+  });
+  if (result.error || result.status !== 0) {
+    warn(`${editor} dashboard extension install failed — retry manually:`);
+    log(`${editor} --install-extension "${vsixPath}"`);
+    return { ok: false, reason: 'install_failed', editor, vsixPath, status: result.status };
+  }
+  ok(`Installed Zonoid dashboard extension in ${editor}`);
+  return { ok: true, installed: true, current: false, editor, vsixPath };
+}
+
 // opencode rewrites "@opencode-ai/plugin": "latest" to a "@local" tag that
 // fails to resolve (NpmInstallFailedError), which makes opencode SILENTLY SKIP
 // the plugin entirely — so the write-gate, task_create, and classify injection
@@ -1769,6 +1830,7 @@ function wireHarness(harness, cwd) {
   } else if (harness === 'cursor') {
     checkCursorHooks(cwd);
     checkMcp(cwd, 'cursor');
+    installDashboardExtension('cursor');
     warn('Cursor init uses native .cursor/hooks.json — do not also wire adapters/cursor/settings.sample.json (double execution)');
   } else if (harness === 'codex') {
     checkCodexHooks();
@@ -2018,6 +2080,10 @@ if (require.main === module) {
     installCodexRepoSkills,
     installOpencodeRepoSkills,
     opencodePluginDepVersion,
+    DASHBOARD_EXTENSION_ID,
+    dashboardExtensionVsixPath,
+    dashboardExtensionInstallDirs,
+    installDashboardExtension,
     // CDX-2: Claude+Codex coexistence — MCP store split + multi-harness init
     writeMcp,
     writeCodexMcp,

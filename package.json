@@ -21,6 +21,7 @@
     "bin/",
     "hooks/",
     "adapters/",
+    "packages/vscode-dashboard/",
     "skills/",
     "public/",
     "scripts/",
