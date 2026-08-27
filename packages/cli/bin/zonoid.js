@@ -1546,6 +1546,34 @@ function installDashboardExtension(editor = 'cursor', options = {}) {
   return { ok: true, installed: true, current: false, editor, vsixPath };
 }
 
+function claudeDashboardMcpbPath() {
+  return path.join(INSTALL_DIR, 'packages', 'claude-dashboard-mcpb', 'zonoid-dashboard.mcpb');
+}
+
+function checkClaudeDashboardPackage() {
+  const packageDir = path.dirname(claudeDashboardMcpbPath());
+  try {
+    const builder = require(path.join(packageDir, 'build.js'));
+    builder.validateSource(packageDir);
+    if (!fs.existsSync(claudeDashboardMcpbPath())) {
+      warn('Claude Desktop dashboard extension source is valid, but the .mcpb artifact is missing; run npm run build:claude-dashboard');
+      return { ok: false, reason: 'artifact_missing', path: claudeDashboardMcpbPath() };
+    }
+    const expected = builder.createZip(builder.PACKAGE_FILES.map((name) => ({
+      name,
+      body: fs.readFileSync(path.join(packageDir, name)),
+    })));
+    if (!fs.readFileSync(claudeDashboardMcpbPath()).equals(expected)) {
+      throw new Error('checked .mcpb artifact is stale; run npm run build:claude-dashboard');
+    }
+    ok(`Claude Desktop dashboard extension ready: ${claudeDashboardMcpbPath()}`);
+    return { ok: true, path: claudeDashboardMcpbPath() };
+  } catch (error) {
+    warn(`Claude Desktop dashboard extension is invalid: ${error.message}`);
+    return { ok: false, reason: 'invalid_package', path: claudeDashboardMcpbPath() };
+  }
+}
+
 // opencode rewrites "@opencode-ai/plugin": "latest" to a "@local" tag that
 // fails to resolve (NpmInstallFailedError), which makes opencode SILENTLY SKIP
 // the plugin entirely — so the write-gate, task_create, and classify injection
@@ -1567,6 +1595,36 @@ function opencodePluginDepVersion() {
     if (m) return `~${m[1]}.${m[2]}.0`;
   }
   return '^1.15.0'; // fallback: never 'latest' (opencode's @local rewrite breaks it)
+}
+
+const OPENCODE_DASHBOARD_COMMAND_MARKER = '<!-- zonoid-managed-dashboard-command -->';
+
+function installOpencodeDashboardCommand(cwd) {
+  const source = path.join(INSTALL_DIR, 'packages', 'opencode-plugin', 'commands', 'dashboard.md');
+  const dest = path.join(cwd, '.opencode', 'commands', 'dashboard.md');
+  if (!fs.existsSync(source)) {
+    warn(`OpenCode /dashboard command source missing at ${source}`);
+    return { ok: false, reason: 'source_missing', path: dest };
+  }
+
+  const desired = fs.readFileSync(source, 'utf8');
+  const existed = fs.existsSync(dest);
+  if (existed) {
+    const existing = fs.readFileSync(dest, 'utf8');
+    if (existing === desired) {
+      ok('.opencode/commands/dashboard.md already installed');
+      return { ok: true, installed: false, current: true, path: dest };
+    }
+    if (!existing.includes(OPENCODE_DASHBOARD_COMMAND_MARKER)) {
+      warn('.opencode/commands/dashboard.md is user-owned — leaving it untouched');
+      return { ok: false, reason: 'user_owned', path: dest };
+    }
+  }
+
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, desired);
+  ok(`${existed ? 'Updated' : 'Installed'} OpenCode /dashboard command`);
+  return { ok: true, installed: true, current: false, path: dest };
 }
 
 function checkOpencodePlugin(cwd) {
@@ -1827,6 +1885,7 @@ function wireHarness(harness, cwd) {
     checkClaudeWiring(cwd);
     // CLAUDE.md merge is kept here (bin/install.js doesn't own CLAUDE.md)
     checkClaude(cwd);
+    checkClaudeDashboardPackage();
   } else if (harness === 'cursor') {
     checkCursorHooks(cwd);
     checkMcp(cwd, 'cursor');
@@ -1840,6 +1899,7 @@ function wireHarness(harness, cwd) {
     warn('Codex init skips Claude settings.json / CLAUDE.md — wire hooks via ~/.codex/hooks.json');
   } else if (harness === 'opencode') {
     checkOpencodePlugin(cwd);
+    installOpencodeDashboardCommand(cwd);
     writeOpencodeMcp(cwd);
     installOpencodeRepoSkills(cwd);
     warn('OpenCode init skips Claude hooks — restart OpenCode after native opencode.json MCP wiring');
@@ -1870,16 +1930,17 @@ function printNextSteps(harness, cwd = process.cwd()) {
   } else if (harness === 'opencode') {
     console.log('  Next steps (opencode):');
     console.log('    1. Restart OpenCode in this directory after opencode.json MCP wiring');
-    console.log(`    2. Open the dashboard: ${dash}`);
+    console.log(`    2. Run /dashboard (or use dashboard_open); external fallback: ${dash}`);
     console.log('    3. Mint tasks with the task_create tool (file-drop stub + /sync), then start_task before editing');
     console.log('    4. Heartbeat: schedule_wakeup(delaySeconds, reason, prompt) — monitor ORCH_SCHEDULED_TASK on the session .fire file');
     console.log('    5. Repo skill installed at .opencode/skills/zonoid-orchestrator for task-mint workflow');
     console.log('    6. orchestrator-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
   } else {
     console.log('  Next steps (claude):');
-    console.log('    1. Restart Claude Code in this directory');
-    console.log(`    2. Open the dashboard: ${dash}`);
-    console.log('    3. Ask Claude to start working — it will create tasks automatically');
+    console.log(`    1. Claude Desktop: install ${claudeDashboardMcpbPath()} for the interactive MCP App`);
+    console.log('    2. Claude Code: restart in this directory; it cannot render the Desktop MCP App');
+    console.log(`    3. Claude Code fallback: call show_dashboard or run zonoid-dashboard --open (${dash})`);
+    console.log('    4. Ask Claude to start working — it will create tasks automatically');
     console.log('');
     console.log('  Tip: if Claude says "no task claimed", that\'s the gate working —');
     console.log('  Claude will create a task automatically before editing.');
@@ -2084,6 +2145,10 @@ if (require.main === module) {
     dashboardExtensionVsixPath,
     dashboardExtensionInstallDirs,
     installDashboardExtension,
+    claudeDashboardMcpbPath,
+    checkClaudeDashboardPackage,
+    installOpencodeDashboardCommand,
+    wireHarness,
     // CDX-2: Claude+Codex coexistence — MCP store split + multi-harness init
     writeMcp,
     writeCodexMcp,

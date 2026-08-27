@@ -3,7 +3,7 @@
 OpenCode bridge for [Zonoid](https://github.com/yugao-gaos/zonoid), the agent's subconscious
 for coding work. It connects OpenCode sessions to the local Zonoid daemon
 (`http://localhost:8787`) for context injection, write gating, lifecycle tracking, task creation,
-and scheduled wakeups.
+dashboard launching, and scheduled wakeups.
 
 ## Capabilities
 
@@ -15,6 +15,7 @@ and scheduled wakeups.
 | `event` | Plugin init / `session.created` → `POST /workspace`; `session.created` → `POST /agent/start`; `session.idle` / `session.deleted` → `POST /agent/done`; `todo.updated` with a session id → best-effort `GET /ready?session=&workspace=`. |
 | `task_create` | Writes a v1 stub JSON under the daemon file-drop folder (`opencode/<id>.json`), then `POST /sync` for immediate adoption. IDs are trimmed and may contain only letters, numbers, dot, underscore, and dash. |
 | `schedule_wakeup` | Claude-compatible `ScheduleWakeup`: cancels any prior wake for the session, arms `delaySeconds` via `lib/schedule-wakeup.js`, returns `{ command, notify_pattern }` for monitored wake (`ORCH_SCHEDULED_TASK …`). |
+| `dashboard_open` | Builds the workspace-scoped URL with the shared Zonoid launch contract, optionally opens it with the platform browser, and returns the launch descriptor even when the opener fails. |
 
 ## Install (project)
 
@@ -87,6 +88,10 @@ EOF
 
 6. Restart OpenCode. The plugin loads from `.opencode/plugins/` automatically.
 
+The CLI also installs `.opencode/commands/dashboard.md` without replacing a user-owned command.
+Run `/dashboard` in the TUI, or call `dashboard_open` directly. OpenCode does not render arbitrary
+HTML inside its TUI; this command uses the external-browser surface.
+
 ## Global install
 
 Copy the same files to `~/.config/opencode/plugins/` for all projects. If the plugin is copied
@@ -105,6 +110,5 @@ Use the canonical repo skill at `.opencode/skills/zonoid-orchestrator`. `npx @zo
 6. Orchestrator MCP `branch_task(task_key)`, then `start_task(task_key, agent_id)` — create the attempt worktree and claim before edits.
 7. Edit files inside the returned worktree — gate allows claimed writes only there.
 8. Orchestrator MCP `complete_task` — finish and release claim.
-9. `schedule_wakeup(delaySeconds, reason, prompt)` — heartbeat / idle polling (same contract as Claude native `ScheduleWakeup`). Re-arming replaces any prior wake for the session. Response includes `notify_pattern: "ORCH_SCHEDULED_TASK"` when a harness monitors stdout for the fire line.
-
-Dashboard: http://localhost:8787/graph?workspace=<url-encoded absolute workspace path>
+9. `dashboard_open(open: true)` or `/dashboard` — open the scoped dashboard; the descriptor remains available on opener failure.
+10. `schedule_wakeup(delaySeconds, reason, prompt)` — heartbeat / idle polling (same contract as Claude native `ScheduleWakeup`). Re-arming replaces any prior wake for the session. Response includes `notify_pattern: "ORCH_SCHEDULED_TASK"` when a harness monitors stdout for the fire line.
