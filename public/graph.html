@@ -141,6 +141,8 @@
   .pad { padding: 16px; width: 348px; }
   .pclose { float: right; color: #8b949e; cursor: pointer; }
   .ptitle { font-size: 15px; font-weight: 600; margin: 0 0 2px; }
+  .dep-link { display: block; width: 100%; margin: 3px 0; padding: 3px 0; border: 0; background: none; color: #58a6ff; cursor: pointer; font: inherit; text-align: left; word-break: break-word; }
+  .dep-link:hover { color: #79c0ff; text-decoration: underline; }
   .kv { margin: 10px 0; } .kv .k { color: #8b949e; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
   .kv .v { margin-top: 3px; white-space: pre-wrap; word-break: break-word; }
   .usage { display: flex; gap: 12px; flex-wrap: wrap; } .usage div { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 6px 9px; }
@@ -355,6 +357,8 @@
   #flowsvg g.fn.merging .fshine-wrap { opacity: 1; }
   /* Focus view: steady amber halo on the focused node */
   #flowsvg g.fn.focused .fhalo { opacity: 1; stroke: #e3b341; }
+  #flowsvg g.fn.task-selected .fbg { stroke: #58a6ff; stroke-width: 2; }
+  #cloudsvg g.cn.task-selected circle { stroke: #58a6ff; stroke-width: 3; }
   /* ── Status Dock ── */
   #statusDock { position: fixed; bottom: 0; left: 0; right: 0; height: var(--dock-h); background: #0d1117; border-top: 1px solid #21262d; display: flex; align-items: center; padding: 0 12px; gap: 2px; z-index: 50; justify-content: space-between; }
   .sd-group { display: flex; align-items: center; gap: 2px; }
@@ -4953,6 +4957,8 @@ let lastState=null; // most recent full /state payload, for re-render on view sw
 let liveAgentIds=new Set();
 let currentView=(v=>v==='cloud'||v==='frontier'||v==='kanban'?v:(v==='flow'?'frontier':'kanban'))(localStorage.getItem('orchView'));  // stale Flow migrates; Kanban is the operational default
 let focusedId=null;            // Focus view target; survives view switches, NOT persisted
+let focusReturnView='frontier'; // return to the tab that opened Focus, with its state intact
+const viewUiState={kanban:{scrollLeft:0,scrollTop:0}};
 let cloudSim=null;             // live d3 force simulation
 const cloudPos={};             // id -> {x,y} preserved across ticks so it doesn't re-jiggle
 let cloudArchiveOpen=false;    // whether the server-archive bundle is expanded
@@ -5344,14 +5350,18 @@ function truncate(s,n){ s=String(s||''); return s.length>n?s.slice(0,n)+'…':s;
 function wrapLabel(s,perLine){ s=String(s||''); const lines=[]; while(s.length>perLine){ let cut=s.lastIndexOf(' ',perLine); if(cut<Math.floor(perLine*0.5)) cut=perLine; lines.push(s.slice(0,cut)); s=s.slice(cut).trimStart(); } if(s) lines.push(s); return lines; }
 async function openDetail(key){
   selected=key; document.getElementById('panel').classList.add('open');
+  syncSelectedTask();
   const pad=document.getElementById('pad'); pad.innerHTML='loading…';
-  let d; try{ d=await(await dfetch('/task/detail?key='+encodeURIComponent(key))).json(); }catch{ pad.innerHTML='error'; return; }
+  let d; try{ d=await(await dfetch('/task/detail?key='+encodeURIComponent(key))).json(); }catch{ if(selected===key) pad.innerHTML='error'; return; }
+  if(selected!==key) return; // a slower response must not replace a newer shared selection
   if(d.error||!d.task){ pad.innerHTML='<span class="pclose" onclick="closeDetail()">✕</span>not found'; return; }
   const t=d.task, u=d.tokenUsage||{};
   const byId=lastState?Object.fromEntries((lastState.tasks||[]).map(x=>[x.id,x])):{};
   const ds=taskDisplayStatus(t,byId);
   const know=(d.knowledge||[]).map(k=>`<div class="row">${esc(k.type||'item')}: ${esc(k.value||JSON.stringify(k))}${k.note?'<div class="muted">'+esc(k.note)+'</div>':''}</div>`).join('')||'<div class="empty">none</div>';
-  const depList=t.deps.length?t.deps.map(x=>esc(x.replace('ghost:','(ghost) '))).join('<br>'):'none';
+  const depList=t.deps.length?t.deps.map(dep=>String(dep).startsWith('ghost:')
+    ? `<span class="muted">${esc(dep.replace('ghost:','(ghost) '))}</span>`
+    : `<button type="button" class="dep-link" data-task-key="${esc(dep)}">${esc(dep)}</button>`).join(''):'none';
   pad.innerHTML =
     `<button class="pclose" onclick="closeDetail()" aria-label="Close">✕</button>`+
     `<div class="ptitle">${esc(t.label)}</div>`+
@@ -5372,8 +5382,22 @@ async function openDetail(key){
     `<div class="kv"><div class="k">Knowledge</div><div class="v">${know}</div></div>`+
     (d.transcript?`<div class="kv"><div class="k">Transcript</div><div class="v"><a href="${BASE}/agent/${encodeURIComponent(d.assignee)}" target="_blank">open subagent transcript ↗</a></div></div>`:'')+
     `</details>`;
+  pad.querySelectorAll('.dep-link').forEach(button=>button.addEventListener('click',()=>navigateToDependency(button.dataset.taskKey)));
 }
-function closeDetail(){ selected=null; document.getElementById('panel').classList.remove('open'); document.querySelectorAll('#kanban .kb-card.selected').forEach(el=>el.classList.remove('selected')); }
+function syncSelectedTask(){
+  document.querySelectorAll('#kanban .kb-card').forEach(el=>el.classList.toggle('selected',el.dataset.taskKey===selected));
+  if(typeof d3!=='undefined'){
+    d3.selectAll('#flowsvg g.fn').classed('task-selected',t=>!!t&&t.id===selected);
+    d3.selectAll('#cloudsvg g.cn').classed('task-selected',n=>!!n&&!n.archive&&n.id===selected);
+  }
+  if(currentView==='cloud'&&lastState) renderCloud(lastState);
+}
+function navigateToDependency(key){
+  selected=key;
+  setView('cloud');
+  openDetail(key);
+}
+function closeDetail(){ selected=null; document.getElementById('panel').classList.remove('open'); syncSelectedTask(); }
 // Top-bar autonomy score: the VALUE rendered always-visible in the summary bar (the popup stays
 // the click-through detail). /costflow walks every transcript — too heavy per 2s tick — so the
 // cache refreshes on the graph tick but at most every 30s (and never overlaps itself).
@@ -5554,6 +5578,7 @@ function selectKanbanCard(button){
 }
 function renderKanban(d){
   const root=document.getElementById('kanban');
+  if(currentView==='kanban') viewUiState.kanban={scrollLeft:root.scrollLeft,scrollTop:root.scrollTop};
   const projection=d&&d.kanban;
   if(!projection||projection.version!==1){
     root.innerHTML='<div class="empty" style="padding:24px">Kanban projection unavailable for this daemon version.</div>';
@@ -5584,6 +5609,8 @@ function renderKanban(d){
       `<div class="kb-cards">${cardHtml}</div></section>`;
   }).join('')}</div>`;
   root.querySelectorAll('.kb-card').forEach(button=>button.addEventListener('click',()=>selectKanbanCard(button)));
+  root.scrollLeft=viewUiState.kanban.scrollLeft;
+  root.scrollTop=viewUiState.kanban.scrollTop;
 }
 
 function fmtK(n){ if(n==null)return'—'; return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(Math.round(n)); }
@@ -6089,26 +6116,20 @@ function fallbackCopy(text,done){
   document.body.removeChild(ta);
 }
 // ---- view switching: Kanban (default) | Frontier (dagre subset) | Cloud (whole-graph) | Focus (one node's lineage)
+function captureViewState(v){
+  if(v==='kanban'){
+    const root=document.getElementById('kanban');
+    viewUiState.kanban={scrollLeft:root.scrollLeft,scrollTop:root.scrollTop};
+  }
+}
 function setView(v){
   if(v==='focus' && !focusedId) return;     // Focus needs a target first (button stays hidden until then)
+  captureViewState(currentView);
   currentView=v;
   if(v!=='focus') localStorage.setItem('orchView',v);   // focus is never persisted
   document.getElementById('kanban').classList.toggle('show', v==='kanban');
   document.getElementById('cloud').classList.toggle('show', v==='cloud');
   document.getElementById('cloudSearchWrap').classList.toggle('show', v==='cloud');
-  if(v!=='cloud'){
-    cloudSearchText='';
-    cloudSearchKeys=new Set();
-    cloudSearchResolvedText='';
-    cloudSearchPending=false;
-    cloudSearchError=false;
-    cloudSearchTrace=null;
-    cloudSearchContext=null;
-    if(cloudSearchTimer){ clearTimeout(cloudSearchTimer); cloudSearchTimer=null; }
-    const si=document.getElementById('cloudSearchInput'); if(si) si.value='';
-  } else if(cloudSearchText.trim()) {
-    scheduleCloudSearch();
-  }
   document.getElementById('flow').classList.toggle('show', v==='frontier'||v==='focus');     // Frontier + Focus share the dagre pane
   document.querySelectorAll('#viewToggle button').forEach(b=>b.classList.toggle('on', b.dataset.view===v));
   if(v!=='cloud' && cloudSim) cloudSim.stop();
@@ -6118,12 +6139,13 @@ function setView(v){
   updateFocusBtn();
 }
 function focusNode(key){
+  if(currentView!=='focus') focusReturnView=currentView;
   focusedId=key; dagState.focus={init:false,tf:null};
   const fb=document.querySelector('#viewToggle button[data-view="focus"]'); if(fb) fb.style.display='';
   setView('focus');
 }
 function toggleFocus(key){
-  if(currentView==='focus' && focusedId===key){ setView('frontier'); }
+  if(currentView==='focus' && focusedId===key){ setView(focusReturnView); }
   else { focusNode(key); }
 }
 function updateFocusBtn(){
@@ -6935,7 +6957,9 @@ function renderCloud(d, opts={}){
     return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},.62)`;
   };
   const searchHighlight=n=>{
-    if(!q||!n||n.archive) return 0;
+    if(!n||n.archive) return 0;
+    if(n.id===selected) return 1;
+    if(!q) return 0;
     if(!trace) return (localSearch(n)||remoteMatch(n)) ? .95 : 0;
     if(traceFinal(n)||traceReranked(n)) return 1;
     if(finalNodeKeys.has(n.id)) return 1;
