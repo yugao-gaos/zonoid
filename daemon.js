@@ -1469,7 +1469,7 @@ function decideOne(L, ctx) {
   // reports the flag; the loop-driving dispatcher judges (suggest_links + add_dependency, or
   // mark_root for a true root). Wiring/mark_root clears ov.unwired → spawnable next tick.
   const isUnwired = (t) => !!(ov.unwired && ov.unwired[t.id]);
-  const isExplicitlyBlocked = (t) => !!(ov.blocked && ov.blocked[t.id]) || decisionDelivery.hasTaskHold(ov, t.id);
+  const isExplicitlyBlocked = (t) => !!(ov.blocked && ov.blocked[t.id]);
   // Blocked tasks are excluded from the spawn pool entirely. The block is sticky (overlay flag,
   // not derived from deps) and cleared only by unblock_task — never by dep re-derivation.
   let ready = readyAll.filter((t) => !isUnwired(t) && !isExplicitlyBlocked(t) && !isStandingHarnessTask(ov, t.id));
@@ -2572,7 +2572,7 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
 	    const readiness = readinessDetail(R, ws, t.key, {
 	      status: _status,
 	      judging: _judging,
-	      blocked: (ovWs.blocked && ovWs.blocked[t.key]) || (ovWs.decision_holds && ovWs.decision_holds[t.key]) || null,
+	      blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null,
 	      note: ovWs.notes[t.key] || '',
 	    });
 	    if (!ovWs.readinessRepairs) ovWs.readinessRepairs = {};
@@ -2592,7 +2592,7 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
     // `provisional` stays false (P6 strict gate — see judgingState above; timedOut is pinned false,
     // so origin's `_js.judging && _js.timedOut` is equivalent — we keep the explicit literal).
     const reviewLifecycle = overlayStore.reviewLifecycleFor(ovWs, t.key, _status);
-    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, readiness, judging: _judging, provisional: false, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: taskVecNode.vecs, vecsMeta: taskVecNode.vecsMeta, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, ...reviewLifecycle, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || (ovWs.decision_holds && ovWs.decision_holds[t.key]) || null };
+    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, readiness, judging: _judging, provisional: false, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: taskVecNode.vecs, vecsMeta: taskVecNode.vecsMeta, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, ...reviewLifecycle, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
   });
   // KEPT context edges → context_deps for overlay-only graph nodes. The structBoost reranker
   // (/search) and BFS path tier read each node's context_deps as graph adjacency. Mirror the task-side

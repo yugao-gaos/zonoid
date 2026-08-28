@@ -11,7 +11,7 @@ const assert = require('node:assert');
 
 const {
   resolveAutoLoopMode, isAutoMode, hasActiveSessionLoop, maybeAutostartLoop, AUTOSTART_CONFIG,
-  ensureManagedGraphLoop,
+  ensureManagedGraphLoop, hasNormalReadyWork,
 } = require('../lib/loop-autostart');
 const { classifyHeuristic } = require('../lib/prompt-heuristic');
 const { assembleClassifyResponse } = require('../lib/classify-assemble');
@@ -122,6 +122,14 @@ test('managed graph autostart ignores disposable worktree workspaces', () => {
     assert.strictEqual(result.loop, null);
   }
   assert.strictEqual(ctx.loops.size, 0);
+});
+
+test('pending dashboard decisions do not suppress managed-loop readiness', () => {
+  const graph = { tasks: [{ id: 'codex/ready', status: 'ready' }] };
+  const overlay = { blocked: {}, decision_holds: { 'codex/ready': { guidance_id: 'legacy' } } };
+  assert.strictEqual(hasNormalReadyWork(graph, overlay), true);
+  overlay.blocked['codex/ready'] = { reason: 'explicit structural block' };
+  assert.strictEqual(hasNormalReadyWork(graph, overlay), false);
 });
 
 // ---- assembler integration ------------------------------------------------
