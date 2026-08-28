@@ -155,6 +155,37 @@
   .toggle { display: inline-flex; border: 1px solid #30363d; border-radius: 6px; overflow: hidden; }
   .toggle button { background: #161b22; color: #8b949e; border: none; padding: 3px 12px; cursor: pointer; font: inherit; }
   .toggle button.on { background: #1f6feb33; color: #79c0ff; }
+  /* operational Kanban view */
+  #kanban { display: none; flex: 1; min-height: 0; overflow: auto; background: #0d1117; }
+  #kanban.show { display: block; }
+  .kb-board { display: grid; grid-template-columns: repeat(5, minmax(224px, 1fr)); gap: 12px; min-width: 1180px; min-height: 100%; padding: 16px; box-sizing: border-box; }
+  .kb-lane { display: flex; flex-direction: column; min-width: 0; min-height: 180px; border: 1px solid #21262d; border-radius: 10px; background: #11151c; overflow: hidden; }
+  .kb-lane-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 0 10px; border-bottom: 1px solid #21262d; background: rgba(17,21,28,.96); backdrop-filter: blur(8px); }
+  .kb-lane-title { color: #c9d1d9; font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .07em; }
+  .kb-count { min-width: 18px; padding: 0 5px; border: 1px solid #30363d; border-radius: 10px; color: #8b949e; background: #0d1117; font-size: 10px; font-variant-numeric: tabular-nums; text-align: center; }
+  .kb-lane-meta { margin-left: auto; color: #6e7681; font-size: 9px; white-space: nowrap; }
+  .kb-live-dot { display: inline-block; width: 7px; height: 7px; margin-right: 4px; border-radius: 50%; background: #58a6ff; box-shadow: 0 0 0 0 rgba(88,166,255,.58); animation: kbLive 1.6s ease-out infinite; vertical-align: -1px; }
+  @keyframes kbLive { 0% { box-shadow: 0 0 0 0 rgba(88,166,255,.58); } 70%,100% { box-shadow: 0 0 0 6px rgba(88,166,255,0); } }
+  .kb-history { margin-left: auto; padding: 2px 6px; border: 0; border-radius: 5px; background: transparent; color: #58a6ff; cursor: pointer; font: inherit; font-size: 9px; }
+  .kb-history:hover { background: #1f6feb22; color: #79c0ff; }
+  .kb-cards { display: flex; flex: 1; flex-direction: column; gap: 8px; padding: 8px; }
+  .kb-empty { padding: 22px 8px; color: #484f58; font-size: 11px; text-align: center; }
+  .kb-card { position: relative; width: 100%; padding: 9px 10px 8px 12px; border: 1px solid #30363d; border-left: 3px solid var(--kb-tone, #6e7681); border-radius: 8px; background: #161b22; color: #e6edf3; cursor: pointer; font: inherit; text-align: left; box-sizing: border-box; transition: border-color .15s, background .15s, transform .15s; }
+  .kb-card:hover { border-color: #484f58; border-left-color: var(--kb-tone, #6e7681); background: #1c2230; transform: translateY(-1px); }
+  .kb-card.selected { outline: 1px solid #58a6ff; outline-offset: 1px; }
+  .kb-card.live { border-color: #1f6feb88; border-left-color: #58a6ff; box-shadow: 0 0 0 1px #1f6feb22; }
+  .kb-card-title { display: -webkit-box; overflow: hidden; color: #e6edf3; font-size: 12px; font-weight: 650; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+  .kb-card-key { margin-top: 3px; overflow: hidden; color: #6e7681; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+  .kb-card-meta { display: flex; align-items: center; gap: 6px; margin-top: 7px; min-width: 0; color: #8b949e; font-size: 9px; }
+  .kb-status { color: var(--kb-tone, #8b949e); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .kb-assignee { min-width: 0; overflow: hidden; color: #79c0ff; text-overflow: ellipsis; white-space: nowrap; }
+  .kb-flags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+  .kb-flag { padding: 1px 5px; border: 1px solid #30363d; border-radius: 8px; color: #8b949e; background: #0d1117; font-size: 9px; line-height: 1.4; }
+  .kb-flag.wait { border-color: #bb800966; color: #f0d77a; background: #bb800918; }
+  .kb-flag.bad { border-color: #f8514966; color: #ff7b72; background: #f8514918; }
+  .kb-flag.ok { border-color: #2ea04366; color: #7ee787; background: #2ea04318; }
+  .kb-flag.info { border-color: #1f6feb66; color: #79c0ff; background: #1f6feb18; }
+  .kb-tag { max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   @media (max-width: 1180px) {
     :root { --hdr-h: 116px; }
     header { align-content: flex-start; gap: 0 10px; padding: 0 14px; }
@@ -192,6 +223,11 @@
     .repo-btn { max-width: 150px; padding: 0 7px; }
     .repo-btn-label { display: none; }
     .repo-btn-name { max-width: 104px; }
+    .kb-board { grid-template-columns: repeat(5, minmax(210px, 76vw)); gap: 9px; min-width: max-content; padding: 10px; }
+    .kb-lane { min-height: 150px; }
+    #panel { position: fixed; top: var(--hdr-h); right: 0; bottom: var(--dock-h); height: auto; z-index: 45; box-shadow: -10px 0 28px rgba(0,0,0,.5); }
+    #panel.open { width: min(380px, 100vw); }
+    #panel .pad { width: auto; }
     .hd-mid {
       flex-basis: calc(100% + 20px);
       width: calc(100% + 20px);
@@ -678,7 +714,8 @@
       Zonoid
     </h1>
     <div class="toggle" id="viewToggle">
-      <button data-view="frontier" class="on" title="Frontier view — DAG layout showing tasks at the current working frontier: in-progress, ready, and their immediate dependencies. Best for day-to-day steering.">Frontier Tasks</button>
+      <button data-view="kanban" class="on" title="Kanban Board — the operational task lifecycle from Queue through Done, including review, merge, and user-attention cues.">Kanban Board</button>
+      <button data-view="frontier" title="Frontier view — DAG layout showing tasks at the current working frontier: in-progress, ready, and their immediate dependencies. Best for day-to-day steering.">Frontier Tasks</button>
       <button data-view="cloud" title="Force Cloud — all tasks in a force-directed layout. Shows the full graph structure and long-range dependencies at once. Best for auditing the big picture.">Force Cloud</button>
     </div>
   </div>
@@ -814,6 +851,7 @@
 <div class="wrap">
   <div class="left">
     <div id="ws" style="font-size:11px;color:#6e7681;padding:0 16px 8px;display:none"></div>
+    <div id="kanban" aria-label="Operational Kanban board"></div>
     <div id="cloud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><div id="cloudTraceLegend"></div><div id="cloudSearchSummary"></div><svg id="cloudsvg"></svg></div>
     <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div></div>
     <div id="flowstats"></div>
@@ -4913,7 +4951,7 @@ let selected=null;
 let lastDetailFp='';
 let lastState=null; // most recent full /state payload, for re-render on view switch
 let liveAgentIds=new Set();
-let currentView=(v=>v==='cloud'?'cloud':'frontier')(localStorage.getItem('orchView'));  // Flow renamed → Frontier (stale 'flow' migrates; Frontier stays the default)
+let currentView=(v=>v==='cloud'||v==='frontier'||v==='kanban'?v:(v==='flow'?'frontier':'kanban'))(localStorage.getItem('orchView'));  // stale Flow migrates; Kanban is the operational default
 let focusedId=null;            // Focus view target; survives view switches, NOT persisted
 let cloudSim=null;             // live d3 force simulation
 const cloudPos={};             // id -> {x,y} preserved across ticks so it doesn't re-jiggle
@@ -5335,7 +5373,7 @@ async function openDetail(key){
     (d.transcript?`<div class="kv"><div class="k">Transcript</div><div class="v"><a href="${BASE}/agent/${encodeURIComponent(d.assignee)}" target="_blank">open subagent transcript ↗</a></div></div>`:'')+
     `</details>`;
 }
-function closeDetail(){ selected=null; document.getElementById('panel').classList.remove('open'); }
+function closeDetail(){ selected=null; document.getElementById('panel').classList.remove('open'); document.querySelectorAll('#kanban .kb-card.selected').forEach(el=>el.classList.remove('selected')); }
 // Top-bar autonomy score: the VALUE rendered always-visible in the summary bar (the popup stays
 // the click-through detail). /costflow walks every transcript — too heavy per 2s tick — so the
 // cache refreshes on the graph tick but at most every 30s (and never overlaps itself).
@@ -5368,7 +5406,8 @@ function stateFingerprint(d){
     t.reviewed_at||''
   ].join(':')).sort().join('|');
   const guidFp=(d.guidance||[]).map(g=>g.id+':'+g.resolved).join('|');
-  return JSON.stringify({sc, taskFp, guidFp, agents: s.agents, archived: s.archived});
+  const kanbanFp=d.kanban&&d.kanban.version===1?(d.kanban.columns||[]).map(c=>c.id+':'+(c.task_keys||[]).join(',')).join('|'):'';
+  return JSON.stringify({sc, taskFp, guidFp, kanbanFp, agents: s.agents, archived: s.archived});
 }
 function statusLabel(s){ const m={'not_ready':'Not ready','in_progress':'In progress','canceled':'Canceled','not ready':'Not ready','in progress':'In progress','needs_guidance':'Needs guidance','needs_approval':'Needs approval','waiting_deps':'Waiting on deps','waiting_ghost':'Waiting on ghost','blocked':'Blocked'}; return m[s]||(s.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())); }
 function reviewText(s){ return String(s||'').replace(/_/g,' ').replace(/\s+/g,' ').trim(); }
@@ -5477,6 +5516,74 @@ function taskDisplayStatus(t,byId){
 function taskStatusLine(t,byId){
   if(t.kind==='note') return t.validTo?'superseded':(t.supersedes?'current ✓':'note');
   return taskDisplayStatus(t,byId).label+(t.agent_id?' ▶'+(t.agent_id.length>14?t.agent_id.slice(0,14)+'…':t.agent_id):'');
+}
+
+function kanbanCueLabel(kind,value,count){
+  const clean=reviewText(value);
+  if(kind==='user') return clean+' · '+count+' '+(count===1?'gate':'gates');
+  if(kind==='review') return clean==='kick back'?'review · kick back':'review · '+clean;
+  return 'merge · '+clean;
+}
+function kanbanCueTone(value){
+  const tone=reviewTone(value);
+  return tone==='bad'?'bad':tone==='wait'?'wait':tone==='ok'?'ok':'info';
+}
+function kanbanFlagsHtml(card){
+  const cues=card.cues||{}, flags=[];
+  if(cues.user_gate) flags.push({label:kanbanCueLabel('user',cues.user_gate.state,cues.user_gate.count||1),tone:cues.user_gate.state==='blocked'?'bad':'wait'});
+  if(cues.review) flags.push({label:kanbanCueLabel('review',cues.review),tone:kanbanCueTone(cues.review)});
+  if(cues.merge) flags.push({label:kanbanCueLabel('merge',cues.merge),tone:kanbanCueTone(cues.merge)});
+  for(const tag of (card.tags||[]).slice(0,2)) flags.push({label:String(tag),tone:'',tag:true});
+  if((card.tags||[]).length>2) flags.push({label:'+'+((card.tags||[]).length-2),tone:'',tag:true});
+  if(!flags.length) return '';
+  return `<div class="kb-flags">${flags.map(flag=>`<span class="kb-flag ${esc(flag.tone)}${flag.tag?' kb-tag':''}">${esc(flag.label)}</span>`).join('')}</div>`;
+}
+function kanbanHistoryItems(d){
+  const terminal=new Set(['done','canceled','failed']);
+  const time=t=>Date.parse(t.completed_at||t.updated_at||t.reviewed_at||t.created_at||0)||0;
+  return (d&&d.tasks||[]).filter(t=>t&&t.kind!=='note'&&terminal.has(t.status)).slice().sort((a,b)=>time(b)-time(a));
+}
+function openKanbanHistory(){
+  _historyItems=kanbanHistoryItems(lastState);
+  openHistory();
+}
+function selectKanbanCard(button){
+  document.querySelectorAll('#kanban .kb-card.selected').forEach(el=>el.classList.remove('selected'));
+  button.classList.add('selected');
+  openDetail(button.dataset.taskKey);
+}
+function renderKanban(d){
+  const root=document.getElementById('kanban');
+  const projection=d&&d.kanban;
+  if(!projection||projection.version!==1){
+    root.innerHTML='<div class="empty" style="padding:24px">Kanban projection unavailable for this daemon version.</div>';
+    return;
+  }
+  const byCard=Object.fromEntries((projection.cards||[]).map(card=>[card.task_key,card]));
+  const byTask=Object.fromEntries((d.tasks||[]).map(task=>[task.id,task]));
+  _historyItems=kanbanHistoryItems(d);
+  root.innerHTML=`<div class="kb-board">${(projection.columns||[]).map(column=>{
+    const cards=(column.task_keys||[]).map(key=>byCard[key]).filter(Boolean);
+    const active=column.id==='wip'?cards.filter(card=>card.assignee&&liveAgentIds.has(card.assignee)).length:0;
+    const laneMeta=column.id==='done'
+      ? '<button class="kb-history" type="button" title="Open recent completed, canceled, and failed task history" onclick="event.stopPropagation();openKanbanHistory()">History ↗</button>'
+      : active?`<span class="kb-lane-meta"><span class="kb-live-dot"></span>${active} active</span>`:'';
+    const cardHtml=cards.map(card=>{
+      const task=byTask[card.task_key]||{id:card.task_key,status:card.status,agent_id:card.assignee};
+      const ds=taskDisplayStatus(task,byTask);
+      const live=card.lane==='wip'&&card.assignee&&liveAgentIds.has(card.assignee);
+      return `<button type="button" class="kb-card${selected===card.task_key?' selected':''}${live?' live':''}" data-task-key="${esc(card.task_key)}" style="--kb-tone:${esc(ds.color)}">`+
+        `<span class="kb-card-title">${esc(card.label||card.task_key)}</span>`+
+        `<span class="kb-card-key">${esc(card.task_key)}</span>`+
+        `<span class="kb-card-meta"><span class="kb-status">${esc(ds.label)}</span>${card.assignee?`<span class="kb-assignee">▶ ${esc(card.assignee)}</span>`:''}</span>`+
+        kanbanFlagsHtml(card)+
+        `</button>`;
+    }).join('')||'<div class="kb-empty">No tasks</div>';
+    return `<section class="kb-lane kb-lane-${esc(column.id)}" aria-labelledby="kb-${esc(column.id)}-title">`+
+      `<div class="kb-lane-head"><span class="kb-lane-title" id="kb-${esc(column.id)}-title">${esc(column.label)}</span><span class="kb-count">${cards.length}</span>${laneMeta}</div>`+
+      `<div class="kb-cards">${cardHtml}</div></section>`;
+  }).join('')}</div>`;
+  root.querySelectorAll('.kb-card').forEach(button=>button.addEventListener('click',()=>selectKanbanCard(button)));
 }
 
 function fmtK(n){ if(n==null)return'—'; return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(Math.round(n)); }
@@ -5676,7 +5783,8 @@ async function tick(){
   const graphChanged=fp!==lastRenderFp;
   if(graphChanged){
     lastRenderFp=fp;
-    if(currentView==='cloud') renderCloud(d);
+    if(currentView==='kanban') renderKanban(d);
+    else if(currentView==='cloud') renderCloud(d);
     else if(currentView==='focus') renderFocus(d);
     else renderFrontier(d);
   }
@@ -5980,11 +6088,12 @@ function fallbackCopy(text,done){
   try{ document.execCommand('copy'); done&&done(); }catch(e){}
   document.body.removeChild(ta);
 }
-// ---- view switching: Frontier (default, dagre subset) | Cloud (whole-graph) | Focus (one node's lineage)
+// ---- view switching: Kanban (default) | Frontier (dagre subset) | Cloud (whole-graph) | Focus (one node's lineage)
 function setView(v){
   if(v==='focus' && !focusedId) return;     // Focus needs a target first (button stays hidden until then)
   currentView=v;
   if(v!=='focus') localStorage.setItem('orchView',v);   // focus is never persisted
+  document.getElementById('kanban').classList.toggle('show', v==='kanban');
   document.getElementById('cloud').classList.toggle('show', v==='cloud');
   document.getElementById('cloudSearchWrap').classList.toggle('show', v==='cloud');
   if(v!=='cloud'){
@@ -6000,12 +6109,12 @@ function setView(v){
   } else if(cloudSearchText.trim()) {
     scheduleCloudSearch();
   }
-  document.getElementById('flow').classList.toggle('show', v!=='cloud');     // Frontier + Focus share the dagre pane
+  document.getElementById('flow').classList.toggle('show', v==='frontier'||v==='focus');     // Frontier + Focus share the dagre pane
   document.querySelectorAll('#viewToggle button').forEach(b=>b.classList.toggle('on', b.dataset.view===v));
   if(v!=='cloud' && cloudSim) cloudSim.stop();
   if(v!=='cloud') disposeCloudThree(document.getElementById('cloudsvg'));
-  if(v!=='cloud') dagState[v].init=false;   // next render restores that view's saved pan/zoom, or first-fits
-  if(lastState){ if(v==='cloud') renderCloud(lastState); else if(v==='focus') renderFocus(lastState); else renderFrontier(lastState); }
+  if(v==='frontier'||v==='focus') dagState[v].init=false;   // next render restores that view's saved pan/zoom, or first-fits
+  if(lastState){ if(v==='kanban') renderKanban(lastState); else if(v==='cloud') renderCloud(lastState); else if(v==='focus') renderFocus(lastState); else renderFrontier(lastState); }
   updateFocusBtn();
 }
 function focusNode(key){
@@ -7299,7 +7408,8 @@ function hpNext(){
 
 window.addEventListener('resize', ()=>{
   if(!lastState) return;
-  if(currentView==='cloud'){ cloudSig=''; renderCloud(lastState); }
+  if(currentView==='kanban') renderKanban(lastState);
+  else if(currentView==='cloud'){ cloudSig=''; renderCloud(lastState); }
   else { const v=currentView==='focus'?'focus':'frontier'; dagState[v]={init:false,tf:null}; if(v==='focus') renderFocus(lastState); else renderFrontier(lastState); }
 });
 // Activity feeds collapsed by default; remembered in localStorage
