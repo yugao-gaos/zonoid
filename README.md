@@ -278,6 +278,21 @@ query parameters, or fragments are rejected, and launch URLs never carry the dae
 The daemon remains the dashboard data/API backend; the presentation path does not require CDP,
 private DOM injection, or a custom URL scheme.
 
+### Operational dashboard views
+
+Kanban Board is the first-visit operational view. Its observational v1 contract maps tasks into
+Queue, Ready, WIP, Review, and Done; it does not support drag-and-drop status changes. The board
+scope is the current Frontier plus explicit `kanban_pin` tasks and tasks with unresolved user
+gates. Internal drains, judge wrappers, and note/knowledge nodes are excluded. Done shows the 12
+most recently changed terminal tasks and keeps the complete, paginated terminal-task set under
+**History**.
+
+Dashboard state refreshes from the workspace SSE stream with a safety poll. Task selection and the
+inspector are shared across Kanban, Frontier Tasks, Force Cloud, and Focus View; Focus returns to
+the originating tab, and each view preserves its own filters and navigation state. Kanban cards are
+native keyboard-operable buttons, lanes have accessible labels, and narrow screens retain all five
+lanes through horizontal scrolling while the inspector overlays the board.
+
 VS Code and Cursor can also use the bundled editor panel. `zonoid init --harness cursor`
 installs it additively with the Cursor CLI; the equivalent VS Code command is:
 

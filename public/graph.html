@@ -168,7 +168,7 @@
   .kb-lane-meta { margin-left: auto; color: #6e7681; font-size: 9px; white-space: nowrap; }
   .kb-live-dot { display: inline-block; width: 7px; height: 7px; margin-right: 4px; border-radius: 50%; background: #58a6ff; box-shadow: 0 0 0 0 rgba(88,166,255,.58); animation: kbLive 1.6s ease-out infinite; vertical-align: -1px; }
   @keyframes kbLive { 0% { box-shadow: 0 0 0 0 rgba(88,166,255,.58); } 70%,100% { box-shadow: 0 0 0 6px rgba(88,166,255,0); } }
-  .kb-history { margin-left: auto; padding: 2px 6px; border: 0; border-radius: 5px; background: transparent; color: #58a6ff; cursor: pointer; font: inherit; font-size: 9px; }
+  .kb-history { padding: 2px 6px; border: 0; border-radius: 5px; background: transparent; color: #58a6ff; cursor: pointer; font: inherit; font-size: 9px; }
   .kb-history:hover { background: #1f6feb22; color: #79c0ff; }
   .kb-cards { display: flex; flex: 1; flex-direction: column; gap: 8px; padding: 8px; }
   .kb-empty { padding: 22px 8px; color: #484f58; font-size: 11px; text-align: center; }
@@ -717,10 +717,10 @@
       </svg>
       Zonoid
     </h1>
-    <div class="toggle" id="viewToggle">
-      <button data-view="kanban" class="on" title="Kanban Board — the operational task lifecycle from Queue through Done, including review, merge, and user-attention cues.">Kanban Board</button>
-      <button data-view="frontier" title="Frontier view — DAG layout showing tasks at the current working frontier: in-progress, ready, and their immediate dependencies. Best for day-to-day steering.">Frontier Tasks</button>
-      <button data-view="cloud" title="Force Cloud — all tasks in a force-directed layout. Shows the full graph structure and long-range dependencies at once. Best for auditing the big picture.">Force Cloud</button>
+    <div class="toggle" id="viewToggle" role="tablist" aria-label="Dashboard views">
+      <button data-view="kanban" class="on" role="tab" aria-selected="true" title="Kanban Board — the operational task lifecycle from Queue through Done, including review, merge, and user-attention cues.">Kanban Board</button>
+      <button data-view="frontier" role="tab" aria-selected="false" title="Frontier view — DAG layout showing tasks at the current working frontier: in-progress, ready, and their immediate dependencies. Best for day-to-day steering.">Frontier Tasks</button>
+      <button data-view="cloud" role="tab" aria-selected="false" title="Force Cloud — all tasks in a force-directed layout. Shows the full graph structure and long-range dependencies at once. Best for auditing the big picture.">Force Cloud</button>
     </div>
   </div>
   <div class="hd-mid" id="sum"></div>
@@ -855,12 +855,12 @@
 <div class="wrap">
   <div class="left">
     <div id="ws" style="font-size:11px;color:#6e7681;padding:0 16px 8px;display:none"></div>
-    <div id="kanban" aria-label="Operational Kanban board"></div>
+    <div id="kanban" role="region" aria-label="Operational Kanban board"></div>
     <div id="cloud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><div id="cloudTraceLegend"></div><div id="cloudSearchSummary"></div><svg id="cloudsvg"></svg></div>
     <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div></div>
     <div id="flowstats"></div>
   </div>
-  <div id="panel"><div class="pad" id="pad"></div></div>
+  <div id="panel" role="complementary" aria-label="Task inspector"><div class="pad" id="pad"></div></div>
 </div>
 <div id="historyPopup">
   <div class="hphead">
@@ -5562,10 +5562,20 @@ function kanbanFlagsHtml(card){
   if(!flags.length) return '';
   return `<div class="kb-flags">${flags.map(flag=>`<span class="kb-flag ${esc(flag.tone)}${flag.tag?' kb-tag':''}">${esc(flag.label)}</span>`).join('')}</div>`;
 }
+const KB_DONE_CAP=12;
+function kanbanTaskTime(t){
+  return Date.parse(t&&(
+    t.completed_at||t.updated_at||t.reviewed_at||t.lastChanged||t.created_at||t.firstSeen
+  )||0)||0;
+}
+function recentKanbanCards(cards,byTask,cap=KB_DONE_CAP){
+  return cards.slice()
+    .sort((a,b)=>kanbanTaskTime(byTask[b.task_key])-kanbanTaskTime(byTask[a.task_key]))
+    .slice(0,cap);
+}
 function kanbanHistoryItems(d){
   const terminal=new Set(['done','canceled','failed']);
-  const time=t=>Date.parse(t.completed_at||t.updated_at||t.reviewed_at||t.created_at||0)||0;
-  return (d&&d.tasks||[]).filter(t=>t&&t.kind!=='note'&&terminal.has(t.status)).slice().sort((a,b)=>time(b)-time(a));
+  return (d&&d.tasks||[]).filter(t=>t&&t.kind!=='note'&&terminal.has(t.status)).slice().sort((a,b)=>kanbanTaskTime(b)-kanbanTaskTime(a));
 }
 function openKanbanHistory(){
   _historyItems=kanbanHistoryItems(lastState);
@@ -5588,10 +5598,11 @@ function renderKanban(d){
   const byTask=Object.fromEntries((d.tasks||[]).map(task=>[task.id,task]));
   _historyItems=kanbanHistoryItems(d);
   root.innerHTML=`<div class="kb-board">${(projection.columns||[]).map(column=>{
-    const cards=(column.task_keys||[]).map(key=>byCard[key]).filter(Boolean);
+    const allCards=(column.task_keys||[]).map(key=>byCard[key]).filter(Boolean);
+    const cards=column.id==='done'?recentKanbanCards(allCards,byTask):allCards;
     const active=column.id==='wip'?cards.filter(card=>card.assignee&&liveAgentIds.has(card.assignee)).length:0;
     const laneMeta=column.id==='done'
-      ? '<button class="kb-history" type="button" title="Open recent completed, canceled, and failed task history" onclick="event.stopPropagation();openKanbanHistory()">History ↗</button>'
+      ? `<span class="kb-lane-meta">Recent ${cards.length} of ${allCards.length}</span><button class="kb-history" type="button" title="Open recent completed, canceled, and failed task history" onclick="event.stopPropagation();openKanbanHistory()">History ↗</button>`
       : active?`<span class="kb-lane-meta"><span class="kb-live-dot"></span>${active} active</span>`:'';
     const cardHtml=cards.map(card=>{
       const task=byTask[card.task_key]||{id:card.task_key,status:card.status,agent_id:card.assignee};
@@ -5605,7 +5616,7 @@ function renderKanban(d){
         `</button>`;
     }).join('')||'<div class="kb-empty">No tasks</div>';
     return `<section class="kb-lane kb-lane-${esc(column.id)}" aria-labelledby="kb-${esc(column.id)}-title">`+
-      `<div class="kb-lane-head"><span class="kb-lane-title" id="kb-${esc(column.id)}-title">${esc(column.label)}</span><span class="kb-count">${cards.length}</span>${laneMeta}</div>`+
+      `<div class="kb-lane-head"><span class="kb-lane-title" id="kb-${esc(column.id)}-title">${esc(column.label)}</span><span class="kb-count">${allCards.length}</span>${laneMeta}</div>`+
       `<div class="kb-cards">${cardHtml}</div></section>`;
   }).join('')}</div>`;
   root.querySelectorAll('.kb-card').forEach(button=>button.addEventListener('click',()=>selectKanbanCard(button)));
@@ -6131,7 +6142,11 @@ function setView(v){
   document.getElementById('cloud').classList.toggle('show', v==='cloud');
   document.getElementById('cloudSearchWrap').classList.toggle('show', v==='cloud');
   document.getElementById('flow').classList.toggle('show', v==='frontier'||v==='focus');     // Frontier + Focus share the dagre pane
-  document.querySelectorAll('#viewToggle button').forEach(b=>b.classList.toggle('on', b.dataset.view===v));
+  document.querySelectorAll('#viewToggle button').forEach(b=>{
+    const active=b.dataset.view===v;
+    b.classList.toggle('on', active);
+    b.setAttribute('aria-selected',String(active));
+  });
   if(v!=='cloud' && cloudSim) cloudSim.stop();
   if(v!=='cloud') disposeCloudThree(document.getElementById('cloudsvg'));
   if(v==='frontier'||v==='focus') dagState[v].init=false;   // next render restores that view's saved pan/zoom, or first-fits
