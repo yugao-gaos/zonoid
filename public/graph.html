@@ -401,7 +401,7 @@
   .cfrow .cfm { color: #8b949e; font-size: 11px; }
   .appclose { float: right; color: #8b949e; cursor: pointer; padding: 6px 2px; font-size: 14px; }
   .appclose:hover { color: #e6edf3; }
-  /* escalation: guidance popup — the loop is paused waiting on the user */
+  /* internal judge/review guidance popup */
   #guidance { position: fixed; top: calc(var(--hdr-h) + 4px); right: 14px; width: 480px; max-height: 72vh; overflow-y: auto; background: #11151c; border: 1px solid #30363d; border-radius: 10px; box-shadow: 0 10px 34px #0009; z-index: 60; display: none; padding: 14px 16px; color: #f0d77a; }
   #guidance.show { display: block; }
   #guidance.has-pending { border-color: #bb8009; }
@@ -5691,8 +5691,8 @@ async function tick(){
   ag.innerHTML=!d.agents.length?'<div class="empty">none</div>':d.agents.slice().reverse().map(a=>`<div class="row">${a.state==='running'?'▶':'✓'} <b>${esc(a.agent_type)}</b> <span class="muted">${esc(a.agent_id)}</span></div>`).join('');
   renderGuidance();
 }
-// Escalation: BLOCKING guidance gets the prominent paused banner; 'review' items (judge
-// housekeeping — never pause the loop) render as a quiet collapsed triage list.
+// Internal review guidance remains available for judge housekeeping. Ordinary pending user
+// decisions are delivered to their relevant agent session and intentionally stay off the dashboard.
 // tick() re-runs this every 2s, so re-render is SIGNATURE-GATED: the DOM is only rebuilt when the
 // queue actually changes (or force=true after a resolve). UI state that must survive a rebuild —
 // answer drafts, keeper picks, expanded rows, inline errors, fetched note details — lives in the
@@ -5816,20 +5816,19 @@ function renderNotePopup(key,d,err){
 async function renderGuidance(force){
   const box=document.getElementById('guidance');
   let g; try{ g=await(await dfetch('/guidance')).json(); }catch{ return; }
-  const pending=(g&&g.pending)||[];
   const review=(g&&g.review)||[];
   // stash items so the [Copy for Claude] handler and the cluster lazy-loader can read full content
   // without round-tripping multiline strings through HTML attributes
   guidanceItems={};
-  [...pending,...review].forEach(it=>{ guidanceItems[it.id]=it; });
+  review.forEach(it=>{ guidanceItems[it.id]=it; });
   guidReview=review;
-  const sig=JSON.stringify(pending.concat(review).map(it=>it.id));
+  const sig=JSON.stringify(review.map(it=>it.id));
   if(!force&&sig===guidSig) return;   // queue unchanged — don't clobber in-progress typing/expansion
   guidSig=sig;
   const reviewFollowUps=review.filter(it=>it.action&&it.action.kind==='follow-up');
   const reviewClusters=dedupeClustersBySig(review.filter(isCluster));
   const reviewStale=review.filter(it=>it.action&&it.action.kind==='stale-verdict');
-  if(!pending.length&&!reviewFollowUps.length&&!reviewClusters.length&&!reviewStale.length){ box.classList.remove('show','has-pending'); box.innerHTML=''; const btn=document.getElementById('notifBtn'); if(btn) btn.classList.remove('show','has-pending'); return; }
+  if(!reviewFollowUps.length&&!reviewClusters.length&&!reviewStale.length){ box.classList.remove('show','has-pending'); box.innerHTML=''; const btn=document.getElementById('notifBtn'); if(btn) btn.classList.remove('show','has-pending'); return; }
   // One expandable member row per cluster note: radio keeper pick + label + lazy summary.
   const memberRow=(it,k,i)=>{
     const meta=(Array.isArray(it.action.notes)?it.action.notes:[]).find(n=>n.key===k)||{};
@@ -5883,7 +5882,6 @@ async function renderGuidance(force){
     (guidErr[it.id]?'<div class="gerr">'+esc(guidErr[it.id])+'</div>':'')+
     '</div>';
   let html='<button class="appclose" style="float:right;margin:-2px -2px 6px 8px" onclick="closeGuidancePopup()">✕</button>';
-  if(pending.length) html+='<span class="gtitle">Dashboard decisions (non-blocking) ('+pending.length+')</span>'+pending.map(gitem).join('');
   if(reviewFollowUps.length) html+='<span class="gtitle" style="margin-top:10px">Follow-up review ('+reviewFollowUps.length+')</span>'+reviewFollowUps.map(gitem).join('');
   if(reviewClusters.length) html+='<span class="gtitle" style="margin-top:10px">Dup clusters ('+reviewClusters.length+')</span>'+reviewClusters.map(gitem).join('');
   if(reviewStale.length) html+='<span class="gtitle" style="margin-top:10px">⚠ Stale work — session gone ('+reviewStale.length+')</span>'+reviewStale.map(gitem).join('');
@@ -5891,11 +5889,10 @@ async function renderGuidance(force){
   box.classList.add('has-pending');
   const btn=document.getElementById('notifBtn');
   if(btn){
-    const cnt=document.getElementById('notifCount'); if(cnt) cnt.textContent=pending.length+reviewStale.length;
+    const cnt=document.getElementById('notifCount'); if(cnt) cnt.textContent=reviewStale.length;
     btn.classList.add('has-pending','show');
   }
-  // Keep pending decisions visible; they do not pause the scheduler.
-  if(pending.length||reviewFollowUps.length||reviewClusters.length||reviewStale.length) box.classList.add('show');
+  if(reviewFollowUps.length||reviewClusters.length||reviewStale.length) box.classList.add('show');
 }
 // POST a resolution. decision: 'consolidate'|'distinct' for dup-clusters (consolidate sends the
 // picked keeper, daemon defaults to newest if omitted); absent → send the answer box as { answer }.

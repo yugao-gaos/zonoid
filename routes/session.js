@@ -271,8 +271,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
 
     const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes, request_session: b.session_id || u.searchParams.get('session') });
-    // Hold only the originating task. Other ready work and loops keep running; dependents remain
-    // gated naturally because their prerequisite cannot complete until this decision resolves.
+    // Persist the question for deterministic leased delivery without changing task readiness.
     T.save(); notifyChange(T.graph_repo || T.ws);
     send(res, 200, { ok: true, id }); return true;
   }
