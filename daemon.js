@@ -69,7 +69,12 @@ const onboardInitTransaction = require('./lib/onboard-init-transaction');
 const repoTarget = require('./lib/repo-target');
 const requestIdentity = require('./lib/request-identity');
 const runtimePaths = require('./lib/runtime-paths');
-const { ensureManagedGraphLoop, isLegitimateReadyTask, taskAlreadySettled } = require('./lib/loop-autostart');
+const {
+  ensureManagedGraphLoop,
+  isEligibleIntegrationTask,
+  isLegitimateReadyTask,
+  taskAlreadySettled,
+} = require('./lib/loop-autostart');
 const { sweepStaleWakeups, sweepOrphanProcesses } = require('./lib/schedule-wakeup');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
@@ -1406,7 +1411,7 @@ function applyOptimize(prob, base, L, ws, ov) {
 function pendingReviewOrIntegrationAction(g, ov) {
   if (!g || !Array.isArray(g.tasks) || !ov) return null;
   for (const t of g.tasks) {
-    if (!t || isStandingHarnessTask(ov, t.id) || taskAlreadySettled(ov, t.id, t.status)) continue;
+    if (!isEligibleIntegrationTask(t, ov)) continue;
     const lifecycle = overlayStore.reviewLifecycleFor(ov, t.id, t.status);
     if (!lifecycle) continue;
     const item = {

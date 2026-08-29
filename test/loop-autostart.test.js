@@ -11,7 +11,8 @@ const assert = require('node:assert');
 
 const {
   resolveAutoLoopMode, isAutoMode, hasActiveSessionLoop, maybeAutostartLoop, AUTOSTART_CONFIG,
-  ensureManagedGraphLoop, hasNormalReadyWork, managedGraphLoopId, taskAlreadySettled,
+  ensureManagedGraphLoop, hasNormalReadyWork, hasVisibleIntegrationWork, managedGraphLoopId,
+  taskAlreadySettled,
 } = require('../lib/loop-autostart');
 const { classifyHeuristic } = require('../lib/prompt-heuristic');
 const { assembleClassifyResponse } = require('../lib/classify-assemble');
@@ -230,6 +231,23 @@ test('terminal overlay status settles stale review integration metadata', () => 
   };
 
   assert.strictEqual(taskAlreadySettled(overlay, 'codex/canceled-conflict'), true);
+});
+
+test('blocked tasks and non-task nodes are not visible integration work', () => {
+  const overlay = {
+    blocked: { 'codex/blocked-merge': { reason: 'unsafe stale integration' } },
+    git: {}, status: {}, snapshots: {},
+    reviews: {
+      'codex/blocked-merge': { review_state: 'approved', review_verdict: 'APPROVE', merge_state: 'pending' },
+      'note:historical': { review_state: 'approved', review_verdict: 'APPROVE', merge_state: 'pending' },
+    },
+  };
+  const graph = { tasks: [
+    { id: 'codex/blocked-merge', status: 'not_ready' },
+    { id: 'note:historical', kind: 'note', status: 'note' },
+  ] };
+
+  assert.strictEqual(hasVisibleIntegrationWork(graph, overlay), false);
 });
 
 test('unsafe unwired recovery exposes a stalled reason instead of guessing graph structure', () => {

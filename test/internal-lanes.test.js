@@ -42,6 +42,17 @@ overlay.setReviewLifecycle(ov, 'task/cancel', {
   review_verdict: 'APPROVE',
   merge_state: 'conflict',
 });
+overlay.setReviewLifecycle(ov, 'task/blocked-merge', {
+  review_state: 'approved',
+  review_verdict: 'APPROVE',
+  merge_state: 'pending',
+});
+overlay.setBlocked(ov, 'task/blocked-merge', 'unsafe stale integration');
+overlay.setReviewLifecycle(ov, 'note:historical', {
+  review_state: 'approved',
+  review_verdict: 'APPROVE',
+  merge_state: 'pending',
+});
 ov.notes['task/discard'] = 'discard requested by judge/1: obsolete attempt';
 ov.notes['task/cancel'] = 'canceled by judge/1: superseded';
 overlay.addGuidance(ov, {
@@ -73,6 +84,8 @@ const graph = {
     { id: 'task/kick', label: 'Kick task', status: 'failed', deps: [] },
     { id: 'task/discard', label: 'Discard task', status: 'tested', deps: [] },
     { id: 'task/cancel', label: 'Cancel task', status: 'canceled', deps: [] },
+    { id: 'task/blocked-merge', label: 'Blocked merge', status: 'not_ready', deps: [] },
+    { id: 'note:historical', label: 'Historical note', kind: 'note', status: 'note', deps: [] },
   ],
 };
 
@@ -91,6 +104,8 @@ assert.ok(projection.items.some((item) => item.lane === 'decision' && item.kind 
 assert.ok(projection.items.some((item) => item.lane === 'decision' && item.kind === 'task-decision' && item.task_key === 'task/discard' && item.action === 'discard'));
 assert.ok(projection.items.some((item) => item.lane === 'decision' && item.kind === 'task-decision' && item.task_key === 'task/cancel' && item.action === 'cancel'));
 assert.ok(!projection.items.some((item) => item.lane === 'decision' && item.kind === 'review' && item.key === 'task/cancel'));
+assert.ok(!projection.items.some((item) => item.lane === 'decision' && item.kind === 'merge' && item.key === 'task/blocked-merge'));
+assert.ok(!projection.items.some((item) => item.lane === 'decision' && item.key === 'note:historical'));
 assert.ok(!ov.reviews['task/merge-judge']);
 assert.ok(projection.items.some((item) => item.lane === 'work' && item.kind === 'task' && item.key === 'task/ready'));
 assert.ok(projection.items.some((item) => item.lane === 'work' && item.key === 'task/run' && item.agent_id === 'worker-a'));
