@@ -61,7 +61,9 @@ function freshModuleWithMockedSpawn(stub) {
       return makeFakeChild();
     }
     calls.push({ bin, args, opts });
-    return stub ? stub(bin, args, opts) : makeFakeChild();
+    return stub ? stub(bin, args, opts) : makeFakeChild({
+      stdout: '{"verdict":"APPROVE","reason":"mock reviewer approved"}',
+    });
   };
   const hd = freshModule();
   return { hd, calls, restore: () => { child_process.spawn = orig; } };
@@ -164,7 +166,16 @@ function reviewRunOptions(o, overlayStore, backend) {
     ...idleJudgeDeps(),
     ...idleLabelDeps(),
     ...backend.deps,
-    reviewVerdictDeps: { overlay: o, overlayStore, overlaySave: () => {} },
+    reviewVerdictDeps: {
+      overlay: o,
+      overlayStore,
+      overlaySave: () => {},
+      call: async (method, route) => {
+        if (method === 'GET' && route.startsWith('/task/detail')) return { task: { label: 'Mock task' } };
+        if (method === 'GET' && route.startsWith('/attempt/diff')) return { stat: '1 file changed', diff: '+mock change' };
+        return { ok: true, lifecycle_refused: [] };
+      },
+    },
     reviewMergeDeps: { overlay: overlayStore.EMPTY(), overlayStore },
   };
 }
@@ -293,23 +304,25 @@ test('claimReviewVerdictWork honors maxCandidates', () => {
 // Reviewer prompt shape
 // ---------------------------------------------------------------------------
 
-test('buildReviewVerdictPrompt carries diff endpoints, rubric, verdict bodies, and the never-merge rule', () => {
+test('buildReviewVerdictPrompt embeds bounded inputs and requires one JSON verdict', () => {
   const hd = freshModule();
-  const { prompt } = hd.buildReviewVerdictPrompt({ key: 'feat/x 1', workspace: '/ws root', repoPath: '/repo/x' });
-  assert.match(prompt, /\/task\/detail\?key=feat%2Fx%201/, 'must fetch task detail (encoded key)');
-  assert.match(prompt, /\/attempt\/diff\?key=feat%2Fx%201/, 'must fetch the attempt diff');
-  assert.match(prompt, /repo_path=%2Frepo%2Fx/, 'must forward the task repo to the diff route');
+  const { prompt } = hd.buildReviewVerdictPrompt({
+    key: 'feat/x 1',
+    detail: { task: { label: 'Feature X', summary: 'worker summary' } },
+    diff: { stat: '1 file changed', diff: '+safe change' },
+  });
+  assert.match(prompt, /Feature X/, 'task context is embedded by the daemon');
+  assert.match(prompt, /worker summary/, 'worker summary is embedded');
+  assert.match(prompt, /\+safe change/, 'attempt diff is embedded');
   assert.match(prompt, /correctness/, 'rubric: correctness');
   assert.match(prompt, /scope discipline/, 'rubric: scope discipline');
   assert.match(prompt, /dead\/redundant code/, 'rubric: dead/redundant code');
   assert.match(prompt, /test presence\/quality/, 'rubric: tests');
   assert.match(prompt, /style/, 'rubric: style');
-  assert.match(prompt, /POST(ing)? JSON to .*\/overlay\/status/, 'verdict goes through the submit_verdict HTTP path');
-  assert.match(prompt, /"review_verdict":"APPROVE"/, 'APPROVE body present');
-  assert.match(prompt, /"merge_state":"pending"/, 'APPROVE records pending merge (review-merge drain lands it)');
-  assert.match(prompt, /"review_verdict":"KICK_BACK"/, 'KICK_BACK body present');
-  assert.match(prompt, /"status":"failed"/, 'KICK_BACK fails the implementation task');
-  assert.match(prompt, /NEVER merge/, 'reviewer must never merge');
+  assert.match(prompt, /"verdict":"APPROVE"/, 'APPROVE output shape present');
+  assert.match(prompt, /"verdict":"KICK_BACK"/, 'KICK_BACK output shape present');
+  assert.match(prompt, /daemon validates and applies/, 'the child never mutates lifecycle state');
+  assert.match(prompt, /NEVER post, merge/, 'reviewer must never post or merge');
 });
 
 // ---------------------------------------------------------------------------
@@ -344,10 +357,90 @@ test('review-verdict drain runs under automode and spawns the cli reviewer', asy
     assert.equal(calls[0].bin, backend.bin, 'spawn is driven by the provider invocation');
     const prompt = calls[0].args[calls[0].args.indexOf('-p') + 1];
     assert.match(prompt, /t\/auto/, 'prompt targets the candidate task');
-    assert.match(prompt, /\/attempt\/diff/, 'prompt fetches the attempt diff');
-    assert.match(prompt, /NEVER merge/, 'prompt forbids merging');
+    assert.match(prompt, /\+mock change/, 'prompt carries the daemon-fetched attempt diff');
+    assert.match(prompt, /NEVER post, merge/, 'prompt forbids posting or merging');
     assert.ok(calls[0].args.includes('--backend-id'), 'provider-owned argv, not a hardcoded claude path');
     assert.ok(o.reviewVerdictLease && o.reviewVerdictLease['t/auto'], 'candidate was leased before spawning');
+  } finally {
+    restore();
+  }
+});
+
+test('cli reviewer JSON is validated and applied by the daemon-owned verdict call', async () => {
+  const backend = mockBackendDeps();
+  const { hd, restore } = freshModuleWithMockedSpawn(() => makeFakeChild({
+    stdout: '{"verdict":"APPROVE","reason":"focused diff and tests are sound"}',
+  }));
+  const verdictCalls = [];
+  try {
+    const { o, overlayStore } = pendingReviewOverlay('t/daemon-submit', { automode: true });
+    const options = reviewRunOptions(o, overlayStore, backend);
+    options.reviewVerdictDeps.call = async (method, route, body) => {
+      verdictCalls.push({ method, route, body });
+      if (method === 'GET' && route.startsWith('/task/detail')) return { task: { label: 'Reviewed task' } };
+      if (method === 'GET' && route.startsWith('/attempt/diff')) return { stat: '1 file changed', diff: '+safe change' };
+      return { ok: true, lifecycle_refused: [] };
+    };
+
+    const result = await hd.runDueDrains({ workspace: os.tmpdir() }, noopHttp(), options);
+    const submitted = verdictCalls.find((call) => call.method === 'POST' && call.route === '/overlay/status');
+    assert.ok(submitted, 'daemon applies the parsed verdict itself');
+    assert.equal(submitted.body.lifecycle_event, 'review_approve');
+    assert.equal(submitted.body.review_reason, 'focused diff and tests are sound');
+    assert.equal(result.drains.find((d) => d.drain === hd.REVIEW_VERDICT_DRAIN_KEY).verdict, 'APPROVE');
+  } finally {
+    restore();
+  }
+});
+
+test('cli reviewer exit zero without a verdict fails into bounded backoff without posting', async () => {
+  const backend = mockBackendDeps();
+  const { hd, restore } = freshModuleWithMockedSpawn(() => makeFakeChild({
+    stdout: 'review was inconclusive',
+  }));
+  const verdictCalls = [];
+  try {
+    const { o, overlayStore } = pendingReviewOverlay('t/no-verdict', { automode: true });
+    const options = reviewRunOptions(o, overlayStore, backend);
+    options.reviewVerdictDeps.call = async (method, route, body) => {
+      verdictCalls.push({ method, route, body });
+      if (method === 'GET' && route.startsWith('/task/detail')) return { task: { label: 'Inconclusive task' } };
+      if (method === 'GET' && route.startsWith('/attempt/diff')) return { stat: '1 file changed', diff: '+uncertain change' };
+      return { ok: true, lifecycle_refused: [] };
+    };
+
+    const before = Date.now();
+    const result = await hd.runDueDrains({ workspace: os.tmpdir() }, noopHttp(), options);
+    const review = result.drains.find((d) => d.drain === hd.REVIEW_VERDICT_DRAIN_KEY);
+    assert.equal(review.exitCode, 1, 'a clean child exit is not success without a verdict');
+    assert.equal(verdictCalls.some((call) => call.method === 'POST'), false, 'inconclusive output cannot mutate lifecycle state');
+    assert.ok(hd._governor.backoffUntil > before, 'the failure creates bounded provider backoff');
+  } finally {
+    restore();
+  }
+});
+
+test('daemon lifecycle refusal makes the cli review drain fail instead of reporting false success', async () => {
+  const backend = mockBackendDeps();
+  const { hd, restore } = freshModuleWithMockedSpawn(() => makeFakeChild({
+    stdout: '{"verdict":"APPROVE","reason":"looks sound"}',
+  }));
+  try {
+    const { o, overlayStore } = pendingReviewOverlay('t/refused', { automode: true });
+    const options = reviewRunOptions(o, overlayStore, backend);
+    options.reviewVerdictDeps.call = async (method, route) => {
+      if (method === 'GET' && route.startsWith('/task/detail')) return { task: { label: 'Already settled task' } };
+      if (method === 'GET' && route.startsWith('/attempt/diff')) return { stat: '1 file changed', diff: '+late change' };
+      return {
+        ok: true,
+        lifecycle_refused: [{ event: 'review_approve', code: 'already_merged', reason: 'Attempt already merged.' }],
+      };
+    };
+
+    const result = await hd.runDueDrains({ workspace: os.tmpdir() }, noopHttp(), options);
+    const review = result.drains.find((d) => d.drain === hd.REVIEW_VERDICT_DRAIN_KEY);
+    assert.equal(review.exitCode, 1, 'a refused lifecycle transition is a failed drain');
+    assert.equal(review.verdict, undefined, 'a refused verdict is not reported as applied');
   } finally {
     restore();
   }
@@ -358,7 +451,9 @@ test('pending task review runs before a failing learner can create global backof
   const workspace = makePendingLearnerWorkspace();
   const { hd, calls, restore } = freshModuleWithMockedSpawn((_bin, args) => {
     const learner = Array.isArray(args) && args.some((arg) => String(arg).includes('onboard-learn.js'));
-    return makeFakeChild(learner ? { code: 1, stderr: 'structural learner failure' } : { code: 0 });
+    return makeFakeChild(learner
+      ? { code: 1, stderr: 'structural learner failure' }
+      : { code: 0, stdout: '{"verdict":"APPROVE","reason":"priority review passed"}' });
   });
   try {
     const { o, overlayStore } = pendingReviewOverlay('t/priority', { automode: true });
