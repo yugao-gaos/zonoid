@@ -241,14 +241,21 @@ test('findReviewVerdictCandidates accepts a native reviewed attempt hidden by ju
     head: 'abc123',
   };
   const graph = {
-    tasks: [{ id: 't/native', status: 'not_ready', kind: 'task', deps: [], readiness: { kind: 'judging_hold' } }],
+    tasks: [{
+      id: 't/native',
+      status: 'not_ready',
+      kind: 'task',
+      deps: [],
+      readiness: { kind: 'judging_hold' },
+      git: { target: { target_repo: '/repo/from-native-task' } },
+    }],
   };
 
   assert.deepEqual(
     hd.findReviewVerdictCandidates('/irrelevant', { overlay: o, overlayStore, graph }),
     [{
       key: 't/native',
-      repo_path: null,
+      repo_path: '/repo/from-native-task',
       attempt_branch: 'orch/attempt/t-native',
       attempt_worktree: '/worktrees/t-native',
     }]
@@ -388,6 +395,35 @@ test('cli reviewer JSON is validated and applied by the daemon-owned verdict cal
     assert.equal(submitted.body.lifecycle_event, 'review_approve');
     assert.equal(submitted.body.review_reason, 'focused diff and tests are sound');
     assert.equal(result.drains.find((d) => d.drain === hd.REVIEW_VERDICT_DRAIN_KEY).verdict, 'APPROVE');
+  } finally {
+    restore();
+  }
+});
+
+test('cli reviewer resolves a persisted graph target and can kick back an empty attempt diff', async () => {
+  const backend = mockBackendDeps();
+  const { hd, restore } = freshModuleWithMockedSpawn(() => makeFakeChild({
+    stdout: '{"verdict":"KICK_BACK","reason":"attempt branch matches its base"}',
+  }));
+  const verdictCalls = [];
+  try {
+    const { o, overlayStore } = pendingReviewOverlay('t/empty-diff', { automode: true });
+    const options = reviewRunOptions(o, overlayStore, backend);
+    options.reviewVerdictDeps.call = async (method, route, body) => {
+      verdictCalls.push({ method, route, body });
+      if (method === 'GET' && route.startsWith('/task/detail')) {
+        return { task: { label: 'No-op attempt', git: { target: { target_repo: '/repo/from-detail' } } } };
+      }
+      if (method === 'GET' && route.startsWith('/attempt/diff')) return { stat: '', diff: '' };
+      return { ok: true, lifecycle_refused: [] };
+    };
+
+    const result = await hd.runDueDrains({ workspace: os.tmpdir() }, noopHttp(), options);
+    const diffCall = verdictCalls.find((call) => call.method === 'GET' && call.route.startsWith('/attempt/diff'));
+    const submitted = verdictCalls.find((call) => call.method === 'POST');
+    assert.match(diffCall.route, /target_repo=%2Frepo%2Ffrom-detail/, 'the persisted task target scopes the diff read');
+    assert.equal(submitted.body.lifecycle_event, 'review_kick_back');
+    assert.equal(result.drains.find((d) => d.drain === hd.REVIEW_VERDICT_DRAIN_KEY).verdict, 'KICK_BACK');
   } finally {
     restore();
   }
