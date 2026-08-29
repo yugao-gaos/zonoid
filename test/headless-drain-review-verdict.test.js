@@ -144,6 +144,20 @@ function pendingReviewOverlay(key, config = {}) {
   return { o, overlayStore };
 }
 
+function makePendingLearnerWorkspace() {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-rv-priority-'));
+  const queueDir = path.join(workspace, '.graph', 'onboard');
+  fs.mkdirSync(queueDir, { recursive: true });
+  fs.writeFileSync(path.join(queueDir, 'onboard-queue.json'), JSON.stringify({
+    total: 2,
+    cursor: 0,
+    kept: [],
+    rejected: [],
+    pending: [{ title: 'candidate-a' }, { title: 'candidate-b' }],
+  }));
+  return workspace;
+}
+
 /** runDueDrains options wiring one review-verdict overlay + idle everything else. */
 function reviewRunOptions(o, overlayStore, backend) {
   return {
@@ -312,6 +326,33 @@ test('review-verdict drain runs under automode and spawns the cli reviewer', asy
     assert.ok(o.reviewVerdictLease && o.reviewVerdictLease['t/auto'], 'candidate was leased before spawning');
   } finally {
     restore();
+  }
+});
+
+test('pending task review runs before a failing learner can create global backoff', async () => {
+  const backend = mockBackendDeps();
+  const workspace = makePendingLearnerWorkspace();
+  const { hd, calls, restore } = freshModuleWithMockedSpawn((_bin, args) => {
+    const learner = Array.isArray(args) && args.some((arg) => String(arg).includes('onboard-learn.js'));
+    return makeFakeChild(learner ? { code: 1, stderr: 'structural learner failure' } : { code: 0 });
+  });
+  try {
+    const { o, overlayStore } = pendingReviewOverlay('t/priority', { automode: true });
+    const result = await hd.runDueDrains(
+      { workspace },
+      noopHttp(),
+      reviewRunOptions(o, overlayStore, backend)
+    );
+    const reviewIndex = calls.findIndex((call) => call.bin === backend.bin);
+    const learnerIndex = calls.findIndex((call) => call.args.some((arg) => String(arg).includes('onboard-learn.js')));
+
+    assert.ok(reviewIndex >= 0, 'pending task review must launch despite unrelated learner failure');
+    assert.ok(learnerIndex >= 0, 'learner remains eligible after the priority review');
+    assert.ok(reviewIndex < learnerIndex, 'review claims the provider before deferrable onboarding work');
+    assert.equal(result.drains.some((d) => d.drain === hd.REVIEW_VERDICT_DRAIN_KEY), true);
+  } finally {
+    restore();
+    fs.rmSync(workspace, { recursive: true, force: true });
   }
 });
 
