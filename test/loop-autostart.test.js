@@ -11,7 +11,7 @@ const assert = require('node:assert');
 
 const {
   resolveAutoLoopMode, isAutoMode, hasActiveSessionLoop, maybeAutostartLoop, AUTOSTART_CONFIG,
-  ensureManagedGraphLoop, hasNormalReadyWork, managedGraphLoopId,
+  ensureManagedGraphLoop, hasNormalReadyWork, managedGraphLoopId, taskAlreadySettled,
 } = require('../lib/loop-autostart');
 const { classifyHeuristic } = require('../lib/prompt-heuristic');
 const { assembleClassifyResponse } = require('../lib/classify-assemble');
@@ -213,6 +213,23 @@ test('completed stale requeues and internal drains are not legitimate work', () 
   assert.strictEqual(ctx.loops.size, 0);
   assert.strictEqual(overlay.config.headless_driver, undefined);
   assert.strictEqual(overlay.frontier_liveness, undefined);
+});
+
+test('terminal overlay status settles stale review integration metadata', () => {
+  const overlay = {
+    config: { automode: true }, blocked: {}, unwired: {}, git: {},
+    status: { 'codex/canceled-conflict': 'canceled' },
+    reviews: {
+      'codex/canceled-conflict': {
+        review_state: 'approved',
+        review_verdict: 'APPROVE',
+        merge_state: 'conflict',
+      },
+    },
+    snapshots: { 'codex/canceled-conflict': { status: 'pending' } },
+  };
+
+  assert.strictEqual(taskAlreadySettled(overlay, 'codex/canceled-conflict'), true);
 });
 
 test('unsafe unwired recovery exposes a stalled reason instead of guessing graph structure', () => {

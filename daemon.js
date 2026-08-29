@@ -1406,7 +1406,7 @@ function applyOptimize(prob, base, L, ws, ov) {
 function pendingReviewOrIntegrationAction(g, ov) {
   if (!g || !Array.isArray(g.tasks) || !ov) return null;
   for (const t of g.tasks) {
-    if (!t || isStandingHarnessTask(ov, t.id) || taskAlreadySettled(ov, t.id)) continue;
+    if (!t || isStandingHarnessTask(ov, t.id) || taskAlreadySettled(ov, t.id, t.status)) continue;
     const lifecycle = overlayStore.reviewLifecycleFor(ov, t.id, t.status);
     if (!lifecycle) continue;
     const item = {
@@ -1495,7 +1495,7 @@ function decideOne(L, ctx) {
   // not derived from deps) and cleared only by unblock_task — never by dep re-derivation.
   let ready = readyAll.filter((t) => isLegitimateReadyTask(t, ov));
   const wire = readyAll.filter((t) => isUnwired(t) && !isExplicitlyBlocked(t)
-    && !isStandingHarnessTask(ov, t.id) && !taskAlreadySettled(ov, t.id))
+    && !isStandingHarnessTask(ov, t.id) && !taskAlreadySettled(ov, t.id, t.status))
     .map((t) => ({ key: t.id, label: t.label }));
   const withWire = (dec) => (wire.length ? { ...dec, wire } : dec);
   // Known dead-agent claims do not consume capacity; unknown/inherited WIP remains conservative.

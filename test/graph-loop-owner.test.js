@@ -185,6 +185,41 @@ test('conflicted tested task surfaces conflict resolution action', () => {
   assert.equal(decisions[0].task.key, 'codex/merge-conflict');
 });
 
+test('canceled task with stale conflict metadata does not block the frontier', () => {
+  const ws = registerWorkspace('canceled-merge-conflict');
+  const ov = readyOverlay(ws, []);
+  overlayStore.setSnapshot(ov, 'codex/canceled-conflict', {
+    subject: 'Canceled conflict',
+    description: 'Canceled conflict',
+    status: 'pending',
+    blockedBy: [],
+    owner: null,
+    metadata: {},
+  });
+  overlayStore.setStatus(ov, 'codex/canceled-conflict', 'canceled');
+  overlayStore.setReviewLifecycle(ov, 'codex/canceled-conflict', {
+    review_state: 'canceled',
+    review_verdict: 'APPROVE',
+    merge_state: 'conflict',
+  });
+  const loopId = managedGraphLoopId(ws);
+  const fresh = new Date().toISOString();
+  daemon.__setLoopsForTest([[
+    loopId,
+    {
+      id: loopId, active: true, iterations: 0, spent: 0, baseline: 0, real: false,
+      startedAt: fresh, session: null, lastProgress: fresh, workspace: ws, managed: 'graph',
+      config: { tokenBudget: 5000000, maxIterations: 6250, minPoll: 30, maxPoll: 300, estPerTick: 800, batch: 4, maxConcurrency: 6, judgeParallelCap: 6 },
+    },
+  ]]);
+
+  const decisions = daemon.decideAll();
+
+  assert.equal(decisions.length, 1);
+  assert.equal(decisions[0].action, 'stop');
+  assert.match(decisions[0].reason, /DAG drained/);
+});
+
 test('active managed graph loop is reused, while foreground session loop may coexist', () => {
   const ws = registerWorkspace('reuse-managed');
   readyOverlay(ws, [{ key: 'codex/reuse-ready', label: 'Reuse ready work' }]);

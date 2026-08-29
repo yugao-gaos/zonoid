@@ -37,6 +37,11 @@ overlay.setReviewLifecycle(ov, 'task/kick', {
   review_verdict: 'KICK_BACK',
   merge_state: 'blocked',
 });
+overlay.setReviewLifecycle(ov, 'task/cancel', {
+  review_state: 'canceled',
+  review_verdict: 'APPROVE',
+  merge_state: 'conflict',
+});
 ov.notes['task/discard'] = 'discard requested by judge/1: obsolete attempt';
 ov.notes['task/cancel'] = 'canceled by judge/1: superseded';
 overlay.addGuidance(ov, {
@@ -85,6 +90,7 @@ assert.ok(projection.items.some((item) => item.lane === 'decision' && item.kind 
 assert.ok(projection.items.some((item) => item.lane === 'decision' && item.kind === 'task-decision' && item.task_key === 'task/kick' && item.action === 'kick_back'));
 assert.ok(projection.items.some((item) => item.lane === 'decision' && item.kind === 'task-decision' && item.task_key === 'task/discard' && item.action === 'discard'));
 assert.ok(projection.items.some((item) => item.lane === 'decision' && item.kind === 'task-decision' && item.task_key === 'task/cancel' && item.action === 'cancel'));
+assert.ok(!projection.items.some((item) => item.lane === 'decision' && item.kind === 'review' && item.key === 'task/cancel'));
 assert.ok(!ov.reviews['task/merge-judge']);
 assert.ok(projection.items.some((item) => item.lane === 'work' && item.kind === 'task' && item.key === 'task/ready'));
 assert.ok(projection.items.some((item) => item.lane === 'work' && item.key === 'task/run' && item.agent_id === 'worker-a'));
