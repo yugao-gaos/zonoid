@@ -646,6 +646,131 @@ test('api review success refreshes the shared tick overlay before an unrelated s
   }
 });
 
+test('api review refresh preserves Needs You recovery state through an unrelated same-tick save', async () => {
+  const backend = mockBackendDeps({ id: 'mock-api-recovery-sync', kind: 'api' });
+  const overlayStore = require('../lib/overlay');
+  const taskRecovery = require('../lib/task-recovery');
+  const judge = require('../lib/judge');
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-rv-api-recovery-sync-'));
+  const reviewKey = 't/api-recovery-sync';
+  const unrelatedTask = 't/unrelated';
+  const unrelatedJudge = 'note:unrelated-judge';
+  const clone = (value) => JSON.parse(JSON.stringify(value));
+  let authoritative = null;
+  let unrelatedSave = null;
+  const { hd, restore } = freshModuleWithMockedSpawn((_bin, args) => {
+    const script = String(args && args[0] || '');
+    if (script.includes('api-review-worker.js')) {
+      overlayStore.applyLifecycleEvent(authoritative, reviewKey, 'review_kick_back', {
+        task_status: 'tested', agent_id: 'api-reviewer', reason: 'Second API review failed',
+        now: '2026-08-29T13:00:00.000Z',
+      });
+      authoritative.retryConfig[reviewKey].pendingKickBackRetry = true;
+      authoritative.git[reviewKey] = { branch: 'orch/attempt/recovery-sync', head: 'authoritative-head' };
+      authoritative.blocked[reviewKey] = { reason: 'retry budget exhausted' };
+      overlayStore.setStatus(authoritative, reviewKey, 'failed', 'Second API review failed');
+      overlayStore.setSummary(authoritative, reviewKey, 'KICK_BACK: Second API review failed');
+      taskRecovery.reconcile(authoritative, [
+        { id: reviewKey, label: 'API recovery sync', status: 'failed', deps: [] },
+        { id: 't/dependent', label: 'Dependent', status: 'not_ready', deps: [reviewKey] },
+      ], { now: '2026-08-29T13:00:01.000Z' });
+      return makeFakeChild({ stdout: `review verdict: KICK_BACK task=${reviewKey}` });
+    }
+    if (script.includes('api-judge-worker.js')) {
+      return makeFakeChild({ stdout: '{"judged":1,"kept":1,"pruned":0}' });
+    }
+    return makeFakeChild();
+  });
+  try {
+    const { o } = pendingReviewOverlay(reviewKey, {
+      automode: true,
+      backend: { provider: backend.id },
+    });
+    o.retryConfig[reviewKey] = { retryCount: 1 };
+    o.git[unrelatedTask] = { branch: 'orch/attempt/unrelated', head: 'keep-head' };
+    o.blocked[unrelatedTask] = { reason: 'keep-blocked' };
+    o.judgedTaskDecisions[`decision:merge:${unrelatedTask}`] = true;
+    o.reviewVerdictLease = {
+      [unrelatedTask]: { owner: 'other-runner', leaseExpiry: Date.now() + 60000 },
+    };
+    const unrelatedGuidanceId = overlayStore.addGuidance(o, {
+      question: 'Unrelated recovery question',
+      context: 'Must survive task-scoped synchronization.',
+      trigger: 'repeated_failure',
+      severity: 'blocking',
+      origin_task: unrelatedTask,
+      action: { kind: 'task-recovery', task_key: unrelatedTask, recommended: 'retry' },
+    });
+    o.eagerJudge[unrelatedJudge] = { at: Date.now() };
+    authoritative = clone(o);
+    const save = (_workspace, value) => {
+      authoritative = clone(value);
+      if (value.eagerJudgeLease && value.eagerJudgeLease[unrelatedJudge]) unrelatedSave = clone(value);
+    };
+    const result = await hd.runDueDrains({ workspace }, noopHttp(), {
+      ...idleLabelDeps(),
+      ...backend.deps,
+      reviewVerdictDeps: {
+        overlay: o,
+        overlayStore,
+        overlayLoad: () => clone(authoritative),
+        overlaySave: save,
+      },
+      judgeDeps: {
+        overlay: o,
+        overlayStore,
+        overlaySave: save,
+        judgeLib: {
+          eagerJudgeNodes: () => [unrelatedJudge],
+          judgeQueueDepth: () => 0,
+          buildQueue: () => [],
+        },
+        acquireEagerJudgeLease: (value, key, owner, ttlMs) => {
+          if (!value.eagerJudgeLease) value.eagerJudgeLease = {};
+          value.eagerJudgeLease[key] = { owner, leaseExpiry: Date.now() + ttlMs };
+          return true;
+        },
+      },
+      reviewMergeDeps: { overlay: o, overlayStore },
+    });
+
+    assert.equal(result.drains.some((item) => item.drain === hd.REVIEW_VERDICT_DRAIN_KEY), true);
+    assert.equal(result.drains.some((item) => item.drain === hd.JUDGE_DRAIN_KEY), true);
+    assert.ok(unrelatedSave, 'the unrelated judge claim performs a later same-tick overlay save');
+    for (const value of [o, unrelatedSave, authoritative]) {
+      assert.equal(value.status[reviewKey], 'failed');
+      assert.equal(value.retryConfig[reviewKey].retryCount, 1);
+      assert.equal(value.retryConfig[reviewKey].pendingKickBackRetry, undefined, 'recovery consumed the retry marker');
+      assert.equal(value.git[reviewKey].head, 'authoritative-head');
+      assert.deepEqual(value.blocked[reviewKey], { reason: 'retry budget exhausted' });
+      const recoveryGuidance = value.guidance.filter((item) => !item.resolved
+        && item.action && item.action.kind === 'task-recovery'
+        && item.action.task_key === reviewKey);
+      assert.equal(recoveryGuidance.length, 1, 'Needs You has exactly one recovery decision');
+      assert.deepEqual(value.guidance.map((item) => item.id), [unrelatedGuidanceId, recoveryGuidance[0].id],
+        'selective refresh preserves unrelated guidance order');
+      assert.equal(value.guidance.filter((item) => item.id === unrelatedGuidanceId).length, 1,
+        'unrelated guidance survives selective refresh');
+      for (const action of ['review', 'merge', 'kick_back']) {
+        assert.equal(value.judgedTaskDecisions[`decision:${action}:${reviewKey}`], true);
+      }
+      assert.equal(value.judgedTaskDecisions[`decision:merge:${unrelatedTask}`], true,
+        'unrelated settled decisions survive selective refresh');
+      assert.deepEqual(value.git[unrelatedTask], { branch: 'orch/attempt/unrelated', head: 'keep-head' });
+      assert.deepEqual(value.blocked[unrelatedTask], { reason: 'keep-blocked' });
+      assert.equal(value.reviewVerdictLease[unrelatedTask].owner, 'other-runner');
+      assert.deepEqual(
+        judge.buildQueue(value).filter((item) => item.kind === 'task-decision' && item.task_key === reviewKey),
+        [],
+        'settled rejected lifecycle work cannot be offered again'
+      );
+    }
+  } finally {
+    restore();
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // api-review-worker pure helpers
 // ---------------------------------------------------------------------------
