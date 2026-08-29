@@ -243,6 +243,15 @@ test('detached workers do not hold the pump closed while another managed workspa
   assert.equal(governor.concurrentRunning, 0);
 });
 
+test('detached completion listener teardown cannot clear a newer registration', () => {
+  const executor = headlessSpawn.createSpawnExecutor({});
+  const releaseOlder = executor._setDetachedCompletionListener(() => {});
+  const releaseNewer = executor._setDetachedCompletionListener(() => {});
+
+  assert.equal(releaseOlder(), false, 'an overlapped runner no longer owns the listener slot');
+  assert.equal(releaseNewer(), true, 'the current runner can release its own listener');
+});
+
 test('shared capacity is interleaved across workspace jobs instead of consumed by one workspace', async () => {
   const overlays = { [WS]: gatedOverlay(), [WS_B]: gatedOverlay() };
   const { deps, calls } = makeFixture({

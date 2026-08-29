@@ -288,3 +288,85 @@ test('detached executor failure releases slots and asynchronously hands post-bac
     maintenance._stop();
   }
 });
+
+test('a stale detached completion cannot replace newer fairness provenance', () => {
+  const now = Date.now();
+  const staleBackoffUntil = now + 30_000;
+  const newerBackoffUntil = now + 60_000;
+  const newerTurn = {
+    lane: 'frontier',
+    createdBy: 'maintenance',
+    backoffUntil: newerBackoffUntil,
+    expiresAt: newerBackoffUntil + 2_000,
+  };
+  const governor = {
+    backoffUntil: newerBackoffUntil,
+    postBackoffFairness: newerTurn,
+  };
+  let detachedListener = null;
+  const drain = {
+    _governor: governor,
+    runDueDrains: async () => ({ ran: 0, skipped: 'no_spawn_decisions', drains: [] }),
+    _setDetachedCompletionListener(listener) {
+      detachedListener = listener;
+      return () => {
+        if (detachedListener !== listener) return false;
+        detachedListener = null;
+        return true;
+      };
+    },
+  };
+  const runner = createHeadlessDrainRunner({ lane: 'frontier', headlessDrain: drain, state: {} });
+
+  try {
+    detachedListener({
+      newBackoff: true,
+      previousBackoffUntil: 0,
+      backoffUntil: staleBackoffUntil,
+      kind: 'worker',
+      workspace: '/ws/stale',
+    });
+    assert.equal(governor.postBackoffFairness, newerTurn,
+      'the stale notice may wake the runner but cannot rewrite a newer transition token');
+  } finally {
+    runner._stop();
+  }
+});
+
+test('stopping an older overlapping runner preserves the newer detached listener', () => {
+  const governor = { backoffUntil: 0 };
+  let detachedListener = null;
+  const drain = {
+    _governor: governor,
+    runDueDrains: async () => ({ ran: 0, skipped: 'no_spawn_decisions', drains: [] }),
+    _setDetachedCompletionListener(listener) {
+      detachedListener = listener;
+      return () => {
+        if (detachedListener !== listener) return false;
+        detachedListener = null;
+        return true;
+      };
+    },
+  };
+  const older = createHeadlessDrainRunner({ lane: 'frontier', headlessDrain: drain, state: {} });
+  const olderListener = detachedListener;
+  const newer = createHeadlessDrainRunner({ lane: 'frontier', headlessDrain: drain, state: {} });
+  const newerListener = detachedListener;
+
+  try {
+    assert.notEqual(newerListener, olderListener);
+    older._stop();
+    assert.equal(detachedListener, newerListener,
+      'identity-bound teardown cannot unregister an overlapping replacement');
+
+    const backoffUntil = Date.now() + 30_000;
+    governor.backoffUntil = backoffUntil;
+    detachedListener({ newBackoff: true, previousBackoffUntil: 0, backoffUntil });
+    assert.equal(governor.postBackoffFairness.createdBy, 'frontier',
+      'the newer runner remains reachable through the registered completion seam');
+  } finally {
+    older._stop();
+    newer._stop();
+  }
+  assert.equal(detachedListener, null);
+});
