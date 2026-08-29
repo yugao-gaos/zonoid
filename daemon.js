@@ -399,9 +399,12 @@ const STALE_MINUTES_DEFAULT = (() => {
 // hooks/restart-daemon.sh asserts. null when the source dir isn't a git checkout.
 let GIT_HEAD = null;
 try { GIT_HEAD = require('child_process').execFileSync('git', ['-C', __dirname, 'rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 3000, windowsHide: true }).trim(); } catch { /* not a checkout */ }
+let PACKAGE_VERSION = null;
+try { PACKAGE_VERSION = require('./package.json').version || null; } catch { /* incomplete install */ }
+const DAEMON_BUILD_ID = GIT_HEAD ? `git:${GIT_HEAD}` : PACKAGE_VERSION ? `package:${PACKAGE_VERSION}` : null;
 // Capability flags, bumped per change — cheap self-description so a restart script can verify the
 // new code is actually serving (beyond the git head).
-const FEATURES = { perRequestWorkspaceWrites: true, perRequestWorkspaceReads: true, gatedSearch: true };
+const FEATURES = { perRequestWorkspaceWrites: true, perRequestWorkspaceReads: true, gatedSearch: true, versionHandoff: true };
 const DAEMON_HEALTH_SIGNATURE = 'zonoid-orchestrator-health-v1';
 
 // MCP tool-usage counters (persisted; see lib/analytics.js). Recorded via POST /analytics/tool-call
@@ -2977,7 +2980,7 @@ const ctx = {
   overlayStore, harness: claudeHarness, harnessRegistry, filedrop, writeTaskStatus, readNativeTask, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
   cache, loops, saveLoops, saveAgents,
   get bootState() { return bootState; },
-  GIT_HEAD, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL, WORKSPACES_FILE, STALE_MINUTES_DEFAULT,
+  GIT_HEAD, DAEMON_BUILD_ID, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL, WORKSPACES_FILE, STALE_MINUTES_DEFAULT,
   daemonLog,
   sseClients, agentsArr,
   taskTranscript, usageCached, harnessTranscriptForTask,

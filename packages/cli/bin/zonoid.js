@@ -9,9 +9,9 @@ const http = require('http');
 const runtimePaths = require('../../../lib/runtime-paths');
 const graphLifecycle = require('../../../lib/graph-lifecycle');
 const mcpCore = require('../../../lib/mcp-core');
+const daemonHandoff = require('../../../lib/daemon-handoff');
 
 const REPO_URL = 'https://github.com/yugao-gaos/zonoid';
-const DAEMON_HEALTH_SIGNATURE = 'zonoid-orchestrator-health-v1';
 const SKILLS_DIR = path.join(os.homedir(), '.claude', 'skills');
 const CODEX_REPO_SKILLS_DIR = path.join('.codex', 'skills');
 const OPENCODE_REPO_SKILLS_DIR = path.join('.opencode', 'skills');
@@ -535,44 +535,6 @@ function installOpencodeRepoSkills(cwd) {
   return installRepoSkill(cwd, 'zonoid-orchestrator', 'opencode');
 }
 
-function probeDaemonHealth(port = ORCH_PORT, timeoutMs = 1500) {
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = (result) => {
-      if (settled) return;
-      settled = true;
-      resolve(result);
-    };
-    const req = http.request(
-      { hostname: 'localhost', port, path: '/health', method: 'GET' },
-      (res) => {
-        let raw = '';
-        res.setEncoding('utf8');
-        res.on('data', (chunk) => { raw += chunk; });
-        res.on('end', () => {
-          let body = null;
-          try { body = raw ? JSON.parse(raw) : {}; } catch { /* old daemon response */ }
-          const identified = res.headers['x-zonoid-health-signature'] === DAEMON_HEALTH_SIGNATURE;
-          const ready = identified && res.statusCode === 200 && body && body.ok === true && body.phase === 'ready';
-          finish({ reachable: true, identified, ready, statusCode: res.statusCode, body });
-        });
-      }
-    );
-    req.on('error', () => finish({ reachable: false, ready: false }));
-    req.setTimeout(timeoutMs, () => {
-      // A listening daemon can be temporarily unresponsive during startup. Treat that as
-      // reachable so init waits instead of launching a second process on the same port.
-      finish({ reachable: true, ready: false, timedOut: true });
-      req.destroy();
-    });
-    req.end();
-  });
-}
-
-function childHasExited(child) {
-  return child.exitCode !== null || child.signalCode !== null;
-}
-
 function daemonReport(deps, kind, message) {
   if (deps && deps.quiet === true) return;
   if (kind === 'ok') ok(message);
@@ -580,73 +542,38 @@ function daemonReport(deps, kind, message) {
   else fix(message);
 }
 
-function waitForChildExit(child, timeoutMs) {
-  if (childHasExited(child)) return Promise.resolve(true);
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = (exited) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      child.removeListener('exit', onExit);
-      child.removeListener('error', onExit);
-      resolve(exited);
-    };
-    const onExit = () => finish(true);
-    const timer = setTimeout(() => finish(childHasExited(child)), timeoutMs);
-    child.once('exit', onExit);
-    child.once('error', onExit);
-  });
-}
-
-async function terminateSpawnedChild(child, graceMs = 1000) {
-  if (!child || childHasExited(child)) return;
-  try { child.kill('SIGTERM'); } catch { return; }
-  if (await waitForChildExit(child, graceMs)) return;
-  try { child.kill('SIGKILL'); } catch { return; }
-  await waitForChildExit(child, graceMs);
-}
-
 async function checkDaemon(deps = {}) {
   const port = deps.port || ORCH_PORT;
-  const healthTimeoutMs = deps.healthTimeoutMs || 1500;
-  const startupTimeoutMs = deps.startupTimeoutMs || 15000;
-  const pollMs = deps.pollMs || 100;
-  const childCleanupGraceMs = deps.childCleanupGraceMs || 1000;
-  let spawnedChild = null;
-  const initial = await probeDaemonHealth(port, healthTimeoutMs);
-  if (initial.ready) {
-    daemonReport(deps, 'ok', `Daemon is running (localhost:${port})`);
+  const result = await daemonHandoff.ensureCurrentDaemon({
+    port,
+    daemonPath: deps.daemonPath || path.join(INSTALL_DIR, 'daemon.js'),
+    env: deps.env,
+    expectedIdentity: deps.expectedIdentity,
+    healthTimeoutMs: deps.healthTimeoutMs,
+    startupTimeoutMs: deps.startupTimeoutMs,
+    handoffTimeoutMs: deps.handoffTimeoutMs,
+    pollMs: deps.pollMs,
+    childCleanupGraceMs: deps.childCleanupGraceMs,
+    pidFile: deps.pidFile,
+    lockFile: deps.lockFile,
+    probe: deps.probe,
+    signalProcess: deps.signalProcess,
+    gracefulSignal: deps.gracefulSignal,
+    isProcessAlive: deps.isProcessAlive,
+    spawnDaemon: deps.spawnDaemon,
+    acquireLock: deps.acquireLock,
+    sleep: deps.sleep,
+    now: deps.now,
+  });
+  if (result.ok) {
+    const verb = result.action === 'replaced' ? 'replaced stale owner and is ready'
+      : result.action === 'started' ? 'started and is ready'
+        : result.action === 'joined' ? 'is ready after concurrent handoff'
+          : 'is running';
+    daemonReport(deps, 'ok', `Daemon ${verb} (localhost:${port})`);
     return true;
   }
-
-  if (!initial.reachable) {
-    daemonReport(deps, 'fix', 'Daemon not running — starting it...');
-    const daemonPath = deps.daemonPath || path.join(INSTALL_DIR, 'daemon.js');
-    const daemonEnv = { ...process.env, ...(deps.env || {}), ORCH_PORT: String(port) };
-    spawnedChild = spawn(process.execPath, [daemonPath], {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true,
-      env: daemonEnv,
-    });
-    spawnedChild.on('error', (err) => daemonReport(deps, 'warn', `Could not start daemon: ${err.message}`));
-    spawnedChild.unref();
-  } else {
-    daemonReport(deps, 'fix', 'Daemon is still starting — waiting for it...');
-  }
-
-  const deadline = Date.now() + startupTimeoutMs;
-  while (Date.now() < deadline) {
-    const health = await probeDaemonHealth(port, healthTimeoutMs);
-    if (health.ready) {
-      daemonReport(deps, 'ok', `Daemon is ready (localhost:${port})`);
-      return true;
-    }
-    await new Promise((resolve) => setTimeout(resolve, pollMs));
-  }
-  daemonReport(deps, 'warn', `Daemon did not become ready within ${startupTimeoutMs}ms`);
-  await terminateSpawnedChild(spawnedChild, childCleanupGraceMs);
+  daemonReport(deps, 'warn', `Daemon handoff failed (${result.reason || 'unknown'}; localhost:${port})`);
   return false;
 }
 

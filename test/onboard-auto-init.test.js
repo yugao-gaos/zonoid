@@ -525,6 +525,13 @@ test('cold daemon startup is non-blocking and waits until the daemon is ready', 
     assert.equal(health.status, 200);
     assert.equal(health.payload && health.payload.phase, 'ready');
     assert.equal(health.headers.get('x-zonoid-health-signature'), 'zonoid-orchestrator-health-v1');
+    const daemonHead = git(path.join(__dirname, '..'), ['rev-parse', 'HEAD']);
+    assert.equal(health.payload.head, daemonHead);
+    assert.equal(health.payload.build, `git:${daemonHead}`);
+    assert.ok(Number.isInteger(health.payload.pid) && health.payload.pid > 0);
+    const version = await daemonRequest(port, 'GET', '/version');
+    assert.equal(version.payload.build, health.payload.build);
+    assert.equal(version.payload.pid, health.payload.pid);
     assert.ok(Date.now() - startedAt < 15000, 'cold startup must return instead of waiting on the detached daemon process');
   } finally {
     await stopDaemon(port);
