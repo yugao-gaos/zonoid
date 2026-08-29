@@ -5,6 +5,7 @@ const { runDrain } = require('../lib/headless-drain');
 const overlayStore = require('../lib/overlay');
 const followups = require('../lib/followups');
 const verdicts = require('../lib/verdicts');
+const taskRecovery = require('../lib/task-recovery');
 const judge = require('../lib/judge');
 const { listDispatcherChildren } = require('../lib/dispatcher-children');
 const { attributionMeta } = require('../lib/dispatcher-attribution');
@@ -350,9 +351,17 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (fr) Object.assign(result, fr);
       result.decision = decision;
       overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : decision);
-    } else if (action && action.kind === 'stale-hold' && (b.decision === 'release' || b.decision === 'keep')) {
+    } else if (action && (action.kind === 'stale-hold' || action.kind === 'user-hold') && (b.decision === 'release' || b.decision === 'keep')) {
       const sr = verdicts.resolveStaleHold(T.ov, action, b.decision, b.answer);
       if (sr) Object.assign(result, sr);
+      overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : b.decision);
+    } else if (action && action.kind === 'task-recovery' && ['retry', 'keep', 'cancel'].includes(b.decision)) {
+      const rr = taskRecovery.resolveRecovery(T.ov, action, b.decision);
+      if (rr) Object.assign(result, rr);
+      const taskKey = action.task_key || action.taskKey;
+      if (taskKey && typeof ctx.writeTaskStatus === 'function' && (b.decision === 'retry' || b.decision === 'cancel')) {
+        try { ctx.writeTaskStatus(T.ws, taskKey, b.decision === 'retry' ? 'pending' : 'canceled'); } catch { /* best effort */ }
+      }
       overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : b.decision);
     } else if (action && action.kind === 'stale-verdict' && (b.decision === 'merge' || b.decision === 'dismiss')) {
       if (b.decision === 'merge' && action.task_key) {

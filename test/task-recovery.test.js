@@ -1,0 +1,72 @@
+#!/usr/bin/env node
+'use strict';
+
+const assert = require('assert');
+const overlayStore = require('../lib/overlay');
+const recovery = require('../lib/task-recovery');
+
+const task = (id, status, extra = {}) => ({ id, label: id, status, deps: [], ...extra });
+
+{
+  const overlay = overlayStore.EMPTY();
+  overlay.status.landed = 'failed';
+  overlay.git.landed = { merged: true, merge_sha: 'abc' };
+  const result = recovery.reconcile(overlay, [task('landed', 'failed')]);
+  assert.equal(overlay.status.landed, 'done');
+  assert.equal(result.actions[0].action, 'normalize_merged');
+}
+
+{
+  const overlay = overlayStore.EMPTY();
+  overlay.status.old = 'failed';
+  overlay.edges.push({ from: 'old', to: 'replacement', kind: 'supersede' });
+  const result = recovery.reconcile(overlay, [task('old', 'failed'), task('replacement', 'ready')]);
+  assert.equal(overlay.status.old, 'canceled');
+  assert.equal(result.actions[0].replacement, 'replacement');
+  const statuses = { old: 'canceled', replacement: 'tested' };
+  assert.equal(recovery.dependencyStatus(overlay, 'old', (key) => statuses[key]), 'tested',
+    'dependents follow the explicit replacement status');
+}
+
+{
+  const overlay = overlayStore.EMPTY();
+  overlay.status.work = 'failed';
+  overlay.reviews.work = { review_state: 'rejected', review_verdict: 'KICK_BACK', merge_state: 'blocked' };
+  overlay.snapshots.work = { subject: 'work', status: 'failed', blockedBy: [] };
+  const writes = [];
+  recovery.reconcile(overlay, [task('work', 'failed')], { writeTaskStatus: (key, status) => writes.push([key, status]) });
+  assert.equal(overlay.status.work, undefined, 'first failure is automatically requeued');
+  assert.equal(overlay.snapshots.work.status, 'pending');
+  assert.deepEqual(writes, [['work', 'pending']]);
+  assert.equal(overlay.retryConfig.work.retryCount, 1);
+  assert.equal(overlay.reviews.work.review_state, null, 'retry clears the rejected lifecycle');
+
+  overlay.status.work = 'failed';
+  overlay.reviews.work = { review_state: 'rejected', review_verdict: 'KICK_BACK', merge_state: 'blocked', review_reason: 'tests still fail' };
+  const second = recovery.reconcile(overlay, [task('work', 'failed'), task('child', 'not_ready', { deps: ['work'] })]);
+  assert.equal(second.actions[0].action, 'needs_guidance');
+  assert.equal(overlay.status.work, 'failed', 'exhausted retry stays visible');
+  const gate = overlay.guidance.find((item) => !item.resolved && item.action && item.action.kind === 'task-recovery');
+  assert.ok(gate);
+  assert.deepEqual(gate.action.dependents, ['child']);
+
+  const repeated = recovery.reconcile(overlay, [task('work', 'failed')]);
+  assert.equal(overlay.guidance.filter((item) => !item.resolved && item.action && item.action.kind === 'task-recovery').length, 1,
+    'recovery guidance is deduplicated');
+  assert.equal(repeated.changed, false, 'an existing recovery decision does not create a dirty save loop');
+
+  const resolved = recovery.resolveRecovery(overlay, gate.action, 'retry');
+  assert.equal(resolved.retried_task_key, 'work');
+  assert.equal(overlay.status.work, undefined);
+}
+
+{
+  const overlay = overlayStore.EMPTY();
+  overlay.status.blocked = 'failed';
+  overlay.blocked.blocked = 'external data required';
+  recovery.reconcile(overlay, [task('blocked', 'failed')]);
+  assert.equal(overlay.status.blocked, 'failed', 'an explicit block is never silently cleared');
+  assert.ok(overlay.guidance.some((item) => item.action && item.action.kind === 'task-recovery'));
+}
+
+console.log('PASS  automatic task recovery and genuine user escalation');

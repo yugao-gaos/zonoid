@@ -49,6 +49,7 @@ const judge = require('./lib/judge');
 const delta = require('./lib/delta');
 const followups = require('./lib/followups');
 const verdicts = require('./lib/verdicts');
+const taskRecovery = require('./lib/task-recovery');
 const { gateTask, contentTokens, classifyNoteType, noteText } = require('./lib/context-gate');
 const usageAccounting = require('./lib/usage-accounting');
 const { runUsageReconcile } = require('./lib/usage-reconcile');
@@ -1046,36 +1047,23 @@ function sweepStaleNativeClaims(ws, ov, tasks) {
   if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
   return dirty;
 }
-// Optional auto-retry for failed tasks. Disabled by default: a failure may represent a hard
-// external blocker, and silently requeueing it creates stale ready loops.
+// Reconcile terminal operational debris. Landed/superseded outcomes are normalized immediately;
+// failures receive one bounded autonomous retry before they enter the durable user-gate inbox.
+// Explicit blocked flags are never cleared here.
 function sweepFailedTasks(ws, ov) {
-  if (!(ov.config && ov.config.auto_retry_failed === true)) return false;
-  let dirty = false;
   const g = buildGraph(ws);
-  for (const t of g.tasks) {
-    if (t.status !== 'failed') continue;
-    if (!ov.retryConfig) ov.retryConfig = {};
-    if (!ov.retryConfig[t.id]) ov.retryConfig[t.id] = {};
-    const retryCount = (ov.retryConfig[t.id].retryCount || 0) + 1;
-    ov.retryConfig[t.id].retryCount = retryCount;
-    const prevAgent = ov.assignee && ov.assignee[t.id];
-    ov.notes[t.id] = `auto-requeued after failure (attempt ${retryCount})${prevAgent ? ` — prior agent: '${prevAgent}'` : ''}. Review previous summary before re-attempting.`.slice(0, 280);
-    // Clear the review verdict alongside the status: the task is going back into the ready pipeline,
-    // so the 'rejected'/'blocked' record describes work that is about to be replaced. Leaving it made
-    // a pending task render as rejected and kept it out of the next review. Refused (and left alone)
-    // when the attempt already merged — that record is history worth keeping.
-    overlayStore.applyLifecycleEvent(ov, t.id, 'retry_requeue', { task_status: t.status });
-    // Flip status back to pending so the task re-enters the ready pipeline
-    delete ov.status[t.id];
-    if (ov.snapshots && ov.snapshots[t.id]) {
-      overlayStore.setSnapshot(ov, t.id, { ...ov.snapshots[t.id], status: 'pending' });
-    }
-    try { writeTaskStatus(ws, t.id, 'pending'); } catch { /* best effort */ }
-    console.log(`[retry] task ${t.id} attempt ${retryCount} (prev agent: ${prevAgent || '?'})`);
-    dirty = true;
+  const result = taskRecovery.reconcile(ov, g.tasks, {
+    writeTaskStatus: (key, status) => {
+      try { writeTaskStatus(ws, key, status); } catch { /* best effort */ }
+    },
+  });
+  if (!result.changed) return false;
+  for (const action of result.actions) {
+    console.log(`[reconcile] task ${action.task_key}: ${action.action}`);
   }
-  if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
-  return dirty;
+  cache.agg.delete(ws); cache.aggAt.delete(ws);
+  overlayStore.save(ws, ov); notifyChange(ws);
+  return true;
 }
 // staleVerdictKeys (pure): which 'tested'/'ready' tasks are stale verdict-pending hand-offs — owner
 // not live AND lastChanged past stale_minutes. These are SURFACED as guidance, NEVER auto-resolved
@@ -2236,6 +2224,14 @@ function makeResolver() {
     return [...local, ...edges];
   }
 
+  // A canceled task with one explicit supersede successor remains historical, while dependency
+  // checks transparently follow the replacement. This keeps native blockedBy references stable and
+  // prevents every dependent from becoming stranded on the retired task.
+  function dependencyEffective(ws, key, seen = new Set()) {
+    const { overlay } = loadWs(ws);
+    return taskRecovery.dependencyStatus(overlay, key, (candidate) => effective(ws, candidate, seen));
+  }
+
   function effective(ws, key, seen = new Set()) {
     const id = `${ws}|${key}`;
     if (memo[id]) return memo[id];
@@ -2251,7 +2247,7 @@ function makeResolver() {
     if (base !== 'pending') return (memo[id] = base);
     seen.add(id);
     const { unverifiedIncident } = loadWs(ws);
-    const ready = depRefs(ws, key).filter((d) => d.kind !== 'context').every((d) => depSatisfied(effective(d.ws, d.key, seen))); // context edges never block; a dep is satisfied by terminal-success (done OR tested)
+    const ready = depRefs(ws, key).filter((d) => d.kind !== 'context').every((d) => depSatisfied(dependencyEffective(d.ws, d.key, seen))); // context edges never block; superseded deps follow their explicit replacement
     seen.delete(id);
     if (!ready) return (memo[id] = 'not_ready');
     // JUDGING→READY gate (task D / P6 STRICT): blocking deps are satisfied, but if this task still
@@ -2275,7 +2271,7 @@ function makeResolver() {
   }
 
   function label(ws, key) { const { tasks } = loadWs(ws); return tasks[key] ? tasks[key].label : key; }
-  return { loadWs, depRefs, effective, exists, explicitStatus, label };
+  return { loadWs, depRefs, effective, dependencyEffective, exists, explicitStatus, label };
 }
 
 function readinessDetail(R, ws, key, opts = {}) {
@@ -2286,7 +2282,9 @@ function readinessDetail(R, ws, key, opts = {}) {
   const blocking = R.depRefs(ws, key).filter((d) => d.kind !== 'context');
   for (const d of blocking) {
     if (!R.exists(d.ws, d.key)) return { kind: 'missing_dependency', label: 'missing dep', dependency: d.key, workspace: d.ws };
-    const depStatus = R.effective(d.ws, d.key);
+    const depStatus = typeof R.dependencyEffective === 'function'
+      ? R.dependencyEffective(d.ws, d.key)
+      : R.effective(d.ws, d.key);
     if (depStatus === 'canceled') return { kind: 'canceled_dependency', label: 'canceled dep', dependency: d.key, workspace: d.ws };
     if (depStatus === 'failed') return { kind: 'failed_dependency', label: 'failed dep', dependency: d.key, workspace: d.ws };
     if (!depSatisfied(depStatus)) return { kind: 'waiting_dependency', label: 'waiting deps', dependency: d.key, dependency_status: depStatus, workspace: d.ws };
