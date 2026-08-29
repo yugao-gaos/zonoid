@@ -2,7 +2,9 @@
 'use strict';
 
 const assert = require('assert');
+const fs = require('fs');
 const overlayStore = require('../lib/overlay');
+const overlayDisk = require('../lib/overlay/store');
 const recovery = require('../lib/task-recovery');
 
 const task = (id, status, extra = {}) => ({ id, label: id, status, deps: [], ...extra });
@@ -14,6 +16,8 @@ const task = (id, status, extra = {}) => ({ id, label: id, status, deps: [], ...
   const result = recovery.reconcile(overlay, [task('landed', 'failed')]);
   assert.equal(overlay.status.landed, 'done');
   assert.equal(result.actions[0].action, 'normalize_merged');
+  assert.equal(recovery.reconcile(overlay, [task('landed', 'done')]).changed, false,
+    'already-landed tasks do not create a save/rebuild loop');
 }
 
 {
@@ -23,6 +27,8 @@ const task = (id, status, extra = {}) => ({ id, label: id, status, deps: [], ...
   const result = recovery.reconcile(overlay, [task('old', 'failed'), task('replacement', 'ready')]);
   assert.equal(overlay.status.old, 'canceled');
   assert.equal(result.actions[0].replacement, 'replacement');
+  assert.equal(recovery.reconcile(overlay, [task('old', 'canceled'), task('replacement', 'ready')]).changed, false,
+    'already-retired tasks do not create a save/rebuild loop');
   const statuses = { old: 'canceled', replacement: 'tested' };
   assert.equal(recovery.dependencyStatus(overlay, 'old', (key) => statuses[key]), 'tested',
     'dependents follow the explicit replacement status');
@@ -78,6 +84,17 @@ const task = (id, status, extra = {}) => ({ id, label: id, status, deps: [], ...
   recovery.reconcile(overlay, [task('blocked', 'failed')]);
   assert.equal(overlay.status.blocked, 'failed', 'an explicit block is never silently cleared');
   assert.ok(overlay.guidance.some((item) => item.action && item.action.kind === 'task-recovery'));
+}
+
+{
+  const workspace = `/tmp/zonoid-retry-config-${process.pid}-${Date.now()}`;
+  const overlay = overlayStore.EMPTY();
+  overlay.retryConfig.work = { retryCount: 1, maxRetries: 1 };
+  overlayDisk.writeLocalOverlay(workspace, overlay);
+  const reloaded = overlayDisk.readLocalOverlay(workspace);
+  assert.deepEqual(reloaded.retryConfig.work, overlay.retryConfig.work,
+    'retry budget survives the local overlay round-trip');
+  fs.unlinkSync(overlayDisk.fileFor(workspace));
 }
 
 console.log('PASS  automatic task recovery and genuine user escalation');
