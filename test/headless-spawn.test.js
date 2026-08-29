@@ -95,6 +95,7 @@ function makeFixture(opts = {}) {
     completeFailed: async (a) => { calls.failed.push(a); return { ok: true }; },
     runDrain: async (spec) => {
       calls.runDrain.push(spec);
+      if (opts.runDrain) return opts.runDrain(spec);
       return opts.drainResult || { exitCode: 0, stdout: '', stderr: '', timedOut: false, spawnError: null };
     },
     effectiveConfig: () => ({ tokenBudget: 200000, maxIterations: 50, maxConcurrency: 2, timeoutMs: 1000 }),
@@ -208,6 +209,118 @@ test('gated workspace with no session dispatches even while another workspace is
   const result = await headlessSpawn.runDueSpawns({}, deps);
   assert.equal(result.ran, 1);
   assert.equal(calls.runDrain.length, 1);
+});
+
+test('detached workers do not hold the pump closed while another managed workspace becomes ready', async () => {
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  const decisions = [{ loopId: 'm-a', action: 'spawn', tasks: [{ key: 'a/1', label: 'a one' }] }];
+  const overlays = { [WS]: gatedOverlay(), [WS_B]: gatedOverlay() };
+  const { deps, calls, loops, governor } = makeFixture({
+    overlays,
+    loops: [{ id: 'm-a', active: true, managed: 'graph', session: null, workspace: WS }],
+    decisions,
+    runDrain: () => held,
+  });
+  const executor = headlessSpawn.createSpawnExecutor(deps);
+
+  const first = await executor.runDueDrains({});
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(first.ran, 1);
+  assert.equal(governor.concurrentRunning, 1, 'the detached worker still owns its shared slot');
+
+  loops.set('m-b', { id: 'm-b', active: true, managed: 'graph', session: null, workspace: WS_B });
+  decisions.splice(0, decisions.length,
+    { loopId: 'm-b', action: 'spawn', tasks: [{ key: 'b/1', label: 'b one' }] });
+
+  const second = await executor.runDueDrains({});
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(second.ran, 1, 'the spare slot must serve the newly-ready workspace immediately');
+  assert.deepEqual(calls.prepare.map((p) => p.task_key), ['a/1', 'b/1']);
+
+  release({ exitCode: 0, stdout: '', stderr: '', timedOut: false, spawnError: null });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(governor.concurrentRunning, 0);
+});
+
+test('detached completion listener teardown cannot clear a newer registration', () => {
+  const executor = headlessSpawn.createSpawnExecutor({});
+  const releaseOlder = executor._setDetachedCompletionListener(() => {});
+  const releaseNewer = executor._setDetachedCompletionListener(() => {});
+
+  assert.equal(releaseOlder(), false, 'an overlapped runner no longer owns the listener slot');
+  assert.equal(releaseNewer(), true, 'the current runner can release its own listener');
+});
+
+test('shared capacity is interleaved across workspace jobs instead of consumed by one workspace', async () => {
+  const overlays = { [WS]: gatedOverlay(), [WS_B]: gatedOverlay() };
+  const { deps, calls } = makeFixture({
+    overlays,
+    loops: [
+      { id: 'm-a', active: true, managed: 'graph', session: null, workspace: WS },
+      { id: 'm-b', active: true, managed: 'graph', session: null, workspace: WS_B },
+    ],
+    decisions: [
+      { loopId: 'm-a', action: 'spawn', tasks: [{ key: 'a/1', label: 'a one' }, { key: 'a/2', label: 'a two' }] },
+      { loopId: 'm-b', action: 'spawn', tasks: [{ key: 'b/1', label: 'b one' }, { key: 'b/2', label: 'b two' }] },
+    ],
+  });
+
+  const result = await headlessSpawn.runDueSpawns({}, deps);
+
+  assert.equal(result.ran, 2);
+  assert.deepEqual(calls.prepare.map((p) => p.task_key), ['a/1', 'b/1'],
+    'the two available slots must be shared across workspaces');
+});
+
+test('existing frontier work defers drained-workspace self-planning', async () => {
+  const overlays = {
+    [WS]: { config: { headless_driver: true, self_plan: true }, spawnLease: {}, status: {}, planner: {} },
+    [WS_B]: gatedOverlay(),
+  };
+  const { deps, calls } = makeFixture({
+    overlays,
+    loops: [
+      { id: 'm-a', active: true, managed: 'graph', session: null, workspace: WS },
+      { id: 'm-b', active: true, managed: 'graph', session: null, workspace: WS_B },
+    ],
+    decisions: [
+      { loopId: 'm-a', action: 'plan', reason: 'DAG drained' },
+      { loopId: 'm-b', action: 'spawn', tasks: [{ key: 'b/1', label: 'b one' }] },
+    ],
+  });
+
+  const result = await headlessSpawn.runDueSpawns({}, deps);
+
+  assert.equal(result.ran, 1);
+  assert.deepEqual(calls.prepare.map((p) => p.task_key), ['b/1']);
+  assert.equal(calls.runDrain.length, 1, 'no planner child may run while existing work is dispatchable');
+  const deferred = result.drains.find((d) => d.drain === headlessSpawn.PLANNER_DRAIN_KEY);
+  assert.equal(deferred && deferred.skipped, 'frontier_work_pending');
+});
+
+test('an external dependency wait does not masquerade as Ready work and block planning', async () => {
+  const overlays = {
+    [WS]: { config: { headless_driver: true, self_plan: true }, spawnLease: {}, status: {}, planner: {} },
+    [WS_B]: gatedOverlay(),
+  };
+  const { deps, calls } = makeFixture({
+    overlays,
+    loops: [
+      { id: 'm-a', active: true, managed: 'graph', session: null, workspace: WS },
+      { id: 'm-b', active: true, managed: 'graph', session: null, workspace: WS_B },
+    ],
+    decisions: [
+      { loopId: 'm-a', action: 'plan', reason: 'DAG drained' },
+      { loopId: 'm-b', action: 'idle', reason: 'waiting on cross-workspace dependencies' },
+    ],
+  });
+
+  const result = await headlessSpawn.runDueSpawns({}, deps);
+
+  assert.equal(result.ran, 1);
+  assert.equal(calls.prepare.length, 0);
+  assert.equal(calls.runDrain.length, 1, 'a non-Ready external wait must not suppress the planner');
 });
 
 test('unpinned active session loop → conservative GLOBAL stand-down (cannot attribute a workspace)', async () => {

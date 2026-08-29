@@ -5542,6 +5542,16 @@ function taskStatusLine(t,byId){
   return taskDisplayStatus(t,byId).label+(t.agent_id?' ▶'+(t.agent_id.length>14?t.agent_id.slice(0,14)+'…':t.agent_id):'');
 }
 
+const OPAQUE_KANBAN_TASK_KEY=/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}(?:\/\d+)?$/i;
+function kanbanCardDisplay(card){
+  const key=String(card&&card.task_key||'').trim();
+  const label=typeof (card&&card.label)==='string'?card.label.trim():'';
+  const opaque=OPAQUE_KANBAN_TASK_KEY.test(key);
+  return {
+    title:opaque&&(!label||label===key)?'Untitled legacy task':(label||key),
+    subtitle:opaque?'':key,
+  };
+}
 function kanbanCueLabel(kind,value,count){
   const clean=reviewText(value);
   if(kind==='user') return 'Needs You · '+count+' '+(count===1?'decision':'decisions');
@@ -5608,9 +5618,10 @@ function renderKanban(d){
       const task=byTask[card.task_key]||{id:card.task_key,status:card.status,agent_id:card.assignee};
       const ds=taskDisplayStatus(task,byTask);
       const live=card.lane==='wip'&&card.assignee&&liveAgentIds.has(card.assignee);
+      const display=kanbanCardDisplay(card);
       return `<button type="button" class="kb-card${selected===card.task_key?' selected':''}${live?' live':''}" data-task-key="${esc(card.task_key)}" style="--kb-tone:${esc(ds.color)}">`+
-        `<span class="kb-card-title">${esc(card.label||card.task_key)}</span>`+
-        `<span class="kb-card-key">${esc(card.task_key)}</span>`+
+        `<span class="kb-card-title">${esc(display.title)}</span>`+
+        (display.subtitle?`<span class="kb-card-key">${esc(display.subtitle)}</span>`:'')+
         `<span class="kb-card-meta"><span class="kb-status">${esc(ds.label)}</span>${card.assignee?`<span class="kb-assignee">▶ ${esc(card.assignee)}</span>`:''}</span>`+
         kanbanFlagsHtml(card)+
         `</button>`;

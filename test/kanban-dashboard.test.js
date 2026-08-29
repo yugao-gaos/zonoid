@@ -33,6 +33,24 @@ assert.ok(html.includes("cues.user_gate") && html.includes("cues.review") && htm
 
 assert.ok(html.includes('data-task-key="${esc(card.task_key)}"'));
 assert.ok(html.includes('openDetail(button.dataset.taskKey)'), 'card selection must reuse the existing detail drawer');
+const cardDisplaySource = html.slice(
+  html.indexOf('const OPAQUE_KANBAN_TASK_KEY='),
+  html.indexOf('function kanbanCueLabel'),
+);
+const cardDisplayContext = {};
+vm.runInNewContext(`${cardDisplaySource};this.kanbanCardDisplay=kanbanCardDisplay;`, cardDisplayContext);
+const opaqueKey = '019c3ac8-f971-7b80-9d14-1b34dfd3c9e9';
+for (const card of [{ task_key: opaqueKey }, { task_key: `${opaqueKey}/42`, label: `${opaqueKey}/42` }]) {
+  const display = cardDisplayContext.kanbanCardDisplay(card);
+  assert.equal(display.title, 'Untitled legacy task', 'unlabeled opaque task IDs must use a neutral card title');
+  assert.equal(display.subtitle, '', 'opaque task IDs must not appear as card subtitles');
+}
+const labeledOpaque = cardDisplayContext.kanbanCardDisplay({ task_key: opaqueKey, label: 'Recover background review' });
+assert.equal(labeledOpaque.title, 'Recover background review', 'human labels must survive opaque internal task keys');
+assert.equal(labeledOpaque.subtitle, '', 'labeled opaque keys must remain hidden from the card');
+const normalCard = cardDisplayContext.kanbanCardDisplay({ task_key: 'codex/recover-background-review', label: 'Recover background review' });
+assert.equal(normalCard.title, 'Recover background review');
+assert.equal(normalCard.subtitle, 'codex/recover-background-review', 'human-readable task keys keep their subtitle');
 const kanbanRenderer = html.slice(html.indexOf('function renderKanban(d)'), html.indexOf('function fmtK(n)'));
 assert.ok(!kanbanRenderer.includes('draggable="true"') && !kanbanRenderer.includes('dragstart'),
   'observational v1 must not imply unsupported drag/drop mutation');

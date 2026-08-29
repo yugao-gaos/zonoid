@@ -322,6 +322,24 @@ test('a drained self-plan frontier retains its owner and reaches the bounded pla
   );
 });
 
+test('managed loop priority rotates toward the workspace waiting longest for progress', () => {
+  const foreground = { id: 'foreground', managed: null, lastProgress: 500 };
+  const oldest = { id: 'managed-oldest', managed: 'graph', lastProgress: 100 };
+  const newest = { id: 'managed-newest', managed: 'graph', lastProgress: 300 };
+  const middle = { id: 'managed-middle', managed: 'graph', lastProgress: 200 };
+
+  const firstPass = [newest, foreground, middle, oldest].sort(daemon.__compareLoopPriorityForTest);
+  assert.deepEqual(firstPass.map((loop) => loop.id), [
+    'foreground', 'managed-oldest', 'managed-middle', 'managed-newest',
+  ]);
+
+  oldest.lastProgress = 400;
+  const secondPass = [oldest, newest, middle].sort(daemon.__compareLoopPriorityForTest);
+  assert.deepEqual(secondPass.map((loop) => loop.id), [
+    'managed-middle', 'managed-newest', 'managed-oldest',
+  ], 'a workspace that just progressed must yield the next shared batch to an older waiter');
+});
+
 test.after(() => {
   if (previousOrchData === undefined) delete process.env.ORCH_DATA;
   else process.env.ORCH_DATA = previousOrchData;
