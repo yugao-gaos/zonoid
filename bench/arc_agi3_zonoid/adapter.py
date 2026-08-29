@@ -111,8 +111,11 @@ def contract_summary() -> str:
         "     when no task ids are supplied. The official quickstart also advertises --list-games and",
         "     --list-configs; this adapter does not invent extra flags.",
         "  3. Zonoid context is exported via environment variables only if the checkout appears to contain",
-        "     a Zonoid integration point. Otherwise the runner may run the baseline and returns a blocker",
-        "     for the zonoid-on arm instead of pretending an A/B ran.",
+        "     a Zonoid integration point. The injected instructions wire the agent-driven REPL loop, the",
+        "     vision composite, the executable world model, and the KB protocol into a two-call",
+        "     decide/reflect turn structure. Otherwise the runner may run the baseline and returns a blocker",
+        "     for the zonoid-on arm",
+        "     instead of pretending an A/B ran.",
         "",
         "Config passed to the SDK callable:",
         "  arm: 'zonoid_on' or 'no_zonoid'",
@@ -122,9 +125,15 @@ def contract_summary() -> str:
         "  metadata: runner output directory and adapter name",
         "",
         "Zonoid-on instructions are task-scoped and API-only:",
+        "  - decide: inspect the current frame, the vision composite if available, the executable world",
+        "    model, and KB search hits before choosing the next action or world-model update",
+        "  - reflect: compare the environment's response with the prediction, repair the world model if",
+        "    needed, and write durable KB notes only after the result teaches something reusable",
+        "  - use the REPL to validate or patch the world model between turns; do not collapse decide and",
+        "    reflect into a single call",
         "  - read task context from /task/context with workspace and task_key",
-        "  - search with /search using workspace and task_key",
-        "  - record durable findings with /overlay/note when useful",
+        "  - search with /search using workspace and task_key before each decide call",
+        "  - record durable findings with /overlay/note when useful, especially after reflect",
         "",
         "Zonoid context hook surface:",
         "  - env: ZONOID_ENABLED, ZONOID_DAEMON_URL, ZONOID_WORKSPACE, ZONOID_TASK_KEY",
@@ -143,71 +152,43 @@ def contract_summary() -> str:
 
 
 def zonoid_task_instructions(*, daemon_url: str, workspace: str, task_key: str) -> str:
-    """Agent-facing Zonoid MEMORY PROTOCOL, injected into the agent's system prompt.
+    """Agent-facing Zonoid protocol, injected into the official harness system prompt.
 
-    Zonoid is offered as a tool, not wired in by the harness: the agent itself decides whether and
-    how to record/recall. This keeps the benchmark a test of whether an agent can GENERALIZE using
-    an external memory, rather than a hand-built memory feature. The protocol asks the agent to
-    persist before->action->after grid transitions and recall similar ones before deciding."""
+    The benchmark stays agent-driven: the harness gives the model a REPL-shaped loop and the model
+    decides how to use vision, the world model, and KB writes to improve future turns."""
 
     return (
-        "You have access to Zonoid, a persistent memory shared across turns and games. It is a "
-        "TOOL, not an autopilot: nothing is recorded or recalled unless you do it yourself. Use it "
-        "to learn from experience instead of relying only on priors. Call it over HTTP with these "
-        "identifiers:\n"
+        "You have access to Zonoid, a task-scoped REPL memory layer shared across turns and games. "
+        "It is a TOOL, not an autopilot: nothing is recorded or recalled unless you do it yourself.\n"
+        "Use it to learn from experience instead of relying only on priors. Call it over HTTP with "
+        "these identifiers:\n"
         f"- daemon: {daemon_url}\n"
         f"- workspace: {workspace}\n"
         f"- task_key: {task_key}\n"
-        "OPERATING MODE - explore, then COMMIT and EXECUTE:\n"
-        "Default to EXPLORE only until you have a CANDIDATE PLAN, then switch to EXECUTE.\n"
-        "- CANDIDATE PLAN = a concrete ordered action sequence you believe reaches the goal, even if "
-        "the win condition is still a hypothesis.\n"
-        "- Treat actions as limited and potentially costly. The environment may impose budgets, "
-        "penalties, or resource limits you can only discover by observing. Weigh a plan's cost "
-        "against whatever resource signals you have observed, and prefer the cheapest plan that could "
-        "plausibly reach the goal.\n"
-        "- The MOMENT you have a candidate plan, STOP analyzing and EXECUTE it: play the moves in "
-        "order, one per turn, recording each transition. Do NOT re-derive or re-read full history "
-        "while the plan is on track.\n"
-        "- Before each move in EXECUTE, do a ONE-LINE viability check (not a re-derivation): given "
-        "everything you have now observed - including any cost/resource signals - can this plan still "
-        "reach the goal? Leave EXECUTE only on (a) CONTRADICTION (an observed result broke the plan) "
-        "or (b) FORESEEN INFEASIBILITY (the check shows the plan can no longer reach the goal); in "
-        "either case abort, invalidate the plan, and re-EXPLORE to form a new candidate. Otherwise "
-        "play the next move without re-analyzing.\n"
-        "- Goal reached / score up -> success; keep going.\n"
-        "- Bias hard toward ACTING. An untested plan executed beats a perfect plan never tried. Spend "
-        "at most ~2-3 turns in EXPLORE before committing to some candidate; a failed test is "
-        "high-value information memory will capture.\n"
-        "Follow this memory loop every turn:\n"
-        "1. RECORD the previous transition. If you took an action on a prior turn, the CURRENT grid "
-        "is its result; save that before->action->after transition as a note:\n"
-        f"   POST {daemon_url}/overlay/note  (JSON body) with fields: "
-        'workspace=<workspace>, title="<game> transition", '
-        'summary="before-grid: <compact rows>; action: <action>; after-grid: <compact rows>; '
-        'score <old>-><new>; worked: <yes/no>", category="arc-agi-3", '
-        f'wires_to=["{task_key}"].\n'
-        "2. RECALL before deciding. Search for grids similar to the CURRENT frame and how earlier "
-        "actions changed them:\n"
-        f"   GET {daemon_url}/search?q=<describe current grid/state>&k=5&"
+        "TURN STRUCTURE - every turn is a decide/reflect two-call loop:\n"
+        "1. decide: inspect the current frame, the vision composite if present, the current world "
+        "model, and the mode-scoped KB context; then choose the next action or model update.\n"
+        "2. reflect: after the environment responds, compare the observed result against your "
+        "prediction, repair the world model when needed, and write a concise KB note when the "
+        "transition teaches you something durable.\n"
+        "REPL discipline:\n"
+        "- Treat the benchmark as observe -> decide -> act -> reflect, not as a single-shot answer.\n"
+        "- Use vision when it is available; the composite image is part of the evidence, not a bonus.\n"
+        "- Maintain a small executable world model. Revise it when observations contradict it, and "
+        "prefer the cheapest plan that still fits the mechanics you have actually seen.\n"
+        "- Record the previous transition before deciding again. If you took an action on the prior "
+        "turn, save that before->action->after transition as a note so future turns can reuse it.\n"
+        "- Search for similar grids and transition evidence before deciding, then treat recalled notes "
+        "as evidence to verify against the live frame.\n"
+        "- Use /search before each decide call so the KB context is fresh before you choose the next "
+        "action or model update.\n"
+        "KB protocol:\n"
+        f"- RECALL with GET {daemon_url}/search?q=<describe current grid/state>&k=5&"
         f"workspace=<urlencoded workspace>&task_key={task_key}&gated=false\n"
-        "   Reuse any recalled before->action->after transition that matches; treat it as evidence, "
-        "not ground truth, and verify it against the live grid.\n"
-        "3. ACT. If EXECUTING: play the next move of your committed plan (do not re-derive). If "
-        "EXPLORING: probe using the live frame + recalled transitions, and commit to a candidate "
-        "plan as soon as one exists.\n"
-        "RELIABLE WRITES (important): build note bodies that survive shell and JSON escaping.\n"
-        "   - Encode each grid row as a plain digit string (cells are 0-9); join rows with '/' or "
-        "'|'. NEVER put backslashes or literal newlines inside the JSON; they silently break the "
-        "write.\n"
-        "   - Prefer POSTing from a file to avoid inline-quoting bugs: write the JSON body to a temp "
-        "file, then send it with: "
-        f"curl -sS -X POST -H 'Content-Type: application/json' --data @<file> {daemon_url}/overlay/note\n"
-        "   - CHECK the response: a successful write returns an ok flag and a note id. If you do not "
-        "see one, the write FAILED; simplify the encoding and retry. Do not assume it saved.\n"
-        "Keep grid encodings compact (one short backslash-free string per row). The point: over many "
-        "turns, recalled state->action->result transitions should help you generalize to frames you "
-        "have not seen before. Prefer recalled task evidence over generic ARC priors.\n"
+        f"- WRITE durable transition notes with POST {daemon_url}/overlay/note and wires_to=[\"{task_key}\"]\n"
+        "- Keep note bodies compact, backslash-free, and parseable so they survive JSON escaping.\n"
+        "- Prefer task-scoped evidence over generic ARC priors; the memory loop is there to compound "
+        "what you observe, not to replace the agent's own reasoning.\n"
     )
 
 
