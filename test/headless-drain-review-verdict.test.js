@@ -367,7 +367,7 @@ test('review-verdict drain runs under automode and spawns the cli reviewer', asy
     assert.match(prompt, /\+mock change/, 'prompt carries the daemon-fetched attempt diff');
     assert.match(prompt, /NEVER post, merge/, 'prompt forbids posting or merging');
     assert.ok(calls[0].args.includes('--backend-id'), 'provider-owned argv, not a hardcoded claude path');
-    assert.ok(o.reviewVerdictLease && o.reviewVerdictLease['t/auto'], 'candidate was leased before spawning');
+    assert.equal(o.reviewVerdictLease && o.reviewVerdictLease['t/auto'], undefined, 'an applied verdict clears its completed review lease');
   } finally {
     restore();
   }
@@ -395,6 +395,7 @@ test('cli reviewer JSON is validated and applied by the daemon-owned verdict cal
     assert.equal(submitted.body.lifecycle_event, 'review_approve');
     assert.equal(submitted.body.review_reason, 'focused diff and tests are sound');
     assert.equal(result.drains.find((d) => d.drain === hd.REVIEW_VERDICT_DRAIN_KEY).verdict, 'APPROVE');
+    assert.equal(o.reviews['t/daemon-submit'].review_state, 'approved', 'the shared tick overlay cannot later resurrect the review');
   } finally {
     restore();
   }
@@ -424,6 +425,8 @@ test('cli reviewer resolves a persisted graph target and can kick back an empty 
     assert.match(diffCall.route, /target_repo=%2Frepo%2Ffrom-detail/, 'the persisted task target scopes the diff read');
     assert.equal(submitted.body.lifecycle_event, 'review_kick_back');
     assert.equal(result.drains.find((d) => d.drain === hd.REVIEW_VERDICT_DRAIN_KEY).verdict, 'KICK_BACK');
+    assert.equal(o.status['t/empty-diff'], 'failed');
+    assert.equal(o.reviews['t/empty-diff'].review_state, 'rejected', 'a later cached-overlay save preserves the applied kick-back');
   } finally {
     restore();
   }
