@@ -3355,8 +3355,17 @@ if (require.main === module) {
     });
   }
 
+  const maintenanceDrainExecutor = {
+    _governor: headlessDrain._governor,
+    runDueDrains: (currentState) => headlessDrain.runDueDrains(currentState, undefined, {
+      // Native tasks may carry a completed review lifecycle while readiness is temporarily masked
+      // by context judging. Give review discovery the canonical graph so it can distinguish that
+      // valid attempt from terminal/blocked lifecycle debris.
+      reviewVerdictDeps: { buildGraph },
+    }),
+  };
   const headlessDrainRunner = createHeadlessDrainRunner({
-    headlessDrain,
+    headlessDrain: maintenanceDrainExecutor,
     getState: () => ({ ...state, registeredWorkspaces: Array.from(registeredWorkspaces()) }),
     lane: 'maintenance',
   });

@@ -220,6 +220,30 @@ test('findReviewVerdictCandidates skips approved, landed, conflicted, and non-te
   assert.deepEqual(candidates, []);
 });
 
+test('findReviewVerdictCandidates accepts a native reviewed attempt hidden by judging readiness', () => {
+  const hd = freshModule();
+  const { o, overlayStore } = pendingReviewOverlay('t/native');
+  delete o.status['t/native'];
+  o.git['t/native'] = {
+    branch: 'orch/attempt/t-native',
+    worktree: '/worktrees/t-native',
+    head: 'abc123',
+  };
+  const graph = {
+    tasks: [{ id: 't/native', status: 'not_ready', kind: 'task', deps: [], readiness: { kind: 'judging_hold' } }],
+  };
+
+  assert.deepEqual(
+    hd.findReviewVerdictCandidates('/irrelevant', { overlay: o, overlayStore, graph }),
+    [{
+      key: 't/native',
+      repo_path: null,
+      attempt_branch: 'orch/attempt/t-native',
+      attempt_worktree: '/worktrees/t-native',
+    }]
+  );
+});
+
 // ---------------------------------------------------------------------------
 // Lease exclusivity
 // ---------------------------------------------------------------------------
