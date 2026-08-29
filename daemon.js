@@ -1638,6 +1638,21 @@ function ensureManagedGraphLoops(ctxByWs = null) {
 // @param {object} [opts]
 //   @param {Function} [opts.loopFilter]     — (L) => boolean; loops returning falsy are not ticked.
 //   @param {Set}      [opts.skipWorkspaces] — workspaces whose loops are not ticked.
+function loopProgressTime(loop) {
+  const value = loop && (loop.lastProgress || loop.startedAt);
+  const parsed = typeof value === 'number' ? value : Date.parse(value || '');
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function compareLoopPriority(a, b) {
+  const managedOrder = (a && a.managed ? 1 : 0) - (b && b.managed ? 1 : 0);
+  if (managedOrder) return managedOrder;
+  if (a && b && a.managed && b.managed) {
+    return loopProgressTime(a) - loopProgressTime(b);
+  }
+  return 0;
+}
+
 function decideAll(opts = {}) {
   sweepStaleLoops();   // central liveness sweep (same pass): demote dead/exhausted/stalled loops first
   // Sweep across the REAL set of registered workspaces (workspaces.json), not the single daemon-
@@ -1663,7 +1678,10 @@ function decideAll(opts = {}) {
     .filter((L) => L.active)
     .filter((L) => !(skipWorkspaces && L.workspace && skipWorkspaces.has(L.workspace)))
     .filter((L) => !loopFilter || !!loopFilter(L))
-    .sort((a, b) => (a.managed ? 1 : 0) - (b.managed ? 1 : 0));
+    // Foreground loops retain priority. Managed loops then rotate by the oldest progress stamp:
+    // whenever one consumes the shared spawn batch, decideOne advances lastProgress and it yields
+    // the next tick to a workspace that has waited longer.
+    .sort(compareLoopPriority);
   // ONE spawn pool shared across ALL loops this tick (regardless of workspace) — the daemon-wide
   // concurrency bound is about total spawned workers, not per-workspace.
   const batch = { remaining: active.reduce((m, L) => Math.max(m, L.config.batch || 0), 0) };
@@ -3124,7 +3142,7 @@ function isPrimaryCheckout(root) {
 module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleSnapshotClaimKeys, releaseSnapshotClaim, staleNativeClaimKeys, releaseNativeClaim, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings, worktreeVouchesLive, depSatisfied, vouchedLive, STALE_MINUTES_DEFAULT,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, graphAutoflush, RESP_TTL, sseClients, nodeExistsInGraph, dispatchInProgressCount,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
-  decideOne, decideAll, ensureManagedGraphLoops, buildGraph, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __readinessDetailForTest: readinessDetail, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
+  decideOne, decideAll, ensureManagedGraphLoops, buildGraph, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __readinessDetailForTest: readinessDetail, __compareLoopPriorityForTest: compareLoopPriority, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
 
 if (require.main === module) {
   // Log unhandled promise rejections instead of crashing (Node's default is to exit the process).
