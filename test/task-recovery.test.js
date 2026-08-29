@@ -30,6 +30,17 @@ const task = (id, status, extra = {}) => ({ id, label: id, status, deps: [], ...
 
 {
   const overlay = overlayStore.EMPTY();
+  overlay.edges.push({ from: 'note:old', to: 'note:new', kind: 'supersede' });
+  const result = recovery.reconcile(overlay, [
+    task('note:old', 'note', { kind: 'note' }),
+    task('note:new', 'note', { kind: 'note' }),
+  ]);
+  assert.equal(result.changed, false, 'knowledge nodes never enter operational recovery');
+  assert.equal(overlay.status['note:old'], undefined, 'superseded notes do not create task-status churn');
+}
+
+{
+  const overlay = overlayStore.EMPTY();
   overlay.status.work = 'failed';
   overlay.reviews.work = { review_state: 'rejected', review_verdict: 'KICK_BACK', merge_state: 'blocked' };
   overlay.snapshots.work = { subject: 'work', status: 'failed', blockedBy: [] };
