@@ -28,6 +28,18 @@ test('derives GitHub owner from HTTPS and SSH remotes', () => {
   });
 });
 
+test('resolves GitHub CLI outside an interactive PATH', () => {
+  assert.equal(githubAccount.resolveGhExecutable({
+    env: { ZONOID_GH_PATH: '/custom/bin/gh' },
+    existsSync: () => false,
+  }), '/custom/bin/gh');
+
+  assert.equal(githubAccount.resolveGhExecutable({
+    env: {},
+    existsSync: (candidate) => candidate === '/opt/homebrew/bin/gh',
+  }), '/opt/homebrew/bin/gh');
+});
+
 test('non-GitHub remotes bypass account lookup and remain unchanged', async () => {
   let calls = 0;
   const value = await githubAccount.withOwnerCredential('https://gitlab.com/acme/widgets.git', async (scope) => {
