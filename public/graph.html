@@ -15,7 +15,7 @@
   .hd-right{ display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; }
   .settings-btn { background: none; border: 1px solid #30363d; color: #8b949e; border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; font-family: inherit; }
   .settings-btn:hover { background: #161b22; color: #e6edf3; }
-  .notif-btn { background: none; border: 1px solid #30363d; color: #8b949e; border-radius: 6px; padding: 0 8px; height: 28px; cursor: pointer; font-size: 12px; display: none; align-items: center; gap: 5px; font-family: inherit; }
+  .notif-btn { background: none; border: 1px solid #30363d; color: #8b949e; border-radius: 6px; padding: 0 8px; height: 28px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 5px; font-family: inherit; }
   .notif-btn.show { display: flex; }
   .notif-btn:hover { background: #161b22; color: #e6edf3; }
   .notif-btn.has-pending { border-color: #bb8009; color: #f0d77a; }
@@ -441,8 +441,8 @@
   .cfrow .cfm { color: #8b949e; font-size: 11px; }
   .appclose { float: right; color: #8b949e; cursor: pointer; padding: 6px 2px; font-size: 14px; }
   .appclose:hover { color: #e6edf3; }
-  /* internal judge/review guidance popup */
-  #guidance { position: fixed; top: calc(var(--hdr-h) + 4px); right: 14px; width: 480px; max-height: 72vh; overflow-y: auto; background: #11151c; border: 1px solid #30363d; border-radius: 10px; box-shadow: 0 10px 34px #0009; z-index: 60; display: none; padding: 14px 16px; color: #f0d77a; }
+  /* Shared Needs You sidebar — one durable user-decision inbox across every dashboard view. */
+  #guidance { position: fixed; top: var(--hdr-h); right: 0; bottom: var(--dock-h); width: min(440px, 100vw); overflow-y: auto; box-sizing: border-box; background: #11151c; border: 0; border-left: 1px solid #30363d; box-shadow: -10px 0 34px #0009; z-index: 60; display: none; padding: 16px; color: #f0d77a; }
   #guidance.show { display: block; }
   #guidance.has-pending { border-color: #bb8009; }
   #guidance .gtitle { font-weight: 600; color: #ffd95c; }
@@ -733,7 +733,7 @@
       </button>
       <div class="repo-list" id="repoList" role="menu"></div>
     </div>
-    <button class="notif-btn" id="notifBtn" title="Notifications" onclick="toggleGuidancePopup()">🗂 <span id="notifCount">0</span></button>
+    <button class="notif-btn show" id="notifBtn" title="Open the shared Needs You decision inbox" aria-controls="guidance" aria-expanded="false" onclick="toggleGuidancePopup()">Needs You <span id="notifCount">0</span></button>
     <button class="settings-btn" title="Settings" onclick="toggleSettingsPopup()">⚙</button>
   </div>
 </header>
@@ -5544,7 +5544,7 @@ function taskStatusLine(t,byId){
 
 function kanbanCueLabel(kind,value,count){
   const clean=reviewText(value);
-  if(kind==='user') return clean+' · '+count+' '+(count===1?'gate':'gates');
+  if(kind==='user') return 'Needs You · '+count+' '+(count===1?'decision':'decisions');
   if(kind==='review') return clean==='kick back'?'review · kick back':'review · '+clean;
   return 'merge · '+clean;
 }
@@ -5837,8 +5837,9 @@ async function tick(){
   ag.innerHTML=!d.agents.length?'<div class="empty">none</div>':d.agents.slice().reverse().map(a=>`<div class="row">${a.state==='running'?'▶':'✓'} <b>${esc(a.agent_type)}</b> <span class="muted">${esc(a.agent_id)}</span></div>`).join('');
   renderGuidance();
 }
-// Internal review guidance remains available for judge housekeeping. Ordinary pending user
-// decisions are delivered to their relevant agent session and intentionally stay off the dashboard.
+// User decisions are leased to the relevant live agent session AND retained in this shared dashboard
+// inbox. Session delivery gets the question into the active conversation; the durable sidebar makes
+// it discoverable from Kanban, Frontier, Force Cloud, and Focus even after that nudge scrolls away.
 // tick() re-runs this every 2s, so re-render is SIGNATURE-GATED: the DOM is only rebuilt when the
 // queue actually changes (or force=true after a resolve). UI state that must survive a rebuild —
 // answer drafts, keeper picks, expanded rows, inline errors, fetched note details — lives in the
@@ -5871,6 +5872,13 @@ function defKeeper(a){
     if(newest&&newest.key) return newest.key;
   }
   return a.keys[a.keys.length-1];
+}
+function guidanceAge(ts){
+  const ms=Date.now()-Date.parse(ts||0); if(!Number.isFinite(ms)||ms<0) return '';
+  const mins=Math.floor(ms/60000); if(mins<1) return 'just now';
+  if(mins<60) return mins+'m ago';
+  const hrs=Math.floor(mins/60); if(hrs<24) return hrs+'h ago';
+  return Math.floor(hrs/24)+'d ago';
 }
 function guidToggle(id,open){
   if(open) guidOpen.add(id); else guidOpen.delete(id);
@@ -5962,19 +5970,25 @@ function renderNotePopup(key,d,err){
 async function renderGuidance(force){
   const box=document.getElementById('guidance');
   let g; try{ g=await(await dfetch('/guidance')).json(); }catch{ return; }
+  const pending=(g&&g.pending)||[];
   const review=(g&&g.review)||[];
   // stash items so the [Copy for Claude] handler and the cluster lazy-loader can read full content
   // without round-tripping multiline strings through HTML attributes
   guidanceItems={};
-  review.forEach(it=>{ guidanceItems[it.id]=it; });
+  [...pending,...review].forEach(it=>{ guidanceItems[it.id]=it; });
   guidReview=review;
-  const sig=JSON.stringify(review.map(it=>it.id));
+  const sig=JSON.stringify([...pending,...review].map(it=>it.id));
   if(!force&&sig===guidSig) return;   // queue unchanged — don't clobber in-progress typing/expansion
   guidSig=sig;
   const reviewFollowUps=review.filter(it=>it.action&&it.action.kind==='follow-up');
   const reviewClusters=dedupeClustersBySig(review.filter(isCluster));
   const reviewStale=review.filter(it=>it.action&&it.action.kind==='stale-verdict');
-  if(!reviewFollowUps.length&&!reviewClusters.length&&!reviewStale.length){ box.classList.remove('show','has-pending'); box.innerHTML=''; const btn=document.getElementById('notifBtn'); if(btn) btn.classList.remove('show','has-pending'); return; }
+  if(!pending.length&&!reviewFollowUps.length&&!reviewClusters.length&&!reviewStale.length){
+    box.classList.remove('show','has-pending'); box.innerHTML='';
+    const btn=document.getElementById('notifBtn'); if(btn){ btn.classList.add('show'); btn.classList.remove('has-pending'); btn.setAttribute('aria-expanded','false'); }
+    const cnt=document.getElementById('notifCount'); if(cnt) cnt.textContent='0';
+    return;
+  }
   // One expandable member row per cluster note: radio keeper pick + label + lazy summary.
   const memberRow=(it,k,i)=>{
     const meta=(Array.isArray(it.action.notes)?it.action.notes:[]).find(n=>n.key===k)||{};
@@ -6004,6 +6018,22 @@ async function renderGuidance(force){
         '<button class="gbtn" onclick="resolveGuidance(\''+esc(it.id)+'\',\'reject\')">Reject</button>'+
         copyBtn(it)+'<span class="gstat" id="gst-'+esc(it.id)+'"></span></div>';
     }
+    if(it.action&&it.action.kind==='user-hold'){
+      return '<div class="gact"><button class="gbtn primary" onclick="resolveGuidance(\''+esc(it.id)+'\',\'release\')">Release</button>'+
+        '<button class="gbtn" onclick="resolveGuidance(\''+esc(it.id)+'\',\'keep\')">Keep hold</button>'+
+        '<span class="gstat" id="gst-'+esc(it.id)+'"></span></div>';
+    }
+    if(it.action&&it.action.kind==='task-recovery'){
+      return '<div class="gact"><button class="gbtn primary" onclick="resolveGuidance(\''+esc(it.id)+'\',\'retry\')">Retry</button>'+
+        '<button class="gbtn" onclick="resolveGuidance(\''+esc(it.id)+'\',\'keep\')">Keep blocked</button>'+
+        '<button class="gbtn" onclick="resolveGuidance(\''+esc(it.id)+'\',\'cancel\')">Cancel task</button>'+
+        '<span class="gstat" id="gst-'+esc(it.id)+'"></span></div>';
+    }
+    if(it.action&&it.action.kind==='cost_gate'){
+      return '<div class="gact"><button class="gbtn primary" onclick="resolveGuidance(\''+esc(it.id)+'\',\'approve\')">Approve run</button>'+
+        '<button class="gbtn" onclick="resolveGuidance(\''+esc(it.id)+'\',\'reject\')">Keep blocked</button>'+
+        '<span class="gstat" id="gst-'+esc(it.id)+'"></span></div>';
+    }
     if(it.action&&it.action.kind==='force_claim_cap'){
       return '<div class="gact"><button class="gbtn primary" onclick="resolveGuidance(\''+esc(it.id)+'\',\'approved\')">Approve &amp; reset counter</button>'+
         '<span class="gstat" id="gst-'+esc(it.id)+'"></span></div>';
@@ -6024,10 +6054,14 @@ async function renderGuidance(force){
     (it.trigger?'<div class="gtrig">'+esc(it.trigger)+'</div>':'')+
     '<div class="gq">'+linkifyNoteKeys(esc(it.question))+'</div>'+
     (it.context?'<div class="gctx">'+linkifyNoteKeys(esc(it.context))+'</div>':'')+
+    (it.action&&it.action.recommended?'<div class="gctx"><b>Recommended:</b> '+esc(it.action.recommended)+'</div>':'')+
+    '<div class="gact">'+(guidanceAge(it.ts)?'<span class="gstat">'+esc(guidanceAge(it.ts))+'</span>':'')+
+    ((it.action&&(it.action.task_key||it.action.taskKey))||it.origin_task?'<button class="gbtn" onclick="closeGuidancePopup();openDetail(\''+esc((it.action&&(it.action.task_key||it.action.taskKey))||it.origin_task)+'\')">Open task</button>':'')+'</div>'+
     controls(it)+
     (guidErr[it.id]?'<div class="gerr">'+esc(guidErr[it.id])+'</div>':'')+
     '</div>';
-  let html='<button class="appclose" style="float:right;margin:-2px -2px 6px 8px" onclick="closeGuidancePopup()">✕</button>';
+  let html='<button class="appclose" style="float:right;margin:-2px -2px 6px 8px" onclick="closeGuidancePopup()">✕</button><span class="gtitle">Needs You ('+(pending.length+review.length)+')</span>';
+  if(pending.length) html+=pending.map(gitem).join('');
   if(reviewFollowUps.length) html+='<span class="gtitle" style="margin-top:10px">Follow-up review ('+reviewFollowUps.length+')</span>'+reviewFollowUps.map(gitem).join('');
   if(reviewClusters.length) html+='<span class="gtitle" style="margin-top:10px">Dup clusters ('+reviewClusters.length+')</span>'+reviewClusters.map(gitem).join('');
   if(reviewStale.length) html+='<span class="gtitle" style="margin-top:10px">⚠ Stale work — session gone ('+reviewStale.length+')</span>'+reviewStale.map(gitem).join('');
@@ -6035,10 +6069,10 @@ async function renderGuidance(force){
   box.classList.add('has-pending');
   const btn=document.getElementById('notifBtn');
   if(btn){
-    const cnt=document.getElementById('notifCount'); if(cnt) cnt.textContent=reviewStale.length;
+    const cnt=document.getElementById('notifCount'); if(cnt) cnt.textContent=pending.length+review.length;
     btn.classList.add('has-pending','show');
   }
-  if(reviewFollowUps.length||reviewClusters.length||reviewStale.length) box.classList.add('show');
+  if(reviewFollowUps.length||reviewClusters.length||reviewStale.length){ box.classList.add('show'); if(btn) btn.setAttribute('aria-expanded','true'); }
 }
 // POST a resolution. decision: 'consolidate'|'distinct' for dup-clusters (consolidate sends the
 // picked keeper, daemon defaults to newest if omitted); absent → send the answer box as { answer }.
@@ -6052,7 +6086,7 @@ async function resolveGuidance(id,decision){
     if(sel) body.keep=sel.value;
   }
   else if(decision==='distinct'){ body.decision='distinct'; }
-  else if(decision==='approve'||decision==='reject'||decision==='merge'||decision==='dismiss'){ body.decision=decision; }
+  else if(['approve','reject','merge','dismiss','release','keep','retry','cancel'].includes(decision)){ body.decision=decision; }
   else { const inp=document.getElementById('ans-'+id); body.answer=(inp?inp.value:guidAns[id])||''; }
   delete guidErr[id];
   try{
@@ -7457,9 +7491,13 @@ function toggleActivityPopup(){
 }
 function toggleGuidancePopup(){
   const p=document.getElementById('guidance'); p.classList.toggle('show');
+  const btn=document.getElementById('notifBtn'); if(btn) btn.setAttribute('aria-expanded',String(p.classList.contains('show')));
   if(p.classList.contains('show')) document.getElementById('settingsPopup').classList.remove('show');
 }
-function closeGuidancePopup(){ document.getElementById('guidance').classList.remove('show'); }
+function closeGuidancePopup(){
+  document.getElementById('guidance').classList.remove('show');
+  const btn=document.getElementById('notifBtn'); if(btn) btn.setAttribute('aria-expanded','false');
+}
 function toggleSettingsPopup(){
   const p=document.getElementById('settingsPopup'); p.classList.toggle('show');
   if(p.classList.contains('show')){

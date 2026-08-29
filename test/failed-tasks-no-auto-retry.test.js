@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Failed tasks should not silently re-enter the ready pool unless explicitly configured.
+// Failed tasks receive one bounded autonomous retry, then surface a durable user recovery gate.
 'use strict';
 
 const daemon = require('../daemon.js');
@@ -14,22 +14,26 @@ const ok = (label, cond) => {
 {
   const ov = ovStore.EMPTY();
   ov.status['task/failed'] = 'failed';
+  ov.snapshots['task/failed'] = { subject: 'failed task', status: 'failed', blockedBy: [] };
+  daemon.__setWorkspaceForTest('/tmp/nonexistent-zonoid-test-ws');
+  daemon.__setOverlayForTest(ov);
   const changed = daemon.sweepFailedTasks('/tmp/nonexistent-zonoid-test-ws', ov);
-  ok('default sweep does nothing', changed === false);
-  ok('failed status is preserved', ov.status['task/failed'] === 'failed');
+  ok('default sweep performs one bounded retry', changed === true);
+  ok('failed status re-enters the pending pipeline', ov.status['task/failed'] === undefined);
+  ok('default retry budget is recorded', ov.retryConfig['task/failed'].retryCount === 1);
 }
 
 {
   const ov = ovStore.EMPTY();
-  ov.config.auto_retry_failed = true;
+  ov.retryConfig = { 'task/failed': { retryCount: 1, maxRetries: 1 } };
   ov.status['task/failed'] = 'failed';
   ov.snapshots['task/failed'] = { subject: 'failed task', status: 'failed', blockedBy: [] };
   daemon.__setWorkspaceForTest('/tmp/nonexistent-zonoid-test-ws');
   daemon.__setOverlayForTest(ov);
   const changed = daemon.sweepFailedTasks('/tmp/nonexistent-zonoid-test-ws', ov);
-  ok('explicit auto retry changes state', changed === true);
-  ok('explicit auto retry clears status override', ov.status['task/failed'] === undefined);
-  ok('explicit auto retry resets snapshot', ov.snapshots['task/failed'].status === 'pending');
+  ok('exhausted retry budget creates a user decision', changed === true);
+  ok('exhausted failure remains visible', ov.status['task/failed'] === 'failed');
+  ok('recovery guidance is actionable', ov.guidance.some((g) => !g.resolved && g.action && g.action.kind === 'task-recovery'));
 }
 
 console.log('-----');

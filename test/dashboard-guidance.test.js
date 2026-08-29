@@ -17,14 +17,21 @@ const end = html.indexOf('\n// POST a resolution.', start);
 const body = start >= 0 && end > start ? html.slice(start, end) : '';
 
 ok('dashboard guidance renderer exists', !!body);
-ok('ordinary pending decisions are not rendered',
-  !body.includes('g.pending') && !body.includes('pending.map(gitem)') && !body.includes('Dashboard decisions'));
-ok('ordinary pending decisions cannot auto-open the popup',
-  !/if\([^\n]*pending\.length[^\n]*\) box\.classList\.add\('show'\)/.test(body));
+ok('ordinary pending user decisions render in the shared inbox',
+  body.includes('const pending=(g&&g.pending)||[]') && body.includes('pending.map(gitem)') && body.includes('Needs You ('));
+ok('pending decisions remain task-linked and actionable',
+  body.includes('Open task') && body.includes("kind==='task-recovery'") && body.includes("kind==='user-hold'"));
+ok('the inbox exposes automatic-recovery decisions',
+  body.includes('>Retry</button>') && body.includes('>Keep blocked</button>') && body.includes('>Cancel task</button>') && body.includes('Recommended:'));
 ok('internal review lanes remain rendered',
   body.includes('reviewFollowUps.map(gitem)')
   && body.includes('reviewClusters.map(gitem)')
   && body.includes('reviewStale.map(gitem)'));
+ok('ordinary pending decisions do not force-open over the current dashboard view',
+  !/if\([^\n]*pending\.length[^\n]*\) box\.classList\.add\('show'\)/.test(body));
+
+ok('Needs You control is persistent and names the shared inbox',
+  html.includes('id="notifBtn"') && html.includes('>Needs You <span id="notifCount">0</span>'));
 
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
