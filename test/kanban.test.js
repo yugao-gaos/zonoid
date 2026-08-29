@@ -9,7 +9,7 @@ const { COLUMNS, buildKanbanProjection, laneForTask } = require('../lib/kanban')
 
 const task = (id, status, extra = {}) => ({ id, label: id, status, deps: [], context_deps: [], ...extra });
 
-assert.deepEqual(COLUMNS.map((column) => column.label), ['Queue', 'Ready', 'WIP', 'Review', 'Done']);
+assert.deepEqual(COLUMNS.map((column) => column.label), ['Plan', 'Ready', 'WIP', 'Review', 'Done']);
 assert.equal(laneForTask(task('queue', 'not_ready')), 'queue');
 assert.equal(laneForTask(task('retry', 'failed')), 'queue');
 assert.equal(laneForTask(task('ready', 'ready')), 'ready');
