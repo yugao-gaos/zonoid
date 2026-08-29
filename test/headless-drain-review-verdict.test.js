@@ -427,6 +427,7 @@ test('cli reviewer resolves a persisted graph target and can kick back an empty 
     assert.equal(result.drains.find((d) => d.drain === hd.REVIEW_VERDICT_DRAIN_KEY).verdict, 'KICK_BACK');
     assert.equal(o.status['t/empty-diff'], 'failed');
     assert.equal(o.reviews['t/empty-diff'].review_state, 'rejected', 'a later cached-overlay save preserves the applied kick-back');
+    assert.equal(o.retryConfig['t/empty-diff'].pendingKickBackRetry, true, 'cached overlay preserves the one-shot retry provenance');
   } finally {
     restore();
   }
@@ -580,13 +581,36 @@ test('api-review-worker parseVerdict prefers JSON verdicts and never invents one
 
 test('api-review-worker verdict bodies mirror the submit_verdict HTTP path', () => {
   const worker = require('../scripts/api-review-worker');
-  const approve = worker.verdictStatusBody({ verdict: 'APPROVE', reason: 'ok', key: 't/1', workspace: '/ws' });
+  const approve = worker.verdictStatusBody({ verdict: 'APPROVE', reason: 'ok', key: 't/1', workspace: '/ws', opId: 'approve-op' });
   assert.equal(approve.status, 'tested');
-  assert.equal(approve.review.review_state, 'approved');
-  assert.equal(approve.review.review_verdict, 'APPROVE');
-  assert.equal(approve.review.merge_state, 'pending', 'APPROVE leaves the merge to the review-merge drain');
-  const kick = worker.verdictStatusBody({ verdict: 'KICK_BACK', reason: 'missing tests', key: 't/1', workspace: '/ws' });
+  assert.equal(approve.lifecycle_event, 'review_approve');
+  assert.equal(approve.review_reason, 'ok');
+  assert.equal(approve.op_id, 'approve-op');
+  assert.equal(approve.review, undefined, 'API worker uses the guarded named lifecycle event, not a raw review patch');
+  const kick = worker.verdictStatusBody({ verdict: 'KICK_BACK', reason: 'missing tests', key: 't/1', workspace: '/ws', opId: 'kick-op' });
   assert.equal(kick.status, 'failed', 'KICK_BACK fails the implementation task for rework');
-  assert.equal(kick.review.review_state, 'rejected');
-  assert.equal(kick.review.merge_state, 'blocked');
+  assert.equal(kick.lifecycle_event, 'review_kick_back');
+  assert.equal(kick.review_reason, 'missing tests');
+  assert.equal(kick.op_id, 'kick-op');
+  assert.equal(kick.review, undefined);
+});
+
+test('api-review-worker rejects lifecycle failures carried by HTTP 2xx responses', () => {
+  const worker = require('../scripts/api-review-worker');
+  assert.equal(worker.verdictApplyError({ status: 200, body: { ok: true } }, 'review_approve'), null);
+  assert.match(
+    worker.verdictApplyError({ status: 200, body: { ok: false, error: 'write refused' } }, 'review_approve'),
+    /write refused/
+  );
+  assert.match(worker.verdictApplyError({
+    status: 200,
+    body: {
+      ok: true,
+      lifecycle_refused: [{ event: 'review_approve', code: 'already_terminal', reason: 'task is done' }],
+    },
+  }, 'review_approve'), /task is done/);
+  assert.match(worker.verdictApplyError({
+    status: 200,
+    body: { ok: true, lifecycle: { ok: false, refusal: { code: 'already_reviewed' } } },
+  }, 'review_approve'), /already_reviewed/);
 });
