@@ -69,7 +69,7 @@ const onboardInitTransaction = require('./lib/onboard-init-transaction');
 const repoTarget = require('./lib/repo-target');
 const requestIdentity = require('./lib/request-identity');
 const runtimePaths = require('./lib/runtime-paths');
-const { ensureManagedGraphLoop } = require('./lib/loop-autostart');
+const { ensureManagedGraphLoop, isLegitimateReadyTask, taskAlreadySettled } = require('./lib/loop-autostart');
 const { sweepStaleWakeups, sweepOrphanProcesses } = require('./lib/schedule-wakeup');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
@@ -399,9 +399,12 @@ const STALE_MINUTES_DEFAULT = (() => {
 // hooks/restart-daemon.sh asserts. null when the source dir isn't a git checkout.
 let GIT_HEAD = null;
 try { GIT_HEAD = require('child_process').execFileSync('git', ['-C', __dirname, 'rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 3000, windowsHide: true }).trim(); } catch { /* not a checkout */ }
+let PACKAGE_VERSION = null;
+try { PACKAGE_VERSION = require('./package.json').version || null; } catch { /* incomplete install */ }
+const DAEMON_BUILD_ID = GIT_HEAD ? `git:${GIT_HEAD}` : PACKAGE_VERSION ? `package:${PACKAGE_VERSION}` : null;
 // Capability flags, bumped per change — cheap self-description so a restart script can verify the
 // new code is actually serving (beyond the git head).
-const FEATURES = { perRequestWorkspaceWrites: true, perRequestWorkspaceReads: true, gatedSearch: true };
+const FEATURES = { perRequestWorkspaceWrites: true, perRequestWorkspaceReads: true, gatedSearch: true, versionHandoff: true };
 const DAEMON_HEALTH_SIGNATURE = 'zonoid-orchestrator-health-v1';
 
 // MCP tool-usage counters (persisted; see lib/analytics.js). Recorded via POST /analytics/tool-call
@@ -966,6 +969,24 @@ function localInProgressCount(tasks, ov, agents = state.agents, nowMs = Date.now
   }
   return count;
 }
+
+// Capacity accounting is deliberately more conservative than the dashboard's LOCAL-WIP badge:
+// unassigned/inherited in_progress rows may represent real external work and still consume a slot.
+// The one row we can safely ignore is a claim explicitly owned by a KNOWN non-live agent, unless
+// its registered attempt worktree has recent commit evidence. This prevents zombie registry rows
+// from pinning dispatch at maxConcurrency without treating unknown remote work as dead.
+function dispatchInProgressCount(tasks, ov, agents = state.agents, nowMs = Date.now(), bootMs = BOOT_MS) {
+  const mins = ov.config.stale_minutes ?? 10;
+  let count = 0;
+  for (const t of tasks || []) {
+    if (!t || t.kind === 'note' || t.status !== 'in_progress') continue;
+    const agentId = (ov.assignee && ov.assignee[t.id]) || t.agent_id;
+    const agent = agentId ? agents[agentId] : null;
+    if (!agent) { count++; continue; }
+    if (vouchedLive(agent, mins, nowMs, bootMs) || worktreeVouchesLive(ov, t.id, mins, nowMs)) count++;
+  }
+  return count;
+}
 // Sweep abandoned claims: release every staleClaimKeys() orphan back to ready. Authoritative
 // liveness — survives restart (overlay is persisted) and needs no stop hook. Returns true if any.
 // Parameterized on (ws, ov) — REQUIRED (no global default): the sweep operates on the given
@@ -1385,7 +1406,7 @@ function applyOptimize(prob, base, L, ws, ov) {
 function pendingReviewOrIntegrationAction(g, ov) {
   if (!g || !Array.isArray(g.tasks) || !ov) return null;
   for (const t of g.tasks) {
-    if (!t || t.status !== 'tested') continue;
+    if (!t || isStandingHarnessTask(ov, t.id) || taskAlreadySettled(ov, t.id)) continue;
     const lifecycle = overlayStore.reviewLifecycleFor(ov, t.id, t.status);
     if (!lifecycle) continue;
     const item = {
@@ -1472,10 +1493,14 @@ function decideOne(L, ctx) {
   const isExplicitlyBlocked = (t) => !!(ov.blocked && ov.blocked[t.id]);
   // Blocked tasks are excluded from the spawn pool entirely. The block is sticky (overlay flag,
   // not derived from deps) and cleared only by unblock_task — never by dep re-derivation.
-  let ready = readyAll.filter((t) => !isUnwired(t) && !isExplicitlyBlocked(t) && !isStandingHarnessTask(ov, t.id));
-  const wire = readyAll.filter(isUnwired).map((t) => ({ key: t.id, label: t.label }));
+  let ready = readyAll.filter((t) => isLegitimateReadyTask(t, ov));
+  const wire = readyAll.filter((t) => isUnwired(t) && !isExplicitlyBlocked(t)
+    && !isStandingHarnessTask(ov, t.id) && !taskAlreadySettled(ov, t.id))
+    .map((t) => ({ key: t.id, label: t.label }));
   const withWire = (dec) => (wire.length ? { ...dec, wire } : dec);
-  const running = g.tasks.filter((t) => t.status === 'in_progress').length;
+  // Known dead-agent claims do not consume capacity; unknown/inherited WIP remains conservative.
+  // Zombie rows stay visible for the claim reaper without pinning an autonomous frontier at cap.
+  const running = dispatchInProgressCount(g.tasks, ov);
   const ghostWait = g.tasks.filter((t) => t.status === 'not_ready' && t.deps.some((d) => d.startsWith('ghost:'))).length;
 
   // CAPACITY-FILL: spare concurrency this loop may use this tick. Tasks spawned by /next-action are
@@ -1593,7 +1618,12 @@ function ensureManagedGraphLoops(ctxByWs = null) {
       if (ctxByWs) ctxByWs.set(ws, c);
     }
     const r = ensureManagedGraphLoop({ ctx: { loops, newLoop, now }, workspace: ws, graph: c.graph, overlay: c.ov });
-    if (r.created) dirty = true;
+    if (r.overlayChanged) {
+      overlayStore.save(ws, c.ov);
+      refreshOverlayStamp(ws);
+      notifyChange(ws);
+    }
+    if (r.changed) dirty = true;
   }
   if (dirty) { saveLoops(); notifyChange(); }
   return dirty;
@@ -2977,7 +3007,7 @@ const ctx = {
   overlayStore, harness: claudeHarness, harnessRegistry, filedrop, writeTaskStatus, readNativeTask, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
   cache, loops, saveLoops, saveAgents,
   get bootState() { return bootState; },
-  GIT_HEAD, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL, WORKSPACES_FILE, STALE_MINUTES_DEFAULT,
+  GIT_HEAD, DAEMON_BUILD_ID, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL, WORKSPACES_FILE, STALE_MINUTES_DEFAULT,
   daemonLog,
   sseClients, agentsArr,
   taskTranscript, usageCached, harnessTranscriptForTask,
@@ -3089,7 +3119,7 @@ function isPrimaryCheckout(root) {
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
 module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleSnapshotClaimKeys, releaseSnapshotClaim, staleNativeClaimKeys, releaseNativeClaim, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings, worktreeVouchesLive, depSatisfied, vouchedLive, STALE_MINUTES_DEFAULT,
-  isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, graphAutoflush, RESP_TTL, sseClients, nodeExistsInGraph,
+  isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, graphAutoflush, RESP_TTL, sseClients, nodeExistsInGraph, dispatchInProgressCount,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
   decideOne, decideAll, ensureManagedGraphLoops, buildGraph, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __readinessDetailForTest: readinessDetail, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
 

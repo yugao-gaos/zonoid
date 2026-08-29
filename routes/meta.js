@@ -24,7 +24,7 @@ function nativeFormatHealth(harness, workspace) {
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, notifyChange, state, setState, setWorkspace,
-    GIT_HEAD, BOOTED_AT, FEATURES, sseClients, overlayStore, harness, analytics,
+    GIT_HEAD, DAEMON_BUILD_ID, BOOTED_AT, FEATURES, sseClients, overlayStore, harness, analytics,
     analyticsState, analyticsFlush, PUBLIC, loops, taskTranscript, usageCached,
     staleClaimKeys, releaseClaim, reapAgent, saveAgents, cache, targetOverlay, buildGraph,
     embedStatus, isTruthy, sessionCount,
@@ -39,6 +39,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     send(res, 200, {
       ok: true,
       head: GIT_HEAD,
+      build: DAEMON_BUILD_ID,
       bootedAt: BOOTED_AT,
       features: FEATURES,
       version: PKG_VERSION,
@@ -189,7 +190,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // P3: no global current workspace. `workspace`/`native_format` reflect the OPTIONAL ?workspace=
     // the dashboard passes (null when absent — health is otherwise workspace-agnostic).
     const hwWs = u.searchParams.get('workspace') || null;
-    send(res, 200, { ok: true, phase: boot.phase, step: boot.step, progress: boot.progress, bootedAt: BOOTED_AT, head: GIT_HEAD, workspace: hwWs, sessions: sessionCount(), loops: loopHealth, embedding: embedStatus(), native_format: nativeFormatHealth(harness, hwWs) }); return true;
+    send(res, 200, { ok: true, phase: boot.phase, step: boot.step, progress: boot.progress, bootedAt: BOOTED_AT, head: GIT_HEAD, build: DAEMON_BUILD_ID, pid: process.pid, workspace: hwWs, sessions: sessionCount(), loops: loopHealth, embedding: embedStatus(), native_format: nativeFormatHealth(harness, hwWs) }); return true;
   }
 
   if (p === '/ready') {

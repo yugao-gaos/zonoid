@@ -188,6 +188,23 @@ independently — nothing is daemon-global. Each flag also remains individually 
 caps still govern autonomous work: managed loops run under the loop-autostart config and
 headless drains under the drain governor's per-boot token/concurrency budget.
 
+### Frontier liveness and recovery
+
+Autonomous work is reconciled on boot and periodically while the daemon is running. When legitimate
+ready work exists, Zonoid repairs legacy partial auto configuration, keeps one deterministic managed
+loop for the workspace, ignores known-dead worker rows for dispatch capacity, and excludes internal
+drains or already-landed tasks from the user-work queue. `GET /status?workspace=<path>` exposes the
+result as `frontier_liveness`; a `stalled` value includes an actionable reason such as an unwired task
+or an exhausted safety budget.
+
+Launchers identify the listener through signed `/health` and `/version` responses. If the listener is
+an older Zonoid build and its advertised PID matches the runtime PID file, relaunch performs a bounded
+graceful handoff and waits for the current build to become ready. A listener without that ownership
+proof is never signalled. Unattended GitHub checkpoints similarly derive the account from each remote
+and scope `gh auth token --user <owner>` to that Git operation; they do not change the user's active
+`gh` account. Authenticate the repository owner once with `gh auth login` if status reports that the
+owner account is unavailable.
+
 ## Tuning (persisted, hot-reloadable)
 
 The drain/worker tuning knobs resolve **env > file > default**. The file is
