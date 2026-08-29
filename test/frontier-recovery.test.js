@@ -286,6 +286,42 @@ test('stale daemon, inactive owner credentials, and zombie capacity recover as o
   ], 'only legitimate, non-terminal, non-internal work may advance');
 });
 
+test('a drained self-plan frontier retains its owner and reaches the bounded planner action', () => {
+  const workspace = path.join(SUITE_ROOT, 'drained-self-plan-workspace');
+  const loopCtx = makeLoopContext();
+  const overlay = {
+    config: { automode: true, self_plan: true, headless_driver: true },
+    blocked: { 'codex/guidance-held': { reason: 'requires user guidance' } },
+    unwired: {}, reviews: {},
+    git: { 'codex/already-landed': { merged: true } },
+    snapshots: {},
+  };
+  const graph = { tasks: [
+    { id: 'codex/guidance-held', label: 'Guidance held', status: 'ready', deps: [] },
+    { id: 'codex/already-landed', label: 'Already landed', status: 'ready', deps: [] },
+  ] };
+
+  const ensured = ensureManagedGraphLoop({ ctx: loopCtx, workspace, graph, overlay });
+  const managedId = managedGraphLoopId(workspace);
+  const decision = daemon.decideOne(loopCtx.loops.get(managedId), {
+    ws: workspace,
+    ov: overlay,
+    graph,
+    pendingGuidance: [],
+    reviewPending: 0,
+    batch: { remaining: 1 },
+  });
+
+  assert.equal(ensured.created, true);
+  assert.equal(decision.action, 'plan');
+  assert.match(decision.reason, /DAG drained/);
+  assert.equal(
+    [...loopCtx.loops.values()].filter((loop) => loop.active && loop.managed === 'graph' && loop.workspace === workspace).length,
+    1,
+    'a drained self-plan frontier must have exactly one canonical owner'
+  );
+});
+
 test.after(() => {
   if (previousOrchData === undefined) delete process.env.ORCH_DATA;
   else process.env.ORCH_DATA = previousOrchData;

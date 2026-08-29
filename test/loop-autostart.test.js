@@ -150,6 +150,35 @@ test('cold boot repairs legacy partial autonomy and creates the deterministic ma
   assert.strictEqual(overlay.frontier_liveness.managed_loop_id, id);
 });
 
+test('cold boot keeps one managed owner for a drained self-planning frontier', () => {
+  const ctx = makeCtx();
+  const workspace = '/registered/drained-self-plan';
+  const overlay = {
+    config: { automode: true, self_plan: true },
+    blocked: { 'codex/blocked': { reason: 'requires user guidance' } },
+    unwired: {},
+    git: { 'codex/merged': { merged: true } },
+    reviews: {},
+    snapshots: {},
+  };
+  const graph = { tasks: [
+    { id: 'codex/blocked', status: 'ready' },
+    { id: 'codex/merged', status: 'ready' },
+  ] };
+
+  const first = ensureManagedGraphLoop({ ctx, workspace, graph, overlay });
+  const second = ensureManagedGraphLoop({ ctx, workspace, graph, overlay });
+  const id = managedGraphLoopId(workspace);
+
+  assert.strictEqual(first.created, true);
+  assert.strictEqual(second.created, false, 'periodic ensure must reuse the canonical owner');
+  assert.strictEqual(overlay.config.headless_driver, true);
+  assert.strictEqual(ctx.loops.size, 1);
+  assert.strictEqual(ctx.loops.get(id).active, true);
+  assert.strictEqual(overlay.frontier_liveness.status, 'active');
+  assert.strictEqual(overlay.frontier_liveness.managed_loop_id, id);
+});
+
 test('periodic reconciliation reactivates a safely stale owner without creating a duplicate', () => {
   const ctx = makeCtx();
   const workspace = '/registered/periodic';
@@ -170,6 +199,32 @@ test('periodic reconciliation reactivates a safely stale owner without creating 
   assert.strictEqual(original.active, true);
   assert.strictEqual(original.iterations, 0);
   assert.strictEqual(original.spent, 0);
+  assert.strictEqual(ctx.loops.size, 1);
+});
+
+test('periodic reconciliation recovers a stale drained self-plan owner', () => {
+  const ctx = makeCtx();
+  const workspace = '/registered/drained-periodic';
+  const overlay = {
+    config: { headless_driver: true, self_plan: true },
+    blocked: { 'codex/blocked': { reason: 'legitimate hold' } },
+    unwired: {}, git: {}, reviews: {}, snapshots: {},
+  };
+  const graph = { tasks: [{ id: 'codex/blocked', status: 'ready' }] };
+  const id = managedGraphLoopId(workspace);
+  const stale = ctx.newLoop({
+    id, active: false, workspace, managed: 'graph',
+    iterations: 42, spent: 12345, sweptReason: 'no progress >30m',
+  });
+  ctx.loops.set(id, stale);
+
+  const result = ensureManagedGraphLoop({ ctx, workspace, graph, overlay });
+
+  assert.strictEqual(result.created, false);
+  assert.strictEqual(result.loop, stale);
+  assert.strictEqual(stale.active, true);
+  assert.strictEqual(stale.iterations, 0);
+  assert.strictEqual(stale.spent, 0);
   assert.strictEqual(ctx.loops.size, 1);
 });
 
