@@ -13,8 +13,9 @@ const ok = (label, cond) => {
 
 {
   const ov = ovStore.EMPTY();
-  ov.status['task/failed'] = 'failed';
-  ov.snapshots['task/failed'] = { subject: 'failed task', status: 'failed', blockedBy: [] };
+  ov.status['task/failed'] = 'tested';
+  ov.reviews['task/failed'] = { review_state: 'rejected', review_verdict: 'KICK_BACK', merge_state: 'blocked' };
+  ov.snapshots['task/failed'] = { subject: 'failed task', status: 'tested', blockedBy: [] };
   daemon.__setWorkspaceForTest('/tmp/nonexistent-zonoid-test-ws');
   daemon.__setOverlayForTest(ov);
   const changed = daemon.sweepFailedTasks('/tmp/nonexistent-zonoid-test-ws', ov);
@@ -26,8 +27,9 @@ const ok = (label, cond) => {
 {
   const ov = ovStore.EMPTY();
   ov.retryConfig = { 'task/failed': { retryCount: 1, maxRetries: 1 } };
-  ov.status['task/failed'] = 'failed';
-  ov.snapshots['task/failed'] = { subject: 'failed task', status: 'failed', blockedBy: [] };
+  ov.status['task/failed'] = 'tested';
+  ov.reviews['task/failed'] = { review_state: 'rejected', review_verdict: 'KICK_BACK', merge_state: 'blocked' };
+  ov.snapshots['task/failed'] = { subject: 'failed task', status: 'tested', blockedBy: [] };
   daemon.__setWorkspaceForTest('/tmp/nonexistent-zonoid-test-ws');
   daemon.__setOverlayForTest(ov);
   const changed = daemon.sweepFailedTasks('/tmp/nonexistent-zonoid-test-ws', ov);

@@ -521,10 +521,28 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       send(res, 409, { ok: false, error: 'review required: task must be "tested" before "done" (require_review policy is on)' }); return true;
     }
     const cur = T.ov.status[b.key];
+    const lifecycleEvent = b.lifecycle_event ? String(b.lifecycle_event) : null;
+    const lifecycleEventOpts = () => ({
+      // Reviewer intent is judged against the status that existed BEFORE this request. This makes
+      // status=failed + review_kick_back one ordered transition without letting a late reviewer
+      // reopen a row that was already terminal when the request arrived.
+      task_status: cur,
+      agent_id: b.agent_id,
+      reason: b.review_reason || b.reason || b.note,
+      note: b.note,
+      now: now(),
+      force: !!b.force,
+    });
+    const lifecycleRefusal = (decision) => ({
+      event: decision.event,
+      code: decision.refusal && decision.refusal.code,
+      reason: decision.refusal && decision.refusal.reason,
+      retryable: !!(decision.refusal && decision.refusal.retryable),
+    });
     if (b.expected_status !== undefined && (cur || null) !== (b.expected_status || null)) {
       send(res, 409, { ok: false, error: 'stale write: status changed under you', current: cur || null, expected: b.expected_status || null }); return true;
     }
-    if (cur === 'canceled' && b.status !== 'canceled' && !b.force && !b.reopen) {
+    if (cur === 'canceled' && b.status !== 'canceled' && !b.force && !b.reopen && !lifecycleEvent) {
       send(res, 409, { ok: false, error: 'task is canceled (terminal): pass force/reopen to override', current: cur, attempted: b.status }); return true;
     }
     const resolveClaimSid = (allowDaemonFallback) => {
@@ -679,6 +697,18 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         send(res, causalEndpointError.status, { ok: false, key: b.key, error: causalEndpointError.error, field: causalEndpointError.field }); return true;
       }
     }
+    const readyBefore = newlyReady.isTerminalStatus(b.status)
+      ? newlyReady.readyKeys(buildGraph(T.ws))
+      : null;
+    // Pure preflight after validation but before claim finalization. A historical refusal leaves
+    // task, review, and claim state untouched; the accepted event is applied after finalization.
+    const lifecyclePreflight = lifecycleEvent
+      ? overlayStore.lifecycleMachine.evaluate(T.ov, b.key, lifecycleEvent, lifecycleEventOpts())
+      : null;
+    if (lifecyclePreflight && !lifecyclePreflight.ok) {
+      sendOp(res, b, 200, { ok: true, lifecycle_refused: [lifecycleRefusal(lifecyclePreflight)] });
+      return true;
+    }
     if (newlyReady.isTerminalStatus(b.status) && gitClaimMode.enabled) {
       const repo = ctx.resolveRepo ? ctx.resolveRepo(b.key, b.repo_path, T.ov, T.ws) : T.ws;
       if (gitClaims.shouldAcquire(repo, T.ov)) {
@@ -697,9 +727,24 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         }
       }
     }
-    const readyBefore = newlyReady.isTerminalStatus(b.status)
-      ? newlyReady.readyKeys(buildGraph(T.ws))
-      : null;
+    // Apply the accepted reviewer event while the pre-request status is still authoritative. Only
+    // after it lands do we write the paired task status and worker lifecycle event below.
+    const lifecycleDecisions = [];
+    if (lifecycleEvent) {
+      const decision = overlayStore.applyLifecycleEvent(T.ov, b.key, lifecycleEvent, lifecycleEventOpts());
+      lifecycleDecisions.push(decision);
+      if (!decision.ok) {
+        sendOp(res, b, 200, { ok: true, lifecycle_refused: [lifecycleRefusal(decision)] });
+        return true;
+      }
+      if (lifecycleEvent === 'review_kick_back') {
+        if (!T.ov.retryConfig) T.ov.retryConfig = {};
+        if (!T.ov.retryConfig[b.key]) T.ov.retryConfig[b.key] = {};
+        // One-shot provenance consumed by task recovery. It distinguishes a legitimate same-request
+        // kickback (one bounded retry) from unrelated pre-existing terminal failure debris.
+        T.ov.retryConfig[b.key].pendingKickBackRetry = true;
+      }
+    }
     if (b.status === 'canceled') { T.ov.cancel_requested[b.key] = now(); overlayStore.markForRejudge(T.ov, b.key); }
     else if ((b.force || b.reopen) && cur === 'canceled') delete T.ov.cancel_requested[b.key];
     overlayStore.setStatus(T.ov, b.key, b.status, b.note);
@@ -707,11 +752,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       applyCausalEdges(T, b.task_result, ensureTaskSnapshot);
     }
     // REVIEW LIFECYCLE: every transition goes through the guarded state machine, never a blind
-    // merge. The status event is applied first (it reflects what the WORKER just reported), then any
-    // explicit reviewer event. Crucially, a worker completing 'tested' no longer self-approves a
-    // review that was requested for it — the machine preserves the open request, which is what makes
-    // the attempt reviewable AFTER the diff exists instead of only before it.
-    const lifecycleDecisions = [];
+    // merge. A named reviewer event was applied above against the pre-request status; its paired
+    // worker status event now confirms the same outcome. Without a named reviewer event, this remains
+    // the ordinary completion path (including preserving requested review on status=tested).
     if (newlyReady.isTerminalStatus(b.status)) {
       const gitInfo = T.ov.git && T.ov.git[b.key];
       const statusEvent = overlayStore.lifecycleEventForStatus(b.status);
@@ -727,18 +770,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         }));
       }
     }
-    // Explicit reviewer transition (lib/mcp-core.js submit_verdict). Named event, so the same
-    // in-flight / already-merged / already-settled guards apply to a judge's write as to a sweep's.
-    if (b.lifecycle_event) {
-      lifecycleDecisions.push(overlayStore.applyLifecycleEvent(T.ov, b.key, String(b.lifecycle_event), {
-        task_status: newlyReady.isTerminalStatus(b.status) ? b.status : undefined,
-        agent_id: b.agent_id,
-        reason: b.review_reason || b.reason || b.note,
-        note: b.note,
-        now: now(),
-        force: !!b.force,
-      }));
-    }
+    // Explicit reviewer transitions were preflighted and applied above, before their paired status.
     // LEGACY RAW PATCH PATHS. Older callers hand-build a review patch (a `review` object, or the
     // fields inline on the body) instead of naming an event. They keep working, but the half of the
     // patch that MEANS a transition (review_state / review_verdict / merge_state) is routed through

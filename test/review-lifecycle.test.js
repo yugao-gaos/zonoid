@@ -61,8 +61,8 @@ const REVIEWED_AT = '2026-06-22T12:00:00.000Z';
   });
   ov.setReviewFromStatus(o, KEY, 'done', { agent_id: 'worker-a', summary: 'implementation complete', now: REVIEWED_AT });
   const r = ov.reviewLifecycleFor(o, KEY, 'done');
-  ok('done preserves requested same-node review as pending', r.review_state === 'pending' && r.review_verdict === null && r.merge_state === 'review_pending');
-  ok('pending review keeps request provenance', r.review_requested_at === REVIEWED_AT && r.review_requested_by === 'dispatcher-a' && r.legacy_judge_task_key === 'codex/review-state-lifecycle-contract-judge');
+  ok('done closes a stale requested same-node review', r.review_state === 'landed' && r.review_verdict === 'APPROVE' && r.merge_state === 'closed');
+  ok('closed review keeps request provenance', r.review_requested_at === REVIEWED_AT && r.review_requested_by === 'dispatcher-a' && r.legacy_judge_task_key === 'codex/review-state-lifecycle-contract-judge');
 }
 {
   const o = ov.EMPTY();

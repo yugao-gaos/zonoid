@@ -18,6 +18,7 @@
  */
 
 const http = require('http');
+const crypto = require('crypto');
 
 const DEFAULT_AGENT_ID = 'headless-review-verdict-drain';
 // Cap the diff text handed to the model so a huge attempt can't blow the context window.
@@ -112,44 +113,55 @@ function buildReviewMessages({ key, rubric, detail, diff }) {
 }
 
 /** The submit_verdict HTTP bodies — mirror lib/mcp-core runSubconsciousAssignment submit_verdict. */
-function verdictStatusBody({ verdict, reason, key, workspace, agentId }) {
+function verdictStatusBody({ verdict, reason, key, workspace, agentId, opId }) {
   const agent = agentId || DEFAULT_AGENT_ID;
   if (verdict === 'APPROVE') {
     const why = reason || 'Attempt approved by headless review-verdict drain.';
     return {
+      op_id: opId || crypto.randomUUID(),
       workspace: workspace || undefined,
       key,
       status: 'tested',
       summary: `APPROVE: ${why}`.slice(0, 2000),
       note: why,
       agent_id: agent,
-      review: {
-        review_state: 'approved',
-        review_verdict: 'APPROVE',
-        review_reason: why,
-        review_note: why,
-        review_agent: agent,
-        merge_state: 'pending',
-      },
+      lifecycle_event: 'review_approve',
+      review_reason: why,
     };
   }
   const why = reason || 'Headless review-verdict drain kicked back the attempt.';
   return {
+    op_id: opId || crypto.randomUUID(),
     workspace: workspace || undefined,
     key,
     status: 'failed',
     summary: `KICK_BACK: ${why}`.slice(0, 2000),
     note: why,
     agent_id: agent,
-    review: {
-      review_state: 'rejected',
-      review_verdict: 'KICK_BACK',
-      review_reason: why,
-      review_note: why,
-      review_agent: agent,
-      merge_state: 'blocked',
-    },
+    lifecycle_event: 'review_kick_back',
+    review_reason: why,
   };
+}
+
+/** Return a diagnostic when the daemon did not apply the named lifecycle event. */
+function verdictApplyError(post, event) {
+  if (!post) return 'empty daemon response';
+  if (post.status < 200 || post.status >= 300) {
+    return `HTTP ${post.status}${post.body && post.body.error ? `: ${post.body.error}` : ''}`;
+  }
+  const body = post.body;
+  if (!body || typeof body !== 'object') return 'empty daemon response body';
+  if (body.ok === false || body.error) return body.error || 'daemon returned ok:false';
+  const refusals = Array.isArray(body.lifecycle_refused) ? body.lifecycle_refused : [];
+  const refused = refusals.find((entry) => entry && (!event || entry.event === event))
+    || refusals.find(Boolean);
+  if (refused) return refused.reason || refused.code || `${event || 'lifecycle event'} refused`;
+  if (body.lifecycle && body.lifecycle.ok === false) {
+    return body.lifecycle.error
+      || (body.lifecycle.refusal && (body.lifecycle.refusal.reason || body.lifecycle.refusal.code))
+      || `${event || 'lifecycle event'} returned ok:false`;
+  }
+  return null;
 }
 
 async function main() {
@@ -219,14 +231,15 @@ async function main() {
     workspace: args.workspace,
     agentId: args.agent_id,
   }), httpTimeoutMs);
-  if (post.status < 200 || post.status >= 300) {
-    process.stderr.write(`api-review-worker: POST /overlay/status HTTP ${post.status}${post.body && post.body.error ? `: ${post.body.error}` : ''}\n`);
+  const applyError = verdictApplyError(post, parsed.verdict === 'APPROVE' ? 'review_approve' : 'review_kick_back');
+  if (applyError) {
+    process.stderr.write(`api-review-worker: review verdict was not applied: ${applyError}\n`);
     process.exit(1);
   }
   process.stdout.write(`review verdict: ${parsed.verdict} task=${key}\n`);
   process.exit(0);
 }
 
-module.exports = { parseVerdict, buildReviewMessages, verdictStatusBody };
+module.exports = { parseVerdict, buildReviewMessages, verdictStatusBody, verdictApplyError };
 
 if (require.main === module) main();
