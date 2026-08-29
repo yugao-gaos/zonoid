@@ -564,6 +564,88 @@ test('review-verdict drain routes an api backend through the api-review-worker c
   }
 });
 
+test('api review success refreshes the shared tick overlay before an unrelated same-tick save', async () => {
+  const backend = mockBackendDeps({ id: 'mock-api-sync', kind: 'api' });
+  const overlayStore = require('../lib/overlay');
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-rv-api-sync-'));
+  const reviewKey = 't/api-sync';
+  const unrelatedKey = 'note:unrelated-judge';
+  const clone = (value) => JSON.parse(JSON.stringify(value));
+  let authoritative = null;
+  let unrelatedSave = null;
+  const { hd, restore } = freshModuleWithMockedSpawn((_bin, args) => {
+    const script = String(args && args[0] || '');
+    if (script.includes('api-review-worker.js')) {
+      overlayStore.applyLifecycleEvent(authoritative, reviewKey, 'review_kick_back', {
+        task_status: 'tested', agent_id: 'api-reviewer', reason: 'API review failed',
+        now: '2026-08-29T12:00:00.000Z',
+      });
+      authoritative.retryConfig[reviewKey] = { pendingKickBackRetry: true };
+      overlayStore.setStatus(authoritative, reviewKey, 'failed', 'API review failed');
+      overlayStore.setSummary(authoritative, reviewKey, 'KICK_BACK: API review failed');
+      authoritative.assignee[reviewKey] = 'api-reviewer';
+      return makeFakeChild({ stdout: `review verdict: KICK_BACK task=${reviewKey}` });
+    }
+    if (script.includes('api-judge-worker.js')) {
+      return makeFakeChild({ stdout: '{"judged":1,"kept":1,"pruned":0}' });
+    }
+    return makeFakeChild();
+  });
+  try {
+    const { o } = pendingReviewOverlay(reviewKey, {
+      automode: true,
+      backend: { provider: backend.id },
+    });
+    o.eagerJudge[unrelatedKey] = { at: Date.now() };
+    authoritative = clone(o);
+    const save = (_workspace, value) => {
+      authoritative = clone(value);
+      if (value.eagerJudgeLease && value.eagerJudgeLease[unrelatedKey]) unrelatedSave = clone(value);
+    };
+    const result = await hd.runDueDrains({ workspace }, noopHttp(), {
+      ...idleLabelDeps(),
+      ...backend.deps,
+      reviewVerdictDeps: {
+        overlay: o,
+        overlayStore,
+        overlayLoad: () => clone(authoritative),
+        overlaySave: save,
+      },
+      judgeDeps: {
+        overlay: o,
+        overlayStore,
+        overlaySave: save,
+        judgeLib: {
+          eagerJudgeNodes: () => [unrelatedKey],
+          judgeQueueDepth: () => 0,
+          buildQueue: () => [],
+        },
+        acquireEagerJudgeLease: (value, key, owner, ttlMs) => {
+          if (!value.eagerJudgeLease) value.eagerJudgeLease = {};
+          value.eagerJudgeLease[key] = { owner, leaseExpiry: Date.now() + ttlMs };
+          return true;
+        },
+      },
+      reviewMergeDeps: { overlay: o, overlayStore },
+    });
+
+    assert.equal(result.drains.some((item) => item.drain === hd.REVIEW_VERDICT_DRAIN_KEY), true);
+    assert.equal(result.drains.some((item) => item.drain === hd.JUDGE_DRAIN_KEY), true);
+    assert.ok(unrelatedSave, 'the unrelated judge claim performs a later same-tick overlay save');
+    for (const value of [o, unrelatedSave, authoritative]) {
+      assert.equal(value.status[reviewKey], 'failed');
+      assert.equal(value.reviews[reviewKey].review_state, 'rejected');
+      assert.equal(value.reviews[reviewKey].review_verdict, 'KICK_BACK');
+      assert.equal(value.reviews[reviewKey].merge_state, 'blocked');
+      assert.equal(value.reviews[reviewKey].reviewed_at, '2026-08-29T12:00:00.000Z', 'verdict is copied, not re-applied');
+      assert.equal(value.retryConfig[reviewKey].pendingKickBackRetry, true);
+    }
+  } finally {
+    restore();
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // api-review-worker pure helpers
 // ---------------------------------------------------------------------------
