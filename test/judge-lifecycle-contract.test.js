@@ -109,6 +109,23 @@ const stamped = (o, key, action) => o.judgedTaskDecisions[judge.taskDecisionId(k
     ok('J4: the first verdict survives', o.reviews['j/4'].review_verdict === 'APPROVE' && o.status['j/4'] !== 'failed');
     ok('J4: contradicting verdict IS retired', stamped(o, 'j/4', 'kick_back'));
   }
+  {
+    // Exact historical race: terminal overlay status + stale graph projection + pending review.
+    // A late approval must retire the stale review item without creating merge work.
+    const o = ov.EMPTY();
+    o.status['j/done-pending'] = 'done';
+    ov.setReviewLifecycle(o, 'j/done-pending', { review_state: 'requested', merge_state: 'review_pending' });
+    const h = makeCtx(o, [{ id: 'j/done-pending', label: 'already done', status: 'tested' }]);
+    const r = await postVerdict(h, [{ taskDecision: {
+      task_key: 'j/done-pending', action: 'approve', source_action: 'review', reason: 'late approval',
+    } }]);
+    ok('J3: review_approve on explicit done is refused as historical',
+      r.body.refusals[0].code === 'already_terminal' && r.body.refusals[0].retired === true);
+    ok('J3: historical approval cannot queue a merge',
+      o.reviews['j/done-pending'].merge_state === 'review_pending'
+      && !judge.buildQueue(o).some((it) => it.id === 'decision:merge:j/done-pending'));
+    ok('J3: stale review decision is retired', stamped(o, 'j/done-pending', 'review'));
+  }
 
   // --- J4: refusals are reported, applies are still reported the old way ---------------------------
   {

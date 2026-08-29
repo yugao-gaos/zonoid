@@ -420,7 +420,8 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
 	        // an unrecognized action both leave the item UNSTAMPED so it can be re-judged — the stamp
 	        // is permanent (judgedTaskDecisions is never cleared by an epoch bump).
 	        const refusal = decision.ok ? null : decision.refusal;
-	        const retireOnRefusal = !!refusal && (refusal.code === 'already_merged' || refusal.code === 'already_reviewed');
+	        const retireOnRefusal = !!refusal && (refusal.code === 'already_merged'
+	          || refusal.code === 'already_reviewed' || refusal.code === 'already_terminal');
 	        if (refusal) {
 	          applied.refused = (applied.refused || 0) + 1;
 	          if (refusal.retryable) applied.skippedInFlight = (applied.skippedInFlight || 0) + 1;

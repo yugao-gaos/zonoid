@@ -38,6 +38,35 @@ const ok = (label, cond) => {
 
 {
   const ov = ovStore.EMPTY();
+  ov.status['task/done-pending'] = 'done';
+  ov.reviews['task/done-pending'] = { review_state: 'requested', merge_state: 'review_pending' };
+  ok('explicit done wins over stale review-pending metadata', ovStore.lifecycleDerivedStatus(ov, 'task/done-pending') === 'done');
+  const view = ovStore.reviewLifecycleFor(ov, 'task/done-pending', 'tested');
+  ok('done lifecycle view closes stale review work', view.review_state === 'landed' && view.review_verdict === 'APPROVE' && view.merge_state === 'closed');
+}
+
+{
+  const ov = ovStore.EMPTY();
+  ov.status['task/failed-pending'] = 'failed';
+  ov.reviews['task/failed-pending'] = { review_state: 'approved', review_verdict: 'APPROVE', merge_state: 'pending' };
+  const failed = ovStore.reviewLifecycleFor(ov, 'task/failed-pending', 'tested');
+  ok('explicit failed wins over stale approval', failed.review_state === 'rejected' && failed.review_verdict === 'KICK_BACK' && failed.merge_state === 'blocked');
+  ov.status['task/canceled-pending'] = 'canceled';
+  ov.reviews['task/canceled-pending'] = { review_state: 'approved', review_verdict: 'APPROVE', merge_state: 'pending' };
+  const canceled = ovStore.reviewLifecycleFor(ov, 'task/canceled-pending', 'tested');
+  ok('explicit canceled wins over stale approval', canceled.review_state === 'canceled' && canceled.review_verdict === null && canceled.merge_state === 'closed');
+}
+
+{
+  const ov = ovStore.EMPTY();
+  ov.status['task/merged-canceled'] = 'canceled';
+  ov.git['task/merged-canceled'] = { merged: true };
+  const view = ovStore.reviewLifecycleFor(ov, 'task/merged-canceled', 'canceled');
+  ok('actual landed evidence remains strongest', view.review_state === 'landed' && view.review_verdict === 'APPROVE' && view.merge_state === 'merged');
+}
+
+{
+  const ov = ovStore.EMPTY();
   ov.reviews['task/canceled'] = { review_state: 'rejected', review_verdict: 'KICK_BACK', merge_state: 'blocked' };
   ok('rejected lifecycle derives failed', ovStore.lifecycleDerivedStatus(ov, 'task/canceled') === 'failed');
   const view = ovStore.reviewLifecycleFor(ov, 'task/canceled', 'canceled');
