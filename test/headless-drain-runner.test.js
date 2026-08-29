@@ -139,3 +139,37 @@ test('concurrent wakeups collapse to one run and keep the fairness handoff intac
     maintenance._stop();
   }
 });
+
+test('a fairness handoff wakes a target lane parked on its idle timer', async () => {
+  const governor = { backoffUntil: 0 };
+  let frontierRuns = 0;
+  const frontier = createHeadlessDrainRunner({
+    lane: 'frontier',
+    headlessDrain: fakeDrain(governor, async () => {
+      frontierRuns++;
+      return { ran: 0, skipped: 'no_spawn_decisions', drains: [] };
+    }),
+    state: {},
+  });
+  const maintenance = createHeadlessDrainRunner({
+    lane: 'maintenance',
+    headlessDrain: fakeDrain(governor, async () => {
+      governor.backoffUntil = Date.now() + 30;
+      return { ran: 1, drains: [{ exitCode: 1 }] };
+    }),
+    state: {},
+  });
+
+  try {
+    await frontier._runPump('idle-frontier');
+    assert.equal(frontierRuns, 1);
+
+    await maintenance._runPump('maintenance-fails');
+    await new Promise((resolve) => setTimeout(resolve, 120));
+
+    assert.equal(frontierRuns, 2, 'the handoff deadline must preempt the target lane idle timer');
+  } finally {
+    maintenance._stop();
+    frontier._stop();
+  }
+});
