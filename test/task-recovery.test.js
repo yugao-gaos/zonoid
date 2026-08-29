@@ -22,6 +22,42 @@ const task = (id, status, extra = {}) => ({ id, label: id, status, deps: [], ...
 
 {
   const overlay = overlayStore.EMPTY();
+  overlay.status.landed = 'tested';
+  overlay.snapshots.landed = { subject: 'landed', status: 'pending', blockedBy: [] };
+  overlay.reviews.landed = {
+    review_state: 'landed', review_verdict: 'KICK_BACK', merge_state: 'conflict',
+  };
+  const writes = [];
+  const result = recovery.reconcile(overlay, [task('landed', 'tested')], {
+    writeTaskStatus: (key, status) => writes.push([key, status]),
+  });
+  assert.equal(overlay.status.landed, 'done', 'landed lifecycle wins over a stale tested row');
+  assert.equal(overlay.snapshots.landed.status, 'done');
+  assert.deepEqual(overlay.reviews.landed, {
+    review_state: 'landed', review_verdict: 'APPROVE', merge_state: 'closed',
+  });
+  assert.deepEqual(writes, [['landed', 'done']]);
+  assert.equal(result.actions[0].action, 'normalize_landed');
+}
+
+{
+  const overlay = overlayStore.EMPTY();
+  overlay.snapshots.old = { subject: 'old', status: 'pending', blockedBy: [] };
+  overlay.reviews.old = { review_state: 'canceled', merge_state: 'closed' };
+  overlay.notes.old = 'canceled by judge/1: superseded';
+  const writes = [];
+  recovery.reconcile(overlay, [task('old', 'ready')], {
+    writeTaskStatus: (key, status) => writes.push([key, status]),
+  });
+  assert.equal(overlay.status.old, 'canceled', 'canceled lifecycle wins over a stale ready row');
+  assert.equal(overlay.snapshots.old.status, 'canceled');
+  assert.deepEqual(writes, [['old', 'canceled']]);
+  assert.equal(overlay.judgedTaskDecisions['decision:cancel:old'], true,
+    'the already-terminal cancel is not re-enqueued as judge work');
+}
+
+{
+  const overlay = overlayStore.EMPTY();
   overlay.status.old = 'failed';
   overlay.edges.push({ from: 'old', to: 'replacement', kind: 'supersede' });
   const result = recovery.reconcile(overlay, [task('old', 'failed'), task('replacement', 'ready')]);
@@ -32,6 +68,20 @@ const task = (id, status, extra = {}) => ({ id, label: id, status, deps: [], ...
   const statuses = { old: 'canceled', replacement: 'tested' };
   assert.equal(recovery.dependencyStatus(overlay, 'old', (key) => statuses[key]), 'tested',
     'dependents follow the explicit replacement status');
+}
+
+{
+  const overlay = overlayStore.EMPTY();
+  overlay.status.old = 'canceled';
+  overlay.snapshots.old = { subject: 'old', status: 'pending', blockedBy: [] };
+  overlay.reviews.old = { review_state: 'rejected', review_verdict: 'KICK_BACK', merge_state: 'blocked' };
+  overlay.edges.push({ from: 'old', to: 'replacement', kind: 'supersede' });
+  const result = recovery.reconcile(overlay, [task('old', 'canceled'), task('replacement', 'done')]);
+  assert.equal(result.actions[0].action, 'normalize_superseded');
+  assert.equal(overlay.snapshots.old.status, 'canceled');
+  assert.equal(overlay.reviews.old.review_state, 'canceled');
+  assert.equal(overlay.reviews.old.review_verdict, null);
+  assert.equal(overlay.reviews.old.merge_state, 'closed');
 }
 
 {
@@ -66,6 +116,8 @@ const task = (id, status, extra = {}) => ({ id, label: id, status, deps: [], ...
   const gate = overlay.guidance.find((item) => !item.resolved && item.action && item.action.kind === 'task-recovery');
   assert.ok(gate);
   assert.deepEqual(gate.action.dependents, ['child']);
+  assert.equal(overlay.judgedTaskDecisions['decision:kick_back:work'], true,
+    'the user recovery gate supersedes duplicate kick-back judge work');
 
   const repeated = recovery.reconcile(overlay, [task('work', 'failed')]);
   assert.equal(overlay.guidance.filter((item) => !item.resolved && item.action && item.action.kind === 'task-recovery').length, 1,
@@ -75,6 +127,18 @@ const task = (id, status, extra = {}) => ({ id, label: id, status, deps: [], ...
   const resolved = recovery.resolveRecovery(overlay, gate.action, 'retry');
   assert.equal(resolved.retried_task_key, 'work');
   assert.equal(overlay.status.work, undefined);
+}
+
+{
+  const overlay = overlayStore.EMPTY();
+  overlay.reviews.work = { review_state: 'approved', review_verdict: 'APPROVE', merge_state: 'blocked' };
+  const writes = [];
+  recovery.reconcile(overlay, [task('work', 'tested')], {
+    writeTaskStatus: (key, status) => writes.push([key, status]),
+  });
+  assert.equal(overlay.status.work, undefined, 'a merge-blocked attempt receives the bounded retry');
+  assert.equal(overlay.reviews.work.review_state, null);
+  assert.deepEqual(writes, [['work', 'pending']]);
 }
 
 {

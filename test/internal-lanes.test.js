@@ -48,6 +48,7 @@ overlay.setReviewLifecycle(ov, 'task/blocked-merge', {
   merge_state: 'pending',
 });
 overlay.setBlocked(ov, 'task/blocked-merge', 'unsafe stale integration');
+overlay.setBlocked(ov, 'task/canceled-blocked', 'stale historical hold');
 overlay.setReviewLifecycle(ov, 'note:historical', {
   review_state: 'approved',
   review_verdict: 'APPROVE',
@@ -85,6 +86,7 @@ const graph = {
     { id: 'task/discard', label: 'Discard task', status: 'tested', deps: [] },
     { id: 'task/cancel', label: 'Cancel task', status: 'canceled', deps: [] },
     { id: 'task/blocked-merge', label: 'Blocked merge', status: 'not_ready', deps: [] },
+    { id: 'task/canceled-blocked', label: 'Canceled blocked', status: 'canceled', deps: [] },
     { id: 'note:historical', label: 'Historical note', kind: 'note', status: 'note', deps: [] },
   ],
 };
@@ -105,6 +107,7 @@ assert.ok(projection.items.some((item) => item.lane === 'decision' && item.kind 
 assert.ok(projection.items.some((item) => item.lane === 'decision' && item.kind === 'task-decision' && item.task_key === 'task/cancel' && item.action === 'cancel'));
 assert.ok(!projection.items.some((item) => item.lane === 'decision' && item.kind === 'review' && item.key === 'task/cancel'));
 assert.ok(!projection.items.some((item) => item.lane === 'decision' && item.kind === 'merge' && item.key === 'task/blocked-merge'));
+assert.ok(!projection.items.some((item) => item.lane === 'work' && item.key === 'task/canceled-blocked'));
 assert.ok(!projection.items.some((item) => item.lane === 'decision' && item.key === 'note:historical'));
 assert.ok(!ov.reviews['task/merge-judge']);
 assert.ok(projection.items.some((item) => item.lane === 'work' && item.kind === 'task' && item.key === 'task/ready'));
