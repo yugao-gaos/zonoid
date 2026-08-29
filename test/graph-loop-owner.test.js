@@ -258,3 +258,30 @@ test('inactive restored managed graph loop is reactivated in place', () => {
   assert.equal(decisions.length, 1);
   assert.equal(decisions[0].loopId, loopId);
 });
+
+test('stale agent registry rows do not consume capacity needed by legitimate ready work', () => {
+  const ws = registerWorkspace('stale-agent-capacity');
+  const ov = overlayStore.EMPTY();
+  ov.assignee['codex/zombie'] = 'dead-agent';
+  daemon.__setAgentsForTest({
+    'dead-agent': { agent_id: 'dead-agent', state: 'dead', endedAt: '2026-06-20T00:00:00.000Z' },
+  });
+  const fresh = new Date().toISOString();
+  const loop = {
+    id: 'managed-test', active: true, iterations: 0, spent: 0, baseline: 0, real: false,
+    startedAt: fresh, lastProgress: fresh, session: null, workspace: ws, managed: 'graph',
+    config: { tokenBudget: 5000000, maxIterations: 6250, minPoll: 30, maxPoll: 300, estPerTick: 800, batch: 1, maxConcurrency: 1, judgeParallelCap: 1 },
+  };
+
+  const decision = daemon.decideOne(loop, {
+    ws, ov,
+    graph: { tasks: [
+      { id: 'codex/zombie', label: 'Zombie', status: 'in_progress', deps: [] },
+      { id: 'codex/ready', label: 'Ready', status: 'ready', deps: [] },
+    ] },
+    pendingGuidance: [], reviewPending: 0, batch: { remaining: 1 },
+  });
+
+  assert.equal(decision.action, 'spawn');
+  assert.deepEqual(decision.tasks, [{ key: 'codex/ready', label: 'Ready' }]);
+});

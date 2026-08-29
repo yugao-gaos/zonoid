@@ -156,6 +156,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       ok: true,
       workspace: ws,
       autonomy: autonomyView(ov),
+      frontier_liveness: ov && ov.frontier_liveness ? ov.frontier_liveness : null,
       workers_running: activity.running({ workspace: ws, kinds: activity.KIND.WORKER }).length,
       drains_running: gov ? gov.concurrent_running : null,
       // Full governor view: concurrency slots, iteration/token budgets, and backoff — the
@@ -197,6 +198,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     ok: true,
     workspace: ws,
     autonomy: autonomyView(ov),
+    frontier_liveness: ov && ov.frontier_liveness ? ov.frontier_liveness : null,
     governor: governorView(),
     ...snap,
   });

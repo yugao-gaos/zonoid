@@ -11,7 +11,7 @@ const assert = require('node:assert');
 
 const {
   resolveAutoLoopMode, isAutoMode, hasActiveSessionLoop, maybeAutostartLoop, AUTOSTART_CONFIG,
-  ensureManagedGraphLoop, hasNormalReadyWork,
+  ensureManagedGraphLoop, hasNormalReadyWork, managedGraphLoopId,
 } = require('../lib/loop-autostart');
 const { classifyHeuristic } = require('../lib/prompt-heuristic');
 const { assembleClassifyResponse } = require('../lib/classify-assemble');
@@ -130,6 +130,123 @@ test('pending dashboard decisions do not suppress managed-loop readiness', () =>
   assert.strictEqual(hasNormalReadyWork(graph, overlay), true);
   overlay.blocked['codex/ready'] = { reason: 'explicit structural block' };
   assert.strictEqual(hasNormalReadyWork(graph, overlay), false);
+});
+
+test('cold boot repairs legacy partial autonomy and creates the deterministic managed owner', () => {
+  const ctx = makeCtx();
+  const workspace = '/registered/cold-boot';
+  const overlay = { config: { automode: true, self_plan: true }, blocked: {}, unwired: {}, git: {}, reviews: {}, snapshots: {} };
+  const graph = { tasks: [{ id: 'codex/ready', status: 'ready' }] };
+
+  const result = ensureManagedGraphLoop({ ctx, workspace, graph, overlay });
+  const id = managedGraphLoopId(workspace);
+
+  assert.strictEqual(result.created, true);
+  assert.strictEqual(overlay.config.headless_driver, true);
+  assert.strictEqual(ctx.loops.size, 1);
+  assert.strictEqual(ctx.loops.get(id).active, true);
+  assert.strictEqual(overlay.frontier_liveness.status, 'active');
+  assert.strictEqual(overlay.frontier_liveness.managed_loop_id, id);
+});
+
+test('periodic reconciliation reactivates a safely stale owner without creating a duplicate', () => {
+  const ctx = makeCtx();
+  const workspace = '/registered/periodic';
+  const overlay = { config: { headless_driver: true }, blocked: {}, unwired: {}, git: {}, reviews: {}, snapshots: {} };
+  const graph = { tasks: [{ id: 'codex/ready', status: 'ready' }] };
+  ensureManagedGraphLoop({ ctx, workspace, graph, overlay });
+  const id = managedGraphLoopId(workspace);
+  const original = ctx.loops.get(id);
+  original.active = false;
+  original.iterations = 42;
+  original.spent = 12345;
+  original.sweptReason = 'no progress >30m';
+
+  const result = ensureManagedGraphLoop({ ctx, workspace, graph, overlay });
+
+  assert.strictEqual(result.created, false);
+  assert.strictEqual(result.loop, original);
+  assert.strictEqual(original.active, true);
+  assert.strictEqual(original.iterations, 0);
+  assert.strictEqual(original.spent, 0);
+  assert.strictEqual(ctx.loops.size, 1);
+});
+
+test('reconciliation retires duplicate legacy managed owners', () => {
+  const ctx = makeCtx();
+  const workspace = '/registered/duplicates';
+  const overlay = { config: { headless_driver: true }, blocked: {}, unwired: {}, git: {}, reviews: {}, snapshots: {} };
+  const graph = { tasks: [{ id: 'codex/ready', status: 'ready' }] };
+  const id = managedGraphLoopId(workspace);
+  const canonical = ctx.newLoop({ id, active: true, workspace, managed: 'graph' });
+  const legacy = ctx.newLoop({ id: 'legacy-random-owner', active: true, workspace, managed: 'graph' });
+  ctx.loops.set(id, canonical);
+  ctx.loops.set(legacy.id, legacy);
+
+  ensureManagedGraphLoop({ ctx, workspace, graph, overlay });
+
+  assert.strictEqual(canonical.active, true);
+  assert.strictEqual(legacy.active, false);
+  assert.match(legacy.sweptReason, /superseded/);
+  assert.strictEqual([...ctx.loops.values()].filter((l) => l.active && l.managed === 'graph').length, 1);
+});
+
+test('completed stale requeues and internal drains are not legitimate work', () => {
+  const ctx = makeCtx();
+  const overlay = {
+    config: { automode: true }, blocked: {}, unwired: {}, reviews: {},
+    git: { 'codex/merged': { merged: true } },
+    snapshots: {
+      'codex/completed': { status: 'completed' },
+      'followup/harness-judge-drain': { status: 'pending', metadata: { harness: true } },
+    },
+  };
+  const graph = { tasks: [
+    { id: 'codex/merged', status: 'ready' },
+    { id: 'codex/completed', status: 'ready' },
+    { id: 'followup/harness-judge-drain', status: 'ready' },
+  ] };
+
+  const result = ensureManagedGraphLoop({ ctx, workspace: '/registered/no-work', graph, overlay });
+
+  assert.strictEqual(result.changed, false);
+  assert.strictEqual(ctx.loops.size, 0);
+  assert.strictEqual(overlay.config.headless_driver, undefined);
+  assert.strictEqual(overlay.frontier_liveness, undefined);
+});
+
+test('unsafe unwired recovery exposes a stalled reason instead of guessing graph structure', () => {
+  const ctx = makeCtx();
+  const overlay = {
+    config: { automode: true, headless_driver: true }, blocked: {}, git: {}, reviews: {}, snapshots: {},
+    unwired: { 'codex/unwired': true },
+  };
+  const graph = { tasks: [{ id: 'codex/unwired', status: 'ready' }] };
+
+  const result = ensureManagedGraphLoop({ ctx, workspace: '/registered/unwired', graph, overlay });
+
+  assert.strictEqual(result.stalledReason, 'ready_work_requires_wiring');
+  assert.strictEqual(overlay.frontier_liveness.status, 'stalled');
+  assert.strictEqual(overlay.frontier_liveness.reason, 'ready_work_requires_wiring');
+  assert.strictEqual(ctx.loops.size, 0);
+});
+
+test('an exhausted managed-loop safety budget is surfaced and never silently reset', () => {
+  const ctx = makeCtx();
+  const workspace = '/registered/exhausted';
+  const overlay = { config: { automode: true, headless_driver: true }, blocked: {}, unwired: {}, git: {}, reviews: {}, snapshots: {} };
+  const graph = { tasks: [{ id: 'codex/ready', status: 'ready' }] };
+  const id = managedGraphLoopId(workspace);
+  const exhausted = ctx.newLoop({ id, active: false, workspace, managed: 'graph', sweptReason: 'token budget exhausted', spent: 999 });
+  ctx.loops.set(id, exhausted);
+
+  const result = ensureManagedGraphLoop({ ctx, workspace, graph, overlay });
+
+  assert.strictEqual(result.loop, null);
+  assert.strictEqual(result.stalledReason, 'managed_loop_token_budget_exhausted');
+  assert.strictEqual(exhausted.active, false);
+  assert.strictEqual(exhausted.spent, 999);
+  assert.strictEqual(overlay.frontier_liveness.reason, 'managed_loop_token_budget_exhausted');
 });
 
 // ---- assembler integration ------------------------------------------------
