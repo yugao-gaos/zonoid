@@ -3353,6 +3353,7 @@ if (require.main === module) {
   const headlessDrainRunner = createHeadlessDrainRunner({
     headlessDrain,
     getState: () => ({ ...state, registeredWorkspaces: Array.from(registeredWorkspaces()) }),
+    lane: 'maintenance',
   });
   requestHeadlessDrainWake = headlessDrainRunner.requestWake;
 
@@ -3370,7 +3371,11 @@ if (require.main === module) {
     loops,
     decide: (o) => { const r = decideAll(o); saveLoops(); return r; },
   });
-  const headlessSpawnRunner = createHeadlessDrainRunner({ headlessDrain: headlessSpawnExecutor, getState: () => state });
+  const headlessSpawnRunner = createHeadlessDrainRunner({
+    headlessDrain: headlessSpawnExecutor,
+    getState: () => state,
+    lane: 'frontier',
+  });
   requestHeadlessSpawnWake = headlessSpawnRunner.requestWake;
 
   tryListen(PORT_BASE, MAX_PORT_ATTEMPTS);
