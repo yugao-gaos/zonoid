@@ -28,6 +28,72 @@ test('derives GitHub owner from HTTPS and SSH remotes', () => {
   });
 });
 
+test('resolves GitHub CLI outside an interactive PATH', () => {
+  assert.equal(githubAccount.resolveGhExecutable({
+    env: { ZONOID_GH_PATH: '/custom/bin/gh' },
+    existsSync: () => false,
+  }), '/custom/bin/gh');
+
+  assert.equal(githubAccount.resolveGhExecutable({
+    env: {},
+    existsSync: (candidate) => candidate === '/opt/homebrew/bin/gh',
+  }), '/opt/homebrew/bin/gh');
+
+  const windowsGh = 'C:\\Program Files\\GitHub CLI\\gh.exe';
+  assert.equal(githubAccount.resolveGhExecutable({
+    env: { ProgramFiles: 'C:\\Program Files' },
+    platform: 'win32',
+    existsSync: (candidate) => candidate === windowsGh,
+  }), windowsGh);
+
+  assert.equal(githubAccount.resolveGhExecutable({
+    env: {},
+    platform: 'win32',
+    existsSync: () => false,
+  }), 'gh.exe');
+});
+
+test('Git credential helper finds the scoped GitHub CLI under a restricted PATH', {
+  skip: process.platform === 'win32',
+}, () => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'github-owner-helper-')));
+  const bin = path.join(root, 'bin');
+  const fakeGh = path.join(bin, 'gh');
+  fs.mkdirSync(bin);
+  fs.writeFileSync(fakeGh, [
+    '#!/bin/sh',
+    'if [ "$1" = "auth" ] && [ "$2" = "token" ]; then',
+    '  printf "owner-token\\n"',
+    'elif [ "$1" = "auth" ] && [ "$2" = "git-credential" ] && [ "$3" = "get" ]; then',
+    '  cat >/dev/null',
+    '  printf "protocol=https\\nhost=github.com\\nusername=x-access-token\\npassword=owner-token\\n"',
+    'else',
+    '  exit 2',
+    'fi',
+    '',
+  ].join('\n'));
+  fs.chmodSync(fakeGh, 0o755);
+
+  try {
+    const scope = githubAccount.scopeForRemoteSync('https://github.com/repo-owner/widgets.git', {
+      env: { PATH: '/usr/bin:/bin' },
+      ghExecutable: fakeGh,
+    });
+    assert.equal(scope.env.PATH, `${bin}${path.delimiter}/usr/bin:/bin`);
+    assert.equal(process.env.PATH.includes(bin), false);
+
+    const output = execFileSync('git', githubAccount.gitArgs(scope, ['credential', 'fill']), {
+      encoding: 'utf8',
+      env: scope.env,
+      input: 'protocol=https\nhost=github.com\n\n',
+    });
+    assert.match(output, /username=x-access-token/);
+    assert.match(output, /password=owner-token/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('non-GitHub remotes bypass account lookup and remain unchanged', async () => {
   let calls = 0;
   const value = await githubAccount.withOwnerCredential('https://gitlab.com/acme/widgets.git', async (scope) => {
