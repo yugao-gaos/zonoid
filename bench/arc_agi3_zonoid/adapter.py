@@ -111,9 +111,10 @@ def contract_summary() -> str:
         "     when no task ids are supplied. The official quickstart also advertises --list-games and",
         "     --list-configs; this adapter does not invent extra flags.",
         "  3. Zonoid context is exported via environment variables only if the checkout appears to contain",
-        "     a Zonoid integration point. The injected instructions describe the REPL-style decide/reflect",
-        "     loop, the vision composite, the executable world model, and the KB protocol the agent should",
-        "     use. Otherwise the runner may run the baseline and returns a blocker for the zonoid-on arm",
+        "     a Zonoid integration point. The injected instructions wire the agent-driven REPL loop, the",
+        "     vision composite, the executable world model, and the KB protocol into a two-call",
+        "     decide/reflect turn structure. Otherwise the runner may run the baseline and returns a blocker",
+        "     for the zonoid-on arm",
         "     instead of pretending an A/B ran.",
         "",
         "Config passed to the SDK callable:",
@@ -124,9 +125,15 @@ def contract_summary() -> str:
         "  metadata: runner output directory and adapter name",
         "",
         "Zonoid-on instructions are task-scoped and API-only:",
+        "  - decide: inspect the current frame, the vision composite if available, the executable world",
+        "    model, and KB search hits before choosing the next action or world-model update",
+        "  - reflect: compare the environment's response with the prediction, repair the world model if",
+        "    needed, and write durable KB notes only after the result teaches something reusable",
+        "  - use the REPL to validate or patch the world model between turns; do not collapse decide and",
+        "    reflect into a single call",
         "  - read task context from /task/context with workspace and task_key",
-        "  - search with /search using workspace and task_key",
-        "  - record durable findings with /overlay/note when useful",
+        "  - search with /search using workspace and task_key before each decide call",
+        "  - record durable findings with /overlay/note when useful, especially after reflect",
         "",
         "Zonoid context hook surface:",
         "  - env: ZONOID_ENABLED, ZONOID_DAEMON_URL, ZONOID_WORKSPACE, ZONOID_TASK_KEY",
@@ -173,6 +180,8 @@ def zonoid_task_instructions(*, daemon_url: str, workspace: str, task_key: str) 
         "turn, save that before->action->after transition as a note so future turns can reuse it.\n"
         "- Search for similar grids and transition evidence before deciding, then treat recalled notes "
         "as evidence to verify against the live frame.\n"
+        "- Use /search before each decide call so the KB context is fresh before you choose the next "
+        "action or model update.\n"
         "KB protocol:\n"
         f"- RECALL with GET {daemon_url}/search?q=<describe current grid/state>&k=5&"
         f"workspace=<urlencoded workspace>&task_key={task_key}&gated=false\n"
