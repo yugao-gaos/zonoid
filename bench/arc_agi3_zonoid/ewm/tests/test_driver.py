@@ -206,6 +206,22 @@ class GraphFlagTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             driver_mod.main(["--game", "ls20", "--graph", "bogus"])
 
+    def test_no_graph_alias_disables_graph(self):
+        captured = {}
+
+        def _fake_live_run(game, **kwargs):
+            captured.update(kwargs)
+            captured["game"] = game
+            return {"won": False}
+
+        prev = driver_mod.live_run
+        driver_mod.live_run = _fake_live_run
+        try:
+            driver_mod.main(["--game", "ls20", "--no-graph"])
+        finally:
+            driver_mod.live_run = prev
+        self.assertFalse(captured["graph"])
+
     def test_live_run_accepts_graph_kwarg(self):
         self.assertIn("graph", driver_mod.live_run.__code__.co_varnames)
 

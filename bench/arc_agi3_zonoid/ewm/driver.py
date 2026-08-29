@@ -813,6 +813,11 @@ def main(argv: list[str] | None = None) -> int:
         "synth_graph.SynthSession backed by a DaemonGraph (ZONOID_DAEMON_URL, default "
         "http://localhost:8787).",
     )
+    parser.add_argument(
+        "--no-graph",
+        action="store_true",
+        help="Explicit alias for graph-native synthesis off.",
+    )
     args = parser.parse_args(argv)
 
     if args.smoke:
@@ -830,7 +835,7 @@ def main(argv: list[str] | None = None) -> int:
             max_seconds=args.max_seconds,
             vision=args.vision,
             synth_model=args.synth_model,
-            graph=(args.graph == "on"),
+            graph=(False if args.no_graph else args.graph == "on"),
         )
         print(json.dumps(summary))
         return 0
