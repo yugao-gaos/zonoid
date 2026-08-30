@@ -1,6 +1,15 @@
 'use strict';
+const crypto = require('crypto');
 const mcpCore = require('../lib/mcp-core');
 const requestIdentity = require('../lib/request-identity');
+
+const MCP_SESSION_LIMIT = 128;
+const protocolSessions = new Map();
+const rememberSession = (id, state) => {
+  protocolSessions.delete(id);
+  protocolSessions.set(id, state);
+  while (protocolSessions.size > MCP_SESSION_LIMIT) protocolSessions.delete(protocolSessions.keys().next().value);
+};
 
 module.exports = (ctx) => async (p, m, req, res, u) => {
   const { send, readBody, MCP_CALL } = ctx;
@@ -11,7 +20,16 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     if (m === 'GET') { res.writeHead(200, { ...cors, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' }); res.write(': connected\n\n'); return true; }
     if (m === 'POST') {
       const msg = await readBody(req);
-      const session = req.headers['mcp-session-id'] || null;
+      const session = String(req.headers['mcp-session-id'] || '').trim() || null;
+      let responseSession = session;
+      let connectionState = session ? protocolSessions.get(session) : null;
+      if (session && connectionState) rememberSession(session, connectionState);
+      if (msg && msg.method === 'initialize') {
+        responseSession = session || crypto.randomUUID();
+        connectionState = connectionState || {};
+        rememberSession(responseSession, connectionState);
+      }
+      connectionState = connectionState || {};
       const rpcArgs = msg && msg.params && msg.params.arguments;
       const rawIdentity = {
         workspace_id: u.searchParams.get('workspace_id') || req.headers['x-orch-workspace-id'] || (rpcArgs && rpcArgs.workspace_id),
@@ -32,11 +50,12 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
         call,
         uiHtml: mcpCore.uiHtml,
         session,
+        connectionState,
         identity,
         workspace: identity.graph_repo || undefined,
       });
       if (resp === undefined) { res.writeHead(202, cors); res.end(); return true; }
-      res.writeHead(200, { ...cors, 'Content-Type': 'application/json', 'Mcp-Session-Id': 'orchestrator', 'Connection': 'close' });
+      res.writeHead(200, { ...cors, 'Content-Type': 'application/json', 'Mcp-Session-Id': responseSession || 'orchestrator', 'Connection': 'close' });
       res.end(JSON.stringify(resp));
       return true;
     }

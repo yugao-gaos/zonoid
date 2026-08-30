@@ -151,6 +151,16 @@ async function createAcceptanceServer(temp) {
       send(200, { additional_context: '[acceptance] canonical DSH context' });
     } else if (url.pathname === '/ready') {
       send(200, { ready: [] });
+    } else if (url.pathname === '/state') {
+      send(200, {
+        ok: true,
+        workspace: body.workspace || null,
+        summary: { tasks_total: 1, statuses: { ready: 1 }, ghosts: 0, agents: { running: 0, done: 0 } },
+        tasks: [{ id: 'dsh/1', label: 'DSH task', status: 'ready', deps: [] }],
+        kanban: { cards: [{ task_key: 'dsh/1' }] },
+      });
+    } else if (url.pathname === '/guidance') {
+      send(200, { user_attention: [] });
     } else if (url.pathname === '/should-stop') {
       send(200, { stop: false });
     } else if (url.pathname === '/active-claim') {
@@ -441,7 +451,12 @@ test('integrated DSH target-host acceptance remains hermetic and leak-free', asy
     }, children);
     const initialized = await mcp.request('initialize', {
       protocolVersion: '2025-06-18',
-      capabilities: {},
+      capabilities: {
+        mcp_apps: true,
+        embedded_webview: false,
+        desktop_browser: false,
+        image: false,
+      },
       clientInfo: { name: 'dsh-e2e-acceptance', version: '1' },
     });
     assert.strictEqual(initialized.result.serverInfo.name, 'orchestrator-graph');
@@ -457,9 +472,18 @@ test('integrated DSH target-host acceptance remains hermetic and leak-free', asy
       arguments: { workspace: repo },
     });
     assert.strictEqual(dashboard.result.isError, false);
-    const dashboardResult = JSON.parse(dashboard.result.content[0].text);
+    assert(Array.isArray(dashboard.result.content));
+    assert.equal(dashboard.result.content[0].type, 'text');
+    assert.equal(dashboard.result.content.some((item) => item.type === 'image'), false,
+      'stdio connection preserves initialize image:false through tools/call');
+    const dashboardResult = dashboard.result.structuredContent;
     assert.strictEqual(dashboardResult.workspace, repo);
     assert.match(dashboardResult.launch.url, new RegExp(`localhost:${acceptanceServer.port}/graph\\?workspace=`));
+    assert.deepStrictEqual(dashboardResult.launch.surfaces.map((surface) => surface.id), ['mcp_app'],
+      'stdio connection preserves initialize launch capabilities through tools/call');
+    assert.strictEqual(dashboardResult.launch.preferred_surface, 'mcp_app');
+    assert.strictEqual(dashboardResult.launch.fallback_surface, 'mcp_app');
+    assert.strictEqual(dashboardResult.snapshot_delivery.image_content, false);
     await mcp.eof();
     assert.strictEqual(mcp.record.code, 0, 'stdio EOF must cleanly terminate the MCP child');
 

@@ -243,6 +243,106 @@ test('a newer HEAD incrementally syncs from a watermark recovered from full-inde
   }
 });
 
+test('a succeeded incremental sync restores an absent watermark without rerunning', () => {
+  const fixture = completedRepo();
+  try {
+    fs.writeFileSync(path.join(fixture.repo, 'index.js'), 'exports.ready = false;\n');
+    git(fixture.repo, ['add', 'index.js']);
+    git(fixture.repo, ['commit', '-m', 'incrementally indexed change']);
+    const syncedHead = git(fixture.repo, ['rev-parse', 'HEAD']);
+    const statusFile = path.join(fixture.outDir, 'onboard-drain-status.json');
+    const status = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+    fs.writeFileSync(statusFile, JSON.stringify({
+      ...status,
+      codeIndexState: 'succeeded',
+      codeIndexMode: 'sync',
+      codeIndexFrom: fixture.head,
+      codeIndexHead: syncedHead,
+    }));
+
+    assert.equal(lifecycle.findDueFullIndexJobs({ registeredWorkspaces: [fixture.repo] }).length, 0);
+    assert.equal(lifecycle.findDueIncrementalIndexJobs({ registeredWorkspaces: [fixture.repo] }).length, 0);
+    const restored = overlayStore.load(fixture.repo);
+    assert.equal(overlayStore.getLastIndexedCommit(restored, fixture.repo), syncedHead);
+  } finally {
+    fs.rmSync(fixture.repo, { recursive: true, force: true });
+  }
+});
+
+test('a succeeded incremental sync replaces its stale prior watermark and advances from its head', () => {
+  const fixture = completedRepo();
+  try {
+    const overlay = overlayStore.load(fixture.repo);
+    overlayStore.setLastIndexedCommit(overlay, fixture.repo, fixture.head);
+    overlayStore.save(fixture.repo, overlay);
+    fs.writeFileSync(path.join(fixture.repo, 'index.js'), 'exports.ready = false;\n');
+    git(fixture.repo, ['add', 'index.js']);
+    git(fixture.repo, ['commit', '-m', 'first synced change']);
+    const syncedHead = git(fixture.repo, ['rev-parse', 'HEAD']);
+    const statusFile = path.join(fixture.outDir, 'onboard-drain-status.json');
+    const status = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+    fs.writeFileSync(statusFile, JSON.stringify({
+      ...status,
+      codeIndexState: 'succeeded',
+      codeIndexMode: 'sync',
+      codeIndexFrom: fixture.head,
+      codeIndexHead: syncedHead,
+    }));
+
+    assert.equal(lifecycle.findDueIncrementalIndexJobs({ registeredWorkspaces: [fixture.repo] }).length, 0,
+      'the stale prior watermark must not rerun the completed sync');
+    const restored = overlayStore.load(fixture.repo);
+    assert.equal(overlayStore.getLastIndexedCommit(restored, fixture.repo), syncedHead);
+
+    fs.writeFileSync(path.join(fixture.repo, 'index.js'), 'exports.ready = 2;\n');
+    git(fixture.repo, ['add', 'index.js']);
+    git(fixture.repo, ['commit', '-m', 'change after recovered sync']);
+    const nextHead = git(fixture.repo, ['rev-parse', 'HEAD']);
+    const jobs = lifecycle.findDueIncrementalIndexJobs({ registeredWorkspaces: [fixture.repo] });
+    assert.equal(jobs.length, 1);
+    assert.equal(jobs[0].from, syncedHead);
+    assert.equal(jobs[0].head, nextHead);
+  } finally {
+    fs.rmSync(fixture.repo, { recursive: true, force: true });
+  }
+});
+
+test('a succeeded incremental sync repairs an older stale watermark before discovery', () => {
+  const fixture = completedRepo();
+  try {
+    const overlay = overlayStore.load(fixture.repo);
+    overlayStore.setLastIndexedCommit(overlay, fixture.repo, fixture.head);
+    overlayStore.save(fixture.repo, overlay);
+
+    fs.writeFileSync(path.join(fixture.repo, 'index.js'), 'exports.ready = false;\n');
+    git(fixture.repo, ['add', 'index.js']);
+    git(fixture.repo, ['commit', '-m', 'first synced change']);
+    const syncedHead = git(fixture.repo, ['rev-parse', 'HEAD']);
+
+    fs.writeFileSync(path.join(fixture.repo, 'index.js'), 'exports.ready = 2;\n');
+    git(fixture.repo, ['add', 'index.js']);
+    git(fixture.repo, ['commit', '-m', 'second synced change']);
+    const newerHead = git(fixture.repo, ['rev-parse', 'HEAD']);
+
+    const statusFile = path.join(fixture.outDir, 'onboard-drain-status.json');
+    const status = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+    fs.writeFileSync(statusFile, JSON.stringify({
+      ...status,
+      codeIndexState: 'succeeded',
+      codeIndexMode: 'sync',
+      codeIndexFrom: syncedHead,
+      codeIndexHead: newerHead,
+    }));
+
+    assert.equal(lifecycle.findDueIncrementalIndexJobs({ registeredWorkspaces: [fixture.repo] }).length, 0,
+      'the older stale watermark must not rerun the completed sync');
+    const restored = overlayStore.load(fixture.repo);
+    assert.equal(overlayStore.getLastIndexedCommit(restored, fixture.repo), newerHead);
+  } finally {
+    fs.rmSync(fixture.repo, { recursive: true, force: true });
+  }
+});
+
 test('a changed canonical HEAD schedules one serialized incremental sync and persists counts', () => {
   const fixture = completedRepo();
   try {

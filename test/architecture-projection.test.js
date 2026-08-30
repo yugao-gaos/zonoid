@@ -71,6 +71,120 @@ assert.ok(projection.hierarchy_relations.every((edge) => edge.from_ancestors[0] 
   && edge.to_ancestors[0] === 'module:lib'));
 assert.equal(projection.modules.find((module) => module.name === 'vendor').default_file_count, 0);
 assert.equal(projection.modules.find((module) => module.name === 'vendor').hidden_file_count, 1);
+assert.equal(projection.summary.indexed_symbol_nodes, 3);
+assert.equal(projection.summary.indexed_symbol_relations, 0);
+assert.equal(projection.summary.indexed_symbol_relation_groups, 0);
+assert.equal(projection.summary.source_less_symbol_relations, 3);
+assert.equal(projection.summary.source_less_symbol_relation_groups, 2);
+assert.equal(projection.symbol_nodes.length, 3);
+assert.equal(projection.symbol_relations.length, 0,
+  'legacy file-granular call edges never fabricate caller symbols');
+const querySymbol = projection.symbol_nodes.find((symbol) => symbol.id === 'code:lib/db.js#query');
+assert.deepEqual(querySymbol, {
+  id: 'code:lib/db.js#query',
+  name: 'query',
+  kind: 'function',
+  file: 'lib/db.js',
+  file_id: 'file:lib/db.js',
+  module: 'lib',
+  parent_id: 'file:lib/db.js',
+  ancestor_ids: ['file:lib/db.js', 'module:lib'],
+  start_line: 3,
+  end_line: null,
+  signature: null,
+  summary: 'Runs a query',
+  exported: false,
+  noise: null,
+  is_noisy: false,
+  incoming_count: 2,
+  outgoing_count: 0,
+});
+assert.equal(projection.omitted.symbol_nodes, 0);
+assert.equal(projection.omitted.symbol_relations, 0);
+assert.equal(projection.omitted.source_less_symbol_relations, 2);
+
+const symbolGraphNodes = {
+  'code:src/a.js#caller': { file: 'src/a.js', name: 'caller', kind: 'function', start_line: 2, exported: true },
+  'code:src/a.js#helper': { file: 'src/a.js', name: 'helper', kind: 'function', start_line: 8 },
+  'code:src/b.js#sibling': { file: 'src/b.js', name: 'sibling', kind: 'function', start_line: 4 },
+  'code:lib/c.js#remote': { file: 'lib/c.js', name: 'remote', kind: 'method', start_line: 6, signature: 'remote(value)' },
+};
+const symbolGraphEdges = [
+  { from: 'code:src/a.js#caller', from_file: 'src/a.js', to: 'code:src/a.js#helper', kind: 'calls' },
+  { from: 'code:src/a.js#caller', from_file: 'src/a.js', to: 'code:src/b.js#sibling', kind: 'calls' },
+  { from: 'code:src/a.js#caller', from_file: 'src/a.js', to: 'code:lib/c.js#remote', kind: 'calls' },
+  { from: 'code:src/a.js#caller', from_file: 'src/a.js', to: 'code:lib/c.js#remote', kind: 'calls', ambiguous: true },
+  { from: 'code:missing.js#caller', from_file: 'src/a.js', to: 'code:lib/c.js#remote', kind: 'calls' },
+  { from: 'code:src/a.js#caller', from_file: 'lib/c.js', to: 'code:lib/c.js#remote', kind: 'calls' },
+  { from: 'code:src/a.js#caller', from_file: 'src/a.js', to: 'code:lib/c.js#remote', to_file: 'src/b.js', kind: 'calls' },
+  { from_file: 'src/a.js', to: 'code:missing.js#callee', kind: 'calls' },
+  { from_file: '', to: 'code:lib/c.js#remote', kind: 'calls' },
+  { from_file: 'src/a.js', to: 'code:lib/c.js#remote', kind: 'imports' },
+];
+const symbolGraph = buildArchitectureProjection({ codeNodes: symbolGraphNodes, codeEdges: symbolGraphEdges });
+assert.equal(symbolGraph.summary.indexed_symbol_relations, 4,
+  'malformed symbol endpoints and non-call edges do not enter the symbol graph');
+assert.equal(symbolGraph.summary.source_less_symbol_relations, 0,
+  'explicit malformed caller ids are not downgraded into file-only caller guesses');
+assert.equal(symbolGraph.symbol_relations.length, 3);
+assert.ok(symbolGraph.symbol_relations.every((relation) => relation.source_precision === 'symbol'));
+const sameFileCall = symbolGraph.symbol_relations.find((relation) => relation.scope === 'same-file');
+assert.equal(sameFileCall.from, 'code:src/a.js#caller');
+assert.equal(sameFileCall.to, 'code:src/a.js#helper');
+assert.equal(sameFileCall.same_module, true);
+assert.equal(sameFileCall.cross_file, false);
+const sameModuleCall = symbolGraph.symbol_relations.find((relation) => relation.scope === 'same-module');
+assert.equal(sameModuleCall.to, 'code:src/b.js#sibling');
+assert.equal(sameModuleCall.same_module, true);
+assert.equal(sameModuleCall.cross_file, true);
+assert.equal(sameModuleCall.cross_module, false);
+const exactCrossModuleCall = symbolGraph.symbol_relations.find((relation) => relation.scope === 'cross-module');
+assert.equal(exactCrossModuleCall.count, 2);
+assert.equal(exactCrossModuleCall.ambiguous_count, 1);
+assert.equal(exactCrossModuleCall.same_module, false);
+assert.equal(exactCrossModuleCall.cross_module, true);
+assert.deepEqual(exactCrossModuleCall.from_ancestors, ['file:src/a.js', 'module:src']);
+assert.deepEqual(exactCrossModuleCall.to_ancestors, ['file:lib/c.js', 'module:lib']);
+const emittedSymbolGraphIds = new Set([
+  ...symbolGraph.modules.map((module) => module.id),
+  ...symbolGraph.groups.map((group) => group.id),
+  ...symbolGraph.hierarchy_files.map((file) => file.id),
+  ...symbolGraph.symbol_nodes.map((symbol) => symbol.id),
+]);
+for (const symbol of symbolGraph.symbol_nodes) {
+  assert.ok(emittedSymbolGraphIds.has(symbol.parent_id));
+  assert.ok(symbol.ancestor_ids.every((id) => emittedSymbolGraphIds.has(id)));
+}
+for (const relation of symbolGraph.symbol_relations) {
+  assert.ok(emittedSymbolGraphIds.has(relation.from));
+  assert.ok(emittedSymbolGraphIds.has(relation.to));
+  assert.ok(relation.from_ancestors.every((id) => emittedSymbolGraphIds.has(id)));
+  assert.ok(relation.to_ancestors.every((id) => emittedSymbolGraphIds.has(id)));
+}
+const boundedSymbolGraph = buildArchitectureProjection({
+  codeNodes: symbolGraphNodes,
+  codeEdges: symbolGraphEdges,
+}, { maxSymbolNodes: 2, maxSymbolRelations: 1 });
+assert.equal(boundedSymbolGraph.limits.symbol_nodes, 2);
+assert.equal(boundedSymbolGraph.limits.symbol_relations, 1);
+assert.equal(boundedSymbolGraph.symbol_nodes.length, 2);
+assert.equal(boundedSymbolGraph.symbol_relations.length, 1);
+assert.equal(boundedSymbolGraph.omitted.symbol_nodes, 2);
+assert.equal(boundedSymbolGraph.omitted.symbol_relations, 2);
+assert.deepEqual(boundedSymbolGraph.files, symbolGraph.files,
+  'symbol bounds do not change the existing rich file projection');
+assert.deepEqual(boundedSymbolGraph.relations, symbolGraph.relations,
+  'symbol bounds do not change existing file relations');
+assert.deepEqual(boundedSymbolGraph.modules, symbolGraph.modules,
+  'symbol bounds do not change existing module aggregates');
+assert.deepEqual(
+  symbolGraph,
+  buildArchitectureProjection({
+    codeNodes: Object.fromEntries(Object.entries(symbolGraphNodes).reverse()),
+    codeEdges: [...symbolGraphEdges].reverse(),
+  }),
+  'bounded symbol nodes and relations are deterministic across input order',
+);
 
 assert.deepEqual([
   'src/server.js',
@@ -241,6 +355,83 @@ const safetyIds = new Set([
 for (const node of [...safetyBoundedHierarchy.groups, ...safetyBoundedHierarchy.hierarchy_files]) {
   assert.ok(safetyIds.has(node.parent_id), 'safety-bounded hierarchy never emits a dangling parent');
 }
+
+const prefixNames = [
+  'service-auth.js',
+  'service-billing.js',
+  'service-cache.js',
+  'service-mail.js',
+  'service-users.js',
+];
+const moduleRangeNames = [
+  'alpha.js', 'bravo.js', 'charlie.js', 'delta.js', 'echo.js', 'foxtrot.js',
+  'golf.js', 'hotel.js', 'india.js', 'juliet.js', 'kilo.js', 'lima.js',
+  'mango.js', 'nectar.js', 'olive.js', 'pearl.js', 'quartz.js', 'river.js',
+];
+const directoryRangeNames = [
+  'amber.js', 'birch.js', 'cedar.js', 'dove.js', 'elm.js', 'fern.js', 'granite.js',
+  'hazel.js', 'iris.js', 'jade.js', 'koala.js', 'lotus.js', 'maple.js', 'navy.js',
+  'opal.js', 'pine.js', 'reed.js', 'stone.js', 'tulip.js', 'umber.js', 'violet.js',
+];
+const crowdedPaths = [
+  ...prefixNames.map((name) => `src/${name}`),
+  ...moduleRangeNames.map((name) => `src/${name}`),
+  ...directoryRangeNames.map((name) => `lib/flat/${name}`),
+];
+const crowdedNodes = Object.fromEntries(crowdedPaths.map((file, index) => [
+  `code:${file}#symbol${index}`,
+  { file, name: `symbol${index}`, kind: 'function', start_line: index + 1 },
+]));
+const crowdedEdges = [{
+  from_file: 'src/service-auth.js',
+  to_file: 'lib/flat/amber.js',
+  kind: 'calls',
+}];
+const crowded = buildArchitectureProjection({ codeNodes: crowdedNodes, codeEdges: crowdedEdges });
+const syntheticGroups = crowded.groups.filter((group) => group.synthetic);
+assert.ok(syntheticGroups.length > 0, 'crowded real parents gain synthetic display groups');
+assert.ok(syntheticGroups.every((group) => group.direct_file_count <= 12));
+assert.ok(syntheticGroups.every((group) => group.child_ids.every((id) => id.startsWith('file:'))));
+const serviceGroup = syntheticGroups.find((group) => group.parent_id === 'module:src'
+  && group.synthetic_kind === 'prefix' && group.prefix === 'service');
+assert.ok(serviceGroup, 'three or more shared filename prefixes are preferred');
+assert.equal(serviceGroup.direct_file_count, prefixNames.length);
+assert.deepEqual(serviceGroup.file_ids, prefixNames.map((name) => `file:src/${name}`).sort());
+const srcRanges = syntheticGroups.filter((group) => group.parent_id === 'module:src'
+  && group.synthetic_kind === 'range');
+assert.equal(srcRanges.length, 2, 'remaining module files use deterministic alphabetical ranges');
+assert.deepEqual(srcRanges.map((group) => group.direct_file_count), [9, 9]);
+const flatGroup = crowded.groups.find((group) => group.id === 'group:lib/flat');
+const flatSyntheticGroups = syntheticGroups.filter((group) => group.parent_id === flatGroup.id);
+assert.ok(flatSyntheticGroups.length > 1, 'a crowded real directory gains fallback range groups');
+assert.ok(flatSyntheticGroups.every((group) => group.synthetic_kind === 'range'));
+assert.equal(flatGroup.direct_file_count, 0);
+assert.ok(flatGroup.child_ids.every((id) => id.startsWith('group:@display/')));
+assert.ok(crowded.modules.find((module) => module.name === 'src').child_ids
+  .every((id) => id.startsWith('group:@display/')),
+  'a crowded module no longer emits more than twelve direct file children');
+const serviceFile = crowded.files.find((file) => file.path === 'src/service-auth.js');
+assert.equal(serviceFile.id, 'file:src/service-auth.js');
+assert.equal(serviceFile.symbols[0].name, 'symbol0', 'rich source file detail is preserved');
+assert.equal(serviceFile.parent_id, serviceGroup.id);
+assert.deepEqual(serviceFile.ancestor_ids, [serviceGroup.id, 'module:src']);
+const crowdedRelation = crowded.hierarchy_relations[0];
+assert.equal(crowdedRelation.from, serviceFile.id);
+assert.equal(crowdedRelation.from_ancestors[0], serviceGroup.id);
+assert.equal(crowdedRelation.to_ancestors[0], crowded.hierarchy_files
+  .find((file) => file.path === 'lib/flat/amber.js').parent_id);
+assert.ok(crowdedRelation.to_ancestors.includes('group:lib/flat'));
+assert.deepEqual(
+  crowded.groups.map((group) => [group.id, group.child_ids]),
+  buildArchitectureProjection({
+    codeNodes: Object.fromEntries(Object.entries(crowdedNodes).reverse()),
+    codeEdges: [...crowdedEdges].reverse(),
+  }).groups.map((group) => [group.id, group.child_ids]),
+  'synthetic display group ordering and ids are stable across input order',
+);
+assert.ok(hierarchy.groups.every((group) => !group.synthetic),
+  'synthetic display groups are not emitted beneath parents at or below the limit');
+
 assert.deepEqual(
   hierarchy,
   buildArchitectureProjection({
@@ -262,6 +453,8 @@ assert.deepEqual(
 const empty = buildArchitectureProjection({});
 assert.equal(empty.status, 'empty');
 assert.equal(empty.files.length, 0);
+assert.deepEqual(empty.symbol_nodes, []);
+assert.deepEqual(empty.symbol_relations, []);
 assert.match(empty.message, /not indexed yet/i);
 
 const indexing = buildArchitectureProjection({ codeIndexStatus: { state: 'running', attempts: 1 } });
