@@ -1,0 +1,14 @@
+{
+  "name": "@zonoid/dsh",
+  "version": "0.1.0",
+  "description": "Native DeepSeek Harness Cordis bridge and MCP profile for Zonoid",
+  "type": "module",
+  "main": "index.mjs",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh": "0.1.1-rc.2"
+  }
+}
