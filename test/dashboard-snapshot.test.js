@@ -17,6 +17,9 @@ const {
 
 const NOW = '2026-08-30T17:45:00.000Z';
 const OPAQUE = '019c3ac8-f971-7b80-9d14-1b34dfd3c9e9';
+const MNT_PATH = '/mnt/zonoid/private/state.json';
+const ETC_PATH = '/etc/zonoid/credentials';
+const UNC_PATH = '\\\\fileserver\\workspace\\private.txt';
 
 function task(id, label, status, extra = {}) {
   return { id, label, status, deps: [], context_deps: [], ...extra };
@@ -38,18 +41,22 @@ function pngChunks(png) {
 const tasks = [
   task('codex/plan', 'Plan delivery', 'not_ready'),
   task('codex/ready', 'Wire delivery tool', 'ready'),
-  task('codex/wip', 'Ship mobile snapshot', 'in_progress', { lastChanged: '2026-08-30T17:00:00Z' }),
+  task('codex/wip', `Ship mobile snapshot from ${UNC_PATH} with secret=render-secret`, 'in_progress', { lastChanged: '2026-08-30T17:00:00Z' }),
   task(OPAQUE, 'Recover renderer', 'in_progress', { lastChanged: '2026-08-30T16:00:00Z' }),
   task(`${OPAQUE}/42`, `${OPAQUE}/42`, 'not_ready'),
   task('codex/review', 'Review snapshot security', 'tested', { review_state: 'pending' }),
-  task('codex/blocked', 'Wait for delivery client', 'not_ready', { deps: ['codex/ready'] }),
-  task('codex/failed', 'Fix token=super-secret-value in /Users/imyu/private/repo', 'failed'),
+  task('codex/blocked', `Wait for delivery client at ${ETC_PATH} password=blocked-password`, 'not_ready', { deps: ['codex/ready'] }),
+  task('codex/failed', `Fix token=super-secret-value in ${MNT_PATH} AWS_SECRET_ACCESS_KEY=aws-secret-value`, 'failed'),
   task('codex/done-old', 'Finish old renderer', 'done', { lastChanged: '2026-08-29T12:00:00Z' }),
-  task('codex/done-new', 'Clean /tmp/zonoid-secret', 'done', { lastChanged: '2026-08-30T12:00:00Z' }),
+  task('codex/done-new', `Clean ${UNC_PATH} secret=done-secret`, 'done', { lastChanged: '2026-08-30T12:00:00Z' }),
+  task('codex/out-of-frontier-failed', 'Out-of-frontier failure', 'failed'),
+  task('codex/historical-done', 'Historical completion outside frontier', 'done', { lastChanged: '2025-01-01T00:00:00Z' }),
   task(HARNESS_JUDGE_DRAIN_KEY, 'Judge drain', 'ready'),
   { id: 'note:internal', label: 'Internal note', kind: 'note', status: 'note', deps: [], context_deps: [] },
 ];
-const frontierTaskIds = new Set(tasks.map((item) => item.id));
+const frontierTaskIds = new Set(tasks
+  .map((item) => item.id)
+  .filter((id) => id !== 'codex/out-of-frontier-failed' && id !== 'codex/historical-done'));
 const guidance = [
   {
     id: 'user-new',
@@ -81,6 +88,13 @@ const guidance = [
     resolved: true,
     origin_task: 'codex/plan',
   },
+  {
+    id: 'out-of-scope',
+    question: 'Decision for a task absent from the scoped task set',
+    severity: 'blocking',
+    resolved: false,
+    origin_task: 'codex/missing',
+  },
 ];
 
 const snapshot = buildDashboardSnapshot({ tasks, frontierTaskIds, guidance, now: NOW });
@@ -88,19 +102,37 @@ assert.strictEqual(snapshot.version, 1);
 assert.strictEqual(snapshot.scope, 'workspace');
 assert.strictEqual(snapshot.generated_at, NOW);
 assert.deepStrictEqual(snapshot.counts, { plan: 4, ready: 1, wip: 2, review: 1, needs_you: 2 });
-assert.deepStrictEqual(snapshot.current_wip, ['Ship mobile snapshot', 'Recover renderer']);
+assert.deepStrictEqual(snapshot.current_wip, ['Ship mobile snapshot from [local path] with [secret]', 'Recover renderer']);
 assert.strictEqual(snapshot.user_decisions.length, 2);
 assert(snapshot.user_decisions[0].includes('[local service]'));
 assert(snapshot.user_decisions[1].includes('[secret]'));
 assert.deepStrictEqual(snapshot.blocked_failed, [
-  { title: 'Fix [secret] in [local path]', state: 'Failed' },
-  { title: 'Wait for delivery client', state: 'Blocked' },
+  { title: 'Fix [secret] in [local path] [secret]', state: 'Failed' },
+  { title: 'Wait for delivery client at [local path] [secret]', state: 'Blocked' },
 ]);
-assert.deepStrictEqual(snapshot.recent_completions, ['Clean [local path]', 'Finish old renderer']);
+assert.deepStrictEqual(snapshot.recent_completions, ['Clean [local path] [secret]', 'Finish old renderer']);
 assert(!snapshot.current_wip.includes(OPAQUE), 'opaque internal task keys never become visible titles');
+assert(!snapshot.blocked_failed.some((item) => item.title === 'Out-of-frontier failure'),
+  'failed tasks outside the exact Kanban scope must stay hidden');
+assert(!snapshot.recent_completions.includes('Historical completion outside frontier'),
+  'historical done tasks outside the exact Kanban scope must stay hidden');
+assert(!snapshot.user_decisions.includes('Decision for a task absent from the scoped task set'),
+  'decisions without a scoped task must stay hidden');
 
 const serialized = JSON.stringify(snapshot);
-for (const secret of [OPAQUE, '/Users/imyu', '/tmp/zonoid-secret', 'super-secret-value', 'sk-abcdefghijklmnopqrstuvwxyz', 'localhost:8787']) {
+for (const secret of [
+  OPAQUE,
+  MNT_PATH,
+  ETC_PATH,
+  UNC_PATH,
+  'super-secret-value',
+  'aws-secret-value',
+  'blocked-password',
+  'render-secret',
+  'done-secret',
+  'sk-abcdefghijklmnopqrstuvwxyz',
+  'localhost:8787',
+]) {
   assert(!serialized.includes(secret), `snapshot projection leaked ${secret}`);
 }
 assert(!serialized.includes(HARNESS_JUDGE_DRAIN_KEY), 'internal harness drains stay outside the snapshot');
@@ -114,9 +146,26 @@ for (const title of [
   ...snapshot.blocked_failed.map((item) => `${item.state}: ${item.title}`),
   ...snapshot.recent_completions,
 ]) assert(fallback.includes(title), `accessible fallback omitted ${title}`);
-for (const secret of [OPAQUE, '/Users/imyu', 'super-secret-value', 'localhost:8787']) {
+for (const secret of [OPAQUE, MNT_PATH, ETC_PATH, UNC_PATH, 'super-secret-value', 'aws-secret-value', 'blocked-password', 'render-secret', 'done-secret', 'localhost:8787']) {
   assert(!fallback.includes(secret), `accessible fallback leaked ${secret}`);
 }
+
+const hostileSnapshot = {
+  ...snapshot,
+  counts: { ...snapshot.counts, plan: 'password=count-secret' },
+  current_wip: [`Read path:${ETC_PATH} with secret=section-secret`],
+  omitted: { ...snapshot.omitted, current_wip: 'AWS_SECRET_ACCESS_KEY=omitted-secret' },
+};
+const sanitizedHostileSnapshot = {
+  ...hostileSnapshot,
+  counts: { ...hostileSnapshot.counts, plan: 0 },
+  current_wip: ['Read path:[local path] with [secret]'],
+  omitted: { ...hostileSnapshot.omitted, current_wip: 0 },
+};
+assert.strictEqual(dashboardSnapshotText(hostileSnapshot), dashboardSnapshotText(sanitizedHostileSnapshot),
+  'accessible text must sanitize even caller-supplied snapshot fields');
+assert.deepStrictEqual(renderDashboardSnapshotPng(hostileSnapshot), renderDashboardSnapshotPng(sanitizedHostileSnapshot),
+  'PNG render source must sanitize even caller-supplied snapshot fields');
 
 const pngA = renderDashboardSnapshotPng(snapshot);
 const pngB = renderDashboardSnapshotPng(snapshot);
@@ -163,7 +212,13 @@ for (let index = 0; index < 8; index++) {
   largeTasks.push(task(`codex/done-${index}`, `Done ${index}`, 'done', { lastChanged: `2026-08-${String(20 + index).padStart(2, '0')}T00:00:00Z` }));
 }
 for (let index = 0; index < 10; index++) {
-  largeGuidance.push({ id: `guidance-${index}`, question: `Decision ${index}`, resolved: false, severity: 'blocking' });
+  largeGuidance.push({
+    id: `guidance-${index}`,
+    question: `Decision ${index}`,
+    resolved: false,
+    severity: 'blocking',
+    origin_task: 'codex/wip-00',
+  });
 }
 const largeIds = new Set(largeTasks.map((item) => item.id));
 const large = createDashboardSnapshot({
@@ -183,6 +238,10 @@ assert.deepStrictEqual(pngChunks(large.png).map((chunk) => chunk.type), ['IHDR',
 assert.strictEqual(
   sanitizeDisplayText(`Session ${OPAQUE} at file:///Users/imyu/repo with token=abc123secret`),
   'Session [private id] at [local path] with [secret]',
+);
+assert.strictEqual(
+  sanitizeDisplayText(`Read ${MNT_PATH}, ${ETC_PATH}, and ${UNC_PATH}; password=hunter2 secret='quoted value' AWS_SECRET_ACCESS_KEY=aws-value`),
+  'Read [local path], [local path], and [local path]; [secret] [secret] [secret]',
 );
 
 console.log('PASS  portable dashboard snapshot projection and deterministic PNG renderer');
