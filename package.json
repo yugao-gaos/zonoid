@@ -44,6 +44,7 @@
   },
   "scripts": {
     "build:claude-dashboard": "node packages/claude-dashboard-mcpb/build.js",
+    "bench:memory-lanes": "node bench/agent-memory/memory-lane-baseline/run.js",
     "start": "node daemon.js",
     "test": "node scripts/run-tests.js",
     "test:all": "node scripts/run-tests.js && npm run test:smoke",
