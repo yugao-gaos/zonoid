@@ -115,6 +115,12 @@ Research note: graph note `note-mqbk7fr1oih` — harness hook capability matrix 
 Cursor reads Claude hook config; Codex hooks are Claude-shaped but not all paths hooked;
 OpenCode blocks only via throw in `tool.execute.before`.
 
+DeepSeek Harness (`dsh`) is registered as a daemon-side adapter against the separately pinned
+[target-host contract](./dsh-host-contract.md). Its core surface owns the `dsh/` file-drop
+namespace, durable session usage translation, and the shared hookless scheduler. Host patching,
+MCP launch, and CLI installation remain deployment/bridge concerns rather than daemon business
+logic.
+
 ---
 
 ## Install-time file ownership
@@ -217,6 +223,7 @@ Second `/sync` with no new files returns `"adopted": []` (idempotent).
 | Cursor | `postToolUse` hook on todo writes | `POST /sync` |
 | Codex | Hook or instructed shell write | `POST /sync` (or harness-scoped MCP `create_task`) |
 | OpenCode | Plugin `task_create` tool | `POST /sync` |
+| DeepSeek Harness | MCP/host bridge writes a stub under `dsh/` | `POST /sync` |
 
 Minting runs **outside** the agent write gate — hooks/plugins perform file I/O without needing
 an active claim.
@@ -391,6 +398,15 @@ extracts that usage (from hook stdin or the latest rollout file) and forwards it
 in the `POST /agent/done` body. When no usage event is found, a chars/4 **estimate** is stamped
 `cost.source: "estimated"`.
 
+**DeepSeek Harness capture:** the DSH adapter translates the pinned host's disjoint
+`TokenUsage` buckets (`inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheWriteTokens`) from
+durable `session.jsonl[.zstd]` events. A finalized `assistant/message` replaces the usage chunk for
+the same `(turn, step)` so the pair is not double-counted; `reasoningTokens` remains an output
+subdivision. Reconcile filters sessions by the canonical `SessionHeader.cwd`, never by DSH's
+unrelated `WorkspaceId`. `DSH_SESSION_ROOT` may point at a configured persistence root; otherwise
+the product convention is `$DSH_HOME/sessions` (`$DSH_HOME`, then `~/.dsh`). Unknown model prices
+stay zero and are reported through `cost.unpriced_models`.
+
 ### Hot path (every subagent run)
 
 1. `subagentStart` → `/agent/start` (register `transcript_path`; optional baseline `sample`).
@@ -464,6 +480,7 @@ identity to resume. Codex's fallback key is never persisted or used as a cross-t
 | **Cursor** | MCP `ScheduleWakeup` (harness-scoped extra tool) | `ORCH_SESSION` from hook context | `lib/schedule-wakeup.js` via `lib/mcp-harness-tools.js` |
 | **Codex** | MCP `ScheduleWakeup` (+ harness-scoped `create_task`) | Explicit `session_id`, then hook/context/env ids, then the workspace bridge from Codex `SessionStart`; otherwise a random MCP-process-local fallback | Same substrate as Cursor + daemon-owned `codex resume` delivery supervisor for real sessions |
 | **OpenCode** | Plugin tool `schedule_wakeup` | Plugin session id | Same substrate via `packages/opencode-plugin/lib/schedule-wakeup.js` |
+| **DeepSeek Harness** | Host/MCP bridge | Shared DSH agent/session id | `lib/schedule-wakeup.js` through the hookless scheduler substrate |
 | **Default MCP** (`mcp-graph.js`, default `ORCH_CLIENT=claude` or unset) | **Not exposed** | — | Agents use harness-specific MCP config or Claude native |
 
 Classify injection (`POST /classify` → `additional_context`) always includes the heartbeat nudge
