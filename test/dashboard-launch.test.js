@@ -32,6 +32,15 @@ const embeddedOnly = buildDashboardLaunch({
 });
 ok('launch capability filter hides unsupported surfaces', embeddedOnly.surfaces.length === 1 && embeddedOnly.surfaces[0].id === 'embedded_web');
 
+const noSurface = buildDashboardLaunch({
+  workspace,
+  port: 8787,
+  resourceUri: 'ui://orchestrator/graph',
+  capabilities: { mcp_apps: false, embedded_webview: false, desktop_browser: false },
+});
+ok('launch contract has no phantom preference when every surface is disabled',
+  noSurface.surfaces.length === 0 && noSurface.preferred_surface === null && noSurface.fallback_surface === null);
+
 const codexLaunch = buildDashboardLaunch({ workspace, port: 8787, viewer: 'Codex' });
 ok('launch contract carries normalized viewer presentation context', codexLaunch.viewer === 'codex' && codexLaunch.url.endsWith(`${encodeURIComponent(workspace)}&viewer=codex`));
 ok('viewer ids normalize without becoming ledger providers', dashboardViewer(' OpenCode ') === 'opencode');

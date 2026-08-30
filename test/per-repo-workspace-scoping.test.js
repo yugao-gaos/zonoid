@@ -33,15 +33,18 @@ const ok = (label, cond) => {
   else { console.log(`FAIL  ${label}`); fail++; }
 };
 
-function req(method, p, body) {
+function req(method, p, body, requestHeaders = {}) {
   return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : null;
-    const headers = data ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } : {};
+    const headers = {
+      ...(data ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } : {}),
+      ...requestHeaders,
+    };
     const r = http.request({ host: '127.0.0.1', port: PORT, path: p, method, headers }, (res) => {
       const chunks = [];
       res.on('data', (c) => chunks.push(c));
       res.on('end', () => {
-        try { resolve({ status: res.statusCode, body: JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') }); }
+        try { resolve({ status: res.statusCode, headers: res.headers, body: JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') }); }
         catch (e) { reject(e); }
       });
     });
@@ -156,6 +159,36 @@ async function waitForPing(ms = 10000) {
     ok('/ready (no param) 400s — no daemon-global default', readyNoWs.status === 400);
 
     // ── #6: show_dashboard MCP tool with workspace arg returns deep_link ─────────
+    const mcpInit = await req('POST', '/mcp', {
+      jsonrpc: '2.0', id: 'cap-init', method: 'initialize',
+      params: {
+        protocolVersion: '2025-06-18',
+        capabilities: {
+          mcp_apps: false,
+          embedded_webview: true,
+          desktop_browser: false,
+          image: false,
+        },
+        clientInfo: { name: 'http-capability-acceptance', version: '1' },
+      },
+    });
+    const mcpSessionId = mcpInit.headers && mcpInit.headers['mcp-session-id'];
+    ok('HTTP MCP initialize establishes a transport session', mcpInit.status === 200 && typeof mcpSessionId === 'string' && mcpSessionId.length > 0);
+    const capabilityDash = await req('POST', '/mcp', {
+      jsonrpc: '2.0', id: 'cap-call', method: 'tools/call',
+      params: { name: 'show_dashboard', arguments: { workspace: WS_A } },
+    }, { 'mcp-session-id': mcpSessionId });
+    const capabilityResult = capabilityDash.body && capabilityDash.body.result;
+    const capabilityOut = capabilityResult && capabilityResult.structuredContent;
+    ok('HTTP MCP session preserves initialize image:false through tools/call',
+      capabilityResult && !capabilityResult.content.some((item) => item.type === 'image')
+      && capabilityOut.snapshot_delivery.image_content === false);
+    ok('HTTP MCP session preserves initialize launch capabilities through tools/call',
+      capabilityOut && capabilityOut.launch.surfaces.length === 1
+      && capabilityOut.launch.surfaces[0].id === 'embedded_web'
+      && capabilityOut.launch.preferred_surface === 'embedded_web'
+      && capabilityOut.launch.fallback_surface === 'embedded_web');
+
     const mcpShowDash = await req('POST', '/mcp', {
       jsonrpc: '2.0', id: 1, method: 'tools/call',
       params: { name: 'show_dashboard', arguments: { workspace: WS_A } },
