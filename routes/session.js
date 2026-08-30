@@ -11,6 +11,7 @@ const { listDispatcherChildren } = require('../lib/dispatcher-children');
 const { attributionMeta } = require('../lib/dispatcher-attribution');
 const gitClaims = require('../lib/git-claims');
 const git = require('../lib/git');
+const outcomePolicyMemory = require('../lib/outcome-policy-memory');
 
 // Auto-resolve a guidance escalation by spawning an Opus CLI process.
 // Returns the trimmed answer string, or null if Opus is unavailable or fails.
@@ -142,6 +143,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (b.cost_gate != null) T.ov.config.cost_gate = !!b.cost_gate;
     if (b.automode != null) T.ov.config.automode = !!b.automode;
     if (b.headless_driver != null) T.ov.config.headless_driver = !!b.headless_driver;
+    if (b.outcome_policy_memory != null) T.ov.config.outcome_policy_memory = !!b.outcome_policy_memory;
     // Atomic full-autonomy toggle ("orch auto"): { auto:true|false } expands server-side to the
     // three autonomy flags (self_plan + automode + headless_driver) so every surface — the
     // conversation hook, the dashboard toggle, plain curl — stays atomic through this one code
@@ -403,6 +405,22 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     const healed = followups.healOrphanHolds(T.ov);
     if (healed.length) result.healed_orphan_holds = healed;
+    // A correction is opt-in and explicit. Ordinary answers/approvals are not silently promoted to
+    // durable policy, and the recorder refuses unscoped/global one-off guidance.
+    if (b.correction != null) {
+      const correctionTask = item.origin_task
+        || (action && (action.task_key || action.taskKey))
+        || null;
+      result.outcome_policy = outcomePolicyMemory.recordCorrection({
+        overlay: T.ov,
+        workspace: T.ws,
+        taskKey: correctionTask,
+        correction: b.correction,
+        scope: b.correction_scope,
+        sessionId: item.request_session || b.session_id,
+        transcriptRef: `guidance:${item.id}`,
+      });
+    }
     T.save(); notifyChange(T.graph_repo || T.ws);
     result.pending = overlayStore.pendingGuidance(T.ov).length;
     send(res, 200, result); return true;
