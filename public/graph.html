@@ -5017,6 +5017,7 @@ function showWorkspaceGate(message, list) {
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 let selected=null;
 let lastDetailFp='';
+let detailRequestSeq=0;
 let lastState=null; // most recent full /state payload, for re-render on view switch
 let liveAgentIds=new Set();
 let currentView=(v=>v==='cloud'||v==='frontier'||v==='kanban'||v==='architecture'?v:(v==='flow'?'frontier':'kanban'))(localStorage.getItem('orchView'));  // stale Flow migrates; Kanban is the operational default
@@ -5417,17 +5418,46 @@ function wrapLabel(s,perLine){ s=String(s||''); const lines=[]; while(s.length>p
 async function openDetail(key){
   selected=key; document.getElementById('panel').classList.add('open');
   syncSelectedTask();
-  const pad=document.getElementById('pad'); pad.innerHTML='loading…';
-  let d; try{ d=await(await dfetch('/task/detail?key='+encodeURIComponent(key))).json(); }catch{ if(selected===key) pad.innerHTML='error'; return; }
+  const requestSeq=++detailRequestSeq;
+  const cached=lastState&&(lastState.tasks||[]).find(t=>t.id===key);
+  const pad=document.getElementById('pad');
+  if(cached) renderDetail(key,{ task:cached, summary:cached.summary||'' },{ loading:true });
+  else pad.innerHTML='<button class="pclose" onclick="closeDetail()" aria-label="Close">✕</button>loading…';
+  // Yield once so the useful cached shell is visible before transcript/token enrichment starts.
+  await new Promise(resolve=>setTimeout(resolve,0));
+  if(selected!==key||requestSeq!==detailRequestSeq) return;
+  let d;
+  try{ d=await(await dfetch('/task/detail?key='+encodeURIComponent(key))).json(); }
+  catch{
+    if(selected!==key||requestSeq!==detailRequestSeq) return;
+    if(cached) renderDetail(key,{ task:cached, summary:cached.summary||'' },{ error:'Additional details could not be loaded.' });
+    else pad.innerHTML='<button class="pclose" onclick="closeDetail()" aria-label="Close">✕</button>error';
+    return;
+  }
   if(selected!==key) return; // a slower response must not replace a newer shared selection
+  if(requestSeq!==detailRequestSeq) return; // a repeated request for this task also supersedes older enrichment
   if(d.error||!d.task){ pad.innerHTML='<span class="pclose" onclick="closeDetail()">✕</span>not found'; return; }
-  const t=d.task, u=d.tokenUsage||{};
+  renderDetail(key,d);
+}
+function detailFingerprint(t){
+  return t?[t.status,t.agent_id||'',t.summary||'',t.review_state||'',t.review_verdict||'',t.merge_state||'',t.review_requested_at||'',t.reviewed_at||''].join(':'):'';
+}
+function renderDetail(key,d,{loading=false,error=''}={}){
+  if(selected!==key||!d||!d.task) return;
+  const pad=document.getElementById('pad');
+  const t=d.task, u=d.tokenUsage;
   const byId=lastState?Object.fromEntries((lastState.tasks||[]).map(x=>[x.id,x])):{};
   const ds=taskDisplayStatus(t,byId);
-  const know=(d.knowledge||[]).map(k=>`<div class="row">${esc(k.type||'item')}: ${esc(k.value||JSON.stringify(k))}${k.note?'<div class="muted">'+esc(k.note)+'</div>':''}</div>`).join('')||'<div class="empty">none</div>';
-  const depList=t.deps.length?t.deps.map(dep=>String(dep).startsWith('ghost:')
+  const summary=d.summary||t.summary||'';
+  const know=loading?'<div class="empty">loading…</div>':(d.knowledge||[]).map(k=>`<div class="row">${esc(k.type||'item')}: ${esc(k.value||JSON.stringify(k))}${k.note?'<div class="muted">'+esc(k.note)+'</div>':''}</div>`).join('')||'<div class="empty">none</div>';
+  const deps=t.deps||[];
+  const depList=deps.length?deps.map(dep=>String(dep).startsWith('ghost:')
     ? `<span class="muted">${esc(dep.replace('ghost:','(ghost) '))}</span>`
     : `<button type="button" class="dep-link" data-task-key="${esc(dep)}">${esc(dep)}</button>`).join(''):'none';
+  const usage=t.kind==='note'?'':loading
+    ? `<div class="kv"><div class="k">Token usage</div><div class="v muted">loading…</div></div>`
+    : (u&&!u.error?`<div class="kv"><div class="k">Token usage</div><div class="v usage"><div>total <b>${fmtK(u.total||0)}</b></div><div>out <b>${fmtK(u.output_tokens||0)}</b></div><div>in ${fmtK(u.input_tokens||0)}</div><div>cache ${fmtK(u.cache_read_input_tokens||0)}</div></div></div>`:`<div class="kv"><div class="k">Token usage</div><div class="v muted">not available</div></div>`);
+  pad.dataset.taskKey=key;
   pad.innerHTML =
     `<button class="pclose" onclick="closeDetail()" aria-label="Close">✕</button>`+
     `<div class="ptitle">${esc(t.label)}</div>`+
@@ -5437,11 +5467,12 @@ async function openDetail(key){
     (t.agent_id?`<span class="badge">${esc(t.agent_id)}</span>`:'')+
     `</div>`+
     reviewBadgesHtml(t)+
-    (u&&!u.error&&t.kind!=='note'?`<div class="kv"><div class="k">Token usage</div><div class="v usage"><div>total <b>${fmtK(u.total||0)}</b></div><div>out <b>${fmtK(u.output_tokens||0)}</b></div><div>in ${fmtK(u.input_tokens||0)}</div><div>cache ${fmtK(u.cache_read_input_tokens||0)}</div></div></div>`:'')+
+    usage+
     (t.note&&(ds.key==='needs_guidance'||ds.key==='needs_approval'||ds.key==='blocked')?`<div class="kv"><div class="k">Hold reason</div><div class="v" style="font-size:12px;color:#e3b341">${esc(t.note)}</div></div>`:'')+
     `<div style="margin-bottom:12px"><button id="focusToggleBtn" style="width:100%;background:none;border:1px solid #30363d;color:#8b949e;border-radius:6px;padding:7px 10px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;text-align:center;letter-spacing:.02em" onclick="toggleFocus('${esc(key)}')">${currentView==='focus'&&focusedId===key?'✕ Exit Focus':'⌖ Focus view'}</button></div>`+
-    (d.summary?`<div style="font-size:12px;line-height:1.5;color:#c9d1d9;margin-bottom:12px">${esc(d.summary)}</div>`:
+    (summary?`<div style="font-size:12px;line-height:1.5;color:#c9d1d9;margin-bottom:12px">${esc(summary)}</div>`:
     `<div class="muted" style="font-size:12px;margin-bottom:12px">No summary yet.</div>`)+
+    (error?`<div class="muted" style="font-size:11px;margin-bottom:12px">${esc(error)}</div>`:'')+
     `<details style="font-size:12px"><summary style="cursor:pointer;color:#58a6ff;list-style:none;padding:4px 0">Details ▾</summary>`+
     `<div class="kv"><div class="k">ID</div><div class="v muted" style="font-size:11px">${esc(t.id)}</div></div>`+
     `<div class="kv"><div class="k">Dependencies</div><div class="v">${depList}</div></div>`+
@@ -5449,6 +5480,7 @@ async function openDetail(key){
     (d.transcript?`<div class="kv"><div class="k">Transcript</div><div class="v"><a href="${BASE}/agent/${encodeURIComponent(d.assignee)}" target="_blank">open subagent transcript ↗</a></div></div>`:'')+
     `</details>`;
   pad.querySelectorAll('.dep-link').forEach(button=>button.addEventListener('click',()=>navigateToDependency(button.dataset.taskKey)));
+  lastDetailFp=detailFingerprint(t);
 }
 function syncSelectedTask(){
   document.querySelectorAll('#kanban .kb-card').forEach(el=>el.classList.toggle('selected',el.dataset.taskKey===selected));
@@ -5463,7 +5495,7 @@ function navigateToDependency(key){
   setView('cloud');
   openDetail(key);
 }
-function closeDetail(){ selected=null; document.getElementById('panel').classList.remove('open'); syncSelectedTask(); }
+function closeDetail(){ selected=null; detailRequestSeq++; document.getElementById('panel').classList.remove('open'); syncSelectedTask(); }
 // Top-bar autonomy score: the VALUE rendered always-visible in the summary bar (the popup stays
 // the click-through detail). /costflow walks every transcript — too heavy per 2s tick — so the
 // cache refreshes on the graph tick but at most every 30s (and never overlaps itself).
@@ -5735,12 +5767,13 @@ function updateDock(s, sc){
   const hbtn=document.getElementById('sd-history');
   if(hbtn && excl>0) hbtn.textContent='History ('+excl+') ▾';
 }
-async function tick(){
+async function tick(prefetchedState){
   // P2b: never fetch workspace-scoped data until an EXPLICIT workspace is chosen. If unresolved,
   // try to resolve one (auto-select single ws / show picker) and bail this tick — selectWorkspace
   // re-ticks once a choice lands. This is what prevents a silent fall-through to the global pointer.
   if (!WS_RESOLVED) { try { await resolveExplicitWorkspace(); } catch {} if (!WS_RESOLVED) return; }
-  let d; try{ d=await(await dfetch('/state')).json(); }catch{ return; }
+  let d=prefetchedState;
+  if(!d){ try{ d=await(await dfetch('/state')).json(); }catch{ return; } }
   refreshCost(); refreshCronTok(); refreshInfraHero(); refreshAgreement(); refreshEconomy(); refreshAutonomy();
   liveAgentIds=new Set((d.agents||[]).filter(a=>a&&a.state==='running').map(a=>a.agent_id));
   const s=d.summary, sc=s.statuses||{}; const order=['not_ready','ready','in_progress','tested','done','failed','canceled'];
@@ -5909,7 +5942,7 @@ async function tick(){
   }
   if(selected){
   const dt=lastState&&lastState.tasks&&lastState.tasks.find(t=>t.id===selected);
-  const fp=dt?[dt.status,dt.agent_id||'',dt.summary||'',dt.review_state||'',dt.review_verdict||'',dt.merge_state||'',dt.review_requested_at||'',dt.reviewed_at||''].join(':'):'';
+  const fp=detailFingerprint(dt);
   if(fp!==lastDetailFp){ lastDetailFp=fp; openDetail(selected); }
 }
   const rt=document.getElementById('routes');
@@ -8484,9 +8517,12 @@ setView(currentView);              // apply persisted view + toggle state on loa
   // The original tick silently swallows errors.  We hook it to detect a 503
   // with phase:'loading' — the sibling /state route returns that during boot.
   const _origTick = tick;
-  window.tick = async function tick_resilient(){
+  let _tickInFlight=null;
+  let _tickQueued=false;
+  async function runResilientTick(){
     // P2b: gate on an EXPLICIT workspace before any /state fetch — no silent global fallback.
     if (!WS_RESOLVED) { try { await resolveExplicitWorkspace(); } catch {} if (!WS_RESOLVED) return; }
+    let stateBody;
     try {
       const res = await dfetch('/state', { cache: 'no-store' });
       if (res.status === 503){
@@ -8504,13 +8540,16 @@ setView(currentView);              // apply persisted view + toggle state on loa
         _backoff = Math.min(_backoff * 2, 5000);
         return;
       }
+      if (!res.ok) {
+        if (_phase !== 'offline') enterPhase('offline');
+        scheduleHealthCheck(_backoff);
+        _backoff = Math.min(_backoff * 2, 5000);
+        return;
+      }
       // Successful response — reset backoff, ensure we're in ready state
+      stateBody = await res.json();
       _backoff = 500;
       if (_phase !== 'ready') enterPhase('ready', {});
-      // Replay the original tick logic using the already-read body.
-      // We can't call _origTick (it re-fetches), so inline minimal re-invoke:
-      // fall through to _origTick but accept the duplicate fetch — at most one
-      // extra request per tick cycle, still correct.
     } catch(e){
       // Network error on /state poll
       if (_phase !== 'offline') enterPhase('offline');
@@ -8518,8 +8557,21 @@ setView(currentView);              // apply persisted view + toggle state on loa
       _backoff = Math.min(_backoff * 2, 5000);
       return;
     }
-    // If we got here, /state was OK — run the real tick for rendering
-    return _origTick();
+    // Render the response we already read; the original tick accepts prefetched state.
+    return _origTick(stateBody);
+  }
+  window.tick = function tick_resilient(){
+    if(_tickInFlight){
+      _tickQueued=true;
+      return _tickInFlight;
+    }
+    _tickInFlight=(async()=>{
+      do{
+        _tickQueued=false;
+        await runResilientTick();
+      }while(_tickQueued);
+    })().finally(()=>{ _tickInFlight=null; });
+    return _tickInFlight;
   };
 
   // ── Kick off ───────────────────────────────────────────────────────────────

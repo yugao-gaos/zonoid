@@ -7,6 +7,14 @@ const path = require('path');
 const vm = require('vm');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'graph.html'), 'utf8');
+const stateRoute = fs.readFileSync(path.join(__dirname, '..', 'routes', 'state.js'), 'utf8');
+
+for (const field of ['vec', 'vecMeta', 'vecs', 'vecsMeta']) {
+  assert.ok(stateRoute.includes(`delete projected.${field};`), `/state must omit server-only embedding field ${field}`);
+}
+assert.ok(stateRoute.includes('dashboardTasks(frontier.archivedTaskList'), 'archived task projection must strip embeddings');
+assert.ok(stateRoute.includes('tasks: dashboardTasks(f.tasks)'), 'frontier task projection must strip embeddings');
+assert.ok(stateRoute.includes('tasks: dashboardTasks(tasks)'), 'default task projection must strip embeddings');
 
 const kanbanTab = html.indexOf('data-view="kanban"');
 const frontierTab = html.indexOf('data-view="frontier"');
@@ -33,6 +41,13 @@ assert.ok(html.includes("cues.user_gate") && html.includes("cues.review") && htm
 
 assert.ok(html.includes('data-task-key="${esc(card.task_key)}"'));
 assert.ok(html.includes('openDetail(button.dataset.taskKey)'), 'card selection must reuse the existing detail drawer');
+const detailSource = html.slice(html.indexOf('async function openDetail(key)'), html.indexOf('function syncSelectedTask()'));
+assert.ok(detailSource.indexOf('renderDetail(key,{ task:cached') < detailSource.indexOf("dfetch('/task/detail?key='"),
+  'the detail drawer must render cached task fields before requesting slow enrichment');
+assert.ok(detailSource.includes("await new Promise(resolve=>setTimeout(resolve,0))"),
+  'the cached drawer shell must get a browser turn to paint before enrichment');
+assert.ok(detailSource.includes('selected!==key||requestSeq!==detailRequestSeq'),
+  'late detail responses must not replace a newer selection or request');
 const cardDisplaySource = html.slice(
   html.indexOf('const OPAQUE_KANBAN_TASK_KEY='),
   html.indexOf('function kanbanCueLabel'),
@@ -68,6 +83,11 @@ assert.ok(html.includes('Recent ${cards.length} of ${allCards.length}'),
   'Done must label its visible recency window without hiding the total count');
 assert.ok(html.includes("dfetch('/events'") && html.includes('handleSSEMessage') && html.includes('tick();'),
   'the live event stream must drive the same state refresh that rerenders Kanban');
+const resilientTickSource = html.slice(html.indexOf('const _origTick = tick;'), html.indexOf('// ── Kick off'));
+assert.ok(resilientTickSource.includes('return _origTick(stateBody)') && !resilientTickSource.includes('return _origTick();'),
+  'the resilience wrapper must render its existing /state response instead of fetching state twice');
+assert.ok(resilientTickSource.includes('if(_tickInFlight)') && resilientTickSource.includes('_tickQueued=true'),
+  'overlapping SSE and polling ticks must be coalesced');
 
 const helperSource = html.slice(html.indexOf('const KB_DONE_CAP=12'), html.indexOf('function openKanbanHistory()'));
 const helperContext = {};
