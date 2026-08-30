@@ -184,6 +184,52 @@ test('a fairness handoff wakes a target lane parked on its idle timer', async ()
   }
 });
 
+test('a fairness wake requested in-flight retains its exact backoff deadline', async () => {
+  const governor = { backoffUntil: 0 };
+  let releaseFrontier;
+  const heldFrontier = new Promise((resolve) => { releaseFrontier = resolve; });
+  const frontierRunAt = [];
+  const frontier = createHeadlessDrainRunner({
+    lane: 'frontier',
+    headlessDrain: fakeDrain(governor, async () => {
+      frontierRunAt.push(Date.now());
+      if (frontierRunAt.length === 1) await heldFrontier;
+      return { ran: 0, skipped: 'no_spawn_decisions', drains: [] };
+    }),
+    state: {},
+  });
+  const maintenance = createHeadlessDrainRunner({
+    lane: 'maintenance',
+    headlessDrain: fakeDrain(governor, async () => {
+      governor.backoffUntil = Date.now() + 50;
+      return { ran: 1, drains: [{ exitCode: 1 }] };
+    }),
+    state: {},
+  });
+
+  try {
+    const inFlight = frontier._runPump('frontier-in-flight');
+    assert.equal(await waitFor(() => frontierRunAt.length === 1), true);
+
+    await maintenance._runPump('maintenance-creates-backoff');
+    maintenance._stop();
+    const fairnessDeadline = governor.backoffUntil;
+    assert.equal(governor.postBackoffFairness.lane, 'frontier');
+
+    releaseFrontier();
+    await inFlight;
+    assert.equal(governor.postBackoffFairness.lane, 'frontier',
+      'the in-flight target cannot take ownership of an already-attributed transition');
+    assert.equal(await waitFor(() => frontierRunAt.length === 2), true,
+      'the exact pending fairness deadline survives target completion');
+    assert.ok(frontierRunAt[1] >= fairnessDeadline, 'the wake never bypasses real provider backoff');
+  } finally {
+    releaseFrontier();
+    maintenance._stop();
+    frontier._stop();
+  }
+});
+
 test('detached executor failure releases slots and asynchronously hands post-backoff fairness to the opposite runner', async () => {
   const WS = '/ws/detached-integration';
   const governor = {
