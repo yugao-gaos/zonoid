@@ -20,6 +20,9 @@ const OPAQUE = '019c3ac8-f971-7b80-9d14-1b34dfd3c9e9';
 const MNT_PATH = '/mnt/zonoid/private/state.json';
 const ETC_PATH = '/etc/zonoid/credentials';
 const UNC_PATH = '\\\\fileserver\\workspace\\private.txt';
+const MNT_PATH_WITH_SPACES = '/mnt/mobile dashboard/private state.json';
+const ETC_PATH_WITH_SPACES = '/etc/zonoid/private config';
+const UNC_PATH_WITH_SPACES = '\\\\fileserver\\Mobile Data\\private file.txt';
 
 function task(id, label, status, extra = {}) {
   return { id, label, status, deps: [], context_deps: [], ...extra };
@@ -138,6 +141,29 @@ for (const secret of [
 assert(!serialized.includes(HARNESS_JUDGE_DRAIN_KEY), 'internal harness drains stay outside the snapshot');
 assert(!serialized.includes('Deduplicate'), 'internal-only guidance stays outside Needs You');
 
+const structuredSnapshot = buildDashboardSnapshot({
+  tasks: [
+    task('codex/structured-wip', `Credentials {"password":"hunter2"} at "${MNT_PATH_WITH_SPACES}"`, 'in_progress'),
+    task('codex/structured-failed', `Inspect [${ETC_PATH_WITH_SPACES}] and <${UNC_PATH_WITH_SPACES}>`, 'failed'),
+  ],
+  frontierTaskIds: ['codex/structured-wip', 'codex/structured-failed'],
+  guidance: [{
+    id: 'structured-guidance',
+    question: 'Use {"secret":"mobile-private"} with {"AWS_SECRET_ACCESS_KEY":"aws-value"}?',
+    severity: 'blocking',
+    resolved: false,
+    origin_task: 'codex/structured-wip',
+  }],
+  now: NOW,
+});
+assert.deepStrictEqual(structuredSnapshot.current_wip, ['Credentials {[secret]} at [local path]']);
+assert.deepStrictEqual(structuredSnapshot.blocked_failed,
+  [{ title: 'Inspect [local path] and [local path]', state: 'Failed' }]);
+assert.deepStrictEqual(structuredSnapshot.user_decisions, ['Use {[secret]} with {[secret]}?']);
+for (const leaked of ['hunter2', 'mobile-private', 'aws-value', 'mobile dashboard', 'private config', 'fileserver', 'Mobile Data']) {
+  assert(!JSON.stringify(structuredSnapshot).includes(leaked), `snapshot projection leaked structured value or path fragment ${leaked}`);
+}
+
 const fallback = dashboardSnapshotText(snapshot);
 assert.match(fallback, /PLAN 4 \| READY 1 \| WIP 2 \| REVIEW 1 \| NEEDS YOU 2/);
 for (const title of [
@@ -153,17 +179,34 @@ for (const secret of [OPAQUE, MNT_PATH, ETC_PATH, UNC_PATH, 'super-secret-value'
 const hostileSnapshot = {
   ...snapshot,
   counts: { ...snapshot.counts, plan: 'password=count-secret' },
-  current_wip: [`Read path:${ETC_PATH} with secret=section-secret`],
+  current_wip: ['Credentials {"password":"hunter2"} {"secret":"mobile-private"} {"AWS_SECRET_ACCESS_KEY":"aws-value"}'],
+  user_decisions: [`Read [${MNT_PATH_WITH_SPACES}] and <${ETC_PATH_WITH_SPACES}>`],
+  blocked_failed: [{ state: 'Blocked', title: `Open "${MNT_PATH_WITH_SPACES}"` }],
+  recent_completions: [`Copy '${UNC_PATH_WITH_SPACES}'`],
   omitted: { ...snapshot.omitted, current_wip: 'AWS_SECRET_ACCESS_KEY=omitted-secret' },
 };
 const sanitizedHostileSnapshot = {
   ...hostileSnapshot,
   counts: { ...hostileSnapshot.counts, plan: 0 },
-  current_wip: ['Read path:[local path] with [secret]'],
+  current_wip: ['Credentials {[secret]} {[secret]} {[secret]}'],
+  user_decisions: ['Read [local path] and [local path]'],
+  blocked_failed: [{ state: 'Blocked', title: 'Open [local path]' }],
+  recent_completions: ['Copy [local path]'],
   omitted: { ...hostileSnapshot.omitted, current_wip: 0 },
 };
-assert.strictEqual(dashboardSnapshotText(hostileSnapshot), dashboardSnapshotText(sanitizedHostileSnapshot),
+const hostileText = dashboardSnapshotText(hostileSnapshot);
+assert.strictEqual(hostileText, dashboardSnapshotText(sanitizedHostileSnapshot),
   'accessible text must sanitize even caller-supplied snapshot fields');
+for (const leaked of [
+  'hunter2',
+  'mobile-private',
+  'aws-value',
+  'mobile dashboard',
+  'private config',
+  'fileserver',
+  'Mobile Data',
+  'private file.txt',
+]) assert(!hostileText.includes(leaked), `accessible fallback leaked structured value or path fragment ${leaked}`);
 assert.deepStrictEqual(renderDashboardSnapshotPng(hostileSnapshot), renderDashboardSnapshotPng(sanitizedHostileSnapshot),
   'PNG render source must sanitize even caller-supplied snapshot fields');
 
@@ -242,6 +285,14 @@ assert.strictEqual(
 assert.strictEqual(
   sanitizeDisplayText(`Read ${MNT_PATH}, ${ETC_PATH}, and ${UNC_PATH}; password=hunter2 secret='quoted value' AWS_SECRET_ACCESS_KEY=aws-value`),
   'Read [local path], [local path], and [local path]; [secret] [secret] [secret]',
+);
+assert.strictEqual(
+  sanitizeDisplayText('{"password":"hunter2"} {"secret":"mobile-private"} {"AWS_SECRET_ACCESS_KEY":"aws-value"}'),
+  '{[secret]} {[secret]} {[secret]}',
+);
+assert.strictEqual(
+  sanitizeDisplayText(`Read [${MNT_PATH_WITH_SPACES}], <${ETC_PATH_WITH_SPACES}>, "${MNT_PATH_WITH_SPACES}", and '${UNC_PATH_WITH_SPACES}'`),
+  'Read [local path], [local path], [local path], and [local path]',
 );
 
 console.log('PASS  portable dashboard snapshot projection and deterministic PNG renderer');
