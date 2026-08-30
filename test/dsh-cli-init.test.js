@@ -74,7 +74,11 @@ try {
   assert.strictEqual(firstBundle.installed, true);
   assert.strictEqual(firstBundle.path, dshManagedBundleDir(materializedHome));
   const installedPatch = fs.readFileSync(path.join(firstBundle.path, 'zonoid.cordis.patch.yml'), 'utf8');
-  assert(installedPatch.includes(JSON.stringify(path.join(ROOT, 'mcp-graph.js'))));
+  // The installed patch pins the MCP entry as a JSON-quoted, FORWARD-SLASHED absolute path
+  // (renderInstalledDshPatch -> fwdSlash in packages/cli/bin/zonoid.js): a native win32
+  // backslash path would not survive the Cordis YAML/JS config value.
+  const expectedMcpEntry = path.join(ROOT, 'mcp-graph.js').replace(/\\/g, '/');
+  assert(installedPatch.includes(JSON.stringify(expectedMcpEntry)));
   assert.match(installedPatch, /ORCH_CLIENT: dsh/);
   assert.match(installedPatch, /@deepseek-ai\/dsh-mcp-client/);
   assert.match(installedPatch, /@zonoid\/dsh/);

@@ -533,6 +533,40 @@ function restoreDshProfile(profileDir, captured) {
   }
 }
 
+// Windows has no execve: libuv can start a `.exe` found on PATH, but a `.cmd`/`.bat` shim — which
+// is exactly what npm installs for `dsh` — must go through the shell. `spawnSync('dsh', …)` fails
+// ENOENT for every real DSH install on win32, so resolve the command against PATH + PATHEXT and
+// report back only when the hit is a shim (same rule as needsShell in lib/llm-backend.js).
+function resolveWindowsShim(command, env = process.env) {
+  if (process.platform !== 'win32') return null;
+  if (path.isAbsolute(command) || command.includes('/') || command.includes('\\')) {
+    return /\.(cmd|bat)$/i.test(command) ? command : null;
+  }
+  const extensions = String(env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean);
+  for (const dir of String(env.PATH || '').split(path.delimiter).filter(Boolean)) {
+    for (const extension of ['', ...extensions]) {
+      const candidate = path.join(dir, `${command}${extension}`);
+      let stat;
+      try { stat = fs.statSync(candidate); } catch { continue; }
+      if (!stat.isFile()) continue;
+      // The first PATH hit wins, exactly as CreateProcess would resolve it. Only a shim needs
+      // the shell; a real executable is left to the normal (safer, unquoted) spawn path.
+      return /\.(cmd|bat)$/i.test(candidate) ? candidate : null;
+    }
+  }
+  return null;
+}
+
+// One pre-quoted command line for `shell: true`. Node concatenates argv unquoted under a shell
+// (DEP0190), so build the line here and spawn it with an empty argv instead.
+function windowsShellCommandLine(command, args) {
+  const quote = (value) => {
+    const text = String(value);
+    return /[\s&|<>^"()]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  };
+  return [command, ...args].map(quote).join(' ');
+}
+
 // Use DSH's public plugin manager rather than rewriting a user's profile or Cordis patch. The
 // plugin command performs an additive dependency/bundle merge; we back up its metadata inputs and
 // restore them on any non-zero or unverifiable result. User cordis.patch.yml, other dependencies,
@@ -555,14 +589,22 @@ function installDshProfile(options = {}) {
   backupDshProfile(profileDir, captured);
   const command = options.command || 'dsh';
   const args = ['plugin', '--profile', profile, 'add', dshBundleSpec(bundle.path)];
+  // An injected spawner is a test double and always receives the logical command; only the real
+  // spawn needs the win32 shim treatment.
+  const shim = options.spawnSyncFn ? null : resolveWindowsShim(command);
   let result;
   try {
-    result = (options.spawnSyncFn || spawnSync)(command, args, {
-      cwd: options.cwd || INSTALL_DIR,
-      env: { ...process.env, DSH_HOME: home },
-      encoding: 'utf8',
-      windowsHide: true,
-    });
+    result = (options.spawnSyncFn || spawnSync)(
+      shim ? windowsShellCommandLine(shim, args) : command,
+      shim ? [] : args,
+      {
+        cwd: options.cwd || INSTALL_DIR,
+        env: { ...process.env, DSH_HOME: home },
+        encoding: 'utf8',
+        windowsHide: true,
+        shell: !!shim,
+      },
+    );
   } catch (error) {
     restoreDshProfile(profileDir, captured);
     throw error;

@@ -2,8 +2,14 @@
 'use strict';
 
 const assert = require('assert');
+const path = require('path');
 const mcpCore = require('../lib/mcp-core');
 const uiTools = require('../lib/mcp/tools/ui');
+
+// Request identity canonicalizes every workspace through path.resolve (lib/request-identity.js),
+// so a POSIX-absolute fixture is drive-mapped on win32 ("/delivery-codex" -> "C:\delivery-codex").
+// Resolve the fixtures with the same call the code uses: a no-op on POSIX, platform-native on win32.
+const wsPath = (p) => path.resolve(p);
 
 const OPAQUE = '019c3ac8-f971-7b80-9d14-1b34dfd3c9e9';
 const rawPath = '/mnt/private workspace/task.txt';
@@ -88,7 +94,7 @@ function parsedResult(rpc) {
 
   const hashes = [];
   for (const client of ['codex', 'claude', 'opencode', 'dsh']) {
-    const workspace = `/delivery-${client}`;
+    const workspace = wsPath(`/delivery-${client}`);
     const rpc = await request(workspace, client);
     const { legacy, status, image } = parsedResult(rpc);
     assert.strictEqual(legacy.workspace, workspace, `${client} keeps the legacy scoped result`);
@@ -105,14 +111,14 @@ function parsedResult(rpc) {
   }
   assert.strictEqual(new Set(hashes).size, 1, 'snapshot delivery is client-neutral and never hostname-branched');
 
-  const fallback = parsedResult(await request('/delivery-text-only', 'claude', { supportsImageContent: false }));
+  const fallback = parsedResult(await request(wsPath('/delivery-text-only'), 'claude', { supportsImageContent: false }));
   assert.ok(fallback.status, 'capability fallback retains accessible text');
   assert.strictEqual(fallback.image, undefined, 'capability fallback omits unsupported image content');
   assert.strictEqual(fallback.legacy.snapshot_delivery.image_content, false);
   assert.ok(fallback.legacy.browser_url, 'capability fallback retains the desktop dashboard link');
 
-  const first = parsedResult(await request('/delivery-debounce', 'codex'));
-  const second = parsedResult(await request('/delivery-debounce', 'codex'));
+  const first = parsedResult(await request(wsPath('/delivery-debounce'), 'codex'));
+  const second = parsedResult(await request(wsPath('/delivery-debounce'), 'codex'));
   assert.strictEqual(first.legacy.snapshot_changed, true);
   assert.ok(first.legacy.snapshot_event, 'first meaningful snapshot emits through the status result');
   assert.strictEqual(second.legacy.snapshot_changed, false);
@@ -121,13 +127,13 @@ function parsedResult(rpc) {
   assert.strictEqual(second.image.data, first.image.data, 'unchanged status reuses the same portable image bytes');
 
   revision = 2;
-  const changed = parsedResult(await request('/delivery-debounce', 'codex'));
+  const changed = parsedResult(await request(wsPath('/delivery-debounce'), 'codex'));
   assert.strictEqual(changed.legacy.snapshot_changed, true);
   assert.ok(changed.legacy.snapshot_event, 'meaningful state change emits through the status result');
   assert.notStrictEqual(changed.legacy.snapshot_hash, first.legacy.snapshot_hash);
 
-  const injected = parsedResult(await request('/delivery-explicit', 'opencode', {}, false));
-  assert.strictEqual(injected.legacy.workspace, '/delivery-explicit', 'explicit request inherits the session workspace');
+  const injected = parsedResult(await request(wsPath('/delivery-explicit'), 'opencode', {}, false));
+  assert.strictEqual(injected.legacy.workspace, wsPath('/delivery-explicit'), 'explicit request inherits the session workspace');
   assert.ok(calls.some((entry) => entry.method === 'GET' && entry.path.startsWith('/state')));
   assert.ok(calls.some((entry) => entry.method === 'GET' && entry.path.startsWith('/guidance')));
   assert.ok(!calls.some((entry) => /notification|push/i.test(entry.path)), 'delivery does not invent a cross-harness push channel');
