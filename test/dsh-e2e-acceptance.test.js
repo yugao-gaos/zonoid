@@ -380,6 +380,10 @@ test('integrated DSH target-host acceptance remains hermetic and leak-free', asy
     const cliEnv = {
       ...process.env,
       HOME: home,
+      // os.homedir() — which the CLI uses for ~/.claude/skills — reads USERPROFILE on win32 and
+      // ignores HOME entirely. Without this the "sandboxed" init writes skill links into the
+      // developer's REAL home directory, so pin both names to the disposable home.
+      USERPROFILE: home,
       DSH_HOME: dshHome,
       DSH_SESSION_ROOT: sessionRoot,
       DSH_TELEMETRY_DISABLED: '1',
@@ -404,8 +408,12 @@ test('integrated DSH target-host acceptance remains hermetic and leak-free', asy
 
     const managedDir = path.join(dshHome, 'zonoid', 'packages', 'dsh');
     const managedPatch = fs.readFileSync(path.join(managedDir, 'zonoid.cordis.patch.yml'), 'utf8');
+    // renderInstalledDshPatch pins the entry as a JSON-quoted, FORWARD-SLASHED absolute path
+    // (fwdSlash in packages/cli/bin/zonoid.js) — a native win32 backslash path would not survive
+    // the Cordis YAML/JS config value.
+    const managedMcpEntry = path.join(fs.realpathSync(install), 'mcp-graph.js').replace(/\\/g, '/');
     assert(
-      managedPatch.includes(JSON.stringify(path.join(fs.realpathSync(install), 'mcp-graph.js'))),
+      managedPatch.includes(JSON.stringify(managedMcpEntry)),
       `managed MCP entry did not point at the disposable install:\n${managedPatch}`,
     );
     assert.match(managedPatch, /ORCH_CLIENT: dsh/);

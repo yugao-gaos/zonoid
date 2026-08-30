@@ -2,13 +2,17 @@
 'use strict';
 
 const assert = require('assert');
+const nodePath = require('path');
 const zlib = require('zlib');
 const mcpCore = require('../lib/mcp-core');
 const uiTools = require('../lib/mcp/tools/ui');
 const { dashboardSnapshotHash } = require('../lib/dashboard-snapshot');
 
-const WORKSPACE_A = '/isolated/mobile acceptance a';
-const WORKSPACE_B = '/isolated/mobile acceptance b';
+// Request identity canonicalizes every workspace through path.resolve (lib/request-identity.js), so
+// the daemon seam sees a platform-native path. Key the isolated fixtures the same way: a no-op on
+// POSIX, drive-qualified on win32 — otherwise the fixture lookup misses and every call errors.
+const WORKSPACE_A = nodePath.resolve('/isolated/mobile acceptance a');
+const WORKSPACE_B = nodePath.resolve('/isolated/mobile acceptance b');
 const OPAQUE = '019c3ac8-f971-7b80-9d14-1b34dfd3c9e9';
 const SECRET = 'mobile-private-token';
 
