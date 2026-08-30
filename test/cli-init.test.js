@@ -65,7 +65,7 @@ ok('dashboardUrl pins and URL-encodes workspace path',
     clientRepo,
     '8788'
   );
-  const expected = `http://localhost:8788/graph?workspace=${encodeURIComponent(path.resolve(clientRepo))}`;
+  const expected = `http://localhost:8788/graph?workspace=${encodeURIComponent(path.resolve(clientRepo))}&viewer=claude`;
   ok('renderClaudeInstructions rewrites generic dashboard URL', rendered.includes(`A ${expected}`));
   ok('renderClaudeInstructions rewrites existing pinned dashboard URL', rendered.includes(`B ${expected}`));
 }

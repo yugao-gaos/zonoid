@@ -62,7 +62,7 @@ const SKILLS_DIR = path.join(os.homedir(), '.claude', 'skills');
 const fwd = (p) => String(p).replace(/\\/g, '/');
 const INSTALL_FWD = fwd(INSTALL_DIR);
 const hookCmd = (name) => `node "${INSTALL_FWD}/hooks/${name}.js"`;
-const dashboardUrl = (workspace = WORKSPACE, port = PORT) => `http://localhost:${port}/graph?workspace=${encodeURIComponent(path.resolve(workspace))}`;
+const dashboardUrl = (workspace = WORKSPACE, port = PORT) => `http://localhost:${port}/graph?workspace=${encodeURIComponent(path.resolve(workspace))}&viewer=claude`;
 
 // ── the complete hook wiring (one source of truth) ───────────────────────────
 const HOOKS = {

@@ -36,6 +36,7 @@ function fakeVscode() {
       showErrorMessage: (message) => calls.errors.push(message),
     },
     env: {
+      appName: 'Visual Studio Code',
       asExternalUri: async (uri) => {
         calls.forwarded.push(uri.value);
         const value = uri.value.replace('http://localhost:8787', 'https://forward.example/proxy/8787');
@@ -58,8 +59,11 @@ function fakeVscode() {
   assert.equal(extension.activeWorkspaceFolder(api).uri.fsPath, '/workspace/active');
   assert.equal(
     extension.localDashboardUrl(api, extension.activeWorkspaceFolder(api)),
-    'http://localhost:8787/graph?workspace=%2Fworkspace%2Factive',
+    'http://localhost:8787/graph?workspace=%2Fworkspace%2Factive&viewer=vscode',
   );
+  api.env.appName = 'Cursor';
+  assert.equal(extension.dashboardViewer(api), 'cursor');
+  api.env.appName = 'Visual Studio Code';
 
   const context = { subscriptions: [] };
   extension.activate(context, api);

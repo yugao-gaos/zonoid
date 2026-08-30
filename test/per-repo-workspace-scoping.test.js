@@ -175,6 +175,14 @@ async function waitForPing(ms = 10000) {
     ok('show_dashboard launch contract has universal fallback', dashOut && dashOut.launch && dashOut.launch.fallback_surface === 'external_browser');
     ok('show_dashboard launch contract does not leak an auth token', dashOut && !/[#?&](?:token|auth)=/i.test(JSON.stringify(dashOut.launch)));
 
+    const mcpShowDashCodex = await req('POST', '/mcp', {
+      jsonrpc: '2.0', id: 4, method: 'tools/call',
+      params: { name: 'show_dashboard', arguments: { workspace: WS_A, viewer: 'codex' } },
+    });
+    let dashCodex = null;
+    try { dashCodex = JSON.parse(mcpShowDashCodex.body.result.content[0].text); } catch { /* */ }
+    ok('show_dashboard preserves explicit viewer context', dashCodex && dashCodex.launch && dashCodex.launch.viewer === 'codex' && dashCodex.launch.url.includes('viewer=codex'));
+
     const mcpShowDashQueryWs = await req('POST', `/mcp?workspace=${encodeURIComponent(WS_A)}`, {
       jsonrpc: '2.0', id: 3, method: 'tools/call',
       params: { name: 'show_dashboard', arguments: {} },
