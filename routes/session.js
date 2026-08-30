@@ -27,7 +27,7 @@ async function resolveViaOpusCli({ question, context, workspace }) {
 }
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
-  const { send, readBody, notifyChange, buildGraph, state, targetOverlay, resolveRepo, now,
+  const { send, readBody, notifyChange, buildGraph, state, targetOverlay, overlayFor, resolveRepo, now,
     stopSignalFor, agentsArr, loops, saveLoops, ESCALATION_DEFAULTS, OPTIMIZE_DEFAULTS } = ctx;
 
   if (p === '/active-claim') {
@@ -70,7 +70,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     if (sid) {
       for (const ws of scanWorkspaces) {
-        const ov = ws === T.ws ? T.ov : overlayStore.load(ws);
+        const ov = ws === T.ws ? T.ov : overlayFor(ws);
         const cs = ov.claimSessions;
         if (!cs) continue;
         for (const t of all.filter((t) => t.workspace === ws && t.session !== sid)) {
