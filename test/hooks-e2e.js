@@ -91,6 +91,14 @@ const fs = require('fs');
 const args = process.argv.slice(2);
 const input = fs.readFileSync(0, 'utf8');
 if (args.includes('-Rs')) { process.stdout.write(JSON.stringify(input)); process.exit(0); }
+if (args.includes('-n')) {
+  const values = {};
+  for (let i = 0; i < args.length - 1; i++) {
+    if (args[i] === '--arg') { values[args[i + 1]] = args[i + 2] || ''; i += 2; }
+  }
+  process.stdout.write(JSON.stringify({ task_key: values.task_key, session_id: values.session_id, agent_id: values.agent_id }));
+  process.exit(0);
+}
 const filter = args.filter((a) => a !== '-r').join(' ');
 let json = {};
 try { json = JSON.parse(input || '{}'); } catch {}
@@ -98,6 +106,22 @@ let out = '';
 if (filter.includes('.tool_name')) out = json.tool_name || '';
 else if (filter.includes('.session_id')) out = json.session_id || '';
 else if (filter.includes('.tool_input.task_key')) out = json.tool_input && json.tool_input.task_key || '';
+else if (filter.includes('.tool_input.agent_id')) out = json.tool_input && json.tool_input.agent_id || '';
+else if (filter.includes('.tool_input.action')) out = json.tool_input && json.tool_input.action || '';
+else if (filter.includes('.tool_response | collect')) {
+  const objects = [];
+  function collect(value, depth = 0) {
+    if (depth > 4 || value == null) return;
+    if (typeof value === 'string') { try { collect(JSON.parse(value), depth + 1); } catch {} return; }
+    if (Array.isArray(value)) { value.forEach((item) => collect(item, depth + 1)); return; }
+    if (typeof value !== 'object') return;
+    objects.push(value);
+    for (const key of ['structuredContent', 'result', 'content', 'text']) collect(value[key], depth + 1);
+  }
+  collect(json.tool_response);
+  out = !objects.some((item) => item.isError === true || item.ok === false || item.error != null) &&
+    objects.some((item) => item.ok === true) ? 'true' : 'false';
+}
 else if (filter.includes('[.ready')) out = Array.isArray(json.ready) ? json.ready.map((x) => x && x.label).filter(Boolean).join(', ') : '';
 process.stdout.write(String(out));
 `;
@@ -231,7 +255,7 @@ function mkOff(sid) { fs.mkdirSync(SESS, { recursive: true }); fs.writeFileSync(
   // ── orch-posttool-starttask (filters on tool_name, POSTs claim-session) ──────
   console.log('orch-posttool-starttask.js');
   { check('non start_task tool -> noop exit 0', runHook('orch-posttool-starttask.js', { session_id: 'e2e-pt', tool_name: 'Bash', tool_input: { command: 'ls' } }).code === 0);
-    const r = runHook('orch-posttool-starttask.js', { session_id: 'e2e-pt', tool_name: 'mcp__orchestrator-graph__start_task', tool_input: { task_key: 'e2e/probe-task' } });
+    const r = runHook('orch-posttool-starttask.js', { session_id: 'e2e-pt', tool_name: 'mcp__orchestrator-graph__start_task', tool_input: { task_key: 'e2e/probe-task', agent_id: 'e2e-worker' } });
     check('start_task -> exit 0 (claim-session posted)', r.code === 0, `code=${r.code}`);
     const claim = await daemon('GET', '/active-claim?session=e2e-pt');
     info('/active-claim after claim-session', claim.text.slice(0, 80)); }
@@ -243,11 +267,39 @@ function mkOff(sid) { fs.mkdirSync(SESS, { recursive: true }); fs.writeFileSync(
       const startScript = path.join(CODEX_HOOKS, 'post-start-task.sh');
       for (const toolName of ['mcp__orchestrator-graph__start_task', 'mcp__orchestrator_graph__start_task', 'start_task']) {
         const before = curlHits(stub.logPath).length;
-        const r = runScript(startScript, { session_id: `e2e-cdx-start-${before}`, tool_name: toolName, tool_input: { task_key: `e2e/${before}` } }, stub.env);
+        const r = runScript(startScript, { session_id: `e2e-cdx-start-${before}`, tool_name: toolName, tool_input: { task_key: `e2e/${before}`, agent_id: 'e2e-worker' } }, stub.env);
         const hits = curlHits(stub.logPath);
         const last = hits[hits.length - 1] || '';
         check(`post-start accepts ${toolName}`, r.code === 0 && hits.length === before + 1 && last.includes('/overlay/claim-session'), `code=${r.code} hits=${hits.length} last=${last}`);
       }
+      for (const toolName of ['mcp__orchestrator-graph__subconscious_assignment', 'mcp__orchestrator_graph__subconscious_assignment', 'subconscious_assignment']) {
+        const before = curlHits(stub.logPath).length;
+        const r = runScript(startScript, {
+          session_id: `e2e-cdx-accept-${before}`,
+          tool_name: toolName,
+          tool_input: { action: 'accept', task_key: `e2e/${before}`, agent_id: 'e2e-worker' },
+          tool_response: { isError: false, content: [{ type: 'text', text: '{"ok":true}' }] },
+        }, stub.env);
+        const hits = curlHits(stub.logPath);
+        const last = hits[hits.length - 1] || '';
+        check(`post-start accepts successful ${toolName}`, r.code === 0 && hits.length === before + 1 && last.includes('/overlay/claim-session'), `code=${r.code} hits=${hits.length} last=${last}`);
+      }
+      { const before = curlHits(stub.logPath).length;
+        const r = runScript(startScript, {
+          session_id: 'e2e-cdx-accept-failed',
+          tool_name: 'subconscious_assignment',
+          tool_input: { action: 'accept', task_key: 'e2e/failed', agent_id: 'e2e-worker' },
+          tool_response: { isError: true, content: [{ type: 'text', text: '{"ok":true}' }] },
+        }, stub.env);
+        check('post-start ignores failed assignment accept', r.code === 0 && curlHits(stub.logPath).length === before, `code=${r.code}`); }
+      { const before = curlHits(stub.logPath).length;
+        const r = runScript(startScript, {
+          session_id: 'e2e-cdx-accept-complete',
+          tool_name: 'subconscious_assignment',
+          tool_input: { action: 'complete', task_key: 'e2e/complete', agent_id: 'e2e-worker' },
+          tool_response: { ok: true },
+        }, stub.env);
+        check('post-start ignores non-accept assignment action', r.code === 0 && curlHits(stub.logPath).length === before, `code=${r.code}`); }
       { const before = curlHits(stub.logPath).length;
         const r = runScript(startScript, { session_id: 'e2e-cdx-start-noop', tool_name: 'Bash', tool_input: { command: 'ls' } }, stub.env);
         check('post-start ignores non-start tool', r.code === 0 && curlHits(stub.logPath).length === before, `code=${r.code}`); }
