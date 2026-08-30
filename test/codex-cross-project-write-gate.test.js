@@ -126,9 +126,18 @@ async function prepareAndAccept(key, fallbackSession) {
 
 async function exerciseAlias({ id, alias, toolName }) {
   const key = taskKey(id);
-  const fallbackSession = `codex-mcp-fallback-${id}`;
+  const firstFallbackSession = `codex-mcp-fallback-first-${id}`;
+  const fallbackSession = `codex-mcp-fallback-retry-${id}`;
   const realSession = `codex-real-worker-${id}`;
-  const { prepared, accepted } = await prepareAndAccept(key, fallbackSession);
+  const { prepared } = await prepareAndAccept(key, firstFallbackSession);
+  const retriedAccept = await request('POST', '/overlay/status', {
+    key,
+    status: 'in_progress',
+    agent_id: AGENT,
+    session_id: fallbackSession,
+  });
+  assert.equal(retriedAccept.status, 200, JSON.stringify(retriedAccept.body));
+  const accepted = retriedAccept.body;
   const fallbackActive = await request(
     'GET',
     `/active-claim?session=${encodeURIComponent(fallbackSession)}`,
@@ -199,6 +208,7 @@ async function exerciseAlias({ id, alias, toolName }) {
   assert.match(status, new RegExp(`A  bash-${id}\\.txt`));
 
   assert.equal(writeGate('Write', path.join(prepared.worktree, 'fallback-denied.txt'), fallbackSession).status, 2);
+  assert.equal(writeGate('Write', path.join(prepared.worktree, 'first-fallback-denied.txt'), firstFallbackSession).status, 2);
   assert.equal(writeGate('Write', path.join(prepared.worktree, 'wrong-agent.txt'), realSession, 'other-worker').status, 2);
   assert.equal(writeGate('Write', path.join(GRAPH_REPO, 'outside-worktree.txt'), realSession).status, 2);
   assert.equal(bashGate(`printf denied > ${path.join(GRAPH_REPO, 'outside-bash.txt')}`, prepared.worktree, realSession).status, 2);
