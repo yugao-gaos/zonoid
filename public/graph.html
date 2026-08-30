@@ -429,6 +429,10 @@
   .arch-compound.module > rect { stroke: #58a6ff; }
   .arch-canvas-file > rect { fill: #161b22; stroke: #30363d; }
   .arch-canvas-file > .arch-file-accent { fill: #58a6ff; stroke: none; }
+  .arch-canvas-symbol > rect { fill: #1b1f2a; stroke: #8957e5; }
+  .arch-canvas-symbol > .arch-symbol-accent { fill: #a371f7; stroke: none; }
+  .arch-canvas-symbol.method > rect { stroke: #3fb950; }
+  .arch-canvas-symbol.method > .arch-symbol-accent { fill: #3fb950; }
   .arch-canvas-title { fill: #e6edf3; font-size: 13px; font-weight: 700; pointer-events: none; }
   .arch-canvas-meta { fill: #8b949e; font-size: 9px; pointer-events: none; }
   .arch-canvas-chevron { fill: #79c0ff; font-size: 12px; pointer-events: none; }
@@ -5680,7 +5684,17 @@ function architectureFingerprint(projection){
     relation.id,relation.from,relation.to,relation.from_ancestors||[],relation.to_ancestors||[],
     relation.kind,relation.count,relation.ambiguous_count
   ]);
-  return JSON.stringify([projection.status,projection.message||'',projection.summary||{},projection.omitted||{},modules,groups,moduleRelations,hierarchyFiles,files,relations,hierarchyRelations]);
+  const symbolNodes=(projection.symbol_nodes||[]).map(symbol=>[
+    symbol.id,symbol.name,symbol.kind,symbol.file,symbol.file_id,symbol.module,symbol.parent_id,symbol.ancestor_ids||[],
+    symbol.start_line,symbol.end_line,symbol.signature,symbol.summary,symbol.exported,symbol.noise,symbol.is_noisy,
+    symbol.incoming_count,symbol.outgoing_count
+  ]);
+  const symbolRelations=(projection.symbol_relations||[]).map(relation=>[
+    relation.id,relation.from,relation.to,relation.from_file_id,relation.to_file_id,
+    relation.from_ancestors||[],relation.to_ancestors||[],relation.kind,relation.scope,
+    relation.source_precision,relation.count,relation.ambiguous_count
+  ]);
+  return JSON.stringify([projection.status,projection.message||'',projection.summary||{},projection.omitted||{},modules,groups,moduleRelations,hierarchyFiles,files,relations,hierarchyRelations,symbolNodes,symbolRelations]);
 }
 function stateFingerprint(d){
   const s=d.summary||{}, sc=s.statuses||{};
@@ -6705,6 +6719,11 @@ const ARCHITECTURE_LAYOUT=Object.freeze({
   nodeMinWidth:220,
   fileHeight:64,
   collapsedHeight:82,
+  symbolWidth:180,
+  symbolHeight:58,
+  symbolGapX:24,
+  symbolGapY:20,
+  symbolMaxColumns:3,
 });
 function architectureFileMatches(file, query){
   const q=String(query||'').trim().toLowerCase();
@@ -6712,52 +6731,80 @@ function architectureFileMatches(file, query){
   return [file.path,file.module,file.noise,...(file.symbols||[]).flatMap(symbol=>[symbol.name,symbol.kind,symbol.signature])]
     .some(value=>String(value||'').toLowerCase().includes(q));
 }
+function architectureSymbolMatches(symbol, query){
+  const q=String(query||'').trim().toLowerCase();
+  if(!q) return true;
+  return [symbol.name,symbol.kind,symbol.signature,symbol.summary,symbol.file,symbol.module]
+    .some(value=>String(value||'').toLowerCase().includes(q));
+}
+function architectureSymbolsByFile(projection){
+  const byFile=new Map();
+  for(const symbol of (projection&&projection.symbol_nodes||[])){
+    if(!byFile.has(symbol.file_id)) byFile.set(symbol.file_id,[]);
+    byFile.get(symbol.file_id).push(symbol);
+  }
+  return byFile;
+}
 function architectureHierarchyById(projection){
-  return new Map([...(projection&&projection.modules||[]),...(projection&&projection.groups||[]),...architectureProjectionFiles(projection)]
+  return new Map([...(projection&&projection.modules||[]),...(projection&&projection.groups||[]),...architectureProjectionFiles(projection),...(projection&&projection.symbol_nodes||[])]
     .map(node=>[node.id,node]));
 }
 function architectureSearchMatchIds(projection, query){
   const q=String(query||'').trim();
-  return new Set(q?architectureProjectionFiles(projection).filter(file=>architectureFileMatches(file,q)).map(file=>file.id):[]);
+  if(!q) return new Set();
+  return new Set([
+    ...architectureProjectionFiles(projection).filter(file=>architectureFileMatches(file,q)).map(file=>file.id),
+    ...(projection&&projection.symbol_nodes||[]).filter(symbol=>architectureSymbolMatches(symbol,q)).map(symbol=>symbol.id),
+  ]);
 }
 function architectureEffectiveExpandedIds(projection, expandedIds, query){
   const searching=!!String(query||'').trim();
   const expanded=new Set(searching?[]:(expandedIds||[]));
   const matches=architectureSearchMatchIds(projection,query);
-  for(const file of architectureProjectionFiles(projection)) if(matches.has(file.id)){
-    for(const ancestor of (file.ancestor_ids||[])) expanded.add(ancestor);
+  for(const node of [...architectureProjectionFiles(projection),...(projection&&projection.symbol_nodes||[])]) if(matches.has(node.id)){
+    for(const ancestor of (node.ancestor_ids||[])) expanded.add(ancestor);
   }
   return expanded;
 }
 function architectureVisibleHierarchy(projection, expandedIds, query, showNoise){
   const byId=architectureHierarchyById(projection);
+  const symbolsByFile=architectureSymbolsByFile(projection);
   const searching=!!String(query||'').trim();
   const matchIds=architectureSearchMatchIds(projection,query);
   const expanded=architectureEffectiveExpandedIds(projection,expandedIds,query);
   const matchedAncestors=new Set();
-  for(const file of architectureProjectionFiles(projection)) if(matchIds.has(file.id)){
-    for(const ancestor of (file.ancestor_ids||[])) matchedAncestors.add(ancestor);
+  for(const node of [...architectureProjectionFiles(projection),...(projection&&projection.symbol_nodes||[])]) if(matchIds.has(node.id)){
+    for(const ancestor of (node.ancestor_ids||[])) matchedAncestors.add(ancestor);
   }
   const allowed=node=>{
     if(!node) return false;
     if(searching){
       if(String(node.id).startsWith('module:')) return true;
       if(String(node.id).startsWith('group:')) return matchedAncestors.has(node.id);
+      if(String(node.id).startsWith('file:')) return matchIds.has(node.id)||matchedAncestors.has(node.id);
       return matchIds.has(node.id);
     }
-    if(String(node.id).startsWith('file:')) return showNoise||!node.is_noisy||matchIds.has(node.id);
+    if(String(node.id).startsWith('file:')||String(node.id).startsWith('code:')) return showNoise||!node.is_noisy||matchIds.has(node.id);
     return showNoise||(node.default_file_count||0)>0||matchedAncestors.has(node.id);
   };
   const nodes=[];
   const visit=(id,parentId)=>{
     const node=byId.get(id);
     if(!allowed(node)) return;
-    const hierarchy_kind=String(id).startsWith('module:')?'module':String(id).startsWith('group:')?'group':'file';
-    nodes.push({...node,hierarchy_kind,visible_parent_id:parentId||null});
-    if(hierarchy_kind!=='file'&&expanded.has(id)) for(const childId of (node.child_ids||[])) visit(childId,id);
+    const hierarchy_kind=String(id).startsWith('module:')?'module':String(id).startsWith('group:')?'group':String(id).startsWith('file:')?'file':'symbol';
+    const childIds=hierarchy_kind==='file'?(symbolsByFile.get(id)||[]).map(symbol=>symbol.id):(node.child_ids||[]);
+    nodes.push({...node,child_ids:childIds,hierarchy_kind,visible_parent_id:parentId||null,
+      symbol_omitted_count:hierarchy_kind==='file'?Math.max(0,(node.symbol_count||0)-childIds.length):0});
+    if(hierarchy_kind!=='symbol'&&expanded.has(id)) for(const childId of childIds) visit(childId,id);
   };
   for(const module of (projection&&projection.modules||[])) visit(module.id,null);
   return {nodes,expanded,match_ids:matchIds};
+}
+function architectureSearchFocusedSymbol(visible, query){
+  if(!String(query||'').trim()) return null;
+  const visibleIds=new Set((visible&&visible.nodes||[]).map(node=>node.id));
+  const symbols=[...(visible&&visible.match_ids||[])].filter(id=>String(id).startsWith('code:')&&visibleIds.has(id));
+  return symbols.length===1?symbols[0]:null;
 }
 function architectureRetargetEndpoint(fileId, ancestors, expandedIds){
   const chain=[...(ancestors||[])].reverse();
@@ -6770,16 +6817,41 @@ function architectureRetargetEndpoint(fileId, ancestors, expandedIds){
   }
   return endpoint;
 }
+function architectureResidualHierarchyRelations(projection){
+  const preciseByFiles=new Map();
+  for(const relation of (projection&&projection.symbol_relations||[])){
+    const key=`${relation.from_file_id}\u0000${relation.to_file_id}\u0000${relation.kind}`;
+    const count=preciseByFiles.get(key)||{count:0,ambiguous_count:0};
+    count.count+=relation.count||1;
+    count.ambiguous_count+=relation.ambiguous_count||0;
+    preciseByFiles.set(key,count);
+  }
+  return (projection&&projection.hierarchy_relations||[]).map(relation=>{
+    const precise=preciseByFiles.get(`${relation.from}\u0000${relation.to}\u0000${relation.kind}`)||{count:0,ambiguous_count:0};
+    return {...relation,count:Math.max(0,(relation.count||1)-precise.count),ambiguous_count:Math.max(0,(relation.ambiguous_count||0)-precise.ambiguous_count)};
+  }).filter(relation=>relation.count>0);
+}
+function architectureFileInternalRemainder(projection, fileId, internalCount){
+  const precise=(projection&&projection.symbol_relations||[]).reduce((sum,relation)=>
+    sum+(relation.from_file_id===fileId&&relation.to_file_id===fileId?(relation.count||1):0),0);
+  return Math.max(0,(internalCount||0)-precise);
+}
 function architectureRetargetRelations(projection, expandedIds, visibleIds){
   const aggregate=new Map();
-  for(const relation of (projection&&projection.hierarchy_relations||[])){
+  const relations=[
+    ...architectureResidualHierarchyRelations(projection),
+    ...(projection&&projection.symbol_relations||[]),
+  ];
+  for(const relation of relations){
     const from=architectureRetargetEndpoint(relation.from,relation.from_ancestors,expandedIds);
     const to=architectureRetargetEndpoint(relation.to,relation.to_ancestors,expandedIds);
-    if(from===to||(visibleIds&&(!visibleIds.has(from)||!visibleIds.has(to)))) continue;
+    const visibleSelf=relation.source_precision==='symbol'&&relation.from===relation.to&&from===relation.from;
+    if((from===to&&!visibleSelf)||(visibleIds&&(!visibleIds.has(from)||!visibleIds.has(to)))) continue;
     const key=`${from}\u0000${to}\u0000${relation.kind}`;
-    const item=aggregate.get(key)||{id:`visible-relation:${from}:${relation.kind}:${to}`,from,to,kind:relation.kind,count:0,ambiguous_count:0};
+    const item=aggregate.get(key)||{id:`visible-relation:${from}:${relation.kind}:${to}`,from,to,kind:relation.kind,count:0,ambiguous_count:0,self:from===to,precise_count:0};
     item.count+=relation.count||1;
     item.ambiguous_count+=relation.ambiguous_count||0;
+    if(relation.source_precision==='symbol') item.precise_count+=relation.count||1;
     aggregate.set(key,item);
   }
   return [...aggregate.values()].sort((a,b)=>a.from.localeCompare(b.from)||a.to.localeCompare(b.to)||a.kind.localeCompare(b.kind));
@@ -6789,15 +6861,16 @@ function architectureBreadcrumbIds(projection, selectedId){
   const byId=architectureHierarchyById(projection);
   const selected=byId.get(selectedId);
   if(!selected) return [];
-  if(String(selectedId).startsWith('file:')) return [...(selected.ancestor_ids||[])].reverse().concat(selectedId);
+  if(String(selectedId).startsWith('file:')||String(selectedId).startsWith('code:')) return [...(selected.ancestor_ids||[])].reverse().concat(selectedId);
   const ids=[]; let current=selected;
   while(current){ ids.unshift(current.id); current=current.parent_id?byId.get(current.parent_id):null; }
   return ids;
 }
 function architectureInspectorRelations(projection, visibleRelations, selectedId){
-  const relations=String(selectedId||'').startsWith('file:')
-    ? (projection&&projection.hierarchy_relations||[])
-    : (visibleRelations||[]);
+  const id=String(selectedId||'');
+  const relations=id.startsWith('code:')
+    ? (projection&&projection.symbol_relations||[])
+    : id.startsWith('file:')?(projection&&projection.hierarchy_relations||[]):(visibleRelations||[]);
   return relations.filter(relation=>relation.from===selectedId||relation.to===selectedId);
 }
 function architectureLayoutHierarchy(visible){
@@ -6808,15 +6881,26 @@ function architectureLayoutHierarchy(visible){
     if(!children.has(node.visible_parent_id)) children.set(node.visible_parent_id,[]);
     children.get(node.visible_parent_id).push(node.id);
   }
+  const symbolColumns=count=>Math.max(1,Math.min(spacing.symbolMaxColumns,Math.ceil(Math.sqrt(count||1))));
   const minimumWidth=id=>{
     const node=byId.get(id), childIds=children.get(id)||[];
-    if(!node||node.hierarchy_kind==='file'||!visible.expanded.has(id)||!childIds.length) return spacing.nodeMinWidth;
+    if(!node||node.hierarchy_kind==='symbol') return spacing.symbolWidth;
+    if(!visible.expanded.has(id)||!childIds.length) return spacing.nodeMinWidth;
+    if(node.hierarchy_kind==='file'){
+      const columns=symbolColumns(childIds.length);
+      return spacing.childInset*2+columns*spacing.symbolWidth+(columns-1)*spacing.symbolGapX;
+    }
     return Math.max(spacing.nodeMinWidth,Math.max(...childIds.map(minimumWidth))+spacing.childInset*2);
   };
   const measure=(id,width)=>{
     const node=byId.get(id), childIds=children.get(id)||[];
-    if(!node||node.hierarchy_kind==='file') return {id,w:width,h:spacing.fileHeight,children:[]};
-    if(!visible.expanded.has(id)||!childIds.length) return {id,w:width,h:spacing.collapsedHeight,children:[]};
+    if(!node||node.hierarchy_kind==='symbol') return {id,w:spacing.symbolWidth,h:spacing.symbolHeight,children:[]};
+    if(!visible.expanded.has(id)||!childIds.length) return {id,w:width,h:node.hierarchy_kind==='file'?spacing.fileHeight:spacing.collapsedHeight,children:[]};
+    if(node.hierarchy_kind==='file'){
+      const columns=symbolColumns(childIds.length), rows=Math.ceil(childIds.length/columns);
+      const measured=childIds.map(childId=>measure(childId,spacing.symbolWidth));
+      return {id,w:width,h:spacing.compoundHeader+rows*spacing.symbolHeight+(rows-1)*spacing.symbolGapY+spacing.compoundBottom,children:measured,symbol_columns:columns};
+    }
     const childWidth=width-spacing.childInset*2;
     const measured=childIds.map(childId=>measure(childId,childWidth));
     return {id,w:width,h:spacing.compoundHeader+measured.reduce((sum,child)=>sum+child.h,0)+Math.max(0,measured.length-1)*spacing.siblingGap+spacing.compoundBottom,children:measured};
@@ -6828,6 +6912,12 @@ function architectureLayoutHierarchy(visible){
   const heights=Array(columns).fill(spacing.canvasInset), boxes=new Map();
   const place=(item,x,y)=>{
     boxes.set(item.id,{x,y,w:item.w,h:item.h});
+    if(item.symbol_columns){
+      const gridWidth=item.symbol_columns*spacing.symbolWidth+(item.symbol_columns-1)*spacing.symbolGapX;
+      const startX=x+(item.w-gridWidth)/2;
+      for(let i=0;i<item.children.length;i++) place(item.children[i],startX+(i%item.symbol_columns)*(spacing.symbolWidth+spacing.symbolGapX),y+spacing.compoundHeader+Math.floor(i/item.symbol_columns)*(spacing.symbolHeight+spacing.symbolGapY));
+      return;
+    }
     let childY=y+spacing.compoundHeader;
     for(const child of item.children){ place(child,x+spacing.childInset,childY); childY+=child.h+spacing.siblingGap; }
   };
@@ -6843,6 +6933,8 @@ function architectureCanvasNodeLabel(node){
   return label.length>34?label.slice(0,33)+'…':label;
 }
 function architectureCanvasNodeMeta(node, expanded){
+  if(node.hierarchy_kind==='symbol') return `${node.kind||'symbol'}${node.start_line!=null?' · line '+node.start_line:''} · ←${node.incoming_count||0} · →${node.outgoing_count||0}`;
+  if(node.hierarchy_kind==='file'&&expanded) return `${(node.child_ids||[]).length} symbol nodes${node.symbol_omitted_count?' · '+node.symbol_omitted_count+' omitted':''}`;
   if(node.hierarchy_kind==='file') return node.has_rich_detail===false
     ? `${node.symbol_count||0} indexed symbols · rich detail omitted`
     : `${node.symbol_count||0} symbols · ←${node.incoming_count||0} · →${node.outgoing_count||0}`;
@@ -6855,6 +6947,16 @@ function architectureEdgeAnchors(from,to){
   const fromScale=Math.min(Math.abs(dx)>0?(from.w/2)/Math.abs(dx):Infinity,Math.abs(dy)>0?(from.h/2)/Math.abs(dy):Infinity);
   const toScale=Math.min(Math.abs(dx)>0?(to.w/2)/Math.abs(dx):Infinity,Math.abs(dy)>0?(to.h/2)/Math.abs(dy):Infinity);
   return {x1:ax+dx*fromScale,y1:ay+dy*fromScale,x2:bx-dx*toScale,y2:by-dy*toScale};
+}
+function architectureEdgeGeometry(relation,from,to){
+  if(relation.from===relation.to){
+    const x=from.x+from.w, y=from.y+Math.min(20,from.h/3), loop=Math.max(22,Math.min(42,from.w/4));
+    return {path:`M${x-4},${y} C${x+loop},${y-loop} ${x+loop},${y+loop} ${x-4},${y+8}`,labelX:x+loop,labelY:y-loop-3};
+  }
+  const p=architectureEdgeAnchors(from,to), dx=p.x2-p.x1, dy=p.y2-p.y1;
+  const lane=(String(relation.from).localeCompare(String(relation.to))<=0?1:-1)*(relation.kind==='calls'?16:10);
+  if(Math.abs(dx)>=Math.abs(dy)) return {path:`M${p.x1},${p.y1} C${p.x1+dx*.34},${p.y1+lane} ${p.x2-dx*.34},${p.y2+lane} ${p.x2},${p.y2}`,labelX:(p.x1+p.x2)/2,labelY:(p.y1+p.y2)/2+lane-4};
+  return {path:`M${p.x1},${p.y1} C${p.x1+lane},${p.y1+dy*.34} ${p.x2+lane},${p.y2-dy*.34} ${p.x2},${p.y2}`,labelX:(p.x1+p.x2)/2+lane,labelY:(p.y1+p.y2)/2-4};
 }
 function renderArchitectureBreadcrumbs(projection){
   const breadcrumbs=document.getElementById('architectureBreadcrumbs');
@@ -6881,21 +6983,29 @@ function renderArchitectureInspector(projection,visibleRelations){
     inspector.innerHTML='<div class="arch-inspector-pad"><div class="empty">Select a module or folder to inspect it. Expand recursively to reveal files; relationships retarget to the deepest visible endpoint.</div></div>';
     return;
   }
-  const isFile=String(node.id).startsWith('file:');
+  const isFile=String(node.id).startsWith('file:'), isSymbol=String(node.id).startsWith('code:');
   const isExpanded=architectureExpandedIds.has(node.id);
   const exactRelations=architectureInspectorRelations(projection,visibleRelations,node.id);
   const relationHtml=exactRelations.map(relation=>{
     const outgoing=relation.from===node.id;
     const peer=byId.get(outgoing?relation.to:relation.from);
-    return `<div class="arch-relation ${esc(relation.kind)}"><b>${outgoing?'→':'←'} ${esc(relation.kind)}</b> ${esc(peer&&(peer.path||peer.name)||'visible endpoint')} <span>×${relation.count||1}${relation.ambiguous_count?' · '+relation.ambiguous_count+' ambiguous':''}</span></div>`;
+    return `<div class="arch-relation ${esc(relation.kind)}"><b>${outgoing?'→':'←'} ${esc(relation.kind)}</b> ${esc(peer&&(peer.path||peer.name||peer.file)||'visible endpoint')} <span>×${relation.count||1}${relation.ambiguous_count?' · '+relation.ambiguous_count+' ambiguous':''}</span></div>`;
   }).join('');
+  if(isSymbol){
+    inspector.innerHTML=`<div class="arch-inspector-pad"><button class="arch-clear" type="button" aria-label="Clear selected symbol" onclick="clearArchitectureSelection()">✕</button><div class="arch-inspector-title">${esc(node.signature||node.name)}</div><div class="arch-inspector-meta">${esc(node.kind||'symbol')} · ${esc(node.file)}${node.start_line!=null?' · line '+node.start_line:''}${node.exported?' · exported':''} · ${node.incoming_count||0} incoming · ${node.outgoing_count||0} outgoing</div>${node.summary?`<div class="arch-inspector-section"><div class="arch-inspector-label">Summary</div><div class="arch-symbol"><span>${esc(node.summary)}</span></div></div>`:''}<div class="arch-inspector-section"><div class="arch-inspector-label">Exact calls</div>${relationHtml||'<div class="empty">No precise calls in the bounded symbol graph.</div>'}</div></div>`;
+    return;
+  }
   if(isFile){
     const hasRichDetail=node.has_rich_detail!==false;
+    const visibleSymbolCount=(architectureSymbolsByFile(projection).get(node.id)||[]).length;
+    const graphOmitted=Math.max(0,(node.symbol_count||0)-visibleSymbolCount);
+    const internalRemainder=architectureFileInternalRemainder(projection,node.id,node.internal_count);
     const symbolHtml=hasRichDetail?(node.symbols||[]).map(symbol=>`<div class="arch-symbol"><b>${esc(symbol.name)}</b> <span>${esc(symbol.kind)}${symbol.start_line!=null?' · line '+symbol.start_line:''}${symbol.exported?' · exported':''}</span>${symbol.summary?`<div><span>${esc(symbol.summary)}</span></div>`:''}</div>`).join(''):'';
     const symbolDetail=hasRichDetail
       ? symbolHtml||'<div class="empty">No symbol details indexed.</div>'
       : `<div class="empty">Rich symbol and signature detail is omitted for this lightweight hierarchy record. This path remains searchable; rich detail is limited to ${(projection.limits||{}).files||120} files.</div>`;
-    inspector.innerHTML=`<div class="arch-inspector-pad"><button class="arch-clear" type="button" aria-label="Clear selected file" onclick="clearArchitectureSelection()">✕</button><div class="arch-inspector-title">${esc(node.path)}${node.is_noisy?` <span class="arch-file-noise">${esc(node.noise)}</span>`:''}</div><div class="arch-inspector-meta">${esc(node.module)} · ${node.symbol_count||0} indexed symbols · ${node.incoming_count||0} incoming · ${node.outgoing_count||0} outgoing${hasRichDetail?'':' · rich detail omitted'}</div><div class="arch-inspector-section"><div class="arch-inspector-label">Symbols</div>${symbolDetail}${hasRichDetail&&node.omitted_symbols?`<div class="empty">+${node.omitted_symbols} more symbols omitted by the projection limit.</div>`:''}</div><div class="arch-inspector-section"><div class="arch-inspector-label">Relationships</div>${relationHtml||'<div class="empty">No relationship detail in the bounded hierarchy relation set.</div>'}${node.internal_count?`<div class="arch-relation calls"><b>↻ internal calls</b> <span>×${node.internal_count}</span></div>`:''}</div></div>`;
+    inspector.innerHTML=`<div class="arch-inspector-pad"><button class="arch-clear" type="button" aria-label="Clear selected file" onclick="clearArchitectureSelection()">✕</button><div class="arch-inspector-title">${esc(node.path)}${node.is_noisy?` <span class="arch-file-noise">${esc(node.noise)}</span>`:''}</div><div class="arch-inspector-meta">${esc(node.module)} · ${node.symbol_count||0} indexed symbols · ${node.incoming_count||0} incoming · ${node.outgoing_count||0} outgoing${hasRichDetail?'':' · rich detail omitted'}</div>${visibleSymbolCount?`<button class="arch-inspector-action" type="button" data-arch-toggle="${esc(node.id)}">${isExpanded?'Collapse symbol graph':'Expand symbol graph'}</button>`:''}<div class="arch-inspector-section"><div class="arch-inspector-label">Symbols</div>${symbolDetail}${graphOmitted?`<div class="empty">+${graphOmitted} symbol nodes omitted by the bounded graph.</div>`:''}${hasRichDetail&&node.omitted_symbols?`<div class="empty">+${node.omitted_symbols} rich symbol details omitted by the per-file limit.</div>`:''}</div><div class="arch-inspector-section"><div class="arch-inspector-label">Relationships</div>${relationHtml||'<div class="empty">No source-less relationship remainder in the bounded hierarchy set.</div>'}${internalRemainder?`<div class="arch-relation calls"><b>↻ source-less internal calls</b> <span>×${internalRemainder}</span></div>`:''}</div></div>`;
+    const toggle=inspector.querySelector('[data-arch-toggle]'); if(toggle) toggle.addEventListener('click',()=>toggleArchitectureNode(node.id));
     return;
   }
   const label=node.path||node.name;
@@ -6907,7 +7017,9 @@ function selectArchitectureNode(id,toggleCompound=true){
   const node=architectureHierarchyById(projection).get(id);
   if(!node) return;
   architectureSelectedId=id;
-  if(toggleCompound&&!String(id).startsWith('file:')){
+  const isSymbol=String(id).startsWith('code:');
+  const canExpand=!isSymbol&&(!String(id).startsWith('file:')||(architectureSymbolsByFile(projection).get(id)||[]).length>0);
+  if(toggleCompound&&canExpand){
     if(architectureExpandedIds.has(id)) architectureExpandedIds.delete(id); else architectureExpandedIds.add(id);
   }
   if(lastState) renderArchitecture(lastState);
@@ -6941,39 +7053,45 @@ function renderArchitectureCanvas(projection){
   const visibleIds=new Set(visible.nodes.map(node=>node.id));
   for(const id of [...architectureExpandedIds]) if(!architectureHierarchyById(projection).has(id)) architectureExpandedIds.delete(id);
   if(architectureSelectedId&&!visibleIds.has(architectureSelectedId)) architectureSelectedId=null;
+  const searchFocusedSymbol=architectureSearchFocusedSymbol(visible,architectureSearchText);
+  if(!architectureSelectedId&&searchFocusedSymbol) architectureSelectedId=searchFocusedSymbol;
   const layout=architectureLayoutHierarchy(visible);
   const relations=architectureRetargetRelations(projection,visible.expanded,visibleIds);
   architectureCanvasBounds={width:layout.width,height:layout.height};
   const edgeGeometry=relations.map(relation=>{
     const from=layout.boxes.get(relation.from), to=layout.boxes.get(relation.to);
     if(!from||!to) return null;
-    const p=architectureEdgeAnchors(from,to), mx=(p.x1+p.x2)/2+(relation.kind==='calls'?12:-12);
+    const geometry=architectureEdgeGeometry(relation,from,to);
     const focused=!architectureSelectedId||relation.from===architectureSelectedId||relation.to===architectureSelectedId;
     const width=Math.min(5.5,1.5+Math.log2(1+(relation.count||1))*.65);
-    return {relation,mx,p,focused,width,path:`M${p.x1},${p.y1} C${mx},${p.y1} ${mx},${p.y2} ${p.x2},${p.y2}`};
+    return {relation,focused,width,...geometry};
   }).filter(Boolean);
   const halos=edgeGeometry.map(({path,focused,width})=>`<path class="arch-canvas-edge-halo${focused?'':' muted'}" d="${path}" stroke-width="${width+5}" stroke-opacity=".94"/>`).join('');
-  const edges=edgeGeometry.map(({relation,mx,p,focused,width,path})=>`<path class="arch-canvas-edge ${esc(relation.kind)}${focused?'':' muted'}" d="${path}" stroke-width="${width}" stroke-opacity=".88" marker-end="url(#arch-canvas-${esc(relation.kind)})"><title>${esc(relation.kind)} · ${relation.count||1}</title></path>${relation.count>1?`<text class="arch-canvas-edge-label" x="${mx}" y="${(p.y1+p.y2)/2-4}">×${relation.count}</text>`:''}`).join('');
-  const backgrounds=visible.nodes.filter(node=>node.hierarchy_kind!=='file').map(node=>{
+  const edges=edgeGeometry.map(({relation,labelX,labelY,focused,width,path})=>`<path class="arch-canvas-edge ${esc(relation.kind)}${focused?'':' muted'}" d="${path}" stroke-width="${width}" stroke-opacity=".88" marker-end="url(#arch-canvas-${esc(relation.kind)})"><title>${esc(relation.kind)} · ${relation.count||1}${relation.precise_count?' · '+relation.precise_count+' precise':''}</title></path>${relation.count>1?`<text class="arch-canvas-edge-label" x="${labelX}" y="${labelY}">×${relation.count}</text>`:''}`).join('');
+  const backgrounds=visible.nodes.filter(node=>node.hierarchy_kind!=='symbol'&&(node.hierarchy_kind!=='file'||visible.expanded.has(node.id))).map(node=>{
     const box=layout.boxes.get(node.id); if(!box) return '';
     const selected=node.id===architectureSelectedId;
     return `<rect class="arch-compound-boundary ${esc(node.hierarchy_kind)}${selected?' selected':''}" x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" rx="10"/>`;
   }).join('');
   const nodes=visible.nodes.map(node=>{
     const box=layout.boxes.get(node.id); if(!box) return '';
-    const expanded=node.hierarchy_kind!=='file'&&visible.expanded.has(node.id);
+    const expanded=node.hierarchy_kind!=='symbol'&&visible.expanded.has(node.id)&&(node.child_ids||[]).length>0;
+    const hasChildren=node.hierarchy_kind!=='symbol'&&(node.child_ids||[]).length>0;
     const selected=node.id===architectureSelectedId, searchHit=visible.match_ids.has(node.id);
-    const classes=`arch-canvas-node ${node.hierarchy_kind==='file'?'arch-canvas-file':'arch-compound '+node.hierarchy_kind}${expanded?' expanded':''}${selected?' selected':''}${searchHit?' search-hit':''}`;
+    const baseClass=node.hierarchy_kind==='symbol'?`arch-canvas-symbol ${node.kind||'symbol'}`:node.hierarchy_kind==='file'?`arch-canvas-file${hasChildren?' arch-compound file':''}`:`arch-compound ${node.hierarchy_kind}`;
+    const classes=`arch-canvas-node ${baseClass}${expanded?' expanded':''}${selected?' selected':''}${searchHit?' search-hit':''}`;
     const label=architectureCanvasNodeLabel(node), meta=architectureCanvasNodeMeta(node,expanded);
-    const aria=node.hierarchy_kind==='file'?`Inspect ${node.path}`:`${expanded?'Collapse':'Expand'} ${node.path||node.name}`;
-    if(node.hierarchy_kind==='file') return `<g class="${classes}" transform="translate(${box.x},${box.y})" data-arch-id="${esc(node.id)}" data-parent-id="${esc(node.visible_parent_id||'')}" role="button" tabindex="0" aria-label="${esc(aria)}"><rect width="${box.w}" height="${box.h}" rx="7"/><rect class="arch-file-accent" width="4" height="${box.h}" rx="2"/><text class="arch-canvas-title" x="13" y="23">${esc(label)}</text><text class="arch-canvas-meta" x="13" y="42">${esc(meta)}${node.is_noisy?' · '+esc(node.noise):''}</text><title>${esc(node.path)}</title></g>`;
+    const aria=node.hierarchy_kind==='symbol'?`Inspect ${node.kind||'symbol'} ${node.name}`:hasChildren?`${expanded?'Collapse':'Expand'} ${node.path||node.name}`:`Inspect ${node.path||node.name}`;
+    if(node.hierarchy_kind==='symbol') return `<g class="${classes}" transform="translate(${box.x},${box.y})" data-arch-id="${esc(node.id)}" data-parent-id="${esc(node.visible_parent_id||'')}" role="button" tabindex="0" aria-label="${esc(aria)}"><rect width="${box.w}" height="${box.h}" rx="7"/><rect class="arch-symbol-accent" width="4" height="${box.h}" rx="2"/><text class="arch-canvas-title" x="13" y="22">${esc(label)}</text><text class="arch-canvas-meta" x="13" y="41">${esc(meta)}</text><title>${esc(node.signature||node.name)}</title></g>`;
+    if(node.hierarchy_kind==='file') return `<g class="${classes}" transform="translate(${box.x},${box.y})" data-arch-id="${esc(node.id)}" data-parent-id="${esc(node.visible_parent_id||'')}" role="button" tabindex="0"${hasChildren?` aria-expanded="${expanded}"`:''} aria-label="${esc(aria)}"><rect width="${box.w}" height="${expanded?34:box.h}" rx="7"/><rect class="arch-file-accent" width="4" height="${expanded?34:box.h}" rx="2"/>${hasChildren?`<text class="arch-canvas-chevron" x="13" y="23">${expanded?'▾':'▸'}</text>`:''}<text class="arch-canvas-title" x="${hasChildren?31:13}" y="23">${esc(label)}</text><text class="arch-canvas-meta" x="${expanded?box.w-12:13}" y="${expanded?23:42}" text-anchor="${expanded?'end':'start'}">${esc(meta)}${node.is_noisy?' · '+esc(node.noise):''}</text><title>${esc(node.path)}</title></g>`;
     return `<g class="${classes}" transform="translate(${box.x},${box.y})" data-arch-id="${esc(node.id)}" data-parent-id="${esc(node.visible_parent_id||'')}" role="button" tabindex="0" aria-expanded="${expanded}" aria-label="${esc(aria)}"><rect width="${box.w}" height="${expanded?34:box.h}" rx="10"/><text class="arch-canvas-chevron" x="13" y="23">${expanded?'▾':'▸'}</text><text class="arch-canvas-title" x="31" y="23">${esc(label)}</text><text class="arch-canvas-meta" x="${expanded?box.w-12:13}" y="${expanded?23:48}" text-anchor="${expanded?'end':'start'}">${esc(meta)}</text><title>${esc(node.path||node.name)}</title></g>`;
   }).join('');
   const matchCount=visible.match_ids.size;
   const omittedRich=(projection.omitted||{}).files?` · ${(projection.omitted||{}).files} rich details omitted`:'';
   const omittedPaths=(projection.omitted||{}).hierarchy_files?` · ${(projection.omitted||{}).hierarchy_files} paths omitted by safety limit`:'';
-  count.textContent=(architectureSearchText.trim()?`${matchCount} search result${matchCount===1?'':'s'} · ${visible.nodes.length} visible nodes`:`${(projection.modules||[]).length} modules · ${(projection.summary||{}).indexed_files||0} indexed files · ${relations.length} visible relations`)+omittedRich+omittedPaths;
-  map.innerHTML=`<svg id="architectureCanvas" role="region" aria-label="Pan and zoom architecture hierarchy" tabindex="0"><title>Architecture hierarchy</title><desc>Modules and folders expand recursively. Drag to pan and use the wheel to zoom.</desc><defs><marker id="arch-canvas-imports" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#58a6ff"/></marker><marker id="arch-canvas-calls" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#d29922"/></marker></defs><g class="arch-canvas-root"><g class="arch-compound-backgrounds">${backgrounds}</g><g class="arch-canvas-edge-halos">${halos}</g><g class="arch-canvas-edges">${edges}</g><g class="arch-canvas-nodes">${nodes}</g></g></svg><div class="arch-canvas-hint">Drag to pan · wheel/pinch to zoom · Enter to expand</div>`;
+  const omittedSymbolNodes=(projection.omitted||{}).symbol_nodes?` · ${(projection.omitted||{}).symbol_nodes} symbol nodes omitted`:'';
+  count.textContent=(architectureSearchText.trim()?`${matchCount} search result${matchCount===1?'':'s'} · ${visible.nodes.length} visible nodes`:`${(projection.modules||[]).length} modules · ${(projection.summary||{}).indexed_files||0} indexed files · ${relations.length} visible relations`)+omittedRich+omittedPaths+omittedSymbolNodes;
+  map.innerHTML=`<svg id="architectureCanvas" role="region" aria-label="Pan and zoom architecture hierarchy" tabindex="0"><title>Architecture hierarchy</title><desc>Modules, folders, and files expand recursively; expanded files contain bounded symbol call graphs. Drag to pan and use the wheel to zoom.</desc><defs><marker id="arch-canvas-imports" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#58a6ff"/></marker><marker id="arch-canvas-calls" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#d29922"/></marker></defs><g class="arch-canvas-root"><g class="arch-compound-backgrounds">${backgrounds}</g><g class="arch-canvas-edge-halos">${halos}</g><g class="arch-canvas-edges">${edges}</g><g class="arch-canvas-nodes">${nodes}</g></g></svg><div class="arch-canvas-hint">Drag to pan · wheel/pinch to zoom · Enter to expand</div>`;
   map.querySelectorAll('.arch-canvas-node').forEach(element=>{
     const activate=event=>{ event.stopPropagation(); selectArchitectureNode(element.dataset.archId,true); };
     element.addEventListener('click',activate);
