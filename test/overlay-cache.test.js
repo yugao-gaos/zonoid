@@ -34,6 +34,7 @@ const WS_CUR = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ovcac
 const WS_A = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ovcache-A-')));
 const WS_B = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ovcache-B-')));
 const WS_SWEEP = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ovcache-sweep-')));
+const WS_SPAWN = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ovcache-spawn-')));
 
 // Pin a current workspace + its authoritative in-memory overlay (mirrors setWorkspace).
 const curOv = overlayStore.EMPTY();
@@ -41,6 +42,7 @@ __setWorkspaceForTest(WS_CUR);
 __setOverlayForTest(curOv);
 __clearOverlayCacheForTest();
 
+async function run() {
 try {
   // (3) current-workspace alias: overlayFor(state.workspace) === state.overlay (no second Map copy).
   ok('(3) overlayFor(current ws) IS state.overlay (alias, not a copy)', overlayFor(WS_CUR) === curOv);
@@ -81,6 +83,26 @@ try {
     overlayStore.load = originalLoad;
   }
 
+  // A routine graph mutation wakes the frontier spawn pump even when headless dispatch is off.
+  // Its config gate must read through the same daemon cache instead of replaying the graph, and
+  // the executor must retain that authoritative object for the following state request.
+  const spawnOv = overlayFor(WS_SPAWN);
+  daemon.__setLoopsForTest([['managed-cache-test', {
+    id: 'managed-cache-test', active: true, managed: 'graph', session: null, workspace: WS_SPAWN,
+  }]]);
+  const originalSpawnLoad = overlayStore.load;
+  let spawnReloads = 0;
+  overlayStore.load = (...args) => { spawnReloads++; return originalSpawnLoad(...args); };
+  try {
+    const result = await daemon.__createHeadlessSpawnExecutorForTest().runDueDrains({ workspace: WS_SPAWN });
+    ok('(5) gated-off frontier wake exits without dispatch', result.skipped === 'headless_driver_off');
+    ok('(5) frontier config check causes zero graph overlay reloads', spawnReloads === 0);
+    ok('(5) following state access retains the cached overlay identity', overlayFor(WS_SPAWN) === spawnOv);
+  } finally {
+    overlayStore.load = originalSpawnLoad;
+    daemon.__clearLoopsForTest();
+  }
+
   // (4) out-of-band coherency: an EXTERNAL writer mutates wsA's file (fresh object → new mtime).
   // The next overlayFor(wsA) must pick up the external change (reload), exactly as the pre-P2a
   // per-call load() did — no NEW staleness class.
@@ -100,7 +122,7 @@ try {
   console.error('TEST ERROR:', e);
   fail++;
 } finally {
-  for (const d of [process.env.CLAUDE_PLUGIN_DATA, WS_CUR, WS_A, WS_B, WS_SWEEP]) {
+  for (const d of [process.env.CLAUDE_PLUGIN_DATA, WS_CUR, WS_A, WS_B, WS_SWEEP, WS_SPAWN]) {
     try { fs.rmSync(d, { recursive: true, force: true }); } catch { /* */ }
   }
 }
@@ -108,3 +130,9 @@ try {
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
+}
+
+run().catch((e) => {
+  console.error('TEST ERROR:', e);
+  process.exit(1);
+});
