@@ -10,6 +10,11 @@ const { agreementRate } = require('../lib/shadow-journal');
 const { getPromotionState } = require('../lib/promotion-gate');
 const { estimatedSavings } = require('../lib/economy');
 
+// Shared daemon cache: graph/overlay mutations invalidate immediately through notifyChange and
+// out-of-process overlay writes invalidate by mtime. The bounded TTL is the fallback for transcript
+// or analytics-file growth that does not touch the overlay.
+const ANALYTICS_CACHE_TTL_MS = 60 * 1000;
+
 function sessionsFromOverlay(ov) {
   const snap = ov && ov.usage_reconcile_snapshot;
   if (snap && Array.isArray(snap.sessions) && snap.sessions.length) return snap.sessions;
@@ -168,7 +173,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     let activeHarness = harness;
     try { if (harnessRegistry && harnessName) activeHarness = harnessRegistry.get(harnessName); } catch { activeHarness = harness; }
     const cfKey = `costflow|${cfWs}|${harnessName}|${u.searchParams.get('since') || ''}`;
-    const cfHit = respCacheGet(cfWs, cfKey);
+    const cfHit = respCacheGet(cfWs, cfKey, ANALYTICS_CACHE_TTL_MS);
     if (cfHit !== undefined) { send(res, 200, cfHit); return true; }
     const g = buildGraph(T.ws);
     const stWs = { ...state, overlay: T.ov };
@@ -352,6 +357,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/harness/overhead' && m === 'GET') {
     const T = targetOverlay(null, u);
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace set' }); return true; }
+    const overheadKey = `harness-overhead|${T.ws}`;
+    const overheadHit = respCacheGet(T.ws, overheadKey, ANALYTICS_CACHE_TTL_MS);
+    if (overheadHit !== undefined) { send(res, 200, overheadHit); return true; }
     const merged = usageAccounting.sumUsageRecords(T.ov);
     const overhead = usageAccounting.sumOverhead(T.ov);
     const human = merged.human || { tokens: 0, chars: 0, messages: 0, dropped: 0 };
@@ -387,7 +395,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
     } catch { /* best effort — never fail the response */ }
 
-    send(res, 200, { overhead, human, total_input_est: overhead.tokens + human.tokens, total_session_input: totalSessionInput, system_reminder_est, harness_fraction: totalSessionInput > 0 ? Math.round(((overhead.tokens + system_reminder_est) / totalSessionInput) * 1000) / 1000 : 0, self_maintenance: { tokens: Math.round(selfMaintenanceTokens), description: 'output_tokens attributed to harness-prefixed self-maintenance tasks (e.g. judge drain)' } }); return true;
+    send(res, 200, respCachePut(T.ws, overheadKey, { overhead, human, total_input_est: overhead.tokens + human.tokens, total_session_input: totalSessionInput, system_reminder_est, harness_fraction: totalSessionInput > 0 ? Math.round(((overhead.tokens + system_reminder_est) / totalSessionInput) * 1000) / 1000 : 0, self_maintenance: { tokens: Math.round(selfMaintenanceTokens), description: 'output_tokens attributed to harness-prefixed self-maintenance tasks (e.g. judge drain)' } })); return true;
   }
 
   // Per-node judging-cost rollup: sums output_tokens from usage slices whose judged_node equals
@@ -444,10 +452,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!T.ws) { send(res, 400, { ok: false, error: 'workspace required — pass ?workspace=' }); return true; }
     const windowParam = parseInt(u.searchParams.get('window') || '200', 10);
     const win = (Number.isFinite(windowParam) && windowParam > 0) ? windowParam : 200;
+    const agreementKey = `agreement|${T.ws}|${win}`;
+    const agreementHit = respCacheGet(T.ws, agreementKey, ANALYTICS_CACHE_TTL_MS);
+    if (agreementHit !== undefined) { send(res, 200, agreementHit); return true; }
     const result = agreementRate(T.ws, win);
     const agreement = result ? { ...result, window: win } : null;
     const promotionState = getPromotionState(T.ws);
-    send(res, 200, { ok: true, agreement, promoted: !!promotionState.promoted, promotionState: promotionState.promoted ? promotionState : null });
+    send(res, 200, respCachePut(T.ws, agreementKey, { ok: true, agreement, promoted: !!promotionState.promoted, promotionState: promotionState.promoted ? promotionState : null }));
     return true;
   }
 
@@ -491,4 +502,4 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   return false;
 };
 
-module.exports._internal = { sessionsFromOverlay, claimedOutputForSession, harnessNameForWorkspace, representedSessionIds };
+module.exports._internal = { sessionsFromOverlay, claimedOutputForSession, harnessNameForWorkspace, representedSessionIds, ANALYTICS_CACHE_TTL_MS };
