@@ -2147,7 +2147,12 @@ test('preparation miner failure is persisted truthfully and does not publish a q
 
 test('preparation timeout is persisted as an error and releases its worker slot', async () => {
   const savedTimeout = process.env.HEADLESS_DRAIN_PREPARATION_TIMEOUT_MS;
-  process.env.HEADLESS_DRAIN_PREPARATION_TIMEOUT_MS = '100';
+  // The budget must survive the pre-spawn setup (status claim, scavenge, mkdir, atomic marker):
+  // runOnboardPreparation checks remainingMs BEFORE each step and fails WITHOUT spawning when the
+  // deadline already passed. At 100ms Windows fs latency ate the whole budget, so the mocked child
+  // was never spawned and this test asserted against an empty spawn log. 2000ms leaves the timeout
+  // path exercised (the mock child never exits; runDrain kills it at the deadline) on every OS.
+  process.env.HEADLESS_DRAIN_PREPARATION_TIMEOUT_MS = '2000';
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-prepare-timeout-'));
   const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
   fs.mkdirSync(outDir, { recursive: true });
@@ -3113,7 +3118,7 @@ test('api-kind active backend ⇒ judge spawns API worker, not provider invocati
     assert.equal(result.skipped, null, 'judge ran ⇒ not skipped');
     const workerArgs = calls.map((c) => {
       assert.equal(c.bin, process.execPath, 'api worker uses the current Node runtime');
-      assert.match(c.args[0], /scripts\/api-judge-worker\.js$/, 'api worker script is spawned');
+      assert.match(c.args[0], /scripts[\/\\]api-judge-worker\.js$/, 'api worker script is spawned');
       return JSON.parse(c.args[1]);
     });
     const nodes = workerArgs.map((a) => a.node || null);
