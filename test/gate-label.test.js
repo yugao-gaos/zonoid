@@ -56,6 +56,9 @@ const MOCK_PORT = 19900 + Math.floor(Math.random() * 100);
 // In-memory fixtures, mutated per test.
 const taskRegistry = {};   // key → { task, summary, transcript }
 let searchResults = [];    // returned by /search
+let stateRequestCount = 0;
+let detailRequestCount = 0;
+let lastStateUrl = null;
 
 function startMockServer() {
   return new Promise((resolve) => {
@@ -68,7 +71,16 @@ function startMockServer() {
         return;
       }
 
+      if (url.pathname === '/state') {
+        stateRequestCount++;
+        lastStateUrl = url;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ tasks: Object.values(taskRegistry).map((entry) => entry.task) }));
+        return;
+      }
+
       if (url.pathname === '/task/detail') {
+        detailRequestCount++;
         const key = url.searchParams.get('key');
         const entry = taskRegistry[key];
         if (!entry) {
@@ -135,6 +147,12 @@ function clearLabeled() {
   if (fs.existsSync(LABELED_PATH)) fs.unlinkSync(LABELED_PATH);
   if (fs.existsSync(PREDICTIVE_PATH)) fs.unlinkSync(PREDICTIVE_PATH);
   if (fs.existsSync(RETRIEVAL_WEIGHTS_PATH)) fs.unlinkSync(RETRIEVAL_WEIGHTS_PATH);
+}
+
+function resetRequestCounts() {
+  stateRequestCount = 0;
+  detailRequestCount = 0;
+  lastStateUrl = null;
 }
 
 function writeTranscript(text) {
@@ -242,6 +260,7 @@ function recalledEdge(taskKey, resultKey) {
     // ══ TEST 1: inject + done + topKey in transcript → TP ════════════════════
     {
       clearLabeled();
+      resetRequestCounts();
       writeJournal([
         makeRow({
           decision: 'inject',
@@ -276,6 +295,13 @@ function recalledEdge(taskKey, resultKey) {
       ok('TP: predictive-learning error is zero', learningRows[0] && learningRows[0].prediction_error === 0);
       ok('TP: retrieval-weight feedback is positive', weightRows.length === 1 && weightRows[0].signal === 'positive');
       ok('TP: retrieval weight is reinforced', Math.round(retrievalWeights.getRetrievalWeight(WS, TASK_TP, NOTE_KEY, 'context') * 100) === 110);
+      ok('TP: one compact state snapshot is fetched', stateRequestCount === 1);
+      ok('TP: terminal task and injected note still fetch full detail', detailRequestCount === 2);
+      ok('TP: state snapshot includes explicit workspace',
+        lastStateUrl && lastStateUrl.searchParams.get('workspace') === WS);
+      ok('TP: state snapshot includes archived and internal tasks', lastStateUrl
+        && lastStateUrl.searchParams.get('include_archived') === '1'
+        && lastStateUrl.searchParams.get('include_internal') === '1');
     }
 
     // ══ TEST 2: inject + done + topKey NOT in transcript → FP ════════════════
@@ -442,6 +468,38 @@ function recalledEdge(taskKey, resultKey) {
       ok('no-tokenUsage: labeled row present', labeled.length === 1);
       ok('no-tokenUsage: token_cost.output is 0', row && row.token_cost && row.token_cost.output === 0);
       ok('no-tokenUsage: token_cost.total is 0', row && row.token_cost && row.token_cost.total === 0);
+    }
+
+    // High-cardinality nonterminal backlog: status filtering must never fan out task detail calls.
+    {
+      clearLabeled();
+      resetRequestCounts();
+      const pendingCount = 1147;
+      const rows = [];
+      for (let i = 0; i < pendingCount; i++) {
+        const taskKey = `task-pending/${i}`;
+        taskRegistry[taskKey] = {
+          task: { id: taskKey, label: `pending task ${i}`, status: 'ready' },
+          summary: '', transcript: null,
+        };
+        rows.push(makeRow({
+          task_key: taskKey,
+          decision: 'abstain',
+          ts: '2026-01-05T00:00:00.000Z',
+          query: `high-cardinality-pending-${i}`,
+        }));
+      }
+      writeJournal(rows);
+      searchResults = [];
+
+      const r = await runLabeler();
+      ok('high-cardinality: exit code 0', r.status === 0);
+      ok('high-cardinality: one state request for 1,147 rows', stateRequestCount === 1);
+      ok('high-cardinality: nonterminal rows make zero detail requests', detailRequestCount === 0);
+      ok('high-cardinality: no nonterminal rows are labeled', readJsonl(LABELED_PATH).length === 0);
+      ok('high-cardinality: all rows remain pending', r.stdout.includes(`Still pending:        ${pendingCount}`));
+      ok('high-cardinality: compact state mode is requested',
+        lastStateUrl && lastStateUrl.searchParams.get('compact') === '1');
     }
 
   } catch (e) {

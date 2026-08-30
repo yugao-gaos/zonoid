@@ -80,8 +80,16 @@ function appendJsonl(file, obj) {
 }
 
 // ── Task detail fetch ─────────────────────────────────────────────────────────
+async function fetchTaskStatuses() {
+  const url = `http://localhost:${PORT}/state?compact=1&include_archived=1&include_internal=1&workspace=${encodeURIComponent(WORKSPACE)}`;
+  const r = await httpGet(url);
+  if (r.status !== 200) throw new Error(`task state → HTTP ${r.status}`);
+  const tasks = [...(r.body.tasks || []), ...(r.body.archived_tasks || [])];
+  return new Map(tasks.filter((task) => task && task.id).map((task) => [task.id, task.status || '']));
+}
+
 async function fetchTaskDetail(taskKey) {
-  const url = `http://localhost:${PORT}/task/detail?key=${encodeURIComponent(taskKey)}`;
+  const url = `http://localhost:${PORT}/task/detail?key=${encodeURIComponent(taskKey)}&workspace=${encodeURIComponent(WORKSPACE)}`;
   const r = await httpGet(url);
   if (r.status !== 200) throw new Error(`task detail ${taskKey} → HTTP ${r.status}`);
   return r.body;
@@ -179,6 +187,11 @@ async function main() {
   let stillPending = 0;
   let unlabelable = 0;
   const quadCounts = { TP: 0, FP: 0, TN: 0, FN: 0 };
+  const hasPendingTaskRows = journalRows.some((row) => row.task_key && !labeledKeys.has(rowKey(row)));
+  let taskStatuses = new Map();
+  if (hasPendingTaskRows) {
+    try { taskStatuses = await fetchTaskStatuses(); } catch { /* state failure leaves rows pending */ }
+  }
 
   for (const row of journalRows) {
     const key = rowKey(row);
@@ -189,6 +202,14 @@ async function main() {
     // No task_key → unlabelable
     if (!row.task_key) {
       unlabelable++;
+      continue;
+    }
+
+    // One compact state snapshot filters the large nonterminal backlog without calling
+    // /task/detail (which resolves transcripts synchronously). A terminal row still fetches full
+    // detail below so token cost, transcript/note-used, metrics, and task summary stay unchanged.
+    if (!isTerminal(taskStatuses.get(row.task_key) || '')) {
+      stillPending++;
       continue;
     }
 
