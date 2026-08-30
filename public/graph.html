@@ -5605,7 +5605,7 @@ function closeDetail(){ selected=null; selectedDetailData=null; detailRequestSeq
 // cache refreshes on the graph tick but at most every 30s (and never overlaps itself).
 let costCache=null, costAt=0, costBusy=false;
 function refreshCost(){
-  if(costBusy||Date.now()-costAt<2000) return;
+  if(costBusy||Date.now()-costAt<30000) return;
   costBusy=true;
   dfetch('/costflow').then(r=>r.json()).then(d=>{ if(d&&!d.error&&d.totals){ costCache=d; costAt=Date.now(); } }).catch(()=>{}).finally(()=>{ costAt=Date.now(); costBusy=false; });
 }

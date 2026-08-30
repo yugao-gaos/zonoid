@@ -10,7 +10,8 @@ const analyticsRoute = require('../routes/analytics');
 const { sessionCatchalls } = require('../lib/costflow');
 const codex = require('../lib/adapters/codex');
 const { claimRelPath } = require('../lib/git-claims');
-const { taskTranscript } = require('../daemon.js');
+const { taskTranscript, respCacheGet, respCachePut, notifyChange } = require('../daemon.js');
+const { appendShadow } = require('../lib/shadow-journal');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
@@ -81,7 +82,7 @@ async function runAsyncTests() {
     ].join('\n') + '\n');
     fs.utimesSync(rolloutPath, new Date('2026-06-22T10:20:00.000Z'), new Date('2026-06-22T10:20:00.000Z'));
 
-    const makeCostflowRoute = (tasks, ov, ws) => analyticsRoute({
+    const makeCostflowRoute = (tasks, ov, ws, overrides = {}) => analyticsRoute({
       send(_res, code, body) { _res.statusCode = code; _res.body = body; },
       buildGraph() { return { tasks, ghosts: [] }; },
       state: { sessions: {} },
@@ -96,6 +97,7 @@ async function runAsyncTests() {
       harnessRegistry: { get(name) { if (name === 'codex') return codex; throw new Error(name); } },
       notifyChange() {},
       CATCHALL_ESCALATE_TOKENS: 1e9,
+      ...overrides,
     });
 
     const uuid = '119eef9f-bc70-7541-8f76-379400ff71e2';
@@ -265,6 +267,42 @@ async function runAsyncTests() {
     ok('/costflow splits represented durable claim snapshot total when rollout file is pruned', ownByTask[prunedDurableTaskA] === 750 && ownByTask[prunedDurableTaskB] === 250);
     ok('/costflow flow total does not exceed accounting snapshot output', res.body.totals.total === 4000 && res.body.totals.total <= res.body.usage_totals.output_tokens);
     ok('/costflow subtracts claimed Codex rollout tokens from catch-all remainder', res.body.sessions.unattributed === 0);
+
+    let cachedBuilds = 0;
+    const cacheTtls = [];
+    const cachedRoute = makeCostflowRoute(tasks, ov, routeWorkspace, {
+      buildGraph() { cachedBuilds++; return { tasks, ghosts: [] }; },
+      respCacheGet(ws, key, ttl) { cacheTtls.push(ttl); return respCacheGet(ws, key, ttl); },
+      respCachePut,
+    });
+    const cacheUrl = new URL(`http://127.0.0.1/costflow?workspace=${encodeURIComponent(routeWorkspace)}&since=shared-cache`);
+    await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
+    await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
+    ok('analytics cache: repeated costflow requests share one graph projection', cachedBuilds === 1);
+    ok('analytics cache: transcript-only freshness fallback is bounded at 60 seconds',
+      cacheTtls.length === 2 && cacheTtls.every((ttl) => ttl === analyticsRoute._internal.ANALYTICS_CACHE_TTL_MS));
+    notifyChange(routeWorkspace);
+    await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
+    ok('analytics cache: notifyChange invalidates costflow immediately', cachedBuilds === 2);
+
+    const overheadUrl = new URL(`http://127.0.0.1/harness/overhead?workspace=${encodeURIComponent(routeWorkspace)}`);
+    await cachedRoute('/harness/overhead', 'GET', {}, {}, overheadUrl, null);
+    await cachedRoute('/harness/overhead', 'GET', {}, {}, overheadUrl, null);
+    ok('analytics cache: repeated harness overhead requests share one graph projection', cachedBuilds === 3);
+
+    fs.mkdirSync(path.join(routeWorkspace, '.graph'), { recursive: true });
+    appendShadow(routeWorkspace, { verdict: 'keep', shadow_verdict: 'keep' });
+    const agreementUrl = new URL(`http://127.0.0.1/metrics/agreement?workspace=${encodeURIComponent(routeWorkspace)}`);
+    const agreementFirst = {}, agreementCached = {}, agreementFresh = {};
+    await cachedRoute('/metrics/agreement', 'GET', {}, agreementFirst, agreementUrl, null);
+    appendShadow(routeWorkspace, { verdict: 'prune', shadow_verdict: 'prune' });
+    await cachedRoute('/metrics/agreement', 'GET', {}, agreementCached, agreementUrl, null);
+    ok('analytics cache: agreement is shared between clients inside the bounded fallback',
+      agreementFirst.body.agreement.total === 1 && agreementCached.body.agreement.total === 1);
+    notifyChange(routeWorkspace);
+    await cachedRoute('/metrics/agreement', 'GET', {}, agreementFresh, agreementUrl, null);
+    ok('analytics cache: graph mutation invalidation refreshes agreement immediately',
+      agreementFresh.body.agreement.total === 2);
 
     const usage = (output) => ({
       input_tokens: 0,

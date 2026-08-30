@@ -104,9 +104,10 @@ function authed(req, u) {
 const cache = { agg: new Map(), aggAt: new Map(), usage: new Map(), usageAt: new Map() };
 const AGG_TTL = 1500, USAGE_TTL = 4000;
 
-// Response cache for the expensive read endpoints (/state, /costflow): dashboards + heartbeats
+// Response cache for expensive read endpoints: dashboards + heartbeats
 // poll both, and every call rebuilds the whole graph (buildGraph) / recomputes SCC+flow. A short
-// TTL bounds the recompute cost; EVERY overlay mutation invalidates immediately — notifyChange()
+// The default short TTL bounds state staleness; analytics callers may pass a longer bounded TTL.
+// EVERY overlay mutation invalidates immediately — notifyChange()
 // is the choke point all mutation routes already call — so status/claim flows never read stale
 // state. The harness task watch below covers native task-file writes that bypass the daemon.
 // buildGraph carries side effects (timestamp stamping, unwired-quarantine stamp, autowire of
@@ -120,9 +121,10 @@ const respCache = new Map();
 function overlayStamp(ws) {
   try { return fs.statSync(overlayStore.fileFor(ws)).mtimeMs; } catch { return 0; }
 }
-function respCacheGet(ws, key) {
+function respCacheGet(ws, key, maxAgeMs = RESP_TTL) {
   const hit = respCache.get(key);
-  return (hit && Date.now() - hit.ts < RESP_TTL && hit.stamp === overlayStamp(ws)) ? hit.payload : undefined;
+  const ttl = Number.isFinite(Number(maxAgeMs)) ? Math.max(0, Number(maxAgeMs)) : RESP_TTL;
+  return (hit && Date.now() - hit.ts < ttl && hit.stamp === overlayStamp(ws)) ? hit.payload : undefined;
 }
 function respCachePut(ws, key, payload) {
   // Stamp AFTER the build: buildGraph itself may have saved the overlay (timestamp stamping,

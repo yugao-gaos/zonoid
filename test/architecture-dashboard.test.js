@@ -52,6 +52,8 @@ assert.ok(html.includes("event.key==='Enter'||event.key===' '"),
 assert.ok(html.includes("v==='spec'||v==='cloud'||v==='frontier'||v==='kanban'||v==='architecture'"));
 assert.ok(html.includes("document.getElementById('architecture').classList.toggle('show', v==='architecture')"));
 assert.ok(html.includes("else if(currentView==='architecture') renderArchitecture(d)"));
+assert.ok(html.includes('Date.now()-costAt<30000'),
+  'costflow refresh has the documented 30-second client floor');
 
 const fingerprintSource = html.slice(
   html.indexOf('function architectureFingerprint'),
