@@ -3,6 +3,17 @@ const internalLanes = require('../lib/internal-lanes');
 const kanban = require('../lib/kanban');
 const architecture = require('../lib/architecture');
 
+function dashboardTasks(tasks) {
+  return tasks.map((task) => {
+    const projected = { ...task };
+    delete projected.vec;
+    delete projected.vecMeta;
+    delete projected.vecs;
+    delete projected.vecsMeta;
+    return projected;
+  });
+}
+
 module.exports = (ctx) => async (p, m, req, res, u) => {
   const { send, buildGraph, state, overlayStore, targetOverlay, respCacheGet, respCachePut,
     isTruthy, frontier, agentsArr } = ctx;
@@ -40,10 +51,10 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       codeEdges: T.ov.code_edges,
     });
     const arch = isFinite(windowMs) ? frontier.archivedIds(graphTasks, { windowMs, keep }) : new Set();
-    const archivedTasks = arch.size ? frontier.archivedTaskList(graphTasks, arch) : null;
+    const archivedTasks = arch.size ? dashboardTasks(frontier.archivedTaskList(graphTasks, arch)) : null;
     if (u.searchParams.get('scope') === 'frontier') {
       const f = frontier.projectFrontier(graphTasks, g.ghosts, edgesOut, { windowMs, includeInternal: true });
-      const body = { ...identity, scope: 'frontier', tasks: f.tasks, ghosts: f.ghosts, edges: f.edges, kanban: kanbanProjection, architecture: architectureProjection, summary: { ...g.summary, archived: f.archived, frontier_kept: f.tasks.length } };
+      const body = { ...identity, scope: 'frontier', tasks: dashboardTasks(f.tasks), ghosts: f.ghosts, edges: f.edges, kanban: kanbanProjection, architecture: architectureProjection, summary: { ...g.summary, archived: f.archived, frontier_kept: f.tasks.length } };
       if (archivedTasks) body.archived_tasks = archivedTasks;
       if (includeInternal) body.internal_lanes = internalLanes.buildInternalLaneProjection({ workspace: ws, graph: g, overlay: T.ov });
       send(res, 200, respCachePut(stWs, stKey, body)); return true;
@@ -66,7 +77,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       if (includeInternal) body.internal_lanes = internalLanes.buildInternalLaneProjection({ workspace: ws, graph: g, overlay: T.ov });
       send(res, 200, respCachePut(stWs, stKey, body)); return true;
     }
-    const body = { ...identity, tasks, ghosts: g.ghosts, edges: edgesOut, routes: state.routes, agents: agentsArr().filter((a) => a.workspace === ws), kanban: kanbanProjection, architecture: architectureProjection, summary, config: T.ov.config || {}, ...archField };
+    const body = { ...identity, tasks: dashboardTasks(tasks), ghosts: g.ghosts, edges: edgesOut, routes: state.routes, agents: agentsArr().filter((a) => a.workspace === ws), kanban: kanbanProjection, architecture: architectureProjection, summary, config: T.ov.config || {}, ...archField };
     if (includeInternal) body.internal_lanes = internalLanes.buildInternalLaneProjection({ workspace: ws, graph: g, overlay: T.ov });
     send(res, 200, respCachePut(stWs, stKey, body)); return true;
   }
