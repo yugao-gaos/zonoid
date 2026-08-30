@@ -1,0 +1,895 @@
+{
+  "schema_version": 1,
+  "benchmark": "voicemem-memory-lane-evaluation",
+  "generated_at": "2026-08-30T18:04:07.767Z",
+  "decision": "HOLD",
+  "reason": "Promotion held because p95_retrieval_latency_overhead, injected_token_overhead did not clear.",
+  "repeats": 50,
+  "arms": {
+    "current": {
+      "schema_version": 1,
+      "benchmark": "memory-lane-baseline",
+      "arm": "current",
+      "memory_lanes": false,
+      "compiler": "lib/search/context-compiler.js",
+      "k": 5,
+      "case_count": 6,
+      "repeats": 50,
+      "metrics": {
+        "factual_accuracy": 0.6,
+        "guidance_leakage_rate": 1,
+        "source_role_confusion_rate": 0.4,
+        "stale_memory_leakage_rate": 0,
+        "recall_at_5": 1,
+        "mrr": 0.667,
+        "mean_estimated_evidence_tokens": 39.333,
+        "mean_estimated_guidance_tokens": 0,
+        "mean_estimated_prompt_tokens": 39.333,
+        "mean_estimated_injected_tokens": 39.333,
+        "latency_sample_count": 300,
+        "p50_retrieval_latency_ms": 0.206,
+        "p95_retrieval_latency_ms": 0.418,
+        "p95_retrieval_latency_interval_ms": {
+          "low": 0.39,
+          "high": 0.508,
+          "method": "approximate 95% order-statistic interval"
+        },
+        "min_retrieval_latency_ms": 0.138,
+        "max_retrieval_latency_ms": 8.875
+      },
+      "outcome_policy": {
+        "explicitly_enabled_for_arm": false,
+        "created_count": 0,
+        "created_keys": [],
+        "recalled_as_guidance": false,
+        "skipped": []
+      },
+      "cases": [
+        {
+          "id": "user-fact-vs-assistant-speculation",
+          "query": "what is the production deployment region",
+          "relevant_keys": [
+            "note:user-region"
+          ],
+          "retrieved_keys": [
+            "note:user-region",
+            "note:assistant-region",
+            "note:database-artifact"
+          ],
+          "recalled_keys": [
+            "note:user-region",
+            "note:assistant-region",
+            "note:database-artifact"
+          ],
+          "hit": true,
+          "rank": 1,
+          "reciprocal_rank": 1,
+          "factual_correct": true,
+          "guidance_leak": false,
+          "source_role_confusion": false,
+          "stale_memory_leak": false,
+          "guidance_keys": [],
+          "estimated_evidence_tokens": 70,
+          "estimated_guidance_tokens": 0,
+          "estimated_prompt_tokens": 70,
+          "estimated_injected_tokens": 70
+        },
+        {
+          "id": "guidance-is-not-current-fact",
+          "query": "what database does the current system use",
+          "relevant_keys": [
+            "note:database-artifact"
+          ],
+          "retrieved_keys": [
+            "note:database-guidance",
+            "note:database-artifact",
+            "note:current-review-guidance"
+          ],
+          "recalled_keys": [
+            "note:database-guidance",
+            "note:database-artifact",
+            "note:current-review-guidance"
+          ],
+          "hit": true,
+          "rank": 2,
+          "reciprocal_rank": 0.5,
+          "factual_correct": false,
+          "guidance_leak": true,
+          "source_role_confusion": true,
+          "stale_memory_leak": false,
+          "guidance_keys": [],
+          "estimated_evidence_tokens": 56,
+          "estimated_guidance_tokens": 0,
+          "estimated_prompt_tokens": 56,
+          "estimated_injected_tokens": 56
+        },
+        {
+          "id": "superseded-preference",
+          "query": "what is the current code review preference for integration",
+          "relevant_keys": [
+            "note:current-review-guidance"
+          ],
+          "retrieved_keys": [
+            "note:database-guidance",
+            "note:database-artifact",
+            "note:current-review-guidance"
+          ],
+          "recalled_keys": [
+            "note:database-guidance",
+            "note:database-artifact",
+            "note:current-review-guidance"
+          ],
+          "hit": true,
+          "rank": 3,
+          "reciprocal_rank": 0.333,
+          "factual_correct": null,
+          "guidance_leak": false,
+          "source_role_confusion": false,
+          "stale_memory_leak": false,
+          "guidance_keys": [],
+          "estimated_evidence_tokens": 56,
+          "estimated_guidance_tokens": 0,
+          "estimated_prompt_tokens": 56,
+          "estimated_injected_tokens": 56
+        },
+        {
+          "id": "tool-evidence",
+          "query": "which build did the test tool report passed",
+          "relevant_keys": [
+            "note:tool-build"
+          ],
+          "retrieved_keys": [
+            "note:tool-build"
+          ],
+          "recalled_keys": [
+            "note:tool-build"
+          ],
+          "hit": true,
+          "rank": 1,
+          "reciprocal_rank": 1,
+          "factual_correct": true,
+          "guidance_leak": false,
+          "source_role_confusion": false,
+          "stale_memory_leak": false,
+          "guidance_keys": [],
+          "estimated_evidence_tokens": 18,
+          "estimated_guidance_tokens": 0,
+          "estimated_prompt_tokens": 18,
+          "estimated_injected_tokens": 18
+        },
+        {
+          "id": "entity-expanded-recall",
+          "query": "what should Zonoid use for accounting amounts",
+          "relevant_keys": [
+            "note:zonoid-accounting"
+          ],
+          "retrieved_keys": [
+            "note:current-review-guidance",
+            "note:zonoid-accounting"
+          ],
+          "recalled_keys": [
+            "note:current-review-guidance",
+            "note:zonoid-accounting"
+          ],
+          "hit": true,
+          "rank": 2,
+          "reciprocal_rank": 0.5,
+          "factual_correct": false,
+          "guidance_leak": false,
+          "source_role_confusion": true,
+          "stale_memory_leak": false,
+          "guidance_keys": [],
+          "estimated_evidence_tokens": 36,
+          "estimated_guidance_tokens": 0,
+          "estimated_prompt_tokens": 36,
+          "estimated_injected_tokens": 36
+        },
+        {
+          "id": "no-evidence-abstention",
+          "query": "which airline kiosk redeemed the mileage voucher",
+          "relevant_keys": [],
+          "retrieved_keys": [],
+          "recalled_keys": [],
+          "hit": true,
+          "rank": 0,
+          "reciprocal_rank": 0,
+          "factual_correct": true,
+          "guidance_leak": false,
+          "source_role_confusion": false,
+          "stale_memory_leak": false,
+          "guidance_keys": [],
+          "estimated_evidence_tokens": 0,
+          "estimated_guidance_tokens": 0,
+          "estimated_prompt_tokens": 0,
+          "estimated_injected_tokens": 0
+        }
+      ]
+    },
+    "lane-aware": {
+      "schema_version": 1,
+      "benchmark": "memory-lane-baseline",
+      "arm": "lane-aware",
+      "memory_lanes": true,
+      "compiler": "lib/search/context-compiler.js",
+      "k": 5,
+      "case_count": 6,
+      "repeats": 50,
+      "metrics": {
+        "factual_accuracy": 1,
+        "guidance_leakage_rate": 0,
+        "source_role_confusion_rate": 0,
+        "stale_memory_leakage_rate": 0,
+        "recall_at_5": 1,
+        "mrr": 0.9,
+        "mean_estimated_evidence_tokens": 26.5,
+        "mean_estimated_guidance_tokens": 13.167,
+        "mean_estimated_prompt_tokens": 26.5,
+        "mean_estimated_injected_tokens": 39.333,
+        "latency_sample_count": 300,
+        "p50_retrieval_latency_ms": 0.206,
+        "p95_retrieval_latency_ms": 0.427,
+        "p95_retrieval_latency_interval_ms": {
+          "low": 0.393,
+          "high": 0.588,
+          "method": "approximate 95% order-statistic interval"
+        },
+        "min_retrieval_latency_ms": 0.138,
+        "max_retrieval_latency_ms": 8.064
+      },
+      "outcome_policy": {
+        "explicitly_enabled_for_arm": false,
+        "created_count": 0,
+        "created_keys": [],
+        "recalled_as_guidance": false,
+        "skipped": []
+      },
+      "cases": [
+        {
+          "id": "user-fact-vs-assistant-speculation",
+          "query": "what is the production deployment region",
+          "relevant_keys": [
+            "note:user-region"
+          ],
+          "retrieved_keys": [
+            "note:user-region",
+            "note:assistant-region",
+            "note:database-artifact"
+          ],
+          "recalled_keys": [
+            "note:user-region",
+            "note:assistant-region",
+            "note:database-artifact"
+          ],
+          "hit": true,
+          "rank": 1,
+          "reciprocal_rank": 1,
+          "factual_correct": true,
+          "guidance_leak": false,
+          "source_role_confusion": false,
+          "stale_memory_leak": false,
+          "guidance_keys": [],
+          "estimated_evidence_tokens": 70,
+          "estimated_guidance_tokens": 0,
+          "estimated_prompt_tokens": 70,
+          "estimated_injected_tokens": 70
+        },
+        {
+          "id": "guidance-is-not-current-fact",
+          "query": "what database does the current system use",
+          "relevant_keys": [
+            "note:database-artifact"
+          ],
+          "retrieved_keys": [
+            "note:database-artifact"
+          ],
+          "recalled_keys": [
+            "note:database-artifact",
+            "note:database-guidance",
+            "note:current-review-guidance"
+          ],
+          "hit": true,
+          "rank": 1,
+          "reciprocal_rank": 1,
+          "factual_correct": true,
+          "guidance_leak": false,
+          "source_role_confusion": false,
+          "stale_memory_leak": false,
+          "guidance_keys": [
+            "note:database-guidance",
+            "note:current-review-guidance"
+          ],
+          "estimated_evidence_tokens": 26,
+          "estimated_guidance_tokens": 31,
+          "estimated_prompt_tokens": 26,
+          "estimated_injected_tokens": 56
+        },
+        {
+          "id": "superseded-preference",
+          "query": "what is the current code review preference for integration",
+          "relevant_keys": [
+            "note:current-review-guidance"
+          ],
+          "retrieved_keys": [
+            "note:database-artifact"
+          ],
+          "recalled_keys": [
+            "note:database-artifact",
+            "note:database-guidance",
+            "note:current-review-guidance"
+          ],
+          "hit": true,
+          "rank": 2,
+          "reciprocal_rank": 0.5,
+          "factual_correct": null,
+          "guidance_leak": false,
+          "source_role_confusion": false,
+          "stale_memory_leak": false,
+          "guidance_keys": [
+            "note:database-guidance",
+            "note:current-review-guidance"
+          ],
+          "estimated_evidence_tokens": 26,
+          "estimated_guidance_tokens": 31,
+          "estimated_prompt_tokens": 26,
+          "estimated_injected_tokens": 56
+        },
+        {
+          "id": "tool-evidence",
+          "query": "which build did the test tool report passed",
+          "relevant_keys": [
+            "note:tool-build"
+          ],
+          "retrieved_keys": [
+            "note:tool-build"
+          ],
+          "recalled_keys": [
+            "note:tool-build"
+          ],
+          "hit": true,
+          "rank": 1,
+          "reciprocal_rank": 1,
+          "factual_correct": true,
+          "guidance_leak": false,
+          "source_role_confusion": false,
+          "stale_memory_leak": false,
+          "guidance_keys": [],
+          "estimated_evidence_tokens": 18,
+          "estimated_guidance_tokens": 0,
+          "estimated_prompt_tokens": 18,
+          "estimated_injected_tokens": 18
+        },
+        {
+          "id": "entity-expanded-recall",
+          "query": "what should Zonoid use for accounting amounts",
+          "relevant_keys": [
+            "note:zonoid-accounting"
+          ],
+          "retrieved_keys": [
+            "note:zonoid-accounting"
+          ],
+          "recalled_keys": [
+            "note:zonoid-accounting",
+            "note:current-review-guidance"
+          ],
+          "hit": true,
+          "rank": 1,
+          "reciprocal_rank": 1,
+          "factual_correct": true,
+          "guidance_leak": false,
+          "source_role_confusion": false,
+          "stale_memory_leak": false,
+          "guidance_keys": [
+            "note:current-review-guidance"
+          ],
+          "estimated_evidence_tokens": 19,
+          "estimated_guidance_tokens": 17,
+          "estimated_prompt_tokens": 19,
+          "estimated_injected_tokens": 36
+        },
+        {
+          "id": "no-evidence-abstention",
+          "query": "which airline kiosk redeemed the mileage voucher",
+          "relevant_keys": [],
+          "retrieved_keys": [],
+          "recalled_keys": [],
+          "hit": true,
+          "rank": 0,
+          "reciprocal_rank": 0,
+          "factual_correct": true,
+          "guidance_leak": false,
+          "source_role_confusion": false,
+          "stale_memory_leak": false,
+          "guidance_keys": [],
+          "estimated_evidence_tokens": 0,
+          "estimated_guidance_tokens": 0,
+          "estimated_prompt_tokens": 0,
+          "estimated_injected_tokens": 0
+        }
+      ]
+    },
+    "lane-aware-outcome": {
+      "schema_version": 1,
+      "benchmark": "memory-lane-baseline",
+      "arm": "lane-aware-outcome",
+      "memory_lanes": true,
+      "compiler": "lib/search/context-compiler.js",
+      "k": 5,
+      "case_count": 6,
+      "repeats": 50,
+      "metrics": {
+        "factual_accuracy": 1,
+        "guidance_leakage_rate": 0,
+        "source_role_confusion_rate": 0,
+        "stale_memory_leakage_rate": 0,
+        "recall_at_5": 1,
+        "mrr": 0.9,
+        "mean_estimated_evidence_tokens": 26.5,
+        "mean_estimated_guidance_tokens": 32.667,
+        "mean_estimated_prompt_tokens": 26.5,
+        "mean_estimated_injected_tokens": 58.833,
+        "latency_sample_count": 300,
+        "p50_retrieval_latency_ms": 0.206,
+        "p95_retrieval_latency_ms": 0.436,
+        "p95_retrieval_latency_interval_ms": {
+          "low": 0.395,
+          "high": 0.589,
+          "method": "approximate 95% order-statistic interval"
+        },
+        "min_retrieval_latency_ms": 0.138,
+        "max_retrieval_latency_ms": 5.98
+      },
+      "outcome_policy": {
+        "explicitly_enabled_for_arm": true,
+        "created_count": 1,
+        "created_keys": [
+          "note:note-mtg4c9s6nma"
+        ],
+        "recalled_as_guidance": true,
+        "skipped": []
+      },
+      "cases": [
+        {
+          "id": "user-fact-vs-assistant-speculation",
+          "query": "what is the production deployment region",
+          "relevant_keys": [
+            "note:user-region"
+          ],
+          "retrieved_keys": [
+            "note:user-region",
+            "note:assistant-region",
+            "note:database-artifact"
+          ],
+          "recalled_keys": [
+            "note:user-region",
+            "note:assistant-region",
+            "note:database-artifact"
+          ],
+          "hit": true,
+          "rank": 1,
+          "reciprocal_rank": 1,
+          "factual_correct": true,
+          "guidance_leak": false,
+          "source_role_confusion": false,
+          "stale_memory_leak": false,
+          "guidance_keys": [],
+          "estimated_evidence_tokens": 70,
+          "estimated_guidance_tokens": 0,
+          "estimated_prompt_tokens": 70,
+          "estimated_injected_tokens": 70
+        },
+        {
+          "id": "guidance-is-not-current-fact",
+          "query": "what database does the current system use",
+          "relevant_keys": [
+            "note:database-artifact"
+          ],
+          "retrieved_keys": [
+            "note:database-artifact"
+          ],
+          "recalled_keys": [
+            "note:database-artifact",
+            "note:database-guidance",
+            "note:current-review-guidance",
+            "note:note-mtg4c9s6nma"
+          ],
+          "hit": true,
+          "rank": 1,
+          "reciprocal_rank": 1,
+          "factual_correct": true,
+          "guidance_leak": false,
+          "source_role_confusion": false,
+          "stale_memory_leak": false,
+          "guidance_keys": [
+            "note:database-guidance",
+            "note:current-review-guidance",
+            "note:note-mtg4c9s6nma"
+          ],
+          "estimated_evidence_tokens": 26,
+          "estimated_guidance_tokens": 70,
+          "estimated_prompt_tokens": 26,
+          "estimated_injected_tokens": 95
+        },
+        {
+          "id": "superseded-preference",
+          "query": "what is the current code review preference for integration",
+          "relevant_keys": [
+            "note:current-review-guidance"
+          ],
+          "retrieved_keys": [
+            "note:database-artifact"
+          ],
+          "recalled_keys": [
+            "note:database-artifact",
+            "note:database-guidance",
+            "note:current-review-guidance",
+            "note:note-mtg4c9s6nma"
+          ],
+          "hit": true,
+          "rank": 2,
+          "reciprocal_rank": 0.5,
+          "factual_correct": null,
+          "guidance_leak": false,
+          "source_role_confusion": false,
+          "stale_memory_leak": false,
+          "guidance_keys": [
+            "note:database-guidance",
+            "note:current-review-guidance",
+            "note:note-mtg4c9s6nma"
+          ],
+          "estimated_evidence_tokens": 26,
+          "estimated_guidance_tokens": 70,
+          "estimated_prompt_tokens": 26,
+          "estimated_injected_tokens": 95
+        },
+        {
+          "id": "tool-evidence",
+          "query": "which build did the test tool report passed",
+          "relevant_keys": [
+            "note:tool-build"
+          ],
+          "retrieved_keys": [
+            "note:tool-build"
+          ],
+          "recalled_keys": [
+            "note:tool-build"
+          ],
+          "hit": true,
+          "rank": 1,
+          "reciprocal_rank": 1,
+          "factual_correct": true,
+          "guidance_leak": false,
+          "source_role_confusion": false,
+          "stale_memory_leak": false,
+          "guidance_keys": [],
+          "estimated_evidence_tokens": 18,
+          "estimated_guidance_tokens": 0,
+          "estimated_prompt_tokens": 18,
+          "estimated_injected_tokens": 18
+        },
+        {
+          "id": "entity-expanded-recall",
+          "query": "what should Zonoid use for accounting amounts",
+          "relevant_keys": [
+            "note:zonoid-accounting"
+          ],
+          "retrieved_keys": [
+            "note:zonoid-accounting"
+          ],
+          "recalled_keys": [
+            "note:zonoid-accounting",
+            "note:current-review-guidance",
+            "note:note-mtg4c9s6nma"
+          ],
+          "hit": true,
+          "rank": 1,
+          "reciprocal_rank": 1,
+          "factual_correct": true,
+          "guidance_leak": false,
+          "source_role_confusion": false,
+          "stale_memory_leak": false,
+          "guidance_keys": [
+            "note:current-review-guidance",
+            "note:note-mtg4c9s6nma"
+          ],
+          "estimated_evidence_tokens": 19,
+          "estimated_guidance_tokens": 56,
+          "estimated_prompt_tokens": 19,
+          "estimated_injected_tokens": 75
+        },
+        {
+          "id": "no-evidence-abstention",
+          "query": "which airline kiosk redeemed the mileage voucher",
+          "relevant_keys": [],
+          "retrieved_keys": [],
+          "recalled_keys": [],
+          "hit": true,
+          "rank": 0,
+          "reciprocal_rank": 0,
+          "factual_correct": true,
+          "guidance_leak": false,
+          "source_role_confusion": false,
+          "stale_memory_leak": false,
+          "guidance_keys": [],
+          "estimated_evidence_tokens": 0,
+          "estimated_guidance_tokens": 0,
+          "estimated_prompt_tokens": 0,
+          "estimated_injected_tokens": 0
+        }
+      ]
+    }
+  },
+  "scoring_notes": {
+    "definition": "Recall and reciprocal rank are evaluated within the lane containing the gold item. Factual accuracy and factual abstention use evidence_results only. Source-role attribution is checked against the top item in the gold lane. Evidence and guidance token estimates are reported separately and summed for total injected-token overhead.",
+    "audit": "An initial pre-correction lane scorer treated a correctly separated guidance result as absent evidence and reported lane-aware Recall@5=0.8 and source-role confusion=0.2. That scorer output is retained here as an audit note and is not used for promotion gates; no fixture or gold labels changed."
+  },
+  "held_out_task_context": {
+    "current_keys": [
+      "note:held-out-evidence",
+      "note:held-out-guidance"
+    ],
+    "lane_aware_evidence_keys": [
+      "note:held-out-evidence"
+    ],
+    "lane_aware_guidance_keys": [
+      "note:held-out-guidance"
+    ],
+    "evidence_preserved": true,
+    "guidance_preserved_in_internal_lane": true,
+    "regression": false
+  },
+  "gates": [
+    {
+      "id": "guidance_as_fact_leakage",
+      "threshold": "0 in both enabled arms",
+      "values": {
+        "lane-aware": 0,
+        "lane-aware-outcome": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "source_role_confusion",
+      "threshold": "0 in both enabled arms",
+      "values": {
+        "lane-aware": 0,
+        "lane-aware-outcome": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "stale_current_leakage",
+      "threshold": "0 in both enabled arms",
+      "values": {
+        "lane-aware": 0,
+        "lane-aware-outcome": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "recall_at_5_regression",
+      "threshold": "each enabled arm >= 0.99 (baseline minus 0.01)",
+      "values": {
+        "lane-aware": 1,
+        "lane-aware-outcome": 1
+      },
+      "passed": true
+    },
+    {
+      "id": "held_out_task_context_regression",
+      "threshold": "no evidence or guidance loss after partitioning",
+      "values": {
+        "current_keys": [
+          "note:held-out-evidence",
+          "note:held-out-guidance"
+        ],
+        "lane_aware_evidence_keys": [
+          "note:held-out-evidence"
+        ],
+        "lane_aware_guidance_keys": [
+          "note:held-out-guidance"
+        ],
+        "evidence_preserved": true,
+        "guidance_preserved_in_internal_lane": true,
+        "regression": false
+      },
+      "passed": true
+    },
+    {
+      "id": "p95_retrieval_latency_overhead",
+      "threshold": "each enabled arm's approximate p95 interval high <= 0.46 ms (baseline p95 +10%)",
+      "values": {
+        "lane-aware": {
+          "p95_ms": 0.427,
+          "interval_ms": {
+            "low": 0.393,
+            "high": 0.588,
+            "method": "approximate 95% order-statistic interval"
+          },
+          "samples": 300
+        },
+        "lane-aware-outcome": {
+          "p95_ms": 0.436,
+          "interval_ms": {
+            "low": 0.395,
+            "high": 0.589,
+            "method": "approximate 95% order-statistic interval"
+          },
+          "samples": 300
+        }
+      },
+      "passed": false
+    },
+    {
+      "id": "injected_token_overhead",
+      "threshold": "each enabled arm <= 43.266 estimated tokens (baseline +10%)",
+      "values": {
+        "lane-aware": 39.333,
+        "lane-aware-outcome": 58.833
+      },
+      "passed": false
+    },
+    {
+      "id": "outcome_policy_is_guidance",
+      "threshold": "one scoped policy derived and recalled only through guidance",
+      "values": {
+        "explicitly_enabled_for_arm": true,
+        "created_count": 1,
+        "created_keys": [
+          "note:note-mtg4c9s6nma"
+        ],
+        "recalled_as_guidance": true,
+        "skipped": []
+      },
+      "passed": true
+    },
+    {
+      "id": "features_default_off",
+      "threshold": "memory lanes require request opt-in and outcome policy requires config/env opt-in",
+      "values": {
+        "current_memory_lanes": false,
+        "outcome_policy_default_enabled": false
+      },
+      "passed": true
+    }
+  ],
+  "failed_gates": [
+    "p95_retrieval_latency_overhead",
+    "injected_token_overhead"
+  ],
+  "temporal": {
+    "metric": "retrieval",
+    "recall_at_k": 1,
+    "mrr": 1,
+    "baseline_recall_at_k": 0.6,
+    "baseline_mrr": 0.6,
+    "k": 5,
+    "n": 5,
+    "per_query": [
+      {
+        "id": "now-latest",
+        "as_of": null,
+        "relevant": [
+          "Deploy target: railway"
+        ],
+        "retrieved": [
+          "Deploy target: railway",
+          "Auth: API keys"
+        ],
+        "hit": true,
+        "rank": 1,
+        "rr": 1
+      },
+      {
+        "id": "asof-feb",
+        "as_of": "2026-02-01T00:00:00.000Z",
+        "relevant": [
+          "Deploy target: fly.io"
+        ],
+        "retrieved": [
+          "Deploy target: fly.io",
+          "Auth: API keys"
+        ],
+        "hit": true,
+        "rank": 1,
+        "rr": 1
+      },
+      {
+        "id": "asof-apr",
+        "as_of": "2026-04-01T00:00:00.000Z",
+        "relevant": [
+          "Deploy target: render"
+        ],
+        "retrieved": [
+          "Deploy target: render",
+          "Auth: API keys"
+        ],
+        "hit": true,
+        "rank": 1,
+        "rr": 1
+      },
+      {
+        "id": "asof-may",
+        "as_of": "2026-05-15T00:00:00.000Z",
+        "relevant": [
+          "Deploy target: railway"
+        ],
+        "retrieved": [
+          "Deploy target: railway",
+          "Auth: API keys"
+        ],
+        "hit": true,
+        "rank": 1,
+        "rr": 1
+      },
+      {
+        "id": "now-stable",
+        "as_of": null,
+        "relevant": [
+          "Auth: API keys"
+        ],
+        "retrieved": [
+          "Auth: API keys",
+          "Deploy target: railway"
+        ],
+        "hit": true,
+        "rank": 1,
+        "rr": 1
+      }
+    ]
+  },
+  "bounded_external_benchmarks": {
+    "status": "current_synthetic_fixture_evidence",
+    "scoring": "token F1 only; LLM judge intentionally disabled for the bounded compatibility run",
+    "locomo_fixture": {
+      "source": "reports/voicemem-memory-lanes/locomo-fixture/report.json",
+      "probes": 2,
+      "arms": {
+        "cold": {
+          "probes": 2,
+          "f1_mean": 0
+        },
+        "our-way": {
+          "probes": 2,
+          "f1_mean": 0
+        },
+        "search": {
+          "probes": 2,
+          "f1_mean": 1
+        }
+      }
+    },
+    "longmemeval_oracle_fixture": {
+      "source": "reports/voicemem-memory-lanes/longmemeval-oracle-fixture/report.json",
+      "probes": 2,
+      "arms": {
+        "cold": {
+          "probes": 2,
+          "f1_mean": 0
+        },
+        "our-way": {
+          "probes": 2,
+          "f1_mean": 0
+        },
+        "search": {
+          "probes": 2,
+          "f1_mean": 0.8333333333333333
+        }
+      }
+    },
+    "real_locomo_reference": {
+      "source": "bench/agent-memory/results-dag-combined-50/report.json",
+      "probes": 50,
+      "combined_accuracy": 0.54,
+      "note": "Historical run under a different setup; not rerun or used as a promotion gate."
+    }
+  },
+  "limitations": [
+    "The promotion fixture has six deterministic cases; it is a regression gate, not a broad memory-quality claim.",
+    "Only committed synthetic LoCoMo and LongMemEval fixtures are available in this checkout.",
+    "The current bounded LoCoMo and LongMemEval compatibility runs contain two probes each and use token F1 without an LLM judge.",
+    "The checked-in real LoCoMo evidence is bounded to 50 probes and comes from a different historical setup.",
+    "Latency is an in-process local microbenchmark; rerun on target hardware before changing defaults.",
+    "Latency gates use an approximate 95% order-statistic interval around p95; a result is held unless the interval high clears the 10% limit.",
+    "Estimated injected tokens use character-count approximation and include both evidence and internal guidance channels."
+  ]
+}
