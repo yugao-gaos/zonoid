@@ -34,12 +34,15 @@ const FIXTURES = {
     'from collections import OrderedDict',
     '',
     'def greet(name):',
-    '    return "hi " + helper(name)',
+    '    def inner(value):',
+    '        return helper(value)',
+    '    return "hi " + wrap(inner(name))',
     '',
     'class Animal(Base):',
     '    def speak(self):',
     '        return noise()',
     '',
+    'helper("top")',
   ].join('\n'),
 
   'sample.go': [
@@ -167,6 +170,7 @@ const FIXTURES = {
     const symsOf = (file) => res.symbols.filter((s) => s.file === file);
     const sym = (file, name) => symsOf(file).find((s) => s.name === name);
     const callTos = (file) => new Set(res.edges.filter((e) => e.from === file && e.kind === 'calls').map((e) => e.to));
+    const calls = (file) => res.edges.filter((e) => e.from === file && e.kind === 'calls');
     const importTos = (file) => new Set(res.edges.filter((e) => e.from === file && e.kind === 'imports').map((e) => e.to));
 
     // ---- PYTHON ----
@@ -180,6 +184,14 @@ const FIXTURES = {
       ok('py: method `speak` (kind=method, class=Animal)', speak && speak.class === 'Animal');
       ok('py: call edge -> helper', callTos(f).has('helper'));
       ok('py: call edge -> noise', callTos(f).has('noise'));
+      ok('py: nested calls identify the enclosing function caller',
+        calls(f).some((e) => e.to === 'helper' && e.caller === 'greet') &&
+        calls(f).some((e) => e.to === 'inner' && e.caller === 'greet') &&
+        calls(f).some((e) => e.to === 'wrap' && e.caller === 'greet'));
+      ok('py: method call identifies the enclosing method caller',
+        calls(f).some((e) => e.to === 'noise' && e.caller === 'speak'));
+      ok('py: top-level call preserves file fallback',
+        calls(f).some((e) => e.to === 'helper' && !e.caller));
       ok('py: import edge -> os', importTos(f).has('os'));
       ok('py: import edge -> collections', importTos(f).has('collections'));
     }
@@ -195,6 +207,9 @@ const FIXTURES = {
       ok('go: `Add` exported (Capitalized)', (sym(f, 'Add') || {}).exported === true);
       ok('go: call edge -> helper', callTos(f).has('helper'));
       ok('go: call edge -> Println (member call)', callTos(f).has('Println'));
+      ok('go: function and method calls retain distinct callers',
+        calls(f).some((e) => e.to === 'helper' && e.caller === 'Add') &&
+        calls(f).some((e) => e.to === 'Println' && e.caller === 'Move'));
       ok('go: import edge -> fmt', importTos(f).has('fmt'));
     }
 

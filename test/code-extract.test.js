@@ -35,17 +35,19 @@ try {
     "import assert from 'node:assert';",
     '',
     'export function add(a, b) {',
-    '  return helperFn(a) + b;',  // call: helperFn
+    '  function inner(v) { return helperFn(v); }',
+    '  return inner(a) + b;',
     '}',
     '',
     'export const double = (n) => add(n, n);',  // arrow const + call: add
     '',
     'export class Calculator {',
     '  constructor(seed = 0) { this.seed = seed; }',
-    '  compute(x) { return double(x); }',  // method + call: double
+    '  compute(x) { return double(add(x, x)); }',  // method + nested calls: double(add())
     '}',
     '',
     'function _internal() { return 42; }',  // non-exported function
+    'helperFn(0);',                         // top-level call keeps file fallback
     '',
   ].join('\n'));
 
@@ -96,6 +98,17 @@ try {
   ok('fixture: call edge -> helperFn', callTos.has('helperFn'));
   ok('fixture: call edge -> add', callTos.has('add'));
   ok('fixture: call edge -> double', callTos.has('double'));
+  const callEdges = res.edges.filter((e) => e.kind === 'calls' && e.from === 'main.js');
+  ok('fixture: function call identifies `add` as caller',
+    callEdges.some((e) => e.to === 'helperFn' && e.caller === 'add') &&
+    callEdges.some((e) => e.to === 'inner' && e.caller === 'add'));
+  ok('fixture: arrow call identifies `double` as caller',
+    callEdges.some((e) => e.to === 'add' && e.caller === 'double'));
+  ok('fixture: method nested calls both identify `compute` as caller',
+    callEdges.some((e) => e.to === 'double' && e.caller === 'compute') &&
+    callEdges.some((e) => e.to === 'add' && e.caller === 'compute'));
+  ok('fixture: top-level call preserves legacy file fallback',
+    callEdges.some((e) => e.to === 'helperFn' && !e.caller));
 
   // --- TS/TSX coverage: typescript plugin + jsx parse and extract ---
   fs.writeFileSync(path.join(tmp, 'typed.ts'), [
