@@ -2961,6 +2961,7 @@ const uiRoute = require('./routes/ui');
 const usageRoute = require('./routes/usage');
 const subconsciousRoute = require('./routes/subconscious');
 const activityRoute = require('./routes/activity');
+const documentationRoute = require('./routes/documentation');
 
 // ctx: live access to daemon state + helpers. State fields use getters so reassignment
 // (state = {...} at /reset) is always visible. P3: there is no daemon-global workspace/overlay.
@@ -3055,7 +3056,7 @@ const routeModules = [
   mcpRoute(ctx), stateRoute(ctx), metaRoute(ctx), graphRoute(ctx), taskRoute(ctx), overlayRoute(ctx),
   gitRoute(ctx), judgeRoute(ctx), labelRoute(ctx), configRoute(ctx), analyticsRoute(ctx), onboardRoute(ctx),
   sessionRoute(ctx), execRoute(ctx), classifyRoute(ctx), usageRoute(ctx), subconsciousRoute(ctx),
-  activityRoute(ctx), uiRoute(ctx),
+  activityRoute(ctx), documentationRoute(ctx), uiRoute(ctx),
 ];
 
 function superviseCodexWakeDeliveryForRegisteredWorkspaces() {

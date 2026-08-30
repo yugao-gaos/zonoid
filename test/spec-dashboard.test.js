@@ -28,8 +28,16 @@ for (const [view, label] of [
   assert.match(html, new RegExp(`data-view="${view}"[^>]*>${label}<\\/button>`), `${view} uses the requested label`);
 }
 
-assert.ok(html.includes('<div id="spec" role="region" aria-label="Project specification">'));
+assert.ok(html.includes('<div id="spec" role="region" aria-label="Project specification and documentation">'));
 assert.ok(html.includes('id="specEditor"') && html.includes('id="specSaveBtn"'));
+assert.ok(html.includes('id="specDocSearch"') && html.includes('class="spec-doc-list"'),
+  'Spec is a navigable project documentation hub');
+assert.ok(html.includes("dfetch('/documentation')") && html.includes("dfetch('/documentation/file?path='"),
+  'the hub discovers and loads workspace-scoped repository documentation');
+assert.ok(html.includes("expected_hash:state.hash"),
+  'repository documentation saves use optimistic conflict protection');
+assert.ok(html.includes('Project Spec</span><span class="spec-doc-path">System note · versioned'),
+  'the canonical Spec remains the primary documentation entry');
 assert.ok(html.includes("v==='spec'||v==='cloud'||v==='frontier'||v==='kanban'||v==='architecture'"));
 assert.ok(html.includes("document.getElementById('spec').classList.toggle('show', v==='spec')"));
 assert.ok(html.includes("if(currentView==='spec') renderSpec(d)"));
