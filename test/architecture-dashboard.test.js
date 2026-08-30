@@ -46,9 +46,12 @@ assert.ok(html.indexOf('<g class="arch-compound-backgrounds">') < html.indexOf('
   && html.indexOf('<g class="arch-canvas-edge-halos">') < html.indexOf('<g class="arch-canvas-edges">')
   && html.indexOf('<g class="arch-canvas-edges">') < html.indexOf('<g class="arch-canvas-nodes">'),
   'compound fills, edge halos, relations, and interactive nodes have an explicit paint order');
-assert.ok(html.includes('<title>${esc(relation.kind)} · ${relation.count||1}</title>')
+assert.ok(html.includes('<title>${esc(relation.kind)} · ${relation.count||1}${relation.precise_count?')
   && html.includes('>×${relation.count}</text>'),
   'aggregated relationship counts remain visible in titles and labels');
+assert.ok(html.includes('arch-canvas-symbol') && html.includes('expanded files contain bounded symbol call graphs')
+  && html.includes('Expand symbol graph'),
+  'files disclose bounded compound symbol graphs rather than inspector-only lists');
 assert.ok(html.includes('architectureSearchMatchIds') && html.includes('arch-file-noise'),
   'search still reveals and labels normally hidden noisy files');
 assert.ok(html.includes('omitted_symbols') && html.includes('lightweight hierarchy record')
@@ -197,6 +200,26 @@ const fingerprintProjection = {
     count: 1,
     ambiguous_count: 0,
   }],
+  symbol_nodes: [{
+    id: 'code:src/api.js#loadUsers', name: 'loadUsers', kind: 'function', file: 'src/api.js',
+    file_id: 'file:src/api.js', module: 'src', parent_id: 'file:src/api.js',
+    ancestor_ids: ['file:src/api.js', 'group:src/api', 'module:src'], start_line: 8, end_line: 10,
+    signature: 'loadUsers()', summary: 'Loads users', exported: true, noise: null, is_noisy: false,
+    incoming_count: 0, outgoing_count: 1,
+  }, {
+    id: 'code:lib/db.js#query', name: 'query', kind: 'method', file: 'lib/db.js',
+    file_id: 'file:lib/db.js', module: 'lib', parent_id: 'file:lib/db.js',
+    ancestor_ids: ['file:lib/db.js', 'module:lib'], start_line: 3, end_line: 5,
+    signature: 'query(sql)', summary: 'Runs query', exported: false, noise: null, is_noisy: false,
+    incoming_count: 1, outgoing_count: 0,
+  }],
+  symbol_relations: [{
+    id: 'symbol-relation:load:query', from: 'code:src/api.js#loadUsers', to: 'code:lib/db.js#query',
+    from_file_id: 'file:src/api.js', to_file_id: 'file:lib/db.js',
+    from_ancestors: ['file:src/api.js', 'group:src/api', 'module:src'],
+    to_ancestors: ['file:lib/db.js', 'module:lib'], kind: 'calls', scope: 'cross-module',
+    source_precision: 'symbol', count: 1, ambiguous_count: 0,
+  }],
 };
 const baseFingerprint = fingerprintContext.stateFingerprint({ architecture: fingerprintProjection });
 assert.equal(
@@ -221,6 +244,8 @@ for (const [label, mutate] of [
   ['module relation change', projection => { projection.module_relations[0].count = 2; }],
   ['relation detail change', projection => { projection.relations[0].ambiguous_count = 1; }],
   ['hierarchy ancestry change', projection => { projection.hierarchy_relations[0].from_ancestors = ['module:src']; }],
+  ['symbol graph node change', projection => { projection.symbol_nodes[0].signature = 'loadUsers(limit)'; }],
+  ['symbol graph endpoint change', projection => { projection.symbol_relations[0].to = 'code:lib/db.js#other'; }],
 ]) {
   const changed = JSON.parse(JSON.stringify(fingerprintProjection));
   mutate(changed);
@@ -230,10 +255,10 @@ for (const [label, mutate] of [
 
 const helperSource = html.slice(
   html.indexOf('function architectureProjectionFiles'),
-  html.indexOf('function architectureCanvasNodeLabel'),
+  html.indexOf('function renderArchitectureBreadcrumbs'),
 );
 const helperContext = {};
-vm.runInNewContext(`${helperSource};this.helpers={ARCHITECTURE_LAYOUT,architectureProjectionFiles,architectureFileMatches,architectureSearchMatchIds,architectureEffectiveExpandedIds,architectureVisibleHierarchy,architectureRetargetEndpoint,architectureRetargetRelations,architectureBreadcrumbIds,architectureInspectorRelations,architectureLayoutHierarchy};`, helperContext);
+vm.runInNewContext(`${helperSource};this.helpers={ARCHITECTURE_LAYOUT,architectureProjectionFiles,architectureFileMatches,architectureSymbolMatches,architectureSymbolsByFile,architectureSearchMatchIds,architectureEffectiveExpandedIds,architectureVisibleHierarchy,architectureSearchFocusedSymbol,architectureRetargetEndpoint,architectureResidualHierarchyRelations,architectureFileInternalRemainder,architectureRetargetRelations,architectureBreadcrumbIds,architectureInspectorRelations,architectureLayoutHierarchy,architectureEdgeGeometry};`, helperContext);
 const projection = {
   modules: [
     { id: 'module:src', name: 'src', child_ids: ['group:src/api'], file_count: 2, default_file_count: 2 },
@@ -300,6 +325,139 @@ const deepestExpanded = new Set(['module:src', 'group:src/api', 'group:src/api/h
 const deepestRelations = helperContext.helpers.architectureRetargetRelations(projection, deepestExpanded);
 assert.ok(deepestRelations.some(edge => edge.from === 'file:src/api/http/routes.js' && edge.to === 'file:lib/db/query.js'),
   'when both sides are expanded, edges terminate at the deepest visible files');
+const symbolProjection = {
+  modules: [
+    { id: 'module:app', name: 'app', child_ids: ['file:app/a.js'], file_count: 1, default_file_count: 1 },
+    { id: 'module:data', name: 'data', child_ids: ['file:data/store.js'], file_count: 1, default_file_count: 1 },
+  ],
+  groups: [],
+  hierarchy_files: [
+    { id: 'file:app/a.js', name: 'a.js', path: 'app/a.js', module: 'app', parent_id: 'module:app', ancestor_ids: ['module:app'], is_noisy: false, symbol_count: 4, internal_count: 4 },
+    { id: 'file:data/store.js', name: 'store.js', path: 'data/store.js', module: 'data', parent_id: 'module:data', ancestor_ids: ['module:data'], is_noisy: false, symbol_count: 1, internal_count: 0 },
+  ],
+  files: [],
+  hierarchy_relations: [
+    { id: 'file-calls', from: 'file:app/a.js', to: 'file:data/store.js', from_ancestors: ['module:app'], to_ancestors: ['module:data'], kind: 'calls', count: 5, ambiguous_count: 1 },
+  ],
+  symbol_nodes: [
+    { id: 'code:app/a.js#caller', name: 'caller', kind: 'function', signature: 'caller()', file: 'app/a.js', file_id: 'file:app/a.js', module: 'app', parent_id: 'file:app/a.js', ancestor_ids: ['file:app/a.js', 'module:app'], is_noisy: false, start_line: 2, incoming_count: 2, outgoing_count: 5 },
+    { id: 'code:app/a.js#helper', name: 'helper', kind: 'method', signature: 'helper(value)', file: 'app/a.js', file_id: 'file:app/a.js', module: 'app', parent_id: 'file:app/a.js', ancestor_ids: ['file:app/a.js', 'module:app'], is_noisy: false, start_line: 8, incoming_count: 1, outgoing_count: 1 },
+    { id: 'code:app/a.js#cycle', name: 'cycle', kind: 'function', signature: 'cycle()', file: 'app/a.js', file_id: 'file:app/a.js', module: 'app', parent_id: 'file:app/a.js', ancestor_ids: ['file:app/a.js', 'module:app'], is_noisy: false, start_line: 14, incoming_count: 1, outgoing_count: 1 },
+    { id: 'code:data/store.js#remote', name: 'remote', kind: 'method', signature: 'remote(value)', summary: 'Stores a value', file: 'data/store.js', file_id: 'file:data/store.js', module: 'data', parent_id: 'file:data/store.js', ancestor_ids: ['file:data/store.js', 'module:data'], is_noisy: false, start_line: 3, incoming_count: 3, outgoing_count: 0 },
+  ],
+  symbol_relations: [
+    { id: 's1', from: 'code:app/a.js#caller', to: 'code:app/a.js#helper', from_file_id: 'file:app/a.js', to_file_id: 'file:app/a.js', from_ancestors: ['file:app/a.js', 'module:app'], to_ancestors: ['file:app/a.js', 'module:app'], kind: 'calls', scope: 'same-file', source_precision: 'symbol', count: 1, ambiguous_count: 0 },
+    { id: 's2', from: 'code:app/a.js#helper', to: 'code:app/a.js#caller', from_file_id: 'file:app/a.js', to_file_id: 'file:app/a.js', from_ancestors: ['file:app/a.js', 'module:app'], to_ancestors: ['file:app/a.js', 'module:app'], kind: 'calls', scope: 'same-file', source_precision: 'symbol', count: 1, ambiguous_count: 0 },
+    { id: 's3', from: 'code:app/a.js#cycle', to: 'code:app/a.js#cycle', from_file_id: 'file:app/a.js', to_file_id: 'file:app/a.js', from_ancestors: ['file:app/a.js', 'module:app'], to_ancestors: ['file:app/a.js', 'module:app'], kind: 'calls', scope: 'same-file', source_precision: 'symbol', count: 1, ambiguous_count: 0 },
+    { id: 's4', from: 'code:app/a.js#caller', to: 'code:data/store.js#remote', from_file_id: 'file:app/a.js', to_file_id: 'file:data/store.js', from_ancestors: ['file:app/a.js', 'module:app'], to_ancestors: ['file:data/store.js', 'module:data'], kind: 'calls', scope: 'cross-module', source_precision: 'symbol', count: 3, ambiguous_count: 1 },
+  ],
+};
+assert.deepEqual(
+  helperContext.helpers.architectureResidualHierarchyRelations(symbolProjection).map(edge => [edge.from, edge.to, edge.count, edge.ambiguous_count]),
+  [['file:app/a.js', 'file:data/store.js', 2, 0]],
+  'precise symbol counts are subtracted from matching file aggregates while source-less remainder stays at file level',
+);
+assert.deepEqual(
+  helperContext.helpers.architectureInspectorRelations(symbolProjection, [], 'file:app/a.js')
+    .map(edge => [edge.to, edge.count]),
+  [['file:data/store.js', 5]],
+  'file inspection preserves the exact aggregate peer and total while canvas lines split precise and source-less counts',
+);
+assert.equal(helperContext.helpers.architectureFileInternalRemainder(symbolProjection, 'file:app/a.js', 4), 1,
+  'same-file precise calls are subtracted from the source-less internal file remainder');
+const collapsedSymbolRelations = helperContext.helpers.architectureRetargetRelations(
+  symbolProjection, new Set(), new Set(['module:app', 'module:data']),
+);
+assert.deepEqual(collapsedSymbolRelations.map(edge => [edge.from, edge.to, edge.count]), [
+  ['module:app', 'module:data', 5],
+], 'collapsed symbol and residual rows recombine to the original module-level count without duplication');
+const collapsedFileVisible = helperContext.helpers.architectureVisibleHierarchy(
+  symbolProjection, new Set(['module:app', 'module:data']), '', false,
+);
+assert.ok(collapsedFileVisible.nodes.some(node => node.id === 'file:app/a.js')
+  && !collapsedFileVisible.nodes.some(node => node.id.startsWith('code:')),
+  'collapsed files remain compact endpoints and hide their symbol graph');
+const sourceSymbolVisible = helperContext.helpers.architectureVisibleHierarchy(
+  symbolProjection, new Set(['module:app', 'file:app/a.js', 'module:data']), '', false,
+);
+assert.deepEqual(sourceSymbolVisible.nodes.map(node => node.id), [
+  'module:app', 'file:app/a.js', 'code:app/a.js#caller', 'code:app/a.js#helper', 'code:app/a.js#cycle',
+  'module:data', 'file:data/store.js',
+], 'expanding a file reveals its bounded symbol children while the peer file stays collapsed');
+assert.equal(sourceSymbolVisible.nodes.find(node => node.id === 'file:app/a.js').symbol_omitted_count, 1,
+  'the expanded file exposes its per-file omitted symbol count');
+const sourceSymbolRelations = helperContext.helpers.architectureRetargetRelations(
+  symbolProjection, sourceSymbolVisible.expanded, new Set(sourceSymbolVisible.nodes.map(node => node.id)),
+);
+assert.ok(sourceSymbolRelations.some(edge => edge.from === 'code:app/a.js#caller'
+  && edge.to === 'file:data/store.js' && edge.count === 3),
+  'one expanded endpoint retargets an exact call from symbol to collapsed peer file');
+assert.ok(sourceSymbolRelations.some(edge => edge.from === 'file:app/a.js'
+  && edge.to === 'file:data/store.js' && edge.count === 2),
+  'the source-less remainder stays as a separate file-level edge');
+const collapsedPeerModuleVisible = helperContext.helpers.architectureVisibleHierarchy(
+  symbolProjection, new Set(['module:app', 'file:app/a.js']), '', false,
+);
+const collapsedPeerModuleRelations = helperContext.helpers.architectureRetargetRelations(
+  symbolProjection, collapsedPeerModuleVisible.expanded,
+  new Set(collapsedPeerModuleVisible.nodes.map(node => node.id)),
+);
+assert.ok(collapsedPeerModuleRelations.some(edge => edge.from === 'code:app/a.js#caller'
+  && edge.to === 'module:data' && edge.count === 3),
+  'an expanded symbol endpoint retargets to a peer module that remains collapsed');
+assert.ok(sourceSymbolRelations.some(edge => edge.from === 'code:app/a.js#caller'
+  && edge.to === 'code:app/a.js#helper'), 'same-file precise calls render between symbol nodes');
+assert.ok(sourceSymbolRelations.some(edge => edge.self && edge.from === 'code:app/a.js#cycle'),
+  'precise self calls remain explicit only at the visible symbol endpoint');
+const bothSymbolVisible = helperContext.helpers.architectureVisibleHierarchy(
+  symbolProjection, new Set(['module:app', 'file:app/a.js', 'module:data', 'file:data/store.js']), '', false,
+);
+const bothSymbolRelations = helperContext.helpers.architectureRetargetRelations(
+  symbolProjection, bothSymbolVisible.expanded, new Set(bothSymbolVisible.nodes.map(node => node.id)),
+);
+assert.ok(bothSymbolRelations.some(edge => edge.from === 'code:app/a.js#caller'
+  && edge.to === 'code:data/store.js#remote' && edge.count === 3),
+  'both expanded files terminate precise cross-module calls at the deepest symbol endpoints');
+const symbolSearchVisible = helperContext.helpers.architectureVisibleHierarchy(symbolProjection, new Set(), 'remote(value)', false);
+assert.deepEqual(symbolSearchVisible.nodes.map(node => node.id), [
+  'module:app', 'module:data', 'file:data/store.js', 'code:data/store.js#remote',
+], 'symbol search reveals only its module/file ancestry and focused symbol while preserving all module endpoints');
+assert.ok(symbolSearchVisible.match_ids.has('code:data/store.js#remote'));
+assert.equal(helperContext.helpers.architectureSearchFocusedSymbol(symbolSearchVisible, 'remote(value)'),
+  'code:data/store.js#remote', 'a unique symbol match becomes the renderer focus target');
+assert.deepEqual(
+  helperContext.helpers.architectureBreadcrumbIds(symbolProjection, 'code:data/store.js#remote'),
+  ['module:data', 'file:data/store.js', 'code:data/store.js#remote'],
+  'symbol breadcrumbs include module, file, and symbol containment',
+);
+assert.deepEqual(
+  [...new Set(helperContext.helpers.architectureInspectorRelations(symbolProjection, bothSymbolRelations, 'code:app/a.js#caller')
+    .map(edge => edge.from === 'code:app/a.js#caller' ? edge.to : edge.from))].sort(),
+  ['code:app/a.js#helper', 'code:data/store.js#remote'],
+  'symbol inspection exposes exact internal and external call peers',
+);
+const symbolLayout=helperContext.helpers.architectureLayoutHierarchy(sourceSymbolVisible);
+const fileSymbolBox=symbolLayout.boxes.get('file:app/a.js');
+const callerBox=symbolLayout.boxes.get('code:app/a.js#caller');
+const helperBox=symbolLayout.boxes.get('code:app/a.js#helper');
+const cycleBox=symbolLayout.boxes.get('code:app/a.js#cycle');
+assert.ok(callerBox.x >= fileSymbolBox.x && callerBox.y > fileSymbolBox.y
+  && cycleBox.x + cycleBox.w <= fileSymbolBox.x + fileSymbolBox.w
+  && cycleBox.y + cycleBox.h < fileSymbolBox.y + fileSymbolBox.h,
+  'symbol graph nodes stay contained within the expanded file compound');
+assert.ok(callerBox.y === helperBox.y && callerBox.x !== helperBox.x && cycleBox.y > callerBox.y,
+  'three symbol nodes use a bounded two-dimensional grid rather than a vertical list');
+const selfGeometry=helperContext.helpers.architectureEdgeGeometry(
+  { from: 'code:app/a.js#cycle', to: 'code:app/a.js#cycle', kind: 'calls' }, cycleBox, cycleBox,
+);
+const forwardGeometry=helperContext.helpers.architectureEdgeGeometry(
+  { from: 'code:app/a.js#caller', to: 'code:app/a.js#helper', kind: 'calls' }, callerBox, helperBox,
+);
+const reverseGeometry=helperContext.helpers.architectureEdgeGeometry(
+  { from: 'code:app/a.js#helper', to: 'code:app/a.js#caller', kind: 'calls' }, helperBox, callerBox,
+);
+assert.ok(!/NaN|Infinity/.test(selfGeometry.path), 'self-call geometry remains finite');
+assert.notEqual(forwardGeometry.path, reverseGeometry.path, 'cyclic call directions use stable distinct lanes');
 const syntheticProjection = {
   modules: [
     { id: 'module:app', name: 'app', child_ids: ['group:app/__files_1'], file_count: 2, default_file_count: 2 },
