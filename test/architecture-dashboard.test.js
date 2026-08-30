@@ -16,15 +16,25 @@ assert.ok(specTab !== -1 && specTab < kanbanTab && kanbanTab < frontierTab && fr
   'Architecture is last in the Spec, Kanban, Frontier, Knowledge, Architecture tab order');
 assert.ok(html.includes('<div id="architecture" role="region" aria-label="Code architecture map">'));
 assert.ok(html.includes('id="architectureSearchInput"') && html.includes('aria-label="Search architecture files and symbols"'));
-assert.ok(html.includes('id="architectureInspector" aria-label="Architecture file inspector"'));
+assert.ok(html.includes('id="architectureInspector" aria-label="Architecture inspector" aria-live="polite"'));
+assert.ok(html.includes('id="architectureBreadcrumbs"') && html.includes('aria-label="Architecture breadcrumb"'),
+  'module drilldown has an accessible location and return path');
+assert.ok(html.includes('id="architectureNoiseToggle"') && html.includes('Include tests &amp; generated'),
+  'auxiliary files are available behind an explicit noise toggle');
 assert.ok(html.includes('projection.version!==1'), 'renderer honors the versioned architecture contract');
 assert.ok(html.includes("projection.status==='empty'") && html.includes('Nothing indexed yet'),
   'missing code-index data has an honest empty state');
 assert.ok(html.includes('arch-legend-line calls') && html.includes("relation.kind==='calls'?'#d29922':'#58a6ff'"),
   'imports and calls have distinct legend and edge treatments');
-assert.ok(html.includes('architectureSelectedId') && html.includes('architectureRelatedIds'),
-  'file selection focuses its immediate architecture neighborhood');
-assert.ok(html.includes('omitted by limit') && html.includes('omitted_symbols'),
+assert.ok(html.includes('renderArchitectureOverview') && html.includes('data-arch-open-module'),
+  'Architecture starts with subsystem cards and requires explicit file drilldown');
+assert.ok(html.includes('architectureFocusedRelations(projection.module_relations,architectureFocusedModuleId)')
+  && html.includes('architectureFocusedRelations(projection.relations,architectureSelectedId)'),
+  'module and file relationships are drawn only for the focused node');
+assert.ok(html.includes('if(!selectedId) return []'), 'the overview renders zero relationship paths before focus');
+assert.ok(html.includes('normally hidden') && html.includes('arch-file-noise'),
+  'search reveals and labels normally hidden noisy files');
+assert.ok(html.includes('omitted_symbols') && html.includes('File drilldown is bounded'),
   'the UI discloses server-side file and symbol bounds');
 assert.ok(html.includes('@media (max-width: 760px)') && html.includes('.arch-shell { flex-direction: column;'),
   'architecture layout stacks its inspector on narrow screens');
@@ -41,12 +51,43 @@ vm.runInNewContext(`${fingerprintSource};this.stateFingerprint=stateFingerprint;
 const fingerprintProjection = {
   version: 1,
   status: 'ready',
-  summary: { visible_files: 1 },
-  omitted: { files: 0 },
+  summary: { visible_files: 2, visible_modules: 2 },
+  omitted: { files: 0, module_relations: 0 },
+  modules: [{
+    id: 'module:src',
+    name: 'src',
+    file_count: 1,
+    default_file_count: 1,
+    hidden_file_count: 0,
+    symbol_count: 1,
+    incoming_count: 0,
+    outgoing_count: 1,
+    file_ids: ['file:src/api.js'],
+  }, {
+    id: 'module:lib',
+    name: 'lib',
+    file_count: 1,
+    default_file_count: 1,
+    hidden_file_count: 0,
+    symbol_count: 1,
+    incoming_count: 1,
+    outgoing_count: 0,
+    file_ids: ['file:lib/db.js'],
+  }],
+  module_relations: [{
+    id: 'module-relation:src:calls:lib',
+    from: 'module:src',
+    to: 'module:lib',
+    kind: 'calls',
+    count: 1,
+    ambiguous_count: 0,
+  }],
   files: [{
     id: 'file:src/api.js',
     path: 'src/api.js',
     module: 'src',
+    noise: null,
+    is_noisy: false,
     symbol_count: 1,
     exported_count: 1,
     incoming_count: 0,
@@ -85,6 +126,10 @@ for (const [label, mutate] of [
   ['summary change', projection => { projection.files[0].symbols[0].summary = 'Loads active users'; }],
   ['export change', projection => { projection.files[0].symbols[0].exported = false; }],
   ['line change', projection => { projection.files[0].symbols[0].start_line = 9; }],
+  ['noise classification change', projection => { projection.files[0].noise = 'test'; }],
+  ['noise visibility change', projection => { projection.files[0].is_noisy = true; }],
+  ['module aggregate change', projection => { projection.modules[0].symbol_count = 2; }],
+  ['module relation change', projection => { projection.module_relations[0].count = 2; }],
   ['relation detail change', projection => { projection.relations[0].ambiguous_count = 1; }],
 ]) {
   const changed = JSON.parse(JSON.stringify(fingerprintProjection));
@@ -98,24 +143,55 @@ const helperSource = html.slice(
   html.indexOf('function architectureCard'),
 );
 const helperContext = {};
-vm.runInNewContext(`${helperSource};this.helpers={architectureFileMatches,architectureVisibleIds};`, helperContext);
+vm.runInNewContext(`${helperSource};this.helpers={architectureFileMatches,architectureVisibleModules,architectureFocusedRelations,architectureVisibleFiles};`, helperContext);
 const projection = {
+  modules: [
+    { id: 'module:src', name: 'src', file_count: 1, default_file_count: 1 },
+    { id: 'module:lib', name: 'lib', file_count: 1, default_file_count: 1 },
+    { id: 'module:test', name: 'test', file_count: 1, default_file_count: 0 },
+  ],
   files: [
-    { id: 'file:src/api.js', path: 'src/api.js', module: 'src', symbols: [{ name: 'loadUsers', kind: 'function' }] },
-    { id: 'file:lib/db.js', path: 'lib/db.js', module: 'lib', symbols: [{ name: 'query', kind: 'function' }] },
-    { id: 'file:test/api.test.js', path: 'test/api.test.js', module: 'test', symbols: [] },
+    { id: 'file:src/api.js', path: 'src/api.js', module: 'src', is_noisy: false, symbols: [{ name: 'loadUsers', kind: 'function' }] },
+    { id: 'file:lib/db.js', path: 'lib/db.js', module: 'lib', is_noisy: false, symbols: [{ name: 'query', kind: 'function' }] },
+    { id: 'file:test/api.test.js', path: 'test/api.test.js', module: 'test', noise: 'test', is_noisy: true, symbols: [] },
   ],
   relations: [{ from: 'file:src/api.js', to: 'file:lib/db.js', kind: 'calls' }],
 };
 assert.ok(helperContext.helpers.architectureFileMatches(projection.files[0], 'loadusers'));
 assert.deepEqual(
-  [...helperContext.helpers.architectureVisibleIds(projection, 'api')].sort(),
-  ['file:lib/db.js', 'file:src/api.js', 'file:test/api.test.js'],
-  'search includes matches and their directly related files',
+  helperContext.helpers.architectureVisibleModules(projection, false).map(module => module.id),
+  ['module:src', 'module:lib'],
+  'the default overview excludes noise-only subsystems',
 );
 assert.deepEqual(
-  [...helperContext.helpers.architectureVisibleIds(projection, 'query')].sort(),
+  helperContext.helpers.architectureVisibleFiles(projection, '', null, false, null),
+  [],
+  'the initial overview contains no file cards',
+);
+assert.deepEqual(
+  helperContext.helpers.architectureVisibleFiles(projection, '', 'src', false, null).map(file => file.id),
+  ['file:src/api.js'],
+  'opening a subsystem reveals only its clean files by default',
+);
+assert.deepEqual(
+  helperContext.helpers.architectureVisibleFiles(projection, '', 'test', true, null).map(file => file.id),
+  ['file:test/api.test.js'],
+  'the explicit toggle reveals auxiliary files in module drilldown',
+);
+assert.deepEqual(
+  helperContext.helpers.architectureVisibleFiles(projection, 'api', null, false, null).map(file => file.id),
+  ['file:src/api.js', 'file:test/api.test.js'],
+  'search can find normally hidden noisy files and leaves them labelled for the renderer',
+);
+assert.deepEqual(
+  helperContext.helpers.architectureFocusedRelations(projection.relations, null),
+  [],
+  'no selection means no paths',
+);
+assert.deepEqual(
+  helperContext.helpers.architectureVisibleFiles(projection, '', 'src', false, 'file:src/api.js').map(file => file.id),
   ['file:lib/db.js', 'file:src/api.js'],
+  'file focus discloses only its immediate connected peer cards',
 );
 
 console.log('PASS  architecture dashboard contract');

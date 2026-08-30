@@ -369,21 +369,37 @@
   #flowsvg:active { cursor: grabbing; }
   #flowsvg text { font: 11px ui-monospace, Menlo, monospace; pointer-events: none; user-select: none; }
   #flowsvg g.fn { cursor: pointer; }
-  /* Architecture: bounded file/module projection from the existing code index. */
+  /* Architecture: semantic overview with progressive module/file disclosure. */
   #architecture { display: none; min-width: 0; background: #0d1117; }
   #architecture.show { display: flex; flex-direction: column; }
-  .arch-toolbar { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 12px; border-bottom: 1px solid #21262d; background: #11151c; box-sizing: border-box; }
-  .arch-search { display: flex; align-items: center; gap: 6px; width: min(360px, 44vw); padding: 4px 8px; border: 1px solid #30363d; border-radius: 7px; background: #0d1117; }
+  .arch-toolbar { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 7px 12px; border-bottom: 1px solid #21262d; background: #11151c; box-sizing: border-box; }
+  .arch-search { display: flex; align-items: center; gap: 6px; width: min(340px, 38vw); padding: 5px 9px; border: 1px solid #30363d; border-radius: 7px; background: #0d1117; }
   .arch-search input { min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; color: #e6edf3; font: inherit; }
   .arch-search input::placeholder { color: #6e7681; }
+  .arch-breadcrumb { display: flex; align-items: center; gap: 5px; min-width: 0; color: #6e7681; font-size: 10px; }
+  .arch-breadcrumb button { max-width: 180px; overflow: hidden; padding: 2px 4px; border: 0; background: none; color: #79c0ff; cursor: pointer; font: inherit; text-overflow: ellipsis; white-space: nowrap; }
+  .arch-breadcrumb button[aria-current="page"] { color: #c9d1d9; cursor: default; font-weight: 700; }
   #architectureCount { color: #8b949e; font-size: 11px; white-space: nowrap; }
-  .arch-legend { display: flex; align-items: center; gap: 10px; margin-left: auto; color: #8b949e; font-size: 10px; }
+  .arch-controls { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+  .arch-noise-toggle { display: flex; align-items: center; gap: 5px; color: #8b949e; cursor: pointer; font-size: 10px; white-space: nowrap; }
+  .arch-noise-toggle input { accent-color: #58a6ff; }
+  .arch-legend { display: flex; align-items: center; gap: 10px; color: #8b949e; font-size: 10px; }
   .arch-legend-line { display: inline-block; width: 22px; height: 0; margin-right: 4px; border-top: 2px solid #58a6ff; vertical-align: middle; }
   .arch-legend-line.calls { border-top-color: #d29922; border-top-style: dashed; }
   .arch-shell { display: flex; flex: 1; min-height: 0; }
   #architectureMap { position: relative; flex: 1; min-width: 0; overflow: auto; padding: 14px; box-sizing: border-box; }
-  #architectureEdges { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-  .arch-modules { position: relative; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); align-items: start; gap: 12px; }
+  #architectureEdges { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  .arch-overview, .arch-modules { position: relative; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); align-items: start; gap: 12px; }
+  .arch-module-card { position: relative; z-index: 3; min-width: 0; overflow: hidden; border: 1px solid #30363d; border-radius: 10px; background: #161b22; box-shadow: 0 8px 24px rgba(0,0,0,.16); transition: border-color .15s, transform .15s; }
+  .arch-module-card:hover { border-color: #58a6ff; transform: translateY(-1px); }
+  .arch-module-card.selected { outline: 2px solid #e3b341; outline-offset: 1px; }
+  .arch-module-card.muted { opacity: .38; }
+  .arch-module-focus { display: block; width: 100%; padding: 14px; border: 0; background: none; color: inherit; cursor: pointer; font: inherit; text-align: left; }
+  .arch-module-title { overflow: hidden; color: #e6edf3; font-size: 14px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+  .arch-module-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 7px; color: #8b949e; font-size: 10px; }
+  .arch-module-flow { display: flex; gap: 12px; margin-top: 10px; color: #6e7681; font-size: 10px; }
+  .arch-module-open { width: 100%; padding: 8px 12px; border: 0; border-top: 1px solid #30363d; background: #11151c; color: #79c0ff; cursor: pointer; font: inherit; font-size: 10px; text-align: left; }
+  .arch-module-open:hover { background: #1b222c; color: #a5d6ff; }
   .arch-module { min-width: 0; border: 1px solid #21262d; border-radius: 10px; background: rgba(17,21,28,.93); box-shadow: 0 8px 24px rgba(0,0,0,.2); }
   .arch-module-head { position: relative; z-index: 3; display: flex; align-items: center; gap: 7px; padding: 8px 10px; border-bottom: 1px solid #21262d; color: #c9d1d9; background: #11151c; border-radius: 10px 10px 0 0; font-size: 11px; font-weight: 700; }
   .arch-module-count { color: #6e7681; font-size: 9px; font-weight: 400; }
@@ -393,6 +409,7 @@
   .arch-file.selected { outline: 2px solid #e3b341; outline-offset: 1px; border-left-color: #e3b341; }
   .arch-file.search-hit { border-left-color: #3fb950; }
   .arch-file.muted { opacity: .3; }
+  .arch-file-noise { display: inline-block; margin-left: 5px; padding: 1px 5px; border: 1px solid #6e7681; border-radius: 999px; color: #8b949e; font-size: 8px; font-weight: 500; }
   .arch-file-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 650; }
   .arch-file-meta { display: flex; gap: 8px; margin-top: 3px; color: #8b949e; font-size: 9px; }
   .arch-file-kinds { margin-top: 4px; overflow: hidden; color: #6e7681; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
@@ -409,17 +426,19 @@
   .arch-relation.imports b { color: #79c0ff; }
   .arch-relation.calls b { color: #e3b341; }
   .arch-clear { float: right; border: 0; background: none; color: #8b949e; cursor: pointer; font: inherit; }
+  .arch-inspector-action { display: inline-block; margin-top: 12px; padding: 6px 9px; border: 1px solid #30363d; border-radius: 6px; background: #161b22; color: #79c0ff; cursor: pointer; font: inherit; font-size: 10px; }
   .arch-empty { display: flex; min-height: 280px; align-items: center; justify-content: center; padding: 24px; color: #8b949e; text-align: center; }
   @media (max-width: 760px) {
     #viewToggle { max-width: calc(100vw - 118px); overflow-x: auto; }
     #viewToggle button { padding: 3px 9px; white-space: nowrap; }
     .arch-toolbar { align-items: flex-start; flex-wrap: wrap; }
     .arch-search { width: 100%; box-sizing: border-box; }
-    .arch-legend { margin-left: 0; }
+    .arch-breadcrumb { order: 3; width: 100%; }
+    .arch-controls { width: 100%; margin-left: 0; justify-content: space-between; }
     .arch-shell { flex-direction: column; overflow: auto; }
     #architectureMap { flex: none; min-height: 52vh; overflow: visible; }
     #architectureInspector { width: 100%; max-height: none; border-top: 1px solid #21262d; border-left: 0; }
-    .arch-modules { grid-template-columns: 1fr; }
+    .arch-overview, .arch-modules { grid-template-columns: 1fr; }
   }
   /* work-in-progress: pulsing blue ring + left-to-right shine sweep on node body */
   #flowsvg g.fn .fhalo { opacity: 0; pointer-events: none; }
@@ -940,12 +959,16 @@
     <div id="architecture" role="region" aria-label="Code architecture map">
       <div class="arch-toolbar">
         <label class="arch-search"><span aria-hidden="true">⌕</span><input id="architectureSearchInput" type="search" placeholder="Search files or symbols…" aria-label="Search architecture files and symbols" /></label>
+        <nav id="architectureBreadcrumbs" class="arch-breadcrumb" aria-label="Architecture breadcrumb"><button type="button" aria-current="page">Overview</button></nav>
         <span id="architectureCount"></span>
-        <div class="arch-legend" aria-label="Architecture relationship legend"><span><i class="arch-legend-line"></i>imports</span><span><i class="arch-legend-line calls"></i>calls</span></div>
+        <div class="arch-controls">
+          <label class="arch-noise-toggle"><input id="architectureNoiseToggle" type="checkbox" /> Include tests &amp; generated</label>
+          <div class="arch-legend" aria-label="Architecture relationship legend"><span><i class="arch-legend-line"></i>imports</span><span><i class="arch-legend-line calls"></i>calls</span></div>
+        </div>
       </div>
       <div class="arch-shell">
         <div id="architectureMap"></div>
-        <aside id="architectureInspector" aria-label="Architecture file inspector"><div class="arch-inspector-pad"><div class="empty">Select a file to inspect its symbols and relationships.</div></div></aside>
+        <aside id="architectureInspector" aria-label="Architecture inspector" aria-live="polite"><div class="arch-inspector-pad"><div class="empty">Select a subsystem to inspect its role and connections.</div></div></aside>
       </div>
     </div>
     <div id="flowstats"></div>
@@ -5058,6 +5081,9 @@ let specNotice=null;
 let specSaving=false;
 let architectureSearchText='';
 let architectureSelectedId=null;
+let architectureFocusedModuleId=null;
+let architectureOpenModule=null;
+let architectureShowNoise=false;
 let cloudSim=null;             // live d3 force simulation
 const cloudPos={};             // id -> {x,y} preserved across ticks so it doesn't re-jiggle
 let cloudArchiveOpen=false;    // whether the server-archive bundle is expanded
@@ -5566,8 +5592,15 @@ let lastRenderFp='';
 function architectureFingerprint(projection){
   if(!projection||projection.version!==1) return '';
   // These arrays are bounded by the server projection, so hashing all visible details stays bounded.
+  const modules=(projection.modules||[]).map(module=>[
+    module.id,module.name,module.file_count,module.default_file_count,module.hidden_file_count,
+    module.symbol_count,module.incoming_count,module.outgoing_count,module.file_ids||[]
+  ]);
+  const moduleRelations=(projection.module_relations||[]).map(relation=>[
+    relation.id,relation.from,relation.to,relation.kind,relation.count,relation.ambiguous_count
+  ]);
   const files=(projection.files||[]).map(file=>[
-    file.id,file.path,file.module,file.symbol_count,file.exported_count,file.incoming_count,
+    file.id,file.path,file.module,file.noise,file.is_noisy,file.symbol_count,file.exported_count,file.incoming_count,
     file.outgoing_count,file.internal_count,file.omitted_symbols,
     (file.symbols||[]).map(symbol=>[
       symbol.id,symbol.name,symbol.kind,symbol.signature,symbol.summary,symbol.exported,
@@ -5577,7 +5610,7 @@ function architectureFingerprint(projection){
   const relations=(projection.relations||[]).map(relation=>[
     relation.id,relation.from,relation.to,relation.kind,relation.count,relation.ambiguous_count
   ]);
-  return JSON.stringify([projection.status,projection.message||'',projection.summary||{},projection.omitted||{},files,relations]);
+  return JSON.stringify([projection.status,projection.message||'',projection.summary||{},projection.omitted||{},modules,moduleRelations,files,relations]);
 }
 function stateFingerprint(d){
   const s=d.summary||{}, sc=s.statuses||{};
@@ -6427,37 +6460,40 @@ function fallbackCopy(text,done){
   try{ document.execCommand('copy'); done&&done(); }catch(e){}
   document.body.removeChild(ta);
 }
-// ---- Architecture: bounded server projection with local search/focus + file inspector -----------
+// ---- Architecture: subsystem overview -> explicit file drilldown -> focused relationships -------
 function architectureFileMatches(file, query){
   const q=String(query||'').trim().toLowerCase();
   if(!q) return true;
-  return [file.path,file.module,...(file.symbols||[]).flatMap(symbol=>[symbol.name,symbol.kind,symbol.signature])]
+  return [file.path,file.module,file.noise,...(file.symbols||[]).flatMap(symbol=>[symbol.name,symbol.kind,symbol.signature])]
     .some(value=>String(value||'').toLowerCase().includes(q));
 }
-function architectureVisibleIds(projection, query){
-  const files=projection&&projection.files||[];
+function architectureVisibleModules(projection, showNoise){
+  return (projection&&projection.modules||[]).filter(module=>showNoise?module.file_count>0:module.default_file_count>0);
+}
+function architectureFocusedRelations(relations, selectedId){
+  if(!selectedId) return [];
+  return (relations||[]).filter(relation=>relation.from===selectedId||relation.to===selectedId);
+}
+function architectureVisibleFiles(projection, query, openModule, showNoise, selectedId){
+  const all=projection&&projection.files||[];
   const q=String(query||'').trim();
-  if(!q) return new Set(files.map(file=>file.id));
-  const matches=new Set(files.filter(file=>architectureFileMatches(file,q)).map(file=>file.id));
-  const ids=new Set(matches);
-  for(const relation of (projection.relations||[])){
-    if(matches.has(relation.from)||matches.has(relation.to)){ ids.add(relation.from); ids.add(relation.to); }
+  let files=q
+    ?all.filter(file=>architectureFileMatches(file,q))
+    :openModule?all.filter(file=>file.module===openModule&&(showNoise||!file.is_noisy)):[];
+  if(selectedId){
+    const related=new Set([selectedId]);
+    for(const relation of architectureFocusedRelations(projection&&projection.relations,selectedId)){
+      related.add(relation.from); related.add(relation.to);
+    }
+    files=[...files,...all.filter(file=>related.has(file.id))];
   }
-  return ids;
+  return [...new Map(files.map(file=>[file.id,file])).values()]
+    .sort((a,b)=>a.module.localeCompare(b.module)||a.path.localeCompare(b.path));
 }
-function architectureRelatedIds(projection, selectedId){
-  if(!selectedId) return null;
-  const ids=new Set([selectedId]);
-  for(const relation of (projection.relations||[])){
-    if(relation.from===selectedId) ids.add(relation.to);
-    if(relation.to===selectedId) ids.add(relation.from);
-  }
-  return ids;
+function architectureCard(id, selector){
+  return [...document.querySelectorAll(`#architectureMap ${selector}`)].find(card=>card.dataset.archId===id)||null;
 }
-function architectureCard(id){
-  return [...document.querySelectorAll('#architectureMap .arch-file')].find(card=>card.dataset.archId===id)||null;
-}
-function drawArchitectureRelations(projection, visibleIds){
+function drawArchitectureRelations(relations, selectedId, selector){
   const map=document.getElementById('architectureMap');
   const svg=document.getElementById('architectureEdges');
   if(!map||!svg) return;
@@ -6466,48 +6502,90 @@ function drawArchitectureRelations(projection, visibleIds){
   svg.style.width=width+'px'; svg.style.height=height+'px';
   const mapRect=map.getBoundingClientRect();
   const paths=[];
-  for(const relation of (projection.relations||[])){
-    if(!visibleIds.has(relation.from)||!visibleIds.has(relation.to)) continue;
-    const from=architectureCard(relation.from), to=architectureCard(relation.to);
+  for(const relation of architectureFocusedRelations(relations,selectedId)){
+    const from=architectureCard(relation.from,selector), to=architectureCard(relation.to,selector);
     if(!from||!to) continue;
     const a=from.getBoundingClientRect(), b=to.getBoundingClientRect();
     const x1=a.left-mapRect.left+map.scrollLeft+a.width/2;
     const y1=a.top-mapRect.top+map.scrollTop+a.height/2;
     const x2=b.left-mapRect.left+map.scrollLeft+b.width/2;
     const y2=b.top-mapRect.top+map.scrollTop+b.height/2;
-    const bend=(relation.kind==='calls'?12:-12);
-    const mx=(x1+x2)/2+bend;
-    const active=!architectureSelectedId||relation.from===architectureSelectedId||relation.to===architectureSelectedId;
+    const mx=(x1+x2)/2+(relation.kind==='calls'?12:-12);
     const stroke=relation.kind==='calls'?'#d29922':'#58a6ff';
     const dash=relation.kind==='calls'?' stroke-dasharray="5 4"':'';
-    const opacity=active?.62:.08;
     const strokeWidth=Math.min(4,1+Math.log2(1+(relation.count||1))*.55);
-    paths.push(`<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-opacity="${opacity}"${dash} marker-end="url(#arch-${relation.kind})"/>`);
+    paths.push(`<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-opacity=".68"${dash} marker-end="url(#arch-${relation.kind})"/>`);
   }
   svg.innerHTML='<defs><marker id="arch-imports" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#58a6ff"/></marker><marker id="arch-calls" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#d29922"/></marker></defs>'+paths.join('');
+}
+function renderArchitectureBreadcrumbs(){
+  const breadcrumbs=document.getElementById('architectureBreadcrumbs');
+  if(!breadcrumbs) return;
+  if(architectureSearchText.trim()){
+    breadcrumbs.innerHTML='<button type="button" data-arch-crumb="overview">Overview</button><span aria-hidden="true">/</span><button type="button" aria-current="page">Search results</button>';
+  }else if(architectureOpenModule){
+    breadcrumbs.innerHTML=`<button type="button" data-arch-crumb="overview">Overview</button><span aria-hidden="true">/</span><button type="button" aria-current="page">${esc(architectureOpenModule)}</button>`;
+  }else{
+    breadcrumbs.innerHTML='<button type="button" aria-current="page">Overview</button>';
+  }
+  breadcrumbs.querySelectorAll('[data-arch-crumb="overview"]').forEach(button=>button.addEventListener('click',showArchitectureOverview));
 }
 function renderArchitectureInspector(projection){
   const inspector=document.getElementById('architectureInspector');
   if(!inspector) return;
   const files=projection&&projection.files||[];
   const file=files.find(item=>item.id===architectureSelectedId);
-  if(!file){
-    architectureSelectedId=null;
-    inspector.innerHTML='<div class="arch-inspector-pad"><div class="empty">Select a file to inspect its symbols and relationships.</div></div>';
+  if(file){
+    const byId=Object.fromEntries(files.map(item=>[item.id,item]));
+    const relations=architectureFocusedRelations(projection.relations,file.id);
+    const symbolHtml=(file.symbols||[]).map(symbol=>`<div class="arch-symbol"><b>${esc(symbol.name)}</b> <span>${esc(symbol.kind)}${symbol.start_line!=null?' · line '+symbol.start_line:''}${symbol.exported?' · exported':''}</span>${symbol.summary?`<div><span>${esc(symbol.summary)}</span></div>`:''}</div>`).join('');
+    const relationHtml=relations.map(relation=>{
+      const outgoing=relation.from===file.id;
+      const peer=byId[outgoing?relation.to:relation.from];
+      return `<div class="arch-relation ${esc(relation.kind)}"><b>${outgoing?'→':'←'} ${esc(relation.kind)}</b> ${esc(peer&&peer.path||'indexed file')} <span>×${relation.count||1}${relation.ambiguous_count?' · '+relation.ambiguous_count+' ambiguous':''}</span></div>`;
+    }).join('');
+    inspector.innerHTML=`<div class="arch-inspector-pad"><button class="arch-clear" type="button" aria-label="Clear selected file" onclick="clearArchitectureSelection()">✕</button>`+
+      `<div class="arch-inspector-title">${esc(file.path)}${file.is_noisy?` <span class="arch-file-noise">${esc(file.noise)}</span>`:''}</div><div class="arch-inspector-meta">${esc(file.module)} · ${file.symbol_count||0} symbols · ${file.incoming_count||0} incoming · ${file.outgoing_count||0} outgoing</div>`+
+      `<div class="arch-inspector-section"><div class="arch-inspector-label">Symbols</div>${symbolHtml||'<div class="empty">No symbol details indexed.</div>'}${file.omitted_symbols?`<div class="empty">+${file.omitted_symbols} more symbols omitted by the projection limit.</div>`:''}</div>`+
+      `<div class="arch-inspector-section"><div class="arch-inspector-label">Focused relationships</div>${relationHtml||'<div class="empty">No cross-file calls or imports in the visible projection.</div>'}${file.internal_count?`<div class="arch-relation calls"><b>↻ internal calls</b> <span>×${file.internal_count}</span></div>`:''}</div></div>`;
     return;
   }
-  const byId=Object.fromEntries(files.map(item=>[item.id,item]));
-  const relations=(projection.relations||[]).filter(relation=>relation.from===file.id||relation.to===file.id);
-  const symbolHtml=(file.symbols||[]).map(symbol=>`<div class="arch-symbol"><b>${esc(symbol.name)}</b> <span>${esc(symbol.kind)}${symbol.start_line!=null?' · line '+symbol.start_line:''}${symbol.exported?' · exported':''}</span>${symbol.summary?`<div><span>${esc(symbol.summary)}</span></div>`:''}</div>`).join('');
-  const relationHtml=relations.map(relation=>{
-    const outgoing=relation.from===file.id;
-    const peer=byId[outgoing?relation.to:relation.from];
-    return `<div class="arch-relation ${esc(relation.kind)}"><b>${outgoing?'→':'←'} ${esc(relation.kind)}</b> ${esc(peer&&peer.path||'indexed file')} <span>×${relation.count||1}${relation.ambiguous_count?' · '+relation.ambiguous_count+' ambiguous':''}</span></div>`;
-  }).join('');
-  inspector.innerHTML=`<div class="arch-inspector-pad"><button class="arch-clear" type="button" aria-label="Close architecture inspector" onclick="clearArchitectureSelection()">✕</button>`+
-    `<div class="arch-inspector-title">${esc(file.path)}</div><div class="arch-inspector-meta">${esc(file.module)} · ${file.symbol_count||0} symbols · ${file.incoming_count||0} incoming · ${file.outgoing_count||0} outgoing</div>`+
-    `<div class="arch-inspector-section"><div class="arch-inspector-label">Symbols</div>${symbolHtml||'<div class="empty">No symbol details indexed.</div>'}${file.omitted_symbols?`<div class="empty">+${file.omitted_symbols} more symbols omitted by the projection limit.</div>`:''}</div>`+
-    `<div class="arch-inspector-section"><div class="arch-inspector-label">Relationships</div>${relationHtml||'<div class="empty">No cross-file calls or imports in the visible projection.</div>'}${file.internal_count?`<div class="arch-relation calls"><b>↻ internal calls</b> <span>×${file.internal_count}</span></div>`:''}</div></div>`;
+  const module=(projection&&projection.modules||[]).find(item=>item.id===architectureFocusedModuleId);
+  if(module){
+    const byId=Object.fromEntries((projection.modules||[]).map(item=>[item.id,item]));
+    const relationHtml=architectureFocusedRelations(projection.module_relations,module.id).map(relation=>{
+      const outgoing=relation.from===module.id;
+      const peer=byId[outgoing?relation.to:relation.from];
+      return `<div class="arch-relation ${esc(relation.kind)}"><b>${outgoing?'→':'←'} ${esc(relation.kind)}</b> ${esc(peer&&peer.name||'subsystem')} <span>×${relation.count||1}</span></div>`;
+    }).join('');
+    inspector.innerHTML=`<div class="arch-inspector-pad"><button class="arch-clear" type="button" aria-label="Clear selected subsystem" onclick="clearArchitectureSelection()">✕</button><div class="arch-inspector-title">${esc(module.name)}</div>`+
+      `<div class="arch-inspector-meta">${module.default_file_count||0} source files · ${module.symbol_count||0} symbols${module.hidden_file_count?` · ${module.hidden_file_count} auxiliary hidden`:''}</div>`+
+      `<button class="arch-inspector-action" type="button" data-arch-open-module="${esc(module.name)}">Explore files →</button>`+
+      `<div class="arch-inspector-section"><div class="arch-inspector-label">Focused relationships</div>${relationHtml||'<div class="empty">No cross-subsystem relationships in the visible projection.</div>'}</div></div>`;
+    inspector.querySelector('[data-arch-open-module]').addEventListener('click',event=>openArchitectureModule(event.currentTarget.dataset.archOpenModule));
+    return;
+  }
+  const hint=architectureOpenModule?`Select a file in ${esc(architectureOpenModule)} to inspect its symbols and relationships.`:'Select a subsystem to inspect its role and connections. No relationships are drawn until you focus one.';
+  inspector.innerHTML=`<div class="arch-inspector-pad"><div class="empty">${hint}</div></div>`;
+}
+function selectArchitectureModule(id){
+  architectureFocusedModuleId=architectureFocusedModuleId===id?null:id;
+  architectureSelectedId=null;
+  if(lastState) renderArchitecture(lastState);
+}
+function openArchitectureModule(name){
+  architectureOpenModule=name;
+  architectureFocusedModuleId=null;
+  architectureSelectedId=null;
+  architectureSearchText='';
+  if(lastState) renderArchitecture(lastState);
+}
+function showArchitectureOverview(){
+  architectureOpenModule=null;
+  architectureFocusedModuleId=null;
+  architectureSelectedId=null;
+  architectureSearchText='';
+  if(lastState) renderArchitecture(lastState);
 }
 function selectArchitectureFile(id){
   architectureSelectedId=architectureSelectedId===id?null:id;
@@ -6515,50 +6593,92 @@ function selectArchitectureFile(id){
 }
 function clearArchitectureSelection(){
   architectureSelectedId=null;
+  architectureFocusedModuleId=null;
   if(lastState) renderArchitecture(lastState);
+}
+function renderArchitectureOverview(projection){
+  const map=document.getElementById('architectureMap');
+  const count=document.getElementById('architectureCount');
+  const modules=architectureVisibleModules(projection,architectureShowNoise);
+  const related=new Set(architectureFocusedRelations(projection.module_relations,architectureFocusedModuleId).flatMap(relation=>[relation.from,relation.to]));
+  if(architectureFocusedModuleId) related.add(architectureFocusedModuleId);
+  const hidden=(projection.modules||[]).length-modules.length;
+  count.textContent=`${modules.length} subsystem${modules.length===1?'':'s'} · ${(projection.summary||{}).indexed_files||0} indexed files`+(hidden?` · ${hidden} auxiliary hidden`:'');
+  const cards=modules.map(module=>{
+    const selected=module.id===architectureFocusedModuleId;
+    const muted=architectureFocusedModuleId&&!related.has(module.id);
+    const fileCount=architectureShowNoise?module.file_count:module.default_file_count;
+    return `<article class="arch-module-card${selected?' selected':''}${muted?' muted':''}" data-arch-id="${esc(module.id)}"><button class="arch-module-focus" type="button" data-arch-module-id="${esc(module.id)}" aria-pressed="${selected}" aria-label="Focus ${esc(module.name)} subsystem"><div class="arch-module-title">${esc(module.name)}</div><div class="arch-module-meta"><span>${fileCount||0} files</span><span>${module.symbol_count||0} symbols</span>${module.hidden_file_count?`<span>${module.hidden_file_count} auxiliary</span>`:''}</div><div class="arch-module-flow"><span>← ${module.incoming_count||0} incoming</span><span>→ ${module.outgoing_count||0} outgoing</span></div></button><button class="arch-module-open" type="button" data-arch-open-module="${esc(module.name)}">Explore files →</button></article>`;
+  }).join('');
+  map.innerHTML='<svg id="architectureEdges" aria-hidden="true"></svg><div class="arch-overview">'+(cards||'<div class="arch-empty">No source subsystems match this view.</div>')+'</div>';
+  map.querySelectorAll('[data-arch-module-id]').forEach(button=>button.addEventListener('click',()=>selectArchitectureModule(button.dataset.archModuleId)));
+  map.querySelectorAll('[data-arch-open-module]').forEach(button=>button.addEventListener('click',()=>openArchitectureModule(button.dataset.archOpenModule)));
+  renderArchitectureInspector(projection);
+  requestAnimationFrame(()=>drawArchitectureRelations(projection.module_relations,architectureFocusedModuleId,'.arch-module-card'));
+}
+function renderArchitectureFiles(projection){
+  const map=document.getElementById('architectureMap');
+  const count=document.getElementById('architectureCount');
+  const query=architectureSearchText.trim();
+  const files=architectureVisibleFiles(projection,query,architectureOpenModule,architectureShowNoise,architectureSelectedId);
+  const directMatches=query?(projection.files||[]).filter(file=>architectureFileMatches(file,query)):files.filter(file=>file.module===architectureOpenModule);
+  const hiddenMatches=directMatches.filter(file=>file.is_noisy).length;
+  const openAggregate=(projection.modules||[]).find(module=>module.name===architectureOpenModule);
+  const openTotal=openAggregate&&(architectureShowNoise?openAggregate.file_count:openAggregate.default_file_count)||directMatches.length;
+  count.textContent=query?`${directMatches.length} search result${directMatches.length===1?'':'s'}${hiddenMatches?` · ${hiddenMatches} normally hidden`:''}`:`${directMatches.length} of ${openTotal} source files${openAggregate&&openAggregate.hidden_file_count?` · ${openAggregate.hidden_file_count} auxiliary hidden`:''}`;
+  const related=new Set(architectureFocusedRelations(projection.relations,architectureSelectedId).flatMap(relation=>[relation.from,relation.to]));
+  if(architectureSelectedId) related.add(architectureSelectedId);
+  const groups=new Map();
+  for(const file of files){ if(!groups.has(file.module)) groups.set(file.module,[]); groups.get(file.module).push(file); }
+  const modules=[...groups.entries()].sort((a,b)=>(a[0]===architectureOpenModule?-1:b[0]===architectureOpenModule?1:a[0].localeCompare(b[0])));
+  const moduleHtml=modules.map(([name,moduleFiles])=>`<section class="arch-module"><div class="arch-module-head">${esc(name)} <span class="arch-module-count">${moduleFiles.length} file${moduleFiles.length===1?'':'s'}${name!==architectureOpenModule&&architectureSelectedId?' · connected':''}</span></div><div class="arch-files">`+
+    moduleFiles.map(file=>{
+      const kinds=[...new Set((file.symbols||[]).map(symbol=>symbol.kind))].slice(0,4).join(' · ');
+      const muted=architectureSelectedId&&!related.has(file.id);
+      const searchHit=query&&architectureFileMatches(file,query);
+      return `<button class="arch-file${file.id===architectureSelectedId?' selected':''}${muted?' muted':''}${searchHit?' search-hit':''}" type="button" data-arch-id="${esc(file.id)}" aria-pressed="${file.id===architectureSelectedId}" aria-label="Inspect ${esc(file.path)}"><div class="arch-file-path">${esc(file.path)}${file.is_noisy?` <span class="arch-file-noise">${esc(file.noise)}</span>`:''}</div><div class="arch-file-meta"><span>${file.symbol_count||0} symbols</span><span>←${file.incoming_count||0}</span><span>→${file.outgoing_count||0}</span></div>${kinds?`<div class="arch-file-kinds">${esc(kinds)}</div>`:''}</button>`;
+    }).join('')+'</div></section>').join('');
+  const detailLimit=(projection.omitted||{}).files?` File drilldown is bounded; ${(projection.omitted||{}).files} lower-ranked files are not inspectable here.`:'';
+  map.innerHTML='<svg id="architectureEdges" aria-hidden="true"></svg><div class="arch-modules">'+(moduleHtml||`<div class="arch-empty">No files match this view.${esc(detailLimit)}</div>`)+'</div>';
+  map.querySelectorAll('.arch-file').forEach(button=>button.addEventListener('click',()=>selectArchitectureFile(button.dataset.archId)));
+  renderArchitectureInspector(projection);
+  requestAnimationFrame(()=>drawArchitectureRelations(projection.relations,architectureSelectedId,'.arch-file'));
 }
 function renderArchitecture(d){
   const projection=d&&d.architecture;
   const map=document.getElementById('architectureMap');
   const count=document.getElementById('architectureCount');
   const input=document.getElementById('architectureSearchInput');
+  const noise=document.getElementById('architectureNoiseToggle');
   if(!map||!count) return;
   if(input&&input.value!==architectureSearchText) input.value=architectureSearchText;
+  if(noise&&noise.checked!==architectureShowNoise) noise.checked=architectureShowNoise;
+  renderArchitectureBreadcrumbs();
   if(!projection||projection.version!==1){
     count.textContent='';
     map.innerHTML='<div class="arch-empty">Architecture projection unavailable for this daemon version.</div>';
     renderArchitectureInspector(null);
     return;
   }
-  if(projection.status==='empty'||!(projection.files||[]).length){
+  if(projection.status==='empty'||!(projection.modules||[]).length){
     count.textContent='0 indexed files';
     const emptyTitle=projection.status==='indexing'?'Indexing architecture…':projection.status==='error'?'Architecture index needs retry':projection.status==='ready'?'No source symbols found':'Nothing indexed yet';
     map.innerHTML=`<div class="arch-empty"><div><b>${esc(emptyTitle)}</b><br>${esc(projection.message||'Project onboarding will build the architecture map automatically.')}</div></div>`;
     renderArchitectureInspector(projection);
     return;
   }
-  const visibleIds=architectureVisibleIds(projection,architectureSearchText);
-  const relatedIds=architectureRelatedIds(projection,architectureSelectedId);
-  const files=(projection.files||[]).filter(file=>visibleIds.has(file.id));
-  const groups=new Map();
-  for(const file of files){ if(!groups.has(file.module)) groups.set(file.module,[]); groups.get(file.module).push(file); }
-  const omitted=projection.omitted||{};
-  count.textContent=`${files.length} of ${(projection.summary||{}).visible_files||0} files`+(omitted.files?` · ${omitted.files} omitted by limit`:'');
-  const modules=[...groups.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
-  const moduleHtml=modules.map(([name,moduleFiles])=>`<section class="arch-module"><div class="arch-module-head">${esc(name)} <span class="arch-module-count">${moduleFiles.length} file${moduleFiles.length===1?'':'s'}</span></div><div class="arch-files">`+
-    moduleFiles.map(file=>{
-      const kinds=[...new Set((file.symbols||[]).map(symbol=>symbol.kind))].slice(0,4).join(' · ');
-      const muted=relatedIds&&!relatedIds.has(file.id);
-      const searchHit=architectureSearchText&&architectureFileMatches(file,architectureSearchText);
-      return `<button class="arch-file${file.id===architectureSelectedId?' selected':''}${muted?' muted':''}${searchHit?' search-hit':''}" type="button" data-arch-id="${esc(file.id)}" aria-pressed="${file.id===architectureSelectedId}"><div class="arch-file-path">${esc(file.path)}</div><div class="arch-file-meta"><span>${file.symbol_count||0} symbols</span><span>←${file.incoming_count||0}</span><span>→${file.outgoing_count||0}</span></div>${kinds?`<div class="arch-file-kinds">${esc(kinds)}</div>`:''}</button>`;
-    }).join('')+'</div></section>').join('');
-  map.innerHTML='<svg id="architectureEdges" aria-hidden="true"></svg><div class="arch-modules">'+(moduleHtml||'<div class="arch-empty">No files match this search.</div>')+'</div>';
-  map.querySelectorAll('.arch-file').forEach(button=>button.addEventListener('click',()=>selectArchitectureFile(button.dataset.archId)));
-  renderArchitectureInspector(projection);
-  requestAnimationFrame(()=>drawArchitectureRelations(projection,visibleIds));
+  if(architectureSearchText.trim()||architectureOpenModule) renderArchitectureFiles(projection);
+  else renderArchitectureOverview(projection);
 }
 document.getElementById('architectureSearchInput').addEventListener('input',event=>{
   architectureSearchText=event.target.value;
+  architectureSelectedId=null;
+  architectureFocusedModuleId=null;
+  if(lastState) renderArchitecture(lastState);
+});
+document.getElementById('architectureNoiseToggle').addEventListener('change',event=>{
+  architectureShowNoise=event.target.checked;
+  architectureSelectedId=null;
   if(lastState) renderArchitecture(lastState);
 });
 // ---- view switching: Spec | Kanban | Frontier | Knowledge | Architecture | Focus (one task's lineage)
