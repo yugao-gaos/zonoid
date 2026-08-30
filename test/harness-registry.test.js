@@ -6,14 +6,16 @@ const harness = require('../lib/harness');
 let pass = 0, fail = 0;
 const ok = (l, c) => { if (c) { console.log('PASS  ' + l); pass++; } else { console.log('FAIL  ' + l); fail++; } };
 
-ok('all returns adapters', harness.all().length >= 5);
+ok('all returns adapters', harness.all().length >= 6);
 ok('get claude', harness.get('claude').name === 'claude');
 ok('get cursor', harness.get('cursor').name === 'cursor');
 ok('get opencode', harness.get('opencode').name === 'opencode');
+ok('get dsh', harness.get('dsh').name === 'dsh');
 ok('route uuid session to claude', harness.route('a1b2c3d4-e5f6-7890-abcd-ef1234567890/t1').name === 'claude');
 ok('route cursor key to cursor', harness.route('cursor/abc').name === 'cursor');
 ok('route codex key to codex', harness.route('codex/x').name === 'codex');
 ok('route opencode key to opencode', harness.route('opencode/x').name === 'opencode');
+ok('route dsh key to dsh', harness.route('dsh/x').name === 'dsh');
 ok('no active export', typeof harness.active === 'undefined');
 ok('no select export', typeof harness.select === 'undefined');
 
