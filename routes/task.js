@@ -21,7 +21,7 @@ function dashboardTask(task) {
 }
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
-  const { send, readBody, buildGraph, state, targetOverlay, nodeExistsInGraph,
+  const { send, readBody, buildGraph, effectiveTaskStatuses, state, targetOverlay, nodeExistsInGraph,
     validateMetricSpec, validateBenchmark, resolveRepoTarget, taskTranscript, usageCached } = ctx;
   const graphHasKey = (ws, key) => {
     if (typeof nodeExistsInGraph !== 'function') return true;
@@ -62,12 +62,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       send(res, 400, { ok: false, error: 'keys must contain strings only' }); return true;
     }
     const keys = [...new Set(b.keys.map((key) => key.trim()).filter(Boolean))];
-    const graph = buildGraph(T.ws);
-    const byId = new Map(graph.tasks.map((task) => [task.id, task]));
-    const statuses = Object.fromEntries(keys.map((key) => {
-      const task = byId.get(key);
-      return [key, task ? (task.status || null) : null];
-    }));
+    const statuses = effectiveTaskStatuses(T.ws, keys);
     send(res, 200, { ok: true, statuses }); return true;
   }
 
