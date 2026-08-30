@@ -1,11 +1,25 @@
 # VoiceMem memory-lane promotion report
 
-## Decision: HOLD
+## Automated promotion-gate result: HOLD
 
-The lane-aware compiler clears the correctness gates, but the feature set must
-remain disabled by default. The outcome-guided arm exceeds the injected-token
-budget, and the in-process latency measurement does not clear the 10% p95 gate
-with enough confidence.
+The lane-aware compiler cleared the correctness gates, but the automated gate
+recommended that the feature set remain disabled by default. The outcome-guided
+arm exceeds the injected-token budget, and the in-process latency measurement
+does not clear the 10% p95 gate with enough confidence.
+
+## Post-evaluation rollout decision
+
+The lane-aware compiler is **GO** as the default, with `memory_lanes=0` (HTTP)
+or `memory_lanes:false` (MCP) retained as an explicit legacy rollback. This
+product decision accepts the lane-only rollout because it improves factual
+accuracy from 0.600 to 1.000, removes measured guidance leakage and source-role
+confusion, raises MRR from 0.667 to 0.900, and adds no estimated injected-token
+overhead. The sub-millisecond latency confidence interval remains an identified
+measurement limitation rather than a claim of proven latency equivalence.
+
+Outcome-policy memory remains **HOLD** and disabled by default. It produced no
+quality or ranking gain over lane-aware retrieval alone in this evaluation and
+increased estimated injected tokens by 49.6%.
 
 ## Three-arm result
 
@@ -42,7 +56,7 @@ policy and the compiler returned that policy only in `guidance_results`.
 | p95 latency overhead at most 10% | **FAIL** | Limit 0.460 ms; enabled-arm interval highs were 0.588 and 0.589 ms |
 | Injected-token overhead at most 10% | **FAIL** | Lane-aware: +0%; outcome arm: +49.6% |
 | Outcome policy remains guidance | PASS | One derived and recalled policy; no factual injection |
-| Features remain default-off | PASS | Request/config opt-in required |
+| Features remained default-off during evaluation | PASS | Request/config opt-in was required at capture time |
 
 Latency is a sub-millisecond, in-process microbenchmark and is sensitive to
 local scheduling. The gate uses an approximate 95% order-statistic interval

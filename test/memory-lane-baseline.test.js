@@ -68,7 +68,7 @@ const { runEvaluation } = require('../bench/agent-memory/memory-lane-baseline/ev
   assert(evaluation.gates.find((gate) => gate.id === 'stale_current_leakage').passed);
   assert(evaluation.gates.find((gate) => gate.id === 'recall_at_5_regression').passed);
   assert(evaluation.gates.find((gate) => gate.id === 'outcome_policy_is_guidance').passed);
-  assert(evaluation.gates.find((gate) => gate.id === 'features_default_off').passed);
+  assert(evaluation.gates.find((gate) => gate.id === 'outcome_policy_default_off').passed);
   assert.equal(evaluation.gates.find((gate) => gate.id === 'injected_token_overhead').passed, false);
   assert.equal(evaluation.decision, 'HOLD');
   assert.match(evaluation.scoring_notes.audit, /Recall@5=0\.8/);

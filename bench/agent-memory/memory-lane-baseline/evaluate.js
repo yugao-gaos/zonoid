@@ -147,13 +147,10 @@ function evaluateGates(arms, taskContext) {
         && arms['lane-aware-outcome'].outcome_policy.recalled_as_guidance,
     ),
     makeGate(
-      'features_default_off',
-      'memory lanes require request opt-in and outcome policy requires config/env opt-in',
-      {
-        current_memory_lanes: arms.current.memory_lanes,
-        outcome_policy_default_enabled: outcomePolicy.enabled({ config: {} }, {}),
-      },
-      arms.current.memory_lanes === false && outcomePolicy.enabled({ config: {} }, {}) === false,
+      'outcome_policy_default_off',
+      'outcome policy requires config/env opt-in',
+      { outcome_policy_default_enabled: outcomePolicy.enabled({ config: {} }, {}) },
+      outcomePolicy.enabled({ config: {} }, {}) === false,
     ),
   ];
 }

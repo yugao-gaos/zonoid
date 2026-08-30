@@ -85,11 +85,17 @@ function note(id, label, summary, extra = {}) {
     ],
   };
 
-  const legacy = await search(mixedGraph, { q: 'current database', k: 5 });
+  const defaultOn = await search(mixedGraph, { q: 'current database', k: 1 });
+  const explicitOn = await search(mixedGraph, { q: 'current database', k: 1, memory_lanes: 1 });
+  assert.deepEqual(defaultOn, explicitOn, 'memory lanes must be enabled when the flag is omitted');
+
   const explicitOff = await search(mixedGraph, { q: 'current database', k: 5, memory_lanes: 0 });
-  assert.deepEqual(explicitOff, legacy, 'disabled memory lanes must preserve the legacy payload exactly');
-  assert.equal(Object.prototype.hasOwnProperty.call(legacy, 'evidence_results'), false);
-  assert(legacy.results.some((result) => result.key === 'note:database-guidance'));
+  const camelCaseOff = await search(mixedGraph, { q: 'current database', k: 5, memoryLanes: false });
+  assert.deepEqual(camelCaseOff, explicitOff, 'both supported flags must preserve the same legacy rollback payload');
+  assert.equal(Object.prototype.hasOwnProperty.call(explicitOff, 'evidence_results'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(explicitOff, 'guidance_results'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(explicitOff, 'memory_lanes'), false);
+  assert(explicitOff.results.some((result) => result.key === 'note:database-guidance'));
 
   const partitioned = await search(mixedGraph, { q: 'current database', k: 1, memory_lanes: 1 });
   assert.deepEqual(partitioned.results, partitioned.evidence_results);
@@ -172,7 +178,18 @@ function note(id, label, summary, extra = {}) {
   const tool = graphTools({ q: queryString, UI_URI: '', PORT: 0, runSubconsciousAssignment: null })
     .find((candidate) => candidate.name === 'search_knowledge');
   assert.equal(tool.inputSchema.properties.memory_lanes.type, 'boolean');
+  assert.equal(tool.inputSchema.properties.memory_lanes.default, true);
   let calledUrl = '';
+  await tool.run({ query: 'database' }, async (_method, url) => {
+    calledUrl = url;
+    return {};
+  });
+  assert.doesNotMatch(calledUrl, /(?:\?|&)memory_lanes=/, 'omission should use the HTTP default-on behavior');
+  await tool.run({ query: 'database', memory_lanes: false }, async (_method, url) => {
+    calledUrl = url;
+    return {};
+  });
+  assert.match(calledUrl, /(?:\?|&)memory_lanes=0(?:&|$)/, 'MCP false must explicitly request the legacy payload');
   await tool.run({ query: 'database', memory_lanes: true }, async (_method, url) => {
     calledUrl = url;
     return {};
