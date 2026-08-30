@@ -5483,6 +5483,22 @@ function refreshCronTok(){
   }).catch(()=>{}).finally(()=>{ cronAt=Date.now(); cronBusy=false; });
 }
 let lastRenderFp='';
+function architectureFingerprint(projection){
+  if(!projection||projection.version!==1) return '';
+  // These arrays are bounded by the server projection, so hashing all visible details stays bounded.
+  const files=(projection.files||[]).map(file=>[
+    file.id,file.path,file.module,file.symbol_count,file.exported_count,file.incoming_count,
+    file.outgoing_count,file.internal_count,file.omitted_symbols,
+    (file.symbols||[]).map(symbol=>[
+      symbol.id,symbol.name,symbol.kind,symbol.signature,symbol.summary,symbol.exported,
+      symbol.start_line,symbol.end_line
+    ])
+  ]);
+  const relations=(projection.relations||[]).map(relation=>[
+    relation.id,relation.from,relation.to,relation.kind,relation.count,relation.ambiguous_count
+  ]);
+  return JSON.stringify([projection.status,projection.message||'',projection.summary||{},projection.omitted||{},files,relations]);
+}
 function stateFingerprint(d){
   const s=d.summary||{}, sc=s.statuses||{};
   const taskFp=(d.tasks||[]).map(t=>[
@@ -5497,9 +5513,7 @@ function stateFingerprint(d){
   ].join(':')).sort().join('|');
   const guidFp=(d.guidance||[]).map(g=>g.id+':'+g.resolved).join('|');
   const kanbanFp=d.kanban&&d.kanban.version===1?(d.kanban.columns||[]).map(c=>c.id+':'+(c.task_keys||[]).join(',')).join('|'):'';
-  const architectureFp=d.architecture&&d.architecture.version===1
-    ? (d.architecture.files||[]).map(f=>f.id+':'+f.symbol_count).join('|')+';'+(d.architecture.relations||[]).map(r=>r.id+':'+r.count).join('|')
-    : '';
+  const architectureFp=architectureFingerprint(d.architecture);
   return JSON.stringify({sc, taskFp, guidFp, kanbanFp, architectureFp, agents: s.agents, archived: s.archived});
 }
 function statusLabel(s){ const m={'not_ready':'Not ready','in_progress':'In progress','canceled':'Canceled','not ready':'Not ready','in progress':'In progress','needs_guidance':'Needs guidance','needs_approval':'Needs approval','waiting_deps':'Waiting on deps','waiting_ghost':'Waiting on ghost','blocked':'Blocked'}; return m[s]||(s.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())); }
