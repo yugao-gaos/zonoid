@@ -457,3 +457,46 @@ test('headless maintenance pump automatically invokes incremental sync after HEA
     delete require.cache[require.resolve('../lib/headless-drain')];
   }
 });
+
+test('headless maintenance pump shares one authoritative overlay across code-index discovery', async () => {
+  delete require.cache[require.resolve('../lib/headless-drain')];
+  const headless = require('../lib/headless-drain');
+  const workspace = os.tmpdir();
+  const authoritative = { config: {}, code_nodes: { sentinel: { kind: 'function' } } };
+  let overlayLoads = 0;
+  const seen = [];
+  const saveOverlay = () => {};
+  const inspectDeps = (deps) => {
+    seen.push(deps.loadOverlay(workspace));
+    assert.equal(deps.saveOverlay, saveOverlay);
+    return [];
+  };
+  const fakeLifecycle = {
+    findDueFullIndexJobs: (_state, deps) => inspectDeps(deps),
+    findDueIncrementalIndexJobs: (_state, deps) => inspectDeps(deps),
+  };
+  const options = {
+    overlayLoad: () => { overlayLoads++; return authoritative; },
+    overlaySave: saveOverlay,
+    codeIndexDeps: { lifecycle: fakeLifecycle },
+    judgeDeps: {
+      judgeLib: { judgeQueueDepth: () => 0, buildQueue: () => [], eagerJudgeNodes: () => [] },
+    },
+    labelDeps: {
+      rowKey: () => '', journalPath: () => '/none', labeledPath: () => '/none', readJsonl: () => [],
+    },
+  };
+
+  try {
+    await headless.runDueDrains({ workspace }, null, options);
+    assert.equal(overlayLoads, 1, 'full and incremental discovery share one load per pump');
+
+    options.overlay = authoritative;
+    await headless.runDueDrains({ workspace }, null, options);
+    assert.equal(overlayLoads, 1, 'explicit daemon overlay bypasses the external loader');
+    assert.equal(seen.length, 4, 'both discovery paths ran on both pumps');
+    assert.equal(seen.every((overlay) => overlay === authoritative), true);
+  } finally {
+    delete require.cache[require.resolve('../lib/headless-drain')];
+  }
+});

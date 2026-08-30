@@ -138,6 +138,50 @@ try {
   const afterCount2 = lineCount(fromFile);
   ok('10. second save with status change: exactly one new event', afterCount2 === beforeCount + 1);
 
+  // Test 11: code-node snapshots keep identity so unchanged saves avoid serializing/emitting the
+  // large payload, while replacement and removal still persist through graph replay.
+  const inserted = overlayStore.upsertCodeNode(ov, {
+    key: 'code:src/example.js#run', name: 'run', kind: 'function', file: 'src/example.js',
+    summary: 'first version', vec: Array(256).fill(0.25),
+  });
+  overlayStore.save(WS, ov);
+  const codeFile = path.join(nodesDir, graphStore.idToFile(inserted.key));
+  const initialCodeLines = lineCount(codeFile);
+  const originalNode = ov.code_nodes[inserted.key];
+  ok('11. code-node save stores object identity in previous snapshot',
+    graphStore.getPrevState(WS).code_nodes[inserted.key] === originalNode);
+
+  const originalStringify = JSON.stringify;
+  let codePayloadSerializations = 0;
+  try {
+    JSON.stringify = (value, ...args) => {
+      if (value && value.kind === 'code_node' && value.symbol_kind === 'function') {
+        codePayloadSerializations++;
+      }
+      return originalStringify(value, ...args);
+    };
+    overlayStore.save(WS, ov);
+  } finally {
+    JSON.stringify = originalStringify;
+  }
+  ok('11. unchanged code-node save emits no event', lineCount(codeFile) === initialCodeLines);
+  ok('11. unchanged code-node save skips payload serialization', codePayloadSerializations === 0);
+
+  overlayStore.upsertCodeNode(ov, {
+    key: inserted.key, name: 'run', kind: 'function', file: 'src/example.js',
+    summary: 'second version', vec: Array(256).fill(0.5),
+  });
+  ok('11. code-node upsert replaces the node object', ov.code_nodes[inserted.key] !== originalNode);
+  overlayStore.save(WS, ov);
+  ok('11. changed code-node emits one replacement', lineCount(codeFile) === initialCodeLines + 1);
+  ok('11. changed code-node replays updated payload',
+    graphStore.loadGraph(store).nodes[inserted.key].summary === 'second version');
+
+  overlayStore.removeCodeNodesForFile(ov, 'src/example.js');
+  overlayStore.save(WS, ov);
+  ok('11. removed code-node emits one tombstone', lineCount(codeFile) === initialCodeLines + 2);
+  ok('11. removed code-node stays absent after replay', !graphStore.loadGraph(store).nodes[inserted.key]);
+
 } finally {
   fs.rmSync(TMP, { recursive: true, force: true });
 }
