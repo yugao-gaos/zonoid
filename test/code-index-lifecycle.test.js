@@ -277,6 +277,7 @@ test('headless maintenance pump invokes the existing multi-language onboarder', 
     assert.equal(calls.length, 1);
     assert.equal(calls[0].bin, process.execPath);
     assert.ok(calls[0].args.includes('--async'));
+    assert.ok(calls[0].args.includes('--thin'));
     assert.ok(calls[0].args.includes('--json'));
     assert.equal(calls[0].args[calls[0].args.indexOf('--expected-head') + 1], 'abc123');
     assert.deepEqual(completed[0], {
@@ -344,6 +345,7 @@ test('headless maintenance pump automatically invokes incremental sync after HEA
     assert.equal(calls.length, 1);
     assert.ok(calls[0].args.includes('--sync'));
     assert.ok(calls[0].args.includes('--async'));
+    assert.equal(calls[0].args.includes('--thin'), false);
     assert.equal(calls[0].args[calls[0].args.indexOf('--expected-head') + 1], 'new');
     assert.equal(completed[0].watermark_recorded, true);
     assert.equal(headless._governor.concurrentRunning, 0);
