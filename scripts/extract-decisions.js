@@ -57,7 +57,7 @@ const POSITIONAL = argv.filter((a, i) => !a.startsWith('--') && argv[i - 1] !== 
 const TRANSCRIPT = POSITIONAL[0] || null;
 
 function turnsFromTranscript(file) {
-  return turnsFromTranscriptText(fs.readFileSync(file, 'utf8'));
+  return turnsFromTranscriptText(fs.readFileSync(file, 'utf8'), { transcript_ref: path.resolve(file) });
 }
 
 // ===========================================================================
@@ -123,7 +123,7 @@ function writeBundle(kept, dropped, meta) {
     generated_at: new Date().toISOString(),
     source: meta.source,
     turns_scanned: meta.turns,
-    kept: kept.map(({ title, summary, knowledge, _score, _turn, _dedup }) => ({ title, summary, knowledge, _score, _turn, _dedup })),
+    kept: kept.map(({ title, summary, knowledge, memory_lane, source_role, authority, confidence, episode, _score, _turn, _dedup }) => ({ title, summary, knowledge, memory_lane, source_role, authority, confidence, episode, _score, _turn, _dedup })),
     dropped_as_duplicate: dropped.map((c) => ({ title: c.title, _droppedDup: c._droppedDup })),
   };
   fs.writeFileSync(outPath, JSON.stringify(bundle, null, 2));
@@ -173,6 +173,11 @@ async function confirmInject(kept) {
       title,
       summary: c.summary,
       knowledge: c.knowledge,
+      memory_lane: c.memory_lane,
+      source_role: c.source_role,
+      authority: c.authority,
+      confidence: c.confidence,
+      episode: c.episode,
       created_by: 'auto-extract',
     });
     existing.add(title);
@@ -205,7 +210,7 @@ async function main() {
   }
 
   let cands = [];
-  for (const t of turns) cands.push(...candidatesFromText(t.text, t.idx));
+  for (const t of turns) cands.push(...candidatesFromText(t.text, t.idx, t));
   cands = dedupSelf(cands);
 
   const afterKB = await dedupAgainstKB(cands);

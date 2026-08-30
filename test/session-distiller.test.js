@@ -3,6 +3,7 @@
 
 const {
   turnsFromTranscriptText,
+  turnsFromRawTurns,
   observationsFromText,
   observationsFromTurns,
   candidatesFromText,
@@ -34,6 +35,40 @@ const turns = turnsFromTranscriptText(transcript);
 ok('transcript extraction keeps assistant text turns only', turns.length === 2);
 ok('transcript extraction indexes kept turns densely', turns[0].idx === 0 && turns[1].idx === 1);
 ok('transcript extraction ignores thinking blocks', !turns[0].text.includes('private reasoning'));
+ok('legacy transcript extraction attributes assistant source', turns.every((turn) => turn.source_role === 'assistant'));
+
+const attributedTranscript = [
+  JSON.stringify({ type: 'system', message: { content: [{ type: 'text', text: 'Always keep behavioral guidance private from factual answers.' }] } }),
+  JSON.stringify({ type: 'user', message: { content: [{ type: 'text', text: 'I decided to keep reviews concise because long summaries hide the verdict.' }] } }),
+  JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Hypothesis: source confusion happens because roles are discarded.' }] } }),
+  JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', content: 'Outcome: the provenance regression test passed successfully.' }] } }),
+  JSON.stringify({ type: 'artifact', message: { content: [{ type: 'document', content: 'Result: the artifact records a stable release identifier.' }] } }),
+].join('\n');
+
+const attributedTurns = turnsFromTranscriptText(attributedTranscript, {
+  include_all_sources: true,
+  session_id: 'session-42',
+  transcript_ref: '/tmp/session-42.jsonl',
+});
+ok('attributed extraction keeps each public source distinct',
+  ['system', 'user', 'assistant', 'tool', 'artifact'].every((role) => attributedTurns.some((turn) => turn.source_role === role)));
+ok('attributed extraction preserves episode turn and span', attributedTurns.every((turn) =>
+  turn.episode && turn.episode.session_id === 'session-42' && turn.episode.transcript_ref === '/tmp/session-42.jsonl'
+  && Number.isInteger(turn.episode.turn) && turn.episode.span.end === turn.text.length));
+
+const attributedObservations = observationsFromTurns(attributedTurns);
+const userDirective = attributedObservations.find((item) => item.source_role === 'user');
+const assistantInference = attributedObservations.find((item) => item.source_role === 'assistant');
+const toolObservation = attributedObservations.find((item) => item.source_role === 'tool');
+const artifactObservation = attributedObservations.find((item) => item.source_role === 'artifact');
+ok('user directive becomes guidance without losing role', userDirective && userDirective.memory_lane === 'guidance' && userDirective.authority === 'directive');
+ok('assistant conclusion remains attributed inference evidence', assistantInference && assistantInference.memory_lane === 'evidence' && assistantInference.authority === 'inference');
+ok('tool result remains attributed observation evidence', toolObservation && toolObservation.memory_lane === 'evidence' && toolObservation.authority === 'observation');
+ok('artifact result remains attributed observation evidence', artifactObservation && artifactObservation.memory_lane === 'evidence' && artifactObservation.authority === 'observation');
+
+const rawTurns = turnsFromRawTurns([{ text: samplesText(), role: 'tool', confidence: 0.82, episode: { turn_index: 4, span: { start: 1, end: 8 } } }]);
+ok('raw turn normalization preserves supplied confidence and episode', rawTurns[0].source_role === 'tool'
+  && rawTurns[0].confidence === 0.82 && rawTurns[0].episode.turn === 4 && rawTurns[0].episode.span.start === 1);
 
 const samples = [
   ['decision', 'I chose the existing extractor path because it reuses the review gate rather than adding a parser.'],
@@ -42,6 +77,10 @@ const samples = [
   ['hypothesis', 'Hypothesis: duplicate notes happen because session turns are distilled twice.'],
   ['outcome', 'Outcome: node test/session-distiller.test.js passed after the module split.'],
 ];
+
+function samplesText() {
+  return 'Outcome: a raw tool observation was verified by the focused test.';
+}
 
 for (const [kind, text] of samples) {
   ok(`${kind} sample emits ${kind}`, kinds(text).includes(kind));
