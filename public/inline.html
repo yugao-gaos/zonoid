@@ -79,7 +79,6 @@ function statusCount(sc,k){ return Number(sc&&sc[k]||0); }
 function scoped(path){
   const url = new URL(DAEMON + path);
   if (WS) url.searchParams.set('workspace', WS);
-  if (VIEWER_HOST) url.searchParams.set('viewer', VIEWER_HOST);
   return url.pathname + url.search;
 }
 function dashboardButtonLabel(){
@@ -88,7 +87,9 @@ function dashboardButtonLabel(){
     : 'Open dashboard';
 }
 function dashboardUrl(){
-  return DAEMON + scoped('/graph');
+  const url = new URL(DAEMON + scoped('/graph'));
+  if (VIEWER_HOST) url.searchParams.set('viewer', VIEWER_HOST);
+  return url.toString();
 }
 function render(d){
   const dash=document.getElementById('dash');
