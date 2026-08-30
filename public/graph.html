@@ -107,7 +107,7 @@
   body { margin: 0; padding-bottom: var(--dock-h); font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; background: #0d1117; color: #e6edf3; }
   .wrap { display: flex; height: calc(100vh - var(--hdr-h) - var(--dock-h)); overflow: hidden; }
   .left { flex: 1; min-width: 0; overflow: auto; display: flex; flex-direction: column; }
-  #cloud.show, #flow.show { flex: 1; min-height: 0; }
+  #cloud.show, #flow.show, #architecture.show { flex: 1; min-height: 0; }
   #flowstats { flex-shrink: 0; }
   /* (legacy DAG-column view removed — Flow is the structure view) */
   .badge { display: inline-block; font-size: 10px; background: #1f6feb33; color: #79c0ff; border: 1px solid #1f6feb55; border-radius: 9px; padding: 0 6px; margin-left: 6px; }
@@ -345,6 +345,58 @@
   #flowsvg:active { cursor: grabbing; }
   #flowsvg text { font: 11px ui-monospace, Menlo, monospace; pointer-events: none; user-select: none; }
   #flowsvg g.fn { cursor: pointer; }
+  /* Architecture: bounded file/module projection from the existing code index. */
+  #architecture { display: none; min-width: 0; background: #0d1117; }
+  #architecture.show { display: flex; flex-direction: column; }
+  .arch-toolbar { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 12px; border-bottom: 1px solid #21262d; background: #11151c; box-sizing: border-box; }
+  .arch-search { display: flex; align-items: center; gap: 6px; width: min(360px, 44vw); padding: 4px 8px; border: 1px solid #30363d; border-radius: 7px; background: #0d1117; }
+  .arch-search input { min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; color: #e6edf3; font: inherit; }
+  .arch-search input::placeholder { color: #6e7681; }
+  #architectureCount { color: #8b949e; font-size: 11px; white-space: nowrap; }
+  .arch-legend { display: flex; align-items: center; gap: 10px; margin-left: auto; color: #8b949e; font-size: 10px; }
+  .arch-legend-line { display: inline-block; width: 22px; height: 0; margin-right: 4px; border-top: 2px solid #58a6ff; vertical-align: middle; }
+  .arch-legend-line.calls { border-top-color: #d29922; border-top-style: dashed; }
+  .arch-shell { display: flex; flex: 1; min-height: 0; }
+  #architectureMap { position: relative; flex: 1; min-width: 0; overflow: auto; padding: 14px; box-sizing: border-box; }
+  #architectureEdges { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  .arch-modules { position: relative; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); align-items: start; gap: 12px; }
+  .arch-module { min-width: 0; border: 1px solid #21262d; border-radius: 10px; background: rgba(17,21,28,.93); box-shadow: 0 8px 24px rgba(0,0,0,.2); }
+  .arch-module-head { position: relative; z-index: 3; display: flex; align-items: center; gap: 7px; padding: 8px 10px; border-bottom: 1px solid #21262d; color: #c9d1d9; background: #11151c; border-radius: 10px 10px 0 0; font-size: 11px; font-weight: 700; }
+  .arch-module-count { color: #6e7681; font-size: 9px; font-weight: 400; }
+  .arch-files { display: grid; gap: 6px; padding: 7px; }
+  .arch-file { position: relative; z-index: 3; width: 100%; min-width: 0; padding: 7px 8px; border: 1px solid #30363d; border-left: 3px solid #58a6ff; border-radius: 7px; background: #161b22; color: #e6edf3; cursor: pointer; font: inherit; text-align: left; box-sizing: border-box; transition: border-color .15s, opacity .15s, transform .15s; }
+  .arch-file:hover { border-color: #58a6ff; transform: translateY(-1px); }
+  .arch-file.selected { outline: 2px solid #e3b341; outline-offset: 1px; border-left-color: #e3b341; }
+  .arch-file.search-hit { border-left-color: #3fb950; }
+  .arch-file.muted { opacity: .3; }
+  .arch-file-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 650; }
+  .arch-file-meta { display: flex; gap: 8px; margin-top: 3px; color: #8b949e; font-size: 9px; }
+  .arch-file-kinds { margin-top: 4px; overflow: hidden; color: #6e7681; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+  #architectureInspector { width: 310px; flex-shrink: 0; overflow: auto; border-left: 1px solid #21262d; background: #11151c; box-sizing: border-box; }
+  .arch-inspector-pad { padding: 14px; }
+  .arch-inspector-title { padding-right: 22px; color: #e6edf3; font-size: 13px; font-weight: 700; word-break: break-word; }
+  .arch-inspector-meta { margin-top: 4px; color: #8b949e; font-size: 10px; }
+  .arch-inspector-section { margin-top: 14px; }
+  .arch-inspector-label { margin-bottom: 5px; color: #6e7681; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; }
+  .arch-symbol, .arch-relation { padding: 5px 0; border-top: 1px solid #21262d; color: #c9d1d9; font-size: 10px; }
+  .arch-symbol:first-child, .arch-relation:first-child { border-top: 0; }
+  .arch-symbol b { color: #e6edf3; }
+  .arch-symbol span, .arch-relation span { color: #6e7681; }
+  .arch-relation.imports b { color: #79c0ff; }
+  .arch-relation.calls b { color: #e3b341; }
+  .arch-clear { float: right; border: 0; background: none; color: #8b949e; cursor: pointer; font: inherit; }
+  .arch-empty { display: flex; min-height: 280px; align-items: center; justify-content: center; padding: 24px; color: #8b949e; text-align: center; }
+  @media (max-width: 760px) {
+    #viewToggle { max-width: calc(100vw - 118px); overflow-x: auto; }
+    #viewToggle button { padding: 3px 9px; white-space: nowrap; }
+    .arch-toolbar { align-items: flex-start; flex-wrap: wrap; }
+    .arch-search { width: 100%; box-sizing: border-box; }
+    .arch-legend { margin-left: 0; }
+    .arch-shell { flex-direction: column; overflow: auto; }
+    #architectureMap { flex: none; min-height: 52vh; overflow: visible; }
+    #architectureInspector { width: 100%; max-height: none; border-top: 1px solid #21262d; border-left: 0; }
+    .arch-modules { grid-template-columns: 1fr; }
+  }
   /* work-in-progress: pulsing blue ring + left-to-right shine sweep on node body */
   #flowsvg g.fn .fhalo { opacity: 0; pointer-events: none; }
   #flowsvg g.fn.wip .fhalo { opacity: 1; stroke: #58a6ff; animation: wipHalo 1.6s ease-in-out infinite; }
@@ -721,6 +773,7 @@
       <button data-view="kanban" class="on" role="tab" aria-selected="true" title="Kanban Board — the operational task lifecycle from Queue through Done, including review, merge, and user-attention cues.">Kanban Board</button>
       <button data-view="frontier" role="tab" aria-selected="false" title="Frontier view — DAG layout showing tasks at the current working frontier: in-progress, ready, and their immediate dependencies. Best for day-to-day steering.">Frontier Tasks</button>
       <button data-view="cloud" role="tab" aria-selected="false" title="Force Cloud — all tasks in a force-directed layout. Shows the full graph structure and long-range dependencies at once. Best for auditing the big picture.">Force Cloud</button>
+      <button data-view="architecture" role="tab" aria-selected="false" title="Architecture — a bounded, inspectable map of indexed source files, symbols, calls, and imports.">Architecture</button>
     </div>
   </div>
   <div class="hd-mid" id="sum"></div>
@@ -858,6 +911,17 @@
     <div id="kanban" role="region" aria-label="Operational Kanban board"></div>
     <div id="cloud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><div id="cloudTraceLegend"></div><div id="cloudSearchSummary"></div><svg id="cloudsvg"></svg></div>
     <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div></div>
+    <div id="architecture" role="region" aria-label="Code architecture map">
+      <div class="arch-toolbar">
+        <label class="arch-search"><span aria-hidden="true">⌕</span><input id="architectureSearchInput" type="search" placeholder="Search files or symbols…" aria-label="Search architecture files and symbols" /></label>
+        <span id="architectureCount"></span>
+        <div class="arch-legend" aria-label="Architecture relationship legend"><span><i class="arch-legend-line"></i>imports</span><span><i class="arch-legend-line calls"></i>calls</span></div>
+      </div>
+      <div class="arch-shell">
+        <div id="architectureMap"></div>
+        <aside id="architectureInspector" aria-label="Architecture file inspector"><div class="arch-inspector-pad"><div class="empty">Select a file to inspect its symbols and relationships.</div></div></aside>
+      </div>
+    </div>
     <div id="flowstats"></div>
   </div>
   <div id="panel" role="complementary" aria-label="Task inspector"><div class="pad" id="pad"></div></div>
@@ -4955,10 +5019,12 @@ let selected=null;
 let lastDetailFp='';
 let lastState=null; // most recent full /state payload, for re-render on view switch
 let liveAgentIds=new Set();
-let currentView=(v=>v==='cloud'||v==='frontier'||v==='kanban'?v:(v==='flow'?'frontier':'kanban'))(localStorage.getItem('orchView'));  // stale Flow migrates; Kanban is the operational default
+let currentView=(v=>v==='cloud'||v==='frontier'||v==='kanban'||v==='architecture'?v:(v==='flow'?'frontier':'kanban'))(localStorage.getItem('orchView'));  // stale Flow migrates; Kanban is the operational default
 let focusedId=null;            // Focus view target; survives view switches, NOT persisted
 let focusReturnView='frontier'; // return to the tab that opened Focus, with its state intact
 const viewUiState={kanban:{scrollLeft:0,scrollTop:0}};
+let architectureSearchText='';
+let architectureSelectedId=null;
 let cloudSim=null;             // live d3 force simulation
 const cloudPos={};             // id -> {x,y} preserved across ticks so it doesn't re-jiggle
 let cloudArchiveOpen=false;    // whether the server-archive bundle is expanded
@@ -5431,7 +5497,10 @@ function stateFingerprint(d){
   ].join(':')).sort().join('|');
   const guidFp=(d.guidance||[]).map(g=>g.id+':'+g.resolved).join('|');
   const kanbanFp=d.kanban&&d.kanban.version===1?(d.kanban.columns||[]).map(c=>c.id+':'+(c.task_keys||[]).join(',')).join('|'):'';
-  return JSON.stringify({sc, taskFp, guidFp, kanbanFp, agents: s.agents, archived: s.archived});
+  const architectureFp=d.architecture&&d.architecture.version===1
+    ? (d.architecture.files||[]).map(f=>f.id+':'+f.symbol_count).join('|')+';'+(d.architecture.relations||[]).map(r=>r.id+':'+r.count).join('|')
+    : '';
+  return JSON.stringify({sc, taskFp, guidFp, kanbanFp, architectureFp, agents: s.agents, archived: s.archived});
 }
 function statusLabel(s){ const m={'not_ready':'Not ready','in_progress':'In progress','canceled':'Canceled','not ready':'Not ready','in progress':'In progress','needs_guidance':'Needs guidance','needs_approval':'Needs approval','waiting_deps':'Waiting on deps','waiting_ghost':'Waiting on ghost','blocked':'Blocked'}; return m[s]||(s.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())); }
 function reviewText(s){ return String(s||'').replace(/_/g,' ').replace(/\s+/g,' ').trim(); }
@@ -5834,6 +5903,7 @@ async function tick(){
     lastRenderFp=fp;
     if(currentView==='kanban') renderKanban(d);
     else if(currentView==='cloud') renderCloud(d);
+    else if(currentView==='architecture') renderArchitecture(d);
     else if(currentView==='focus') renderFocus(d);
     else renderFrontier(d);
   }
@@ -6168,7 +6238,140 @@ function fallbackCopy(text,done){
   try{ document.execCommand('copy'); done&&done(); }catch(e){}
   document.body.removeChild(ta);
 }
-// ---- view switching: Kanban (default) | Frontier (dagre subset) | Cloud (whole-graph) | Focus (one node's lineage)
+// ---- Architecture: bounded server projection with local search/focus + file inspector -----------
+function architectureFileMatches(file, query){
+  const q=String(query||'').trim().toLowerCase();
+  if(!q) return true;
+  return [file.path,file.module,...(file.symbols||[]).flatMap(symbol=>[symbol.name,symbol.kind,symbol.signature])]
+    .some(value=>String(value||'').toLowerCase().includes(q));
+}
+function architectureVisibleIds(projection, query){
+  const files=projection&&projection.files||[];
+  const q=String(query||'').trim();
+  if(!q) return new Set(files.map(file=>file.id));
+  const matches=new Set(files.filter(file=>architectureFileMatches(file,q)).map(file=>file.id));
+  const ids=new Set(matches);
+  for(const relation of (projection.relations||[])){
+    if(matches.has(relation.from)||matches.has(relation.to)){ ids.add(relation.from); ids.add(relation.to); }
+  }
+  return ids;
+}
+function architectureRelatedIds(projection, selectedId){
+  if(!selectedId) return null;
+  const ids=new Set([selectedId]);
+  for(const relation of (projection.relations||[])){
+    if(relation.from===selectedId) ids.add(relation.to);
+    if(relation.to===selectedId) ids.add(relation.from);
+  }
+  return ids;
+}
+function architectureCard(id){
+  return [...document.querySelectorAll('#architectureMap .arch-file')].find(card=>card.dataset.archId===id)||null;
+}
+function drawArchitectureRelations(projection, visibleIds){
+  const map=document.getElementById('architectureMap');
+  const svg=document.getElementById('architectureEdges');
+  if(!map||!svg) return;
+  const width=Math.max(map.clientWidth,map.scrollWidth), height=Math.max(map.clientHeight,map.scrollHeight);
+  svg.setAttribute('viewBox',`0 0 ${width} ${height}`);
+  svg.style.width=width+'px'; svg.style.height=height+'px';
+  const mapRect=map.getBoundingClientRect();
+  const paths=[];
+  for(const relation of (projection.relations||[])){
+    if(!visibleIds.has(relation.from)||!visibleIds.has(relation.to)) continue;
+    const from=architectureCard(relation.from), to=architectureCard(relation.to);
+    if(!from||!to) continue;
+    const a=from.getBoundingClientRect(), b=to.getBoundingClientRect();
+    const x1=a.left-mapRect.left+map.scrollLeft+a.width/2;
+    const y1=a.top-mapRect.top+map.scrollTop+a.height/2;
+    const x2=b.left-mapRect.left+map.scrollLeft+b.width/2;
+    const y2=b.top-mapRect.top+map.scrollTop+b.height/2;
+    const bend=(relation.kind==='calls'?12:-12);
+    const mx=(x1+x2)/2+bend;
+    const active=!architectureSelectedId||relation.from===architectureSelectedId||relation.to===architectureSelectedId;
+    const stroke=relation.kind==='calls'?'#d29922':'#58a6ff';
+    const dash=relation.kind==='calls'?' stroke-dasharray="5 4"':'';
+    const opacity=active?.62:.08;
+    const strokeWidth=Math.min(4,1+Math.log2(1+(relation.count||1))*.55);
+    paths.push(`<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-opacity="${opacity}"${dash} marker-end="url(#arch-${relation.kind})"/>`);
+  }
+  svg.innerHTML='<defs><marker id="arch-imports" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#58a6ff"/></marker><marker id="arch-calls" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#d29922"/></marker></defs>'+paths.join('');
+}
+function renderArchitectureInspector(projection){
+  const inspector=document.getElementById('architectureInspector');
+  if(!inspector) return;
+  const files=projection&&projection.files||[];
+  const file=files.find(item=>item.id===architectureSelectedId);
+  if(!file){
+    architectureSelectedId=null;
+    inspector.innerHTML='<div class="arch-inspector-pad"><div class="empty">Select a file to inspect its symbols and relationships.</div></div>';
+    return;
+  }
+  const byId=Object.fromEntries(files.map(item=>[item.id,item]));
+  const relations=(projection.relations||[]).filter(relation=>relation.from===file.id||relation.to===file.id);
+  const symbolHtml=(file.symbols||[]).map(symbol=>`<div class="arch-symbol"><b>${esc(symbol.name)}</b> <span>${esc(symbol.kind)}${symbol.start_line!=null?' · line '+symbol.start_line:''}${symbol.exported?' · exported':''}</span>${symbol.summary?`<div><span>${esc(symbol.summary)}</span></div>`:''}</div>`).join('');
+  const relationHtml=relations.map(relation=>{
+    const outgoing=relation.from===file.id;
+    const peer=byId[outgoing?relation.to:relation.from];
+    return `<div class="arch-relation ${esc(relation.kind)}"><b>${outgoing?'→':'←'} ${esc(relation.kind)}</b> ${esc(peer&&peer.path||'indexed file')} <span>×${relation.count||1}${relation.ambiguous_count?' · '+relation.ambiguous_count+' ambiguous':''}</span></div>`;
+  }).join('');
+  inspector.innerHTML=`<div class="arch-inspector-pad"><button class="arch-clear" type="button" aria-label="Close architecture inspector" onclick="clearArchitectureSelection()">✕</button>`+
+    `<div class="arch-inspector-title">${esc(file.path)}</div><div class="arch-inspector-meta">${esc(file.module)} · ${file.symbol_count||0} symbols · ${file.incoming_count||0} incoming · ${file.outgoing_count||0} outgoing</div>`+
+    `<div class="arch-inspector-section"><div class="arch-inspector-label">Symbols</div>${symbolHtml||'<div class="empty">No symbol details indexed.</div>'}${file.omitted_symbols?`<div class="empty">+${file.omitted_symbols} more symbols omitted by the projection limit.</div>`:''}</div>`+
+    `<div class="arch-inspector-section"><div class="arch-inspector-label">Relationships</div>${relationHtml||'<div class="empty">No cross-file calls or imports in the visible projection.</div>'}${file.internal_count?`<div class="arch-relation calls"><b>↻ internal calls</b> <span>×${file.internal_count}</span></div>`:''}</div></div>`;
+}
+function selectArchitectureFile(id){
+  architectureSelectedId=architectureSelectedId===id?null:id;
+  if(lastState) renderArchitecture(lastState);
+}
+function clearArchitectureSelection(){
+  architectureSelectedId=null;
+  if(lastState) renderArchitecture(lastState);
+}
+function renderArchitecture(d){
+  const projection=d&&d.architecture;
+  const map=document.getElementById('architectureMap');
+  const count=document.getElementById('architectureCount');
+  const input=document.getElementById('architectureSearchInput');
+  if(!map||!count) return;
+  if(input&&input.value!==architectureSearchText) input.value=architectureSearchText;
+  if(!projection||projection.version!==1){
+    count.textContent='';
+    map.innerHTML='<div class="arch-empty">Architecture projection unavailable for this daemon version.</div>';
+    renderArchitectureInspector(null);
+    return;
+  }
+  if(projection.status==='empty'){
+    count.textContent='0 indexed files';
+    map.innerHTML=`<div class="arch-empty"><div><b>Nothing indexed yet</b><br>${esc(projection.message||'Run project onboarding to build the architecture map.')}</div></div>`;
+    renderArchitectureInspector(projection);
+    return;
+  }
+  const visibleIds=architectureVisibleIds(projection,architectureSearchText);
+  const relatedIds=architectureRelatedIds(projection,architectureSelectedId);
+  const files=(projection.files||[]).filter(file=>visibleIds.has(file.id));
+  const groups=new Map();
+  for(const file of files){ if(!groups.has(file.module)) groups.set(file.module,[]); groups.get(file.module).push(file); }
+  const omitted=projection.omitted||{};
+  count.textContent=`${files.length} of ${(projection.summary||{}).visible_files||0} files`+(omitted.files?` · ${omitted.files} omitted by limit`:'');
+  const modules=[...groups.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+  const moduleHtml=modules.map(([name,moduleFiles])=>`<section class="arch-module"><div class="arch-module-head">${esc(name)} <span class="arch-module-count">${moduleFiles.length} file${moduleFiles.length===1?'':'s'}</span></div><div class="arch-files">`+
+    moduleFiles.map(file=>{
+      const kinds=[...new Set((file.symbols||[]).map(symbol=>symbol.kind))].slice(0,4).join(' · ');
+      const muted=relatedIds&&!relatedIds.has(file.id);
+      const searchHit=architectureSearchText&&architectureFileMatches(file,architectureSearchText);
+      return `<button class="arch-file${file.id===architectureSelectedId?' selected':''}${muted?' muted':''}${searchHit?' search-hit':''}" type="button" data-arch-id="${esc(file.id)}" aria-pressed="${file.id===architectureSelectedId}"><div class="arch-file-path">${esc(file.path)}</div><div class="arch-file-meta"><span>${file.symbol_count||0} symbols</span><span>←${file.incoming_count||0}</span><span>→${file.outgoing_count||0}</span></div>${kinds?`<div class="arch-file-kinds">${esc(kinds)}</div>`:''}</button>`;
+    }).join('')+'</div></section>').join('');
+  map.innerHTML='<svg id="architectureEdges" aria-hidden="true"></svg><div class="arch-modules">'+(moduleHtml||'<div class="arch-empty">No files match this search.</div>')+'</div>';
+  map.querySelectorAll('.arch-file').forEach(button=>button.addEventListener('click',()=>selectArchitectureFile(button.dataset.archId)));
+  renderArchitectureInspector(projection);
+  requestAnimationFrame(()=>drawArchitectureRelations(projection,visibleIds));
+}
+document.getElementById('architectureSearchInput').addEventListener('input',event=>{
+  architectureSearchText=event.target.value;
+  if(lastState) renderArchitecture(lastState);
+});
+// ---- view switching: Kanban | Frontier | Cloud | Architecture | Focus (one task's lineage)
 function captureViewState(v){
   if(v==='kanban'){
     const root=document.getElementById('kanban');
@@ -6182,6 +6385,7 @@ function setView(v){
   if(v!=='focus') localStorage.setItem('orchView',v);   // focus is never persisted
   document.getElementById('kanban').classList.toggle('show', v==='kanban');
   document.getElementById('cloud').classList.toggle('show', v==='cloud');
+  document.getElementById('architecture').classList.toggle('show', v==='architecture');
   document.getElementById('cloudSearchWrap').classList.toggle('show', v==='cloud');
   document.getElementById('flow').classList.toggle('show', v==='frontier'||v==='focus');     // Frontier + Focus share the dagre pane
   document.querySelectorAll('#viewToggle button').forEach(b=>{
@@ -6192,7 +6396,7 @@ function setView(v){
   if(v!=='cloud' && cloudSim) cloudSim.stop();
   if(v!=='cloud') disposeCloudThree(document.getElementById('cloudsvg'));
   if(v==='frontier'||v==='focus') dagState[v].init=false;   // next render restores that view's saved pan/zoom, or first-fits
-  if(lastState){ if(v==='kanban') renderKanban(lastState); else if(v==='cloud') renderCloud(lastState); else if(v==='focus') renderFocus(lastState); else renderFrontier(lastState); }
+  if(lastState){ if(v==='kanban') renderKanban(lastState); else if(v==='cloud') renderCloud(lastState); else if(v==='architecture') renderArchitecture(lastState); else if(v==='focus') renderFocus(lastState); else renderFrontier(lastState); }
   updateFocusBtn();
 }
 function focusNode(key){
@@ -7491,6 +7695,7 @@ window.addEventListener('resize', ()=>{
   if(!lastState) return;
   if(currentView==='kanban') renderKanban(lastState);
   else if(currentView==='cloud'){ cloudSig=''; renderCloud(lastState); }
+  else if(currentView==='architecture') renderArchitecture(lastState);
   else { const v=currentView==='focus'?'focus':'frontier'; dagState[v]={init:false,tf:null}; if(v==='focus') renderFocus(lastState); else renderFrontier(lastState); }
 });
 // Activity feeds collapsed by default; remembered in localStorage
