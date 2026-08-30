@@ -1,0 +1,3025 @@
+{
+  "generated_at": "2026-08-30T21:55:58.563Z",
+  "repo": "/Users/imyu/Desktop/zonoid",
+  "task_key": "codex/audit-needs-attention-orphan-dirs-20260830",
+  "scope": "repo-local NEEDS-ATTENTION entries that are not currently registered Git worktrees",
+  "counts": {
+    "delete_safe": 0,
+    "preserve_unknown": 144
+  },
+  "delete_safe": [],
+  "preserve_unknown": [
+    {
+      "path": "worktrees/007bdb864dece13b/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/007bdb864dece13b/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T14:07:38.257Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-UBOWbj/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/01427397da01e74c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/01427397da01e74c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T02:59:27.282Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-8X2jHq/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/025a1687c9fe1d1e/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/025a1687c9fe1d1e/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T21:32:54.727Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-UDj1mI/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/052367bd06d11140/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/052367bd06d11140/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T17:03:56.012Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-1F8twc/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/05653e3eb60a5da1/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/05653e3eb60a5da1/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T19:07:23.175Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-BtRJTm/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/06aefebde4702eb4/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/06aefebde4702eb4/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T22:00:49.508Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-Hv6fKq/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/075ebf703ca47828/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/075ebf703ca47828/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T22:56:44.984Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-ylcxwU/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/081a4203eed86a66/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/081a4203eed86a66/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T18:28:50.457Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-IuSvW3/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/08815eb4f641492c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/08815eb4f641492c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T19:46:05.321Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-PMjyYE/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/08a5eb9feb32a156/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/08a5eb9feb32a156/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T22:57:17.603Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-g42UUq/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/09b4340e24553e69/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/09b4340e24553e69/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:49:31.956Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-V76GHw/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/0a078704a88cd7d3/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/0a078704a88cd7d3/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T03:28:14.250Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-xvJ9NV/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/0b09de704afa44ac/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/0b09de704afa44ac/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 96,
+      "mtime_iso": "2026-06-15T14:07:12.832Z",
+      "top_level_entries": [
+        ".graph"
+      ],
+      "git": {
+        "present": false,
+        "kind": null,
+        "target": null
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "non-empty dir without .git (unknown contents)",
+      "recoverable_value": "preserve_unknown: content present without git metadata"
+    },
+    {
+      "path": "worktrees/0fd32cb7093ca9b2/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/0fd32cb7093ca9b2/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T03:55:20.069Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-alB7vC/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/10ff626583274343/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/10ff626583274343/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:29:13.872Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-xjp1lx/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/131e975f80d4c11f/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/131e975f80d4c11f/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T18:54:29.412Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-oTRz8V/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/1441c22efbc9d1c8/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/1441c22efbc9d1c8/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 96,
+      "mtime_iso": "2026-06-15T14:09:00.361Z",
+      "top_level_entries": [
+        ".graph"
+      ],
+      "git": {
+        "present": false,
+        "kind": null,
+        "target": null
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "non-empty dir without .git (unknown contents)",
+      "recoverable_value": "preserve_unknown: content present without git metadata"
+    },
+    {
+      "path": "worktrees/1788571fb92ffd67/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/1788571fb92ffd67/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T02:05:54.611Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-7gfg4N/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/181906aa06bfa04c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/181906aa06bfa04c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T01:53:33.975Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-1iB9Zs/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/1b77ca185a54f725/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/1b77ca185a54f725/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 96,
+      "mtime_iso": "2026-06-15T14:07:58.037Z",
+      "top_level_entries": [
+        ".graph"
+      ],
+      "git": {
+        "present": false,
+        "kind": null,
+        "target": null
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "non-empty dir without .git (unknown contents)",
+      "recoverable_value": "preserve_unknown: content present without git metadata"
+    },
+    {
+      "path": "worktrees/20b2b24cee5ee41f/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/20b2b24cee5ee41f/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T13:25:24.022Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-GdCyjD/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/2187c4425451b3a9/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/2187c4425451b3a9/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:31:12.110Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-C6Dnzk/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/2841e8fbe3f5f437/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/2841e8fbe3f5f437/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T03:44:26.739Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-SUGMOh/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/287da9bdf2178fc4/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/287da9bdf2178fc4/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T14:50:48.330Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-xEy141/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/287f85da7bd29c6d/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/287f85da7bd29c6d/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:26:01.720Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-KvP3Ga/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/28acffe11f3556e6/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/28acffe11f3556e6/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:28:43.947Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-Ye6bb6/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/2adf8dd6bdc9a124/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/2adf8dd6bdc9a124/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T17:18:45.669Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-9sKbda/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/2d14cdf89cabd150/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/2d14cdf89cabd150/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T10:54:51.509Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-hLgvan/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/30afd7a57508e3e5/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/30afd7a57508e3e5/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T03:43:58.420Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-hsy047/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/33d6dbdf60ca2ebf/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/33d6dbdf60ca2ebf/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:36:39.457Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-0faRsw/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/36b19d105f53eb56/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/36b19d105f53eb56/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T17:04:42.574Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-FUPSKe/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/36ec4490e32d66f5/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/36ec4490e32d66f5/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T06:20:30.623Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-guQQDQ/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/390e345bbc2610ec/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/390e345bbc2610ec/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T13:27:15.352Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-nbV9lL/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/3add7b6f9dcd04c4/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/3add7b6f9dcd04c4/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T17:31:42.371Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-CndJ8n/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/3b9f7195317f4beb/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/3b9f7195317f4beb/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T02:02:02.847Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-pnJVJn/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/3d6cef363fafced9/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/3d6cef363fafced9/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T12:25:39.926Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-KNfwXI/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/3e195dd467878ec4/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/3e195dd467878ec4/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T12:32:00.222Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-qfmBv6/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/42d335f1b3561828/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/42d335f1b3561828/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T03:28:04.434Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-4O6xm1/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/43c81caeb7319464/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/43c81caeb7319464/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T03:30:45.242Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-tqcBLv/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/483fdb62a8658b10/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/483fdb62a8658b10/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T01:54:30.927Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-YGcxLh/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/48b77db1d3e536e2/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/48b77db1d3e536e2/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:49:49.824Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/tmp.nWFsFpDe0D/orch-metric-claim-ws-MjL7Fv/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/48ed59e7ca672aed/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/48ed59e7ca672aed/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T12:36:26.423Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-NPhgjh/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/4e979f0cce75a549/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/4e979f0cce75a549/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T21:33:34.936Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-6EmYUr/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/4ece93b41135d8fc/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/4ece93b41135d8fc/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T14:51:31.088Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-ohw5HK/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/4ef55ff5519c7799/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/4ef55ff5519c7799/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T02:00:07.866Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-Jx2LJq/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/4f19ee3f94c84e16/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/4f19ee3f94c84e16/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T10:27:44.359Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-7JUqLg/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/5196c92f5ef89f66/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/5196c92f5ef89f66/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T14:08:28.703Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-bWadCQ/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/5493cffd08392b9c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/5493cffd08392b9c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T13:00:41.167Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-jvFLw9/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/55e7e116221581e9/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/55e7e116221581e9/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T03:42:11.847Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-r8Aqwe/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/5782823a00938a0e/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/5782823a00938a0e/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T12:16:51.579Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-XCB5U7/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/5ccd53f97b8f8ad8/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/5ccd53f97b8f8ad8/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:37:19.246Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-gqFu59/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/5f32d149ed7461ea/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/5f32d149ed7461ea/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T03:31:09.145Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-Vu5JJI/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/5fa5bee7be307ef4/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/5fa5bee7be307ef4/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T11:00:37.399Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-50x9ie/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/61d3f5a093f884fc/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/61d3f5a093f884fc/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T03:42:20.287Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-30i1UU/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/62dae274979b8432/feature-exec-brain-state-seam",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/62dae274979b8432/feature-exec-brain-state-seam",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-22T14:09:40.682Z",
+      "top_level_entries": [
+        ".gitignore",
+        ".graph"
+      ],
+      "git": {
+        "present": false,
+        "kind": null,
+        "target": null
+      },
+      "naming_provenance": "task_named",
+      "gc_reason": "non-empty dir without .git (unknown contents)",
+      "recoverable_value": "preserve_unknown: content present without git metadata"
+    },
+    {
+      "path": "worktrees/62dae274979b8432/feature-note-decay",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/62dae274979b8432/feature-note-decay",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-19T13:43:01.676Z",
+      "top_level_entries": [
+        ".gitignore",
+        ".graph"
+      ],
+      "git": {
+        "present": false,
+        "kind": null,
+        "target": null
+      },
+      "naming_provenance": "task_named",
+      "gc_reason": "non-empty dir without .git (unknown contents)",
+      "recoverable_value": "preserve_unknown: content present without git metadata"
+    },
+    {
+      "path": "worktrees/67098be3840a26e1/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/67098be3840a26e1/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T10:35:44.733Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-wDMahz/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/6868a9d2fb04461c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/6868a9d2fb04461c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:36:17.375Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-cLeTOS/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/69ba7651427f93d0/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/69ba7651427f93d0/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T02:06:50.848Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-k3WJpL/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/7081808a3c42a1dd/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/7081808a3c42a1dd/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T10:33:57.758Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-2mcwlY/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/714da027ea76c579/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/714da027ea76c579/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T01:58:30.343Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-GL1RCt/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/7297bed98e6c5494/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/7297bed98e6c5494/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:35:53.061Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-xQRPUq/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/74cd3c4c45a79278/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/74cd3c4c45a79278/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T04:16:53.704Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-mq04r6/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/75a0095d2560ded3/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/75a0095d2560ded3/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 96,
+      "mtime_iso": "2026-06-15T14:09:57.715Z",
+      "top_level_entries": [
+        ".graph"
+      ],
+      "git": {
+        "present": false,
+        "kind": null,
+        "target": null
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "non-empty dir without .git (unknown contents)",
+      "recoverable_value": "preserve_unknown: content present without git metadata"
+    },
+    {
+      "path": "worktrees/797d4eacc1975e37/aaaaaaaa-feedface-0000-4000-800000000003-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/797d4eacc1975e37/aaaaaaaa-feedface-0000-4000-800000000003-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T23:01:43.916Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-selfreg-ws-4RR2HL/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000003-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/7a94704a148f3017/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/7a94704a148f3017/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:26:45.770Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-DpQff8/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/7b064d5e25e50d0c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/7b064d5e25e50d0c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T11:16:53.656Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-c1LNMA/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/7ed1d2c291b19e15/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/7ed1d2c291b19e15/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T23:04:36.814Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-9S4kXs/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/8038a0bc8d9a4c55/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/8038a0bc8d9a4c55/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T22:57:47.705Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-Krpjag/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/83902d74301785fa/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/83902d74301785fa/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T03:29:37.847Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-mCBOlK/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/8493e69aa5797028/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/8493e69aa5797028/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T12:56:15.059Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-xEPOTF/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/8accc76f05eba112/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/8accc76f05eba112/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:36:41.681Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-XFvFuO/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/8f9975962649e48c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/8f9975962649e48c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T04:18:13.699Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-1eGXTS/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/90272515b42931b8/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/90272515b42931b8/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T22:50:03.390Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-JxMTuQ/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/9109f17e8cc8965b/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/9109f17e8cc8965b/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T16:48:57.367Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-v4NhWO/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/9382762770325f5d/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/9382762770325f5d/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:25:34.357Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-1ht7b4/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/9421424f8c0bd34a/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/9421424f8c0bd34a/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:49:46.474Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-GaLUsS/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/9545d74dc98b5476/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/9545d74dc98b5476/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T02:04:34.423Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-gXfcoN/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/967472e2faa78977/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/967472e2faa78977/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T03:28:10.330Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-u1g1Sr/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/967d534167aeafa3/eeadb38f-7472-4703-9689-fbf24eebee4d-19",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/967d534167aeafa3/eeadb38f-7472-4703-9689-fbf24eebee4d-19",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 160,
+      "mtime_iso": "2026-06-15T04:09:18.918Z",
+      "top_level_entries": [
+        ".git",
+        ".gitkeep",
+        "bench"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/econ-off-lru-cache-CnqCbX/.git/worktrees/eeadb38f-7472-4703-9689-fbf24eebee4d-19",
+        "target_exists": false
+      },
+      "naming_provenance": "broken_git_pointer",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/97502d38a19ae8be/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/97502d38a19ae8be/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T17:30:33.958Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-s5obnQ/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/9813ecc44cd2f859/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/9813ecc44cd2f859/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T03:20:42.002Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-YOi9SQ/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/994e2a03dfe15181/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/994e2a03dfe15181/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T06:22:26.618Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-9K6F5p/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/9daa4ad41621366a/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/9daa4ad41621366a/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T17:38:01.462Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-6SEVCq/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/9f189a0d228d9786/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/9f189a0d228d9786/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T16:35:32.841Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-QmHpBB/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/a1d66ea3461961b3/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/a1d66ea3461961b3/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T03:00:20.026Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-LP9IeT/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/a2ac068e30dd865c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/a2ac068e30dd865c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T17:48:09.742Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-BBT6X4/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/a2c325412f942ba6/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/a2c325412f942ba6/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T16:49:38.304Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-3yJVT1/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/a311ef050ab5ae15/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/a311ef050ab5ae15/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T10:57:02.862Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-71qmEV/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/a3f4e64263773740/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/a3f4e64263773740/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:49:47.149Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-y9je12/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/a60901b33134153b/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/a60901b33134153b/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T02:06:36.085Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-UrlzFd/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/a691e6efd3ff133c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/a691e6efd3ff133c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T18:55:59.034Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-ucmpLB/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/a6aad94d28da4701/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/a6aad94d28da4701/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T21:18:32.451Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-UUK7cz/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/a87f2f0b7a32e72f/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/a87f2f0b7a32e72f/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T03:43:18.317Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-HWZpKT/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/a92421acdf46003b/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/a92421acdf46003b/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:45:34.108Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-PFeHRn/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/abeedf0d272422ef/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/abeedf0d272422ef/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:49:27.425Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-sZ35lb/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/ac30932dcda37928/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/ac30932dcda37928/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T06:21:12.238Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-qDdHFx/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/aca1e9a634ce7e27/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/aca1e9a634ce7e27/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T03:46:13.031Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-z5IVwL/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/acb2862a736fb719/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/acb2862a736fb719/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:37:22.196Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-r9CCoq/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/ae47f276371319c0/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/ae47f276371319c0/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T13:26:45.118Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-M3Heic/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/b0fcb6acd5f66453/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/b0fcb6acd5f66453/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T18:27:16.122Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-tsYFcx/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/b183c46d7890aa58/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/b183c46d7890aa58/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:39:20.330Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-dsF0KG/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/b4fa83afb4721d45/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/b4fa83afb4721d45/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T03:45:18.063Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-EhdjRr/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/b6054bea710e0467/add-jsdoc",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/b6054bea710e0467/add-jsdoc",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 160,
+      "mtime_iso": "2026-06-15T03:52:27.777Z",
+      "top_level_entries": [
+        ".git",
+        "input.js",
+        "solution.js"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/econ-off-add-jsdoc-NZJSA6/.git/worktrees/add-jsdoc",
+        "target_exists": false
+      },
+      "naming_provenance": "task_named",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/b6c38a2045d451a9/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/b6c38a2045d451a9/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T19:05:58.853Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-9OuDBk/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/b93fbad0c38151e5/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/b93fbad0c38151e5/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T03:43:30.183Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-MPalFZ/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/bb48b2952218495d/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/bb48b2952218495d/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T16:34:40.044Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-rGObIV/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/bcc9862b67c20e48/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/bcc9862b67c20e48/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:37:16.593Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-9JBTvp/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/bde3dbbb4e567892/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/bde3dbbb4e567892/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T12:26:36.831Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-FOieFP/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/c01f6f172be76c66/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/c01f6f172be76c66/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 96,
+      "mtime_iso": "2026-06-15T14:08:14.001Z",
+      "top_level_entries": [
+        ".graph"
+      ],
+      "git": {
+        "present": false,
+        "kind": null,
+        "target": null
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "non-empty dir without .git (unknown contents)",
+      "recoverable_value": "preserve_unknown: content present without git metadata"
+    },
+    {
+      "path": "worktrees/c358eaa2e24c125b/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/c358eaa2e24c125b/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T19:39:56.971Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-lDiQar/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/c501a35de21978a7/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/c501a35de21978a7/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:51:19.063Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-gQGvjD/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/c549be5076a00e3c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/c549be5076a00e3c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T00:15:58.986Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-9oHsYn/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/c57f0061fe8cb216/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/c57f0061fe8cb216/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:26:38.363Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-c6APlY/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/c71c701c02aecd51/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/c71c701c02aecd51/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T19:38:54.285Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-Q9p51T/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/c8699ffd4bdaf4af/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/c8699ffd4bdaf4af/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T17:15:45.290Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-tZD1R3/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/caa8cd094beb9004/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/caa8cd094beb9004/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T23:04:14.818Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-9Xf0uq/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/cb1c8888685b410f/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/cb1c8888685b410f/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T12:59:44.481Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-sGNByt/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/cb593b10ce0a44d8/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/cb593b10ce0a44d8/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T22:50:55.321Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-aBUnER/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/d3d0705c867d6909/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/d3d0705c867d6909/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T12:29:00.852Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-LrhuTQ/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/d446c856c29f6da8/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/d446c856c29f6da8/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T12:27:51.827Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-adoVLn/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/d5de0a8ee9da0316/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/d5de0a8ee9da0316/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T03:20:47.597Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-cYaRwo/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/d5f53e1981d5920b/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/d5f53e1981d5920b/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T11:02:53.681Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-NsuFP6/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/d8ba09df4f370343/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/d8ba09df4f370343/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T13:44:59.703Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-qPluZU/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/d9a0dc2cb6cec56c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/d9a0dc2cb6cec56c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T10:56:51.843Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-AypWFg/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/da6cf188a5493a31/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/da6cf188a5493a31/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T10:34:26.879Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-T8ScqW/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/da6df57044678d13/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/da6df57044678d13/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T21:17:30.047Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-tUKMho/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/dd4dfa02da023ab7/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/dd4dfa02da023ab7/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T02:05:00.168Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-8HpAR9/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/dfde32dd1bb07b86/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/dfde32dd1bb07b86/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T11:28:09.141Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-SLLIJQ/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/e33f3a0dfb98fefc/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/e33f3a0dfb98fefc/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 96,
+      "mtime_iso": "2026-06-15T14:07:28.899Z",
+      "top_level_entries": [
+        ".graph"
+      ],
+      "git": {
+        "present": false,
+        "kind": null,
+        "target": null
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "non-empty dir without .git (unknown contents)",
+      "recoverable_value": "preserve_unknown: content present without git metadata"
+    },
+    {
+      "path": "worktrees/e5b4d83f085de92c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/e5b4d83f085de92c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T11:05:34.162Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-ySZopA/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/ed50cae2b3872f2d/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/ed50cae2b3872f2d/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:50:12.652Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/tmp.nWFsFpDe0D/orch-metric-claim-ws-9ZoBb2/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/ed6a3fe9c89bbd9e/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/ed6a3fe9c89bbd9e/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T16:33:50.746Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-k66ZOh/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/edcc98cb25f80d8e/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/edcc98cb25f80d8e/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T03:30:14.003Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-gbgCsM/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/effa7e627ccfd565/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/effa7e627ccfd565/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:34:28.632Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-JeQot5/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/f450a64fc35e9b67/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/f450a64fc35e9b67/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T16:34:00.330Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-7Gfwx9/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/f565bcea32993eaa/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/f565bcea32993eaa/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:52:21.478Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-Sj4kF4/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/f914cef29b15731b/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/f914cef29b15731b/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:50:40.001Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/tmp.nWFsFpDe0D/orch-metric-claim-ws-ZPGPqZ/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/f97a7dd7c569c73e/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/f97a7dd7c569c73e/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:48:38.257Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-X8IcYi/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/fa9505f0bca2d713/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/fa9505f0bca2d713/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-14T00:17:29.695Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-PFblVl/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/faa0195987ca20b7/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/faa0195987ca20b7/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T03:56:06.719Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-gw9nD0/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/fc7fb29f8f5cdd4c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/fc7fb29f8f5cdd4c/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T02:34:01.039Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-cSi6V8/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/fe71a8b5eb69efd7/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/fe71a8b5eb69efd7/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-15T03:32:07.684Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-c4hkUl/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    },
+    {
+      "path": "worktrees/fefd36d3a7dae1e9/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/fefd36d3a7dae1e9/aaaaaaaa-feedface-0000-4000-800000000002-1",
+      "registered": false,
+      "branch": null,
+      "size_bytes": 128,
+      "mtime_iso": "2026-06-13T13:42:57.367Z",
+      "top_level_entries": [
+        ".git",
+        ".graph"
+      ],
+      "git": {
+        "present": true,
+        "kind": "file",
+        "target": "/private/var/folders/3d/92sgpdns41q1s_w8fms8ykfm0000gn/T/orch-metric-claim-ws-wW99pM/.git/worktrees/aaaaaaaa-feedface-0000-4000-800000000002-1",
+        "target_exists": false
+      },
+      "naming_provenance": "synthetic_placeholder_fixture",
+      "gc_reason": "git status failed; rev-list main..HEAD failed",
+      "recoverable_value": "preserve_unknown: gitdir target missing"
+    }
+  ]
+}
