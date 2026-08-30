@@ -51,6 +51,8 @@ assert.equal(vendorFile.is_noisy, true);
 assert.deepEqual(projection.modules.find((module) => module.name === 'src'), {
   id: 'module:src',
   name: 'src',
+  parent_id: null,
+  child_ids: ['file:src/api.js'],
   file_ids: ['file:src/api.js'],
   file_count: 1,
   default_file_count: 1,
@@ -59,6 +61,14 @@ assert.deepEqual(projection.modules.find((module) => module.name === 'src'), {
   incoming_count: 0,
   outgoing_count: 3,
 });
+assert.deepEqual(projection.groups, []);
+assert.equal(api.parent_id, 'module:src');
+assert.deepEqual(api.ancestor_ids, ['module:src']);
+assert.equal(projection.hierarchy_relations.length, 2);
+assert.ok(projection.hierarchy_relations.every((edge) => edge.from === 'file:src/api.js'
+  && edge.to === 'file:lib/db.js'));
+assert.ok(projection.hierarchy_relations.every((edge) => edge.from_ancestors[0] === 'module:src'
+  && edge.to_ancestors[0] === 'module:lib'));
 assert.equal(projection.modules.find((module) => module.name === 'vendor').default_file_count, 0);
 assert.equal(projection.modules.find((module) => module.name === 'vendor').hidden_file_count, 1);
 
@@ -110,6 +120,97 @@ assert.deepEqual(noiseProjection.files.map((file) => [file.path, file.noise]), [
 ]);
 assert.equal(noiseProjection.files.length, 6, 'noise classification preserves searchable file detail');
 assert.ok(noiseProjection.modules.every((module) => module.default_file_count === 0));
+
+const hierarchyNodes = {
+  'code:src/api/http/routes.js#route': { file: 'src/api/http/routes.js', name: 'route' },
+  'code:src/api/http/middleware.js#auth': { file: 'src/api/http/middleware.js', name: 'auth' },
+  'code:src/domain/user.js#user': { file: 'src/domain/user.js', name: 'user' },
+  'code:lib/db/client.js#query': { file: 'lib/db/client.js', name: 'query' },
+  'code:tests/api/http/routes.test.js#routeTest': { file: 'tests/api/http/routes.test.js', name: 'routeTest' },
+};
+const hierarchyEdges = [
+  { from_file: 'src/api/http/routes.js', to_file: 'lib/db/client.js', kind: 'calls' },
+  { from_file: 'src/api/http/routes.js', to_file: 'src/api/http/middleware.js', kind: 'calls' },
+  { from_file: 'tests/api/http/routes.test.js', to_file: 'src/api/http/routes.js', kind: 'calls' },
+];
+const hierarchy = buildArchitectureProjection({ codeNodes: hierarchyNodes, codeEdges: hierarchyEdges });
+assert.deepEqual(hierarchy.groups.map((group) => group.path), [
+  'lib/db',
+  'src/api',
+  'src/api/http',
+  'src/domain',
+  'tests/api',
+  'tests/api/http',
+]);
+const apiGroup = hierarchy.groups.find((group) => group.path === 'src/api');
+assert.equal(apiGroup.parent_id, 'module:src');
+assert.deepEqual(apiGroup.child_ids, ['group:src/api/http']);
+assert.equal(apiGroup.file_count, 2);
+assert.equal(apiGroup.default_file_count, 2);
+assert.equal(apiGroup.hidden_file_count, 0);
+assert.equal(apiGroup.symbol_count, 2);
+const httpGroup = hierarchy.groups.find((group) => group.path === 'src/api/http');
+assert.equal(httpGroup.parent_id, 'group:src/api');
+assert.deepEqual(httpGroup.child_ids, [
+  'file:src/api/http/middleware.js',
+  'file:src/api/http/routes.js',
+]);
+assert.deepEqual(httpGroup.file_ids, httpGroup.child_ids);
+assert.equal(httpGroup.direct_file_count, 2);
+assert.deepEqual(hierarchy.modules.find((module) => module.name === 'src').child_ids, [
+  'group:src/api',
+  'group:src/domain',
+]);
+const routeFile = hierarchy.files.find((file) => file.path === 'src/api/http/routes.js');
+assert.equal(routeFile.parent_id, 'group:src/api/http');
+assert.deepEqual(routeFile.ancestor_ids, [
+  'group:src/api/http',
+  'group:src/api',
+  'module:src',
+]);
+assert.equal(hierarchy.hierarchy_relations.length, 2,
+  'noise edges are omitted while clean inner-module and cross-module detail remains');
+const databaseEdge = hierarchy.hierarchy_relations.find((edge) => edge.to === 'file:lib/db/client.js');
+assert.equal(databaseEdge.kind, 'calls');
+assert.equal(databaseEdge.count, 1);
+assert.equal(databaseEdge.from, 'file:src/api/http/routes.js');
+assert.deepEqual(databaseEdge.from_ancestors, [
+  'group:src/api/http',
+  'group:src/api',
+  'module:src',
+]);
+assert.deepEqual(databaseEdge.to_ancestors, ['group:lib/db', 'module:lib']);
+const emittedHierarchyIds = new Set([
+  ...hierarchy.modules.map((module) => module.id),
+  ...hierarchy.groups.map((group) => group.id),
+  ...hierarchy.files.map((file) => file.id),
+]);
+for (const node of [...hierarchy.modules, ...hierarchy.groups, ...hierarchy.files]) {
+  if (node.parent_id) assert.ok(emittedHierarchyIds.has(node.parent_id), `${node.id} parent is emitted`);
+  for (const childId of node.child_ids || []) {
+    assert.ok(emittedHierarchyIds.has(childId), `${node.id} child ${childId} is emitted`);
+  }
+}
+for (const edge of hierarchy.hierarchy_relations) {
+  assert.ok(edge.from_ancestors.every((id) => emittedHierarchyIds.has(id)));
+  assert.ok(edge.to_ancestors.every((id) => emittedHierarchyIds.has(id)));
+  assert.match(edge.from_ancestors[edge.from_ancestors.length - 1], /^module:/);
+  assert.match(edge.to_ancestors[edge.to_ancestors.length - 1], /^module:/);
+}
+const boundedHierarchy = buildArchitectureProjection({
+  codeNodes: hierarchyNodes,
+  codeEdges: hierarchyEdges,
+}, { maxRelations: 1 });
+assert.equal(boundedHierarchy.hierarchy_relations.length, 1);
+assert.equal(boundedHierarchy.omitted.hierarchy_relations, 1);
+assert.deepEqual(
+  hierarchy,
+  buildArchitectureProjection({
+    codeNodes: Object.fromEntries(Object.entries(hierarchyNodes).reverse()),
+    codeEdges: [...hierarchyEdges].reverse(),
+  }),
+  'compound hierarchy and relation ancestry are deterministic',
+);
 
 assert.deepEqual(
   buildArchitectureProjection({ codeNodes, codeEdges }),
