@@ -94,6 +94,11 @@ What a worker returns via `subconscious_assignment complete` → `POST /overlay/
   accepted entries as non-blocking context edges with `origin: "task-result-causal"`.
 - `decisions[].wires_to` carries note provenance — always includes the current `task_key`
   (the one wiring only the worker knows).
+- Documentation impact is completion evidence, not a new required `task_result` field. Before a
+  successful completion, workers update affected project docs in the same attempt commit and name
+  them in the concise `summary`; if none are affected, the summary includes a credible
+  `Documentation: not needed — <reason>` rationale. Same-node review checks that evidence against
+  the diff. Existing v1 producers and legacy summary-only completions remain compatible.
 
 ## Versioning
 

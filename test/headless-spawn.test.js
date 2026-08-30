@@ -543,6 +543,9 @@ test('handoff envelope carries slots from the prepare response; prompt embeds th
 
   const prompt = headlessSpawn.buildWorkerPrompt(envelope);
   assert.match(prompt, /action:"accept"/);
+  assert.match(prompt, /inspect the relevant project documentation/);
+  assert.match(prompt, /Documentation: not needed/);
+  assert.match(prompt, /including Documentation evidence on success/);
   assert.match(prompt, /git add -A && git commit/);
   assert.match(prompt, /status:"failed"/, 'failure contract must be explicit in the prompt');
   assert.ok(prompt.includes(envelope.branch));
