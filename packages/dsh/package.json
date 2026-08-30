@@ -4,6 +4,17 @@
   "description": "Native DeepSeek Harness Cordis bridge and MCP profile for Zonoid",
   "type": "module",
   "main": "index.mjs",
+  "files": [
+    "index.mjs",
+    "lib/",
+    "zonoid.cordis.patch.yml",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./zonoid.cordis.patch.yml"
+    }
+  },
   "license": "Apache-2.0",
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
