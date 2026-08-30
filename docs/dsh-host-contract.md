@@ -87,3 +87,6 @@ The probe refuses a different revision/version, exercises MCP discovery and
 execution, proves pre-deny and post-block behavior, checks session/workspace
 identity and lifecycle events, and requires both plugin disposal and MCP stdio
 EOF before succeeding. It never calls a model.
+
+For the integrated installer, bridge, permit, file-drop, usage, and child-process
+acceptance path, see [`dsh-acceptance.md`](./dsh-acceptance.md).
