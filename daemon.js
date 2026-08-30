@@ -2734,7 +2734,13 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
       // from the local overlay.pendingDup map (round-trips via save's LOCAL_FIELDS) — NOT a note_node field.
       pending_dup: pendingDup,
       dup_match: dupMatch,
-      category: n.category || null, tags: Array.isArray(n.tags) ? n.tags : [] });
+      category: n.category || null, tags: Array.isArray(n.tags) ? n.tags : [],
+      created_by: n.created_by || null,
+      memory_lane: n.memory_lane || null,
+      source_role: n.source_role || 'unknown',
+      authority: n.authority || null,
+      confidence: typeof n.confidence === 'number' ? n.confidence : null,
+      episode: n.episode || null });
   }
   // Append typed knowledge nodes for source/provenance structure. They are graph/search nodes only:
   // no native status lifecycle, no assignee/session/todo semantics.

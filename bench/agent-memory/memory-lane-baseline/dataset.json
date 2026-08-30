@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "description": "Deterministic evidence-versus-guidance baseline. memory_lane, source_role, and authority are benchmark labels only; the production compiler does not consume them.",
+  "nodes": [
+    {
+      "id": "note:user-region",
+      "label": "User region statement",
+      "summary": "The user confirms Toronto is the region.",
+      "memory_lane": "evidence",
+      "source_role": "user",
+      "authority": "observation"
+    },
+    {
+      "id": "note:assistant-region",
+      "label": "Production deployment region answer",
+      "summary": "The assistant speculates that the production deployment region is probably Dublin.",
+      "memory_lane": "evidence",
+      "source_role": "assistant",
+      "authority": "inference"
+    },
+    {
+      "id": "note:database-guidance",
+      "label": "Database preference",
+      "summary": "Prefer PostgreSQL for future services.",
+      "category": "preference",
+      "memory_lane": "guidance",
+      "source_role": "user",
+      "authority": "directive"
+    },
+    {
+      "id": "note:database-artifact",
+      "label": "Current database artifact",
+      "summary": "The inspected production artifact configures SQLite as the current database.",
+      "memory_lane": "evidence",
+      "source_role": "artifact",
+      "authority": "observation"
+    },
+    {
+      "id": "note:old-review-guidance",
+      "label": "Previous code review preference",
+      "summary": "Use merge commits for integration.",
+      "category": "preference",
+      "validFrom": "2026-01-01T00:00:00.000Z",
+      "validTo": "2026-04-01T00:00:00.000Z",
+      "supersededBy": "note:current-review-guidance",
+      "memory_lane": "guidance",
+      "source_role": "user",
+      "authority": "directive"
+    },
+    {
+      "id": "note:current-review-guidance",
+      "label": "Current code review preference",
+      "summary": "Use squash commits for integration.",
+      "category": "preference",
+      "validFrom": "2026-04-01T00:00:00.000Z",
+      "supersedes": "note:old-review-guidance",
+      "memory_lane": "guidance",
+      "source_role": "user",
+      "authority": "directive"
+    },
+    {
+      "id": "note:tool-build",
+      "label": "Build status observation",
+      "summary": "The test tool reported that build 842 passed.",
+      "memory_lane": "evidence",
+      "source_role": "tool",
+      "authority": "observation"
+    },
+    {
+      "id": "note:zonoid-accounting",
+      "label": "Accounting normalization decision",
+      "summary": "Accounting amounts are normalized to cents.",
+      "memory_lane": "evidence",
+      "source_role": "artifact",
+      "authority": "observation"
+    }
+  ],
+  "entities": {
+    "zonoid": { "name": "Zonoid" }
+  },
+  "edges": [
+    { "kind": "context", "from": "entity:zonoid", "to": "note:zonoid-accounting" }
+  ],
+  "cases": [
+    {
+      "id": "user-fact-vs-assistant-speculation",
+      "query": "what is the production deployment region",
+      "relevant_keys": ["note:user-region"],
+      "factual": true,
+      "expected_source_role": "user"
+    },
+    {
+      "id": "guidance-is-not-current-fact",
+      "query": "what database does the current system use",
+      "relevant_keys": ["note:database-artifact"],
+      "factual": true,
+      "expected_source_role": "artifact",
+      "forbidden_lanes": ["guidance"]
+    },
+    {
+      "id": "superseded-preference",
+      "query": "what is the current code review preference for integration",
+      "relevant_keys": ["note:current-review-guidance"],
+      "expected_source_role": "user",
+      "forbidden_keys": ["note:old-review-guidance"]
+    },
+    {
+      "id": "tool-evidence",
+      "query": "which build did the test tool report passed",
+      "relevant_keys": ["note:tool-build"],
+      "factual": true,
+      "expected_source_role": "tool"
+    },
+    {
+      "id": "entity-expanded-recall",
+      "query": "what should Zonoid use for accounting amounts",
+      "relevant_keys": ["note:zonoid-accounting"],
+      "factual": true,
+      "expected_source_role": "artifact"
+    },
+    {
+      "id": "no-evidence-abstention",
+      "query": "which airline kiosk redeemed the mileage voucher",
+      "relevant_keys": [],
+      "factual": true,
+      "expect_abstain": true
+    }
+  ]
+}
