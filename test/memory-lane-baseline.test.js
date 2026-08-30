@@ -32,8 +32,8 @@ const { runEvaluation } = require('../bench/agent-memory/memory-lane-baseline/ev
     assert(report.metrics[metric] >= 0 && report.metrics[metric] <= 1, `${metric} must be a rate`);
   }
   assert(report.metrics.mean_estimated_prompt_tokens >= 0);
-  assert.equal(report.metrics.mean_estimated_guidance_tokens, 0);
-  assert.equal(report.metrics.mean_estimated_injected_tokens, report.metrics.mean_estimated_evidence_tokens);
+  assert(report.metrics.mean_estimated_guidance_tokens > 0);
+  assert(report.metrics.mean_estimated_injected_tokens > report.metrics.mean_estimated_evidence_tokens);
   assert(report.metrics.p95_retrieval_latency_ms >= 0);
   assert.equal(report.metrics.latency_sample_count, report.case_count * report.repeats);
 
@@ -68,7 +68,7 @@ const { runEvaluation } = require('../bench/agent-memory/memory-lane-baseline/ev
   assert(evaluation.gates.find((gate) => gate.id === 'stale_current_leakage').passed);
   assert(evaluation.gates.find((gate) => gate.id === 'recall_at_5_regression').passed);
   assert(evaluation.gates.find((gate) => gate.id === 'outcome_policy_is_guidance').passed);
-  assert(evaluation.gates.find((gate) => gate.id === 'outcome_policy_default_off').passed);
+  assert(evaluation.gates.find((gate) => gate.id === 'features_default_on').passed);
   assert.equal(evaluation.gates.find((gate) => gate.id === 'injected_token_overhead').passed, false);
   assert.equal(evaluation.decision, 'HOLD');
   assert.match(evaluation.scoring_notes.audit, /Recall@5=0\.8/);

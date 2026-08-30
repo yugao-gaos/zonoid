@@ -54,7 +54,7 @@ async function runHeldOutTaskContext() {
   const overlay = { knowledge: {}, note_nodes: {}, entity_nodes: {}, edges: [] };
   const ctx = makeContext(graph, overlay, workspace);
   try {
-    const current = await retrieve(ctx, workspace, 'how should this task be tested', 5, false, 'task:held-out');
+    const current = await retrieve(ctx, workspace, 'how should this task be tested', 5, null, 'task:held-out');
     const laneAware = await retrieve(ctx, workspace, 'how should this task be tested', 5, true, 'task:held-out');
     const currentKeys = (current.results || []).map((item) => item.key);
     const evidenceKeys = (laneAware.evidence_results || []).map((item) => item.key);
@@ -147,10 +147,13 @@ function evaluateGates(arms, taskContext) {
         && arms['lane-aware-outcome'].outcome_policy.recalled_as_guidance,
     ),
     makeGate(
-      'outcome_policy_default_off',
-      'outcome policy requires config/env opt-in',
-      { outcome_policy_default_enabled: outcomePolicy.enabled({ config: {} }, {}) },
-      outcomePolicy.enabled({ config: {} }, {}) === false,
+      'features_default_on',
+      'memory lanes default on; outcome policy requires config/env opt-in',
+      {
+        current_memory_lanes: arms.current.memory_lanes,
+        outcome_policy_default_enabled: outcomePolicy.enabled({ config: {} }, {}),
+      },
+      arms.current.memory_lanes === true && outcomePolicy.enabled({ config: {} }, {}) === false,
     ),
   ];
 }

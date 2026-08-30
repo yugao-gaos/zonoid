@@ -20,8 +20,8 @@ Run it from the repository root:
 node bench/agent-memory/memory-lane-baseline/run.js
 ```
 
-The command above remains the frozen `current` arm. The opt-in comparison arms
-are available without changing runtime defaults:
+The command above exercises the frozen `current` arm. The comparison arms are
+available without changing runtime defaults:
 
 ```sh
 node bench/agent-memory/memory-lane-baseline/run.js --arm lane-aware
@@ -35,10 +35,12 @@ source-role confusion, stale-memory leakage, Recall@5, MRR, estimated prompt
 tokens, and p95 retrieval latency.
 
 `memory_lane`, `source_role`, and `authority` in `dataset.json` are gold labels.
-The frozen `current` arm leaves lane partitioning off; the comparison arms pass
-the production compiler's explicit `memory_lanes=1` opt-in. The outcome arm also
-derives one scoped policy through the production outcome-policy module after
-three unique resolved outcomes. Neither feature is enabled by default.
+The frozen `current` arm uses the lane-aware default; `memory_lanes=0` or
+`false` still returns the legacy combined payload, while the comparison arms
+pass the production compiler's explicit `memory_lanes=1` opt-in. The outcome
+arm also derives one scoped policy through the production outcome-policy
+module after three unique resolved outcomes. Outcome-policy memory remains
+disabled by default.
 
 Recall and reciprocal rank are scored within the lane containing the gold item.
 Factual accuracy and no-evidence abstention use evidence only, while source role

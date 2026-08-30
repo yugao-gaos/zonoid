@@ -72,15 +72,14 @@ function makeContext(graph, overlay, workspace) {
   };
 }
 
-async function retrieve(ctx, workspace, query, k = K, memoryLanes = false, taskKey = '') {
+async function retrieve(ctx, workspace, query, k = K, memoryLanes = null, taskKey = '') {
   const url = new URL('http://127.0.0.1/search');
   url.searchParams.set('workspace', workspace);
   url.searchParams.set('q', query);
   url.searchParams.set('k', String(k));
   url.searchParams.set('rerank', '0');
-  // Keep the historical `current` arm as an explicit legacy control now that
-  // production retrieval defaults to lane-aware output.
-  url.searchParams.set('memory_lanes', memoryLanes ? '1' : '0');
+  if (memoryLanes === true) url.searchParams.set('memory_lanes', '1');
+  else if (memoryLanes === false) url.searchParams.set('memory_lanes', '0');
   if (taskKey) url.searchParams.set('task_key', taskKey);
   const result = await compileSearchContext(ctx, {
     req: { socket: { remoteAddress: '127.0.0.1' } },
@@ -215,7 +214,7 @@ async function runBenchmark(options = {}) {
   if (!['current', 'lane-aware', 'lane-aware-outcome'].includes(arm)) {
     throw new Error(`unknown benchmark arm: ${arm}`);
   }
-  const memoryLanes = arm !== 'current';
+  const requestMemoryLanes = arm === 'current' ? null : true;
   const dataset = JSON.parse(fs.readFileSync(datasetPath, 'utf8'));
   const workspace = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-memory-lane-bench-')));
   fs.mkdirSync(path.join(workspace, '.graph'), { recursive: true });
@@ -249,7 +248,7 @@ async function runBenchmark(options = {}) {
       let measuredGuidance = [];
       for (let attempt = 0; attempt < repeats; attempt++) {
         const started = performance.now();
-        const payload = await retrieve(ctx, workspace, testCase.query, K, memoryLanes, testCase.task_key || '');
+        const payload = await retrieve(ctx, workspace, testCase.query, K, requestMemoryLanes, testCase.task_key || '');
         latencies.push(performance.now() - started);
         if (attempt === 0) {
           measuredResults = payload.results || [];
@@ -276,7 +275,7 @@ async function runBenchmark(options = {}) {
     schema_version: 1,
     benchmark: 'memory-lane-baseline',
     arm,
-    memory_lanes: memoryLanes,
+    memory_lanes: requestMemoryLanes == null ? true : requestMemoryLanes,
     compiler: 'lib/search/context-compiler.js',
     k: K,
     case_count: cases.length,
