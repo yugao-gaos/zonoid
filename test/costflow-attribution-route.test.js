@@ -8,9 +8,11 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const analyticsRoute = require('../routes/analytics');
 const { sessionCatchalls } = require('../lib/costflow');
+const overlayStore = require('../lib/overlay');
 const codex = require('../lib/adapters/codex');
 const { claimRelPath } = require('../lib/git-claims');
-const { taskTranscript, respCacheGet, respCachePut, notifyChange } = require('../daemon.js');
+const { taskTranscript, respCacheGet, respCachePut, notifyChange,
+  __invalidateRespCacheForTest, __clearRespCacheForTest } = require('../daemon.js');
 const { appendShadow } = require('../lib/shadow-journal');
 
 let pass = 0, fail = 0;
@@ -278,10 +280,14 @@ async function runAsyncTests() {
 
     let cachedBuilds = 0;
     const cacheTtls = [];
+    const cachePolicies = [];
     const cachedRoute = makeCostflowRoute(tasks, ov, routeWorkspace, {
       buildGraph() { cachedBuilds++; return { tasks, ghosts: [] }; },
-      respCacheGet(ws, key, ttl) { cacheTtls.push(ttl); return respCacheGet(ws, key, ttl); },
-      respCachePut,
+      respCacheGet(ws, key, ttl, options) {
+        cacheTtls.push(ttl); cachePolicies.push(options);
+        return respCacheGet(ws, key, ttl, options);
+      },
+      respCachePut(ws, key, payload, options) { return respCachePut(ws, key, payload, options); },
     });
     const cacheUrl = new URL(`http://127.0.0.1/costflow?workspace=${encodeURIComponent(routeWorkspace)}&since=shared-cache`);
     const realDateNow = Date.now;
@@ -298,9 +304,30 @@ async function runAsyncTests() {
     ok('analytics cache: repeated costflow requests remain shared after the old 60s cold boundary', cachedBuilds === 1);
     ok('analytics cache: bounded-stale safety fallback is at least 10 minutes',
       cacheTtls.length === 3 && cacheTtls.every((ttl) => ttl >= 10 * 60 * 1000));
+    ok('analytics cache: costflow explicitly opts into bounded-stale caching',
+      cachePolicies.length === 3 && cachePolicies.every((options) => options && options.boundedStale === true));
+    respCachePut(routeWorkspace, 'ordinary-cache-fixture', { ordinary: true });
     notifyChange(routeWorkspace);
+    ok('response cache: ordinary entries still invalidate immediately on graph notification',
+      respCacheGet(routeWorkspace, 'ordinary-cache-fixture') === undefined);
     await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
-    ok('analytics cache: notifyChange invalidates costflow immediately', cachedBuilds === 2);
+    ok('analytics cache: unrelated graph notification preserves bounded costflow response', cachedBuilds === 1);
+    __invalidateRespCacheForTest();
+    await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
+    ok('analytics cache: task/filedrop watcher invalidation preserves bounded costflow response', cachedBuilds === 1);
+    const overlayFile = overlayStore.fileFor(routeWorkspace);
+    fs.mkdirSync(path.dirname(overlayFile), { recursive: true });
+    fs.writeFileSync(overlayFile, '{}\n');
+    await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
+    ok('analytics cache: out-of-process overlay mtime churn preserves bounded costflow response', cachedBuilds === 1);
+    Date.now = () => cacheNow;
+    cacheNow += 10 * 60 * 1000;
+    try {
+      await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
+    } finally {
+      Date.now = realDateNow;
+    }
+    ok('analytics cache: safety TTL eventually refreshes costflow', cachedBuilds === 2);
 
     const overheadUrl = new URL(`http://127.0.0.1/harness/overhead?workspace=${encodeURIComponent(routeWorkspace)}`);
     await cachedRoute('/harness/overhead', 'GET', {}, {}, overheadUrl, null);
@@ -415,6 +442,8 @@ async function runAsyncTests() {
     ok('/costflow labels local dollars as estimates with caveat',
       mixedRes.body.cost.estimated === true && mixedRes.body.cost.kind === 'estimate' && /not billed cost/i.test(mixedRes.body.cost.caveat) && mixedRes.body.sources.billing === 'usage_estimate');
   } finally {
+    __clearRespCacheForTest();
+    try { fs.rmSync(overlayStore.fileFor(routeWorkspace), { force: true }); } catch { /* best effort */ }
     if (prevHome === undefined) delete process.env.CODEX_HOME;
     else process.env.CODEX_HOME = prevHome;
     fs.rmSync(tmp, { recursive: true, force: true });

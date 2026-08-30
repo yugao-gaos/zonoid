@@ -15,6 +15,7 @@ const { estimatedSavings } = require('../lib/economy');
 // transcript grows; use a long safety fallback so idle dashboards do not synchronously cold-scan at
 // an arbitrary one-minute boundary across clients.
 const ANALYTICS_CACHE_TTL_MS = 10 * 60 * 1000;
+const COSTFLOW_CACHE_OPTIONS = Object.freeze({ boundedStale: true });
 
 function sessionsFromOverlay(ov) {
   const snap = ov && ov.usage_reconcile_snapshot;
@@ -176,7 +177,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     let activeHarness = harness;
     try { if (harnessRegistry && harnessName) activeHarness = harnessRegistry.get(harnessName); } catch { activeHarness = harness; }
     const cfKey = `costflow|${cfWs}|${harnessName}|${u.searchParams.get('since') || ''}`;
-    const cfHit = respCacheGet(cfWs, cfKey, ANALYTICS_CACHE_TTL_MS);
+    const cfHit = respCacheGet(cfWs, cfKey, ANALYTICS_CACHE_TTL_MS, COSTFLOW_CACHE_OPTIONS);
     if (cfHit !== undefined) { send(res, 200, cfHit); return true; }
     const g = buildGraph(T.ws);
     const stWs = { ...state, overlay: T.ov };
@@ -368,7 +369,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       results: flow.results.map((r) => ({ task: r.task, kind: kindOf(r.task), label: r.label, members: r.members.length > 1 ? r.members : undefined, T: rnd(r.T), own: rnd(r.own), inherited: rnd(r.inherited) })),
       waste: wasteTrapped.map((w) => ({ task: w.task, kind: kindOf(w.task), label: w.label, members: w.members.length > 1 ? w.members : undefined, trapped: rnd(w.trapped) })),
       exploration: wasteExploration.map((w) => ({ task: w.task, kind: kindOf(w.task), label: w.label, members: w.members.length > 1 ? w.members : undefined, tokens: rnd(w.trapped) })),
-    })); return true;
+    }, COSTFLOW_CACHE_OPTIONS)); return true;
   }
 
   if (p === '/harness/overhead' && m === 'GET') {
@@ -519,4 +520,4 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   return false;
 };
 
-module.exports._internal = { sessionsFromOverlay, claimedOutputForSession, harnessNameForWorkspace, representedSessionIds, ANALYTICS_CACHE_TTL_MS };
+module.exports._internal = { sessionsFromOverlay, claimedOutputForSession, harnessNameForWorkspace, representedSessionIds, ANALYTICS_CACHE_TTL_MS, COSTFLOW_CACHE_OPTIONS };
