@@ -5018,6 +5018,7 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;'
 let selected=null;
 let lastDetailFp='';
 let detailRequestSeq=0;
+let selectedDetailData=null;
 let lastState=null; // most recent full /state payload, for re-render on view switch
 let liveAgentIds=new Set();
 let currentView=(v=>v==='cloud'||v==='frontier'||v==='kanban'||v==='architecture'?v:(v==='flow'?'frontier':'kanban'))(localStorage.getItem('orchView'));  // stale Flow migrates; Kanban is the operational default
@@ -5418,6 +5419,7 @@ function wrapLabel(s,perLine){ s=String(s||''); const lines=[]; while(s.length>p
 async function openDetail(key){
   selected=key; document.getElementById('panel').classList.add('open');
   syncSelectedTask();
+  selectedDetailData=null;
   const requestSeq=++detailRequestSeq;
   const cached=lastState&&(lastState.tasks||[]).find(t=>t.id===key);
   const pad=document.getElementById('pad');
@@ -5437,10 +5439,25 @@ async function openDetail(key){
   if(selected!==key) return; // a slower response must not replace a newer shared selection
   if(requestSeq!==detailRequestSeq) return; // a repeated request for this task also supersedes older enrichment
   if(d.error||!d.task){ pad.innerHTML='<span class="pclose" onclick="closeDetail()">✕</span>not found'; return; }
+  const live=lastState&&(lastState.tasks||[]).find(t=>t.id===key);
+  if(live) d={ ...d, task:{ ...d.task, ...live }, summary: live.summary || d.summary || d.task.summary || '' };
+  selectedDetailData=d;
   renderDetail(key,d);
 }
 function detailFingerprint(t){
   return t?[t.status,t.agent_id||'',t.summary||'',t.review_state||'',t.review_verdict||'',t.merge_state||'',t.review_requested_at||'',t.reviewed_at||''].join(':'):'';
+}
+function syncSelectedDetailFromState(key){
+  if(selected!==key) return;
+  const dt=lastState&&lastState.tasks&&lastState.tasks.find(t=>t.id===key);
+  if(!dt) return;
+  const cached=selectedDetailData&&selectedDetailData.task&&selectedDetailData.task.id===key ? selectedDetailData : null;
+  const shellTask=cached ? { ...cached.task, ...dt } : dt;
+  const payload=cached
+    ? { ...cached, task: shellTask, summary: dt.summary || cached.summary || cached.task.summary || '' }
+    : { task: shellTask, summary: dt.summary || '' };
+  renderDetail(key, payload, cached ? {} : { loading: true });
+  lastDetailFp=detailFingerprint(dt);
 }
 function renderDetail(key,d,{loading=false,error=''}={}){
   if(selected!==key||!d||!d.task) return;
@@ -5495,7 +5512,7 @@ function navigateToDependency(key){
   setView('cloud');
   openDetail(key);
 }
-function closeDetail(){ selected=null; detailRequestSeq++; document.getElementById('panel').classList.remove('open'); syncSelectedTask(); }
+function closeDetail(){ selected=null; selectedDetailData=null; detailRequestSeq++; document.getElementById('panel').classList.remove('open'); syncSelectedTask(); }
 // Top-bar autonomy score: the VALUE rendered always-visible in the summary bar (the popup stays
 // the click-through detail). /costflow walks every transcript — too heavy per 2s tick — so the
 // cache refreshes on the graph tick but at most every 30s (and never overlaps itself).
@@ -5957,7 +5974,7 @@ async function tick(prefetchedState){
   if(selected){
   const dt=lastState&&lastState.tasks&&lastState.tasks.find(t=>t.id===selected);
   const fp=detailFingerprint(dt);
-  if(fp!==lastDetailFp){ lastDetailFp=fp; openDetail(selected); }
+  if(fp!==lastDetailFp) syncSelectedDetailFromState(selected);
 }
   const rt=document.getElementById('routes');
   rt.innerHTML=!d.routes.length?'<div class="empty">none</div>':d.routes.slice().reverse().slice(0,6).map(r=>`<div class="row"><span class="tag ${esc(r.decision)}">${esc(r.decision)}</span> ${esc(r.prompt.slice(0,60))}</div>`).join('');

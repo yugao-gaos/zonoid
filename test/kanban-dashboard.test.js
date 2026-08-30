@@ -48,6 +48,10 @@ assert.ok(detailSource.includes("await new Promise(resolve=>setTimeout(resolve,0
   'the cached drawer shell must get a browser turn to paint before enrichment');
 assert.ok(detailSource.includes('selected!==key||requestSeq!==detailRequestSeq'),
   'late detail responses must not replace a newer selection or request');
+assert.ok(detailSource.includes('selectedDetailData=d'),
+  'the selected task detail payload must be cached after enrichment');
+assert.ok(detailSource.includes('syncSelectedDetailFromState'),
+  'state refreshes must resync the open drawer without reopening the detail request');
 const cardDisplaySource = html.slice(
   html.indexOf('const OPAQUE_KANBAN_TASK_KEY='),
   html.indexOf('function kanbanCueLabel'),
@@ -88,6 +92,10 @@ assert.ok(resilientTickSource.includes('return _origTick(stateBody)') && !resili
   'the resilience wrapper must render its existing /state response instead of fetching state twice');
 assert.ok(resilientTickSource.includes('if(_tickInFlight)') && resilientTickSource.includes('_tickQueued=true'),
   'overlapping SSE and polling ticks must be coalesced');
+assert.ok(html.includes('syncSelectedDetailFromState(selected)'),
+  'tick should refresh the visible detail shell from lastState without reopening it');
+assert.ok(!html.includes('openDetail(selected)'),
+  'tick must not reopen rich task detail on every state poll');
 
 const helperSource = html.slice(html.indexOf('const KB_DONE_CAP=12'), html.indexOf('function openKanbanHistory()'));
 const helperContext = {};
