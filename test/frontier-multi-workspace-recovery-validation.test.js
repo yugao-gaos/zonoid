@@ -260,7 +260,7 @@ test('multi-workspace Ready work precedes planning and detached failure preserve
       childRuns.push(spec);
       return heldChild;
     },
-    recordOutcome: () => { governor.backoffUntil = Date.now() + 80; },
+    recordOutcome: () => { governor.backoffUntil = Date.now() + 500; },
     completeFailed: async () => ({ ok: true }),
   });
   const maintenance = createHeadlessDrainRunner({
@@ -296,6 +296,9 @@ test('multi-workspace Ready work precedes planning and detached failure preserve
     assert.equal(governor.postBackoffFairness.lane, 'maintenance');
     assert.equal(governor.postBackoffFairness.createdBy, 'frontier');
 
+    const blocked = await executor.runDueDrains();
+    assert.equal(blocked.skipped, 'backoff');
+    assert.equal(maintenanceRuns, 0);
     assert.equal(await waitFor(() => maintenanceRuns === 1), true,
       'the opposite lane receives the first post-backoff wake');
   } finally {
