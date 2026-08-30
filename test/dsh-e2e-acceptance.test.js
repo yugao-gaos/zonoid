@@ -151,6 +151,16 @@ async function createAcceptanceServer(temp) {
       send(200, { additional_context: '[acceptance] canonical DSH context' });
     } else if (url.pathname === '/ready') {
       send(200, { ready: [] });
+    } else if (url.pathname === '/state') {
+      send(200, {
+        ok: true,
+        workspace: body.workspace || null,
+        summary: { tasks_total: 1, statuses: { ready: 1 }, ghosts: 0, agents: { running: 0, done: 0 } },
+        tasks: [{ id: 'dsh/1', label: 'DSH task', status: 'ready', deps: [] }],
+        kanban: { cards: [{ task_key: 'dsh/1' }] },
+      });
+    } else if (url.pathname === '/guidance') {
+      send(200, { user_attention: [] });
     } else if (url.pathname === '/should-stop') {
       send(200, { stop: false });
     } else if (url.pathname === '/active-claim') {
@@ -457,7 +467,10 @@ test('integrated DSH target-host acceptance remains hermetic and leak-free', asy
       arguments: { workspace: repo },
     });
     assert.strictEqual(dashboard.result.isError, false);
-    const dashboardResult = JSON.parse(dashboard.result.content[0].text);
+    assert(Array.isArray(dashboard.result.content));
+    assert.equal(dashboard.result.content[0].type, 'text');
+    assert.equal(dashboard.result.content.some((item) => item.type === 'image'), true);
+    const dashboardResult = dashboard.result.structuredContent;
     assert.strictEqual(dashboardResult.workspace, repo);
     assert.match(dashboardResult.launch.url, new RegExp(`localhost:${acceptanceServer.port}/graph\\?workspace=`));
     await mcp.eof();

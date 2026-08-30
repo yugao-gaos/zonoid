@@ -163,32 +163,31 @@ async function waitForPing(ms = 10000) {
     ok('show_dashboard with workspace responds', mcpShowDash.status === 200);
     const dashResult = mcpShowDash.body && mcpShowDash.body.result;
     ok('show_dashboard result has content', dashResult && Array.isArray(dashResult.content));
-    let dashOut = null;
-    try { dashOut = JSON.parse(dashResult.content[0].text); } catch { /* */ }
-    ok('show_dashboard result parses', dashOut !== null);
+    ok('show_dashboard content includes image', dashResult && dashResult.content.some((item) => item.type === 'image'));
+    ok('show_dashboard content starts with concise text', dashResult && dashResult.content[0] && /^PLAN \d+ \| READY \d+ \| WIP \d+ \| REVIEW \d+ \| NEEDS YOU \d+$/.test(dashResult.content[0].text));
+    const dashOut = dashResult && dashResult.structuredContent;
+    ok('show_dashboard structured content is present', dashOut && dashOut.launch);
     ok('show_dashboard preserves browser_url and deep_link aliases', dashOut && dashOut.browser_url === dashOut.deep_link);
     ok('show_dashboard with workspace returns deep_link', dashOut && typeof dashOut.deep_link === 'string' && dashOut.deep_link.includes(encodeURIComponent(WS_A)));
     ok('show_dashboard deep_link points to /graph', dashOut && dashOut.deep_link && dashOut.deep_link.includes('/graph'));
     ok('show_dashboard browser_url does not leak an auth token', dashOut && !/[#?&](?:token|auth)=/i.test(dashOut.browser_url));
     ok('show_dashboard workspace echoed back', dashOut && dashOut.workspace === WS_A);
     ok('show_dashboard returns versioned client-neutral launch contract', dashOut && dashOut.launch && dashOut.launch.version === 1 && dashOut.launch.url === dashOut.browser_url);
-    ok('show_dashboard launch contract has universal fallback', dashOut && dashOut.launch && dashOut.launch.fallback_surface === 'external_browser');
+    ok('show_dashboard launch contract has desktop fallback requirement', dashOut && dashOut.launch && dashOut.launch.fallback_surface === 'external_browser' && dashOut.launch.surfaces.some((surface) => surface.id === 'external_browser' && surface.requires === 'desktop_browser'));
     ok('show_dashboard launch contract does not leak an auth token', dashOut && !/[#?&](?:token|auth)=/i.test(JSON.stringify(dashOut.launch)));
 
     const mcpShowDashCodex = await req('POST', '/mcp', {
       jsonrpc: '2.0', id: 4, method: 'tools/call',
       params: { name: 'show_dashboard', arguments: { workspace: WS_A, viewer: 'codex' } },
     });
-    let dashCodex = null;
-    try { dashCodex = JSON.parse(mcpShowDashCodex.body.result.content[0].text); } catch { /* */ }
+    const dashCodex = mcpShowDashCodex.body.result && mcpShowDashCodex.body.result.structuredContent;
     ok('show_dashboard preserves explicit viewer context', dashCodex && dashCodex.launch && dashCodex.launch.viewer === 'codex' && dashCodex.launch.url.includes('viewer=codex'));
 
     const mcpShowDashQueryWs = await req('POST', `/mcp?workspace=${encodeURIComponent(WS_A)}`, {
       jsonrpc: '2.0', id: 3, method: 'tools/call',
       params: { name: 'show_dashboard', arguments: {} },
     });
-    let dashQueryWs = null;
-    try { dashQueryWs = JSON.parse(mcpShowDashQueryWs.body.result.content[0].text); } catch { /* */ }
+    const dashQueryWs = mcpShowDashQueryWs.body.result && mcpShowDashQueryWs.body.result.structuredContent;
     ok('/mcp?workspace=A injects workspace into show_dashboard', dashQueryWs && dashQueryWs.workspace === WS_A && dashQueryWs.browser_url === dashQueryWs.deep_link && dashQueryWs.deep_link.includes(encodeURIComponent(WS_A)));
 
     // Without workspace arg: back-compat (no deep_link, just rendered:true note)

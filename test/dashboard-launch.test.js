@@ -20,8 +20,17 @@ const launch = buildDashboardLaunch({ workspace, port: 8787, resourceUri: 'ui://
 ok('launch contract is versioned and workspace scoped', launch.version === 1 && launch.workspace === workspace && launch.url.endsWith(encodeURIComponent(workspace)));
 ok('launch contract is client neutral', launch.preferred_surface === 'mcp_app' && launch.fallback_surface === 'external_browser');
 ok('launch contract offers capability-based surfaces', launch.surfaces.map((s) => s.id).join(',') === 'mcp_app,embedded_web,external_browser');
+ok('launch contract makes the browser fallback desktop-only', launch.surfaces[2] && launch.surfaces[2].requires === 'desktop_browser');
 ok('launch contract keeps MCP resource URI', launch.resource_uri === 'ui://orchestrator/graph' && launch.surfaces[0].resource_uri === launch.resource_uri);
 ok('launch contract contains no auth token', !/[#?&](?:token|auth)=/i.test(JSON.stringify(launch)));
+
+const embeddedOnly = buildDashboardLaunch({
+  workspace,
+  port: 8787,
+  resourceUri: 'ui://orchestrator/graph',
+  capabilities: { mcp_apps: false, embedded_webview: true, desktop_browser: false },
+});
+ok('launch capability filter hides unsupported surfaces', embeddedOnly.surfaces.length === 1 && embeddedOnly.surfaces[0].id === 'embedded_web');
 
 const codexLaunch = buildDashboardLaunch({ workspace, port: 8787, viewer: 'Codex' });
 ok('launch contract carries normalized viewer presentation context', codexLaunch.viewer === 'codex' && codexLaunch.url.endsWith(`${encodeURIComponent(workspace)}&viewer=codex`));
@@ -50,17 +59,33 @@ ok('external-browser fallback is cross-platform and shell-free',
   openCalls.every((c) => c.args.includes(launch.url)));
 
 (async () => {
-  const out = await tool.run({ workspace });
+  const dashboardCall = async (method, route) => {
+    if (method === 'GET' && String(route).startsWith('/state?scope=all')) {
+      return {
+        tasks: [
+          { id: 'task/1', label: 'Task 1', status: 'ready' },
+        ],
+        kanban: { cards: [{ task_key: 'task/1' }] },
+      };
+    }
+    if (method === 'GET' && String(route).startsWith('/guidance')) return { user_attention: [] };
+    return { ok: true };
+  };
+  const out = await tool.run({ workspace }, dashboardCall);
   ok('show_dashboard preserves legacy URL aliases', out.browser_url === out.deep_link && out.launch.url === out.browser_url);
   ok('show_dashboard launch result contains no auth token', !/[#?&](?:token|auth)=/i.test(JSON.stringify(out)));
+  ok('show_dashboard returns portable snapshot delivery', out._mcp_delivery && out._mcp_delivery.text && out._mcp_delivery.image);
+  ok('show_dashboard snapshot text is concise', /^PLAN \d+ \| READY \d+ \| WIP \d+ \| REVIEW \d+ \| NEEDS YOU \d+$/.test(out._mcp_delivery.text));
+  ok('show_dashboard snapshot exposes summary text', typeof out.snapshot_summary === 'string' && out.snapshot_summary === out._mcp_delivery.text);
 
   const rpc = await mcpCore.handleRpc({
     jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'show_dashboard', arguments: { workspace } },
   }, {
-    client: 'codex', workspace, identity: { graph_repo: workspace }, call: async () => ({ ok: true }),
+    client: 'codex', workspace, identity: { graph_repo: workspace }, call: dashboardCall,
   });
-  const rpcOut = JSON.parse(rpc.result.content[0].text);
-  ok('MCP launch derives viewer from the current client host', rpcOut.launch.viewer === 'codex' && rpcOut.launch.url.includes('&viewer=codex'));
+  ok('MCP launch derives viewer from the current client host', rpc.result.structuredContent.launch.viewer === 'codex' && rpc.result.structuredContent.launch.url.includes('&viewer=codex'));
+  ok('MCP launch returns text plus image content', Array.isArray(rpc.result.content) && rpc.result.content[0].type === 'text' && rpc.result.content.some((item) => item.type === 'image'));
+  ok('MCP launch text stays concise', rpc.result.content[0].text === out._mcp_delivery.text);
 
   const cli = path.join(__dirname, '..', 'bin', 'dashboard.js');
   const cliRun = spawnSync(process.execPath, [cli, '--workspace', workspace, '--viewer', 'codex', '--json'], {
