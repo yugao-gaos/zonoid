@@ -12,9 +12,23 @@ administration are not advertised to the DSH model.
 
 ## Profile
 
-Set `ZONOID_ROOT` to the installed Zonoid root and `ORCH_GRAPH_REPO` to the canonical
-workspace, then apply the patch to the headless profile. An installer may instead set
-`ZONOID_DSH_MCP_ENTRY` to the absolute `mcp-graph.js` path.
+Install the bridge and MCP bundle additively into DSH's `headless` profile, then launch
+the profile normally:
+
+```sh
+npx @zonoid/cli init --harness dsh
+dsh --profile headless "task"
+```
+
+The installer copies this package to `$DSH_HOME/zonoid/packages/dsh`, pins the copied
+stdio MCP row to the absolute installed `mcp-graph.js`, and invokes DSH's public
+`plugin --profile headless add` command. It never edits user `cordis.patch.yml`, other
+patches, plugins, or MCP servers. Existing DSH profile metadata is backed up as
+`*.zonoid.bak` before a change and restored if DSH rejects the installation; repeated
+init calls are no-ops once the same bundle is active.
+
+For a one-off manual run, set `ZONOID_ROOT` to the installed Zonoid root and
+`ORCH_GRAPH_REPO` to the canonical workspace, then use the checked-in patch directly:
 
 ```sh
 dsh --profile headless --patch "$ZONOID_ROOT/packages/dsh/zonoid.cordis.patch.yml" "task"
