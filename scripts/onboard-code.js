@@ -4,7 +4,7 @@
 // symbols into the daemon's dedicated code-index layer (overlay.code_nodes), which /search retrieves
 // directly by cosine — the productized form of the benchmarked cmm-onboard pipeline.
 //
-//   node scripts/onboard-code.js --repo <abs> --workspace <ws> [--daemon <url>] [--sync] [--async]
+//   node scripts/onboard-code.js --repo <abs> --workspace <ws> [--daemon <url>] [--sync] [--async] [--thin]
 //
 // MODES:
 //   (default) FULL onboard  — extract the WHOLE repo and bulk-ingest every symbol into the code-index
@@ -22,6 +22,8 @@
 //   --sync             incremental git-diff sync instead of a full onboard.
 //   --async            boot the tree-sitter WASM backend so non-JS/TS files (.py/.go/.rs/...) parse.
 //                      Without it, only JS/TS/JSX symbols are extracted (babel needs no async init).
+//   --thin             omit source-body summaries during a full onboard. Name, signature, and file
+//                      are still embedded. Manual full onboarding is rich unless this is explicit.
 //   --help             print this usage.
 
 const path = require('path');
@@ -30,7 +32,7 @@ const { ingestRepo } = require('../lib/code-extract/ingest');
 const { syncRepo, httpDaemonClient } = require('../lib/code-extract/sync');
 
 function parseArgs(argv) {
-  const out = { daemon: 'http://localhost:8787', sync: false, async: false, json: false };
+  const out = { daemon: 'http://localhost:8787', sync: false, async: false, thin: false, json: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--repo') out.repo = argv[++i];
@@ -39,19 +41,21 @@ function parseArgs(argv) {
     else if (a === '--expected-head') out.expectedHead = argv[++i];
     else if (a === '--sync') out.sync = true;
     else if (a === '--async') out.async = true;
+    else if (a === '--thin') out.thin = true;
     else if (a === '--json') out.json = true;
     else if (a === '--help' || a === '-h') out.help = true;
   }
   return out;
 }
 
-const USAGE = `Usage: node scripts/onboard-code.js --repo <abs> --workspace <ws> [--daemon <url>] [--sync] [--async]
+const USAGE = `Usage: node scripts/onboard-code.js --repo <abs> --workspace <ws> [--daemon <url>] [--sync] [--async] [--thin]
 
   --repo <abs>      absolute path of the git repo to index (required)
   --workspace <ws>  workspace the code_nodes belong to (required)
   --daemon <url>    daemon base URL (default http://localhost:8787)
   --sync            incremental git-diff sync (default is a full onboard)
   --async           boot tree-sitter so non-JS/TS files parse
+  --thin            omit source-body summaries during a full onboard
   --json            emit one machine-readable result object
   --help            show this message`;
 
@@ -61,9 +65,12 @@ function headCommit(repoAbs) {
 }
 
 // FULL onboard: extract the whole repo, bulk-ingest, then stamp lastIndexedCommit = HEAD.
-async function fullOnboard({ repoAbs, workspace, daemon, async, expectedHead = null }) {
-  const result = await ingestRepo(repoAbs, { daemonUrl: daemon, workspace, async });
-  const head = headCommit(repoAbs);
+async function fullOnboard({ repoAbs, workspace, daemon, async, thin = false, expectedHead = null }, deps = {}) {
+  const ingest = deps.ingestRepo || ingestRepo;
+  const getHead = deps.headCommit || headCommit;
+  const daemonClient = deps.httpDaemonClient || httpDaemonClient;
+  const result = await ingest(repoAbs, { daemonUrl: daemon, workspace, async, enrichBody: !thin });
+  const head = getHead(repoAbs);
   let watermark_recorded = false;
   let watermark_error = null;
   if (head) {
@@ -71,7 +78,7 @@ async function fullOnboard({ repoAbs, workspace, daemon, async, expectedHead = n
       watermark_error = `HEAD changed during indexing (${expectedHead} -> ${head})`;
     } else {
       try {
-        await httpDaemonClient(daemon).setLastIndexedCommit({ key: repoAbs, commit: head, workspace });
+        await daemonClient(daemon).setLastIndexedCommit({ key: repoAbs, commit: head, workspace });
         watermark_recorded = true;
       } catch (e) {
         watermark_error = e && e.message ? e.message : String(e);
@@ -102,7 +109,7 @@ async function main() {
     }, { async: args.async });
     if (sync.full_onboard_needed) {
       console.log(`[onboard-code] no prior index (${sync.reason}); running a FULL onboard instead.`);
-      const full = await fullOnboard({ repoAbs, workspace, daemon, async: args.async, expectedHead: args.expectedHead });
+      const full = await fullOnboard({ repoAbs, workspace, daemon, async: args.async, thin: args.thin, expectedHead: args.expectedHead });
       if (args.json) process.stdout.write(`${JSON.stringify(full)}\n`);
       else printSummary(full, { workspace, daemon });
       return;
@@ -113,7 +120,7 @@ async function main() {
     return;
   }
 
-  const full = await fullOnboard({ repoAbs, workspace, daemon, async: args.async, expectedHead: args.expectedHead });
+  const full = await fullOnboard({ repoAbs, workspace, daemon, async: args.async, thin: args.thin, expectedHead: args.expectedHead });
   if (args.json) process.stdout.write(`${JSON.stringify(full)}\n`);
   else printSummary(full, { workspace, daemon });
 }
