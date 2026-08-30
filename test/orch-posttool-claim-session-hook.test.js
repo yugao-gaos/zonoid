@@ -60,10 +60,11 @@ function assignmentPayload(toolName, overrides = {}) {
       action: 'accept',
       task_key: 'codex/claim-hook-probe',
       agent_id: 'worker-probe',
+      graph_repo: '/workspace/codex-claim-hook-probe',
     },
     tool_response: {
       isError: false,
-      content: [{ type: 'text', text: '{"ok":true}' }],
+      content: [{ type: 'text', text: '{"ok":true,"execution_permit":{"workspace":"/graph/default"}}' }],
     },
     ...overrides,
   };
@@ -83,15 +84,21 @@ function lastRequest(server) {
       'subconscious_assignment',
     ];
     const successResponses = [
-      { ok: true },
-      { isError: false, structuredContent: { ok: true } },
-      { content: [{ type: 'text', text: '{"ok":true,"execution_permit":{"id":"permit-test"}}' }] },
+      { ok: true, execution_permit: { workspace: '/graph/workspace-0' } },
+      { isError: false, structuredContent: { ok: true, execution_permit: { workspace: '/graph/workspace-1' } } },
+      { content: [{ type: 'text', text: '{"ok":true,"execution_permit":{"id":"permit-test","workspace":"/graph/workspace-2"}}' }] },
     ];
     for (let i = 0; i < assignmentAliases.length; i++) {
       const before = stub.requests.length;
       const result = await run(process.execPath, [NODE_HOOK], assignmentPayload(assignmentAliases[i], {
         session_id: `real-codex-thread-${i}`,
         tool_response: successResponses[i],
+        tool_input: {
+          action: 'accept',
+          task_key: 'codex/claim-hook-probe',
+          agent_id: 'worker-probe',
+          graph_repo: '/untrusted/client-workspace',
+        },
       }), env);
       assert.equal(result.code, 0);
       assert.equal(stub.requests.length, before + 1, `${assignmentAliases[i]} should register a successful accept`);
@@ -99,7 +106,17 @@ function lastRequest(server) {
         task_key: 'codex/claim-hook-probe',
         session_id: `real-codex-thread-${i}`,
         agent_id: 'worker-probe',
+        workspace: `/graph/workspace-${i}`,
       });
+    }
+
+    {
+      const before = stub.requests.length;
+      const result = await run(process.execPath, [NODE_HOOK], assignmentPayload('subconscious_assignment', {
+        tool_response: { ok: true },
+      }), env);
+      assert.equal(result.code, 0);
+      assert.equal(stub.requests.length, before, 'accept without a permit workspace must not use the client workspace fallback');
     }
 
     for (const action of ['prepare', 'read', 'complete', 'submit_verdict']) {
@@ -136,11 +153,12 @@ function lastRequest(server) {
       const result = await run(process.execPath, [NODE_HOOK], {
         session_id: 'legacy-start-session',
         tool_name: toolName,
-        tool_input: { task_key: 'codex/legacy-start', agent_id: 'legacy-worker' },
+        tool_input: { task_key: 'codex/legacy-start', agent_id: 'legacy-worker', graph_repo: '/workspace/legacy-start' },
       }, env);
       assert.equal(result.code, 0);
       assert.equal(stub.requests.length, before + 1, `${toolName} compatibility should remain active`);
       assert.equal(lastRequest(stub).body.agent_id, 'legacy-worker');
+      assert.equal(lastRequest(stub).body.workspace, '/workspace/legacy-start');
     }
 
     for (const missing of ['session_id', 'task_key', 'agent_id']) {
@@ -158,7 +176,19 @@ function lastRequest(server) {
       const before = stub.requests.length;
       const result = await run('bash', [CODEX_SHELL_HOOK], assignmentPayload(
         'mcp__orchestrator_graph__subconscious_assignment',
-        { session_id: 'shell-real-session' }
+        {
+          session_id: 'shell-real-session',
+          tool_input: {
+            action: 'accept',
+            task_key: 'codex/claim-hook-probe',
+            agent_id: 'worker-probe',
+            workspace: '/untrusted/shell-client-workspace',
+          },
+          tool_response: {
+            isError: false,
+            content: [{ type: 'text', text: '{"ok":true,"execution_permit":{"workspace":"/graph/shell-workspace"}}' }],
+          },
+        }
       ), env);
       assert.equal(result.code, 0, result.stderr);
       assert.equal(stub.requests.length, before + 1, 'Codex shell adapter should register successful accept');
@@ -166,6 +196,7 @@ function lastRequest(server) {
         task_key: 'codex/claim-hook-probe',
         session_id: 'shell-real-session',
         agent_id: 'worker-probe',
+        workspace: '/graph/shell-workspace',
       });
 
       const failedBefore = stub.requests.length;
