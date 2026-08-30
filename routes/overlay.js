@@ -1511,6 +1511,22 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     send(res, 200, resp); return true;
   }
 
+  // BOUNDED bulk code-edge ingest — full onboarding sends its resolved edge graph separately from
+  // symbol batches so neither request class can exceed daemon.js' global body cap. Additive + de-duped
+  // by edge signature, matching the legacy optional `edges` field on /overlay/code-nodes/bulk while
+  // allowing the client to split a large graph across safe requests.
+  if (p === '/overlay/code-edges/bulk' && m === 'POST') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    if (!Array.isArray(b.edges) || !b.edges.length) { send(res, 400, { ok: false, error: 'edges[] required (non-empty array)' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const er = overlayStore.addCodeEdges(T.ov, b.edges);
+    if (er.added.length) overlayStore.bumpEpoch(T.ov);
+    T.save(); notifyChange(T.ws);
+    send(res, 200, { ok: true, created: er.added.length, edges_added: er.added.length, workspace: T.ws }); return true;
+  }
+
   // PER-FILE code-EDGE invalidation — the edge analogue of the code-node routes above (DESIGN: code
   // edges are keyed by from_file, so per-file replace/remove mirrors the node layer during git-diff
   // sync). Both go through the overlay's code_edges layer (emits code_edge_added/removed via the

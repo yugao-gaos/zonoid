@@ -9,6 +9,7 @@
 //
 //   routes/overlay.js
 //     • POST /overlay/code-nodes/bulk     — optional `edges` fold into the code_edges layer
+//     • POST /overlay/code-edges/bulk     — bounded additive edge batches for full onboarding
 //     • POST /overlay/code-nodes/replace  — optional per-file `edges` replace alongside node replace
 //     • POST /overlay/code-edges/replace  — per-file edge replace route
 //     • DELETE /overlay/code-edges        — per-file edge remove route
@@ -184,6 +185,24 @@ function makeCtx(overlay, ws, body) {
       ok('bulk created 2 nodes', r.body.created === 2);
       ok('bulk reported edges_added: 2', r.body.edges_added === 2);
       ok('bulk wrote 2 code edges into overlay.code_edges', o.code_edges.length === 2);
+    }
+
+    // dedicated additive bulk route used by full onboarding's byte-bounded edge requests
+    {
+      const body = { edges: [
+        { from_file: 'bulk.js', to: 'code:a.js#foo', kind: 'calls', name: 'foo' },
+        { from_file: 'bulk.js', to_file: 'a.js', kind: 'imports' },
+      ], workspace: TMP_WS };
+      const { ctx, getLastSent } = makeCtx(o, TMP_WS, body);
+      await overlayRoute(ctx)('/overlay/code-edges/bulk', 'POST', { method: 'POST', headers: {} }, {}, { searchParams: { get: () => null } }, null);
+      const first = getLastSent();
+      ok('code-edges/bulk returns 200', first && first.status === 200);
+      ok('code-edges/bulk reports both added edges', first.body.created === 2 && first.body.edges_added === 2);
+      ok('code-edges/bulk persisted both edges', o.code_edges.filter((e) => e.from_file === 'bulk.js').length === 2);
+
+      const retry = makeCtx(o, TMP_WS, body);
+      await overlayRoute(retry.ctx)('/overlay/code-edges/bulk', 'POST', { method: 'POST', headers: {} }, {}, { searchParams: { get: () => null } }, null);
+      ok('code-edges/bulk retry is idempotent', retry.getLastSent().body.edges_added === 0 && o.code_edges.filter((e) => e.from_file === 'bulk.js').length === 2);
     }
 
     // replace a node-file's edges via the node replace route (edges fold)
