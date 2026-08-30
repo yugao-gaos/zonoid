@@ -2,8 +2,10 @@
 'use strict';
 
 const assert = require('assert');
+const test = require('node:test');
 const { spawnSync } = require('child_process');
 const path = require('path');
+const { pythonExe } = require('./helpers/tools');
 
 const repo = path.resolve(__dirname, '..');
 const script = String.raw`
@@ -51,22 +53,21 @@ assert env["ZONOID_CONTEXT_JSON"] == "/tmp/zonoid-context.json"
 print("PASS arc-agi3 zonoid adapter prompt contract")
 `;
 
-const result = spawnSync(process.env.PYTHON || 'python3', ['-c', script, repo], {
-  cwd: repo,
-  encoding: 'utf8',
-});
-if (result.error && result.error.code === 'ENOENT' && !process.env.PYTHON) {
-  const fallback = spawnSync('python', ['-c', script, repo], {
+// Python is optional developer tooling here, not a project dependency. The previous ENOENT-only
+// fallback treated the Windows Microsoft Store alias stub as a usable interpreter: it resolves on
+// PATH (so no ENOENT), prints an install ad, and exits 9009 — reporting the machine rather than the
+// adapter. pythonExe() RUNS each candidate and returns one only if it is a real Python 3.
+const python = pythonExe();
+
+test('arc-agi3 zonoid adapter prompt contract', {
+  skip: python ? false : 'no Python 3 interpreter found (set PYTHON=<path> to run)',
+}, () => {
+  const result = spawnSync(python, ['-c', script, repo], {
     cwd: repo,
     encoding: 'utf8',
   });
-  result.status = fallback.status;
-  result.stdout = fallback.stdout;
-  result.stderr = fallback.stderr;
-  result.error = fallback.error;
-}
 
-assert.ifError(result.error);
-assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-assert.match(result.stdout, /PASS arc-agi3 zonoid adapter prompt contract/);
-console.log(result.stdout.trim());
+  assert.ifError(result.error);
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.match(result.stdout, /PASS arc-agi3 zonoid adapter prompt contract/);
+});

@@ -20,11 +20,17 @@ function probe(cmd, args, opts = {}) {
 }
 
 let _python;
-// Name of a working Python 3 interpreter ('python3' / 'python' / $PYTHON), or null if none runs.
+// Name of a working Python 3 interpreter ('python3' / 'python' / 'py' / $PYTHON), or null if none runs.
+//
+// 'py' (the Windows Python launcher) is the last candidate: it is how a real CPython install is
+// reachable on a Windows box whose bare `python3`/`python` are the Store alias stubs described above.
+// It is probed bare rather than as `py -3` so the return stays a single command name for callers;
+// the version_info check below is what actually rejects a non-3 interpreter, so the two are
+// equivalent in outcome. On POSIX `py` simply ENOENTs and the probe reports false.
 function pythonExe() {
   if (_python !== undefined) return _python;
   _python = null;
-  const candidates = [process.env.PYTHON, 'python3', 'python'].filter(Boolean);
+  const candidates = [process.env.PYTHON, 'python3', 'python', 'py'].filter(Boolean);
   for (const c of candidates) {
     if (probe(c, ['-c', 'import sys; sys.exit(0 if sys.version_info[0] >= 3 else 1)'])) { _python = c; break; }
   }
