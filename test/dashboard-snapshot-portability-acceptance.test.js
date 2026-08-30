@@ -77,18 +77,20 @@ function consume(rpc) {
   assert.ok(rpc && rpc.result && !rpc.result.isError);
   const legacy = rpc.result.structuredContent;
   assert.ok(legacy && typeof legacy === 'object', 'legacy fields must use structuredContent');
+  const content = rpc.result.content;
+  assert.ok(Array.isArray(content), 'portable MCP results must expose content');
   const expectedText = legacy.snapshot_summary || legacy.snapshot_text;
-  const text = rpc.result.content[0];
+  const text = content[0];
   assert.ok(text && text.type === 'text', 'accessible status must remain first-class MCP text content');
   assert.strictEqual(text.text, expectedText, 'accessible status must match the structured fallback');
   assert.ok(!text.text.trimStart().startsWith('{'), 'accessible status must not require a legacy JSON text block');
-  const image = rpc.result.content[1];
+  const image = content[1];
   if (legacy.snapshot_delivery.image_content) {
     assert.ok(image && image.type === 'image', 'portable image content must follow the text block');
   } else {
     assert.strictEqual(image, undefined, 'text-only fallback must omit the image block');
   }
-  return { legacy, text, image };
+  return { legacy, text, image, content };
 }
 
 function validatePng(image) {
@@ -179,12 +181,12 @@ function assertPortableSafe(delivery, workspace) {
     const parsed = consume(await showDashboard(WORKSPACE_B, client));
     assertPortableSafe(parsed, WORKSPACE_B);
     assert.strictEqual(parsed.legacy.launch.viewer, client);
-    clientText.push(parsed.text.text);
+    clientText.push(parsed.content[0].text);
   }
   assert.strictEqual(new Set(clientText).size, 1, 'portable consumption must be client-neutral');
 
   const textOnly = consume(await showDashboard(WORKSPACE_A, 'claude', { resultCapabilities: { image: false } }));
-  assert.ok(textOnly.text && textOnly.text.text);
+  assert.ok(textOnly.content[0] && textOnly.content[0].text);
   assert.strictEqual(textOnly.image, undefined);
   assert.strictEqual(textOnly.legacy.snapshot_delivery.image_content, false);
   assert.ok(textOnly.legacy.browser_url && textOnly.legacy.launch.resource_uri,
