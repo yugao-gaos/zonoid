@@ -23,6 +23,15 @@ const UNC_PATH = '\\\\fileserver\\workspace\\private.txt';
 const MNT_PATH_WITH_SPACES = '/mnt/mobile dashboard/private state.json';
 const ETC_PATH_WITH_SPACES = '/etc/zonoid/private config';
 const UNC_PATH_WITH_SPACES = '\\\\fileserver\\Mobile Data\\private file.txt';
+const REVIEW_NESTED_POSIX = "['/mnt/My Project/private file.txt']";
+const REVIEW_NESTED_UNC = '<"\\\\fileserver\\My Share\\private file.txt">';
+const REVIEW_TRAILING_UNC = '"\\\\fileserver\\My Share\\private folder\\"';
+const NESTED_PATH_MUTATIONS = [
+  '["</MNT/Mixed Case/private file.TXT>"]',
+  "<['\\\\FILESERVER\\My Share\\Private Folder\\']>",
+  '[<"//fileserver/My Share/private folder/">]',
+  '"C:\\Program Files\\Zonoid\\"',
+];
 
 function task(id, label, status, extra = {}) {
   return { id, label, status, deps: [], context_deps: [], ...extra };
@@ -164,6 +173,32 @@ for (const leaked of ['hunter2', 'mobile-private', 'aws-value', 'mobile dashboar
   assert(!JSON.stringify(structuredSnapshot).includes(leaked), `snapshot projection leaked structured value or path fragment ${leaked}`);
 }
 
+const nestedSnapshot = buildDashboardSnapshot({
+  tasks: [
+    task('codex/nested-wip', `Open ${REVIEW_NESTED_POSIX}`, 'in_progress'),
+    task('codex/nested-failed', `Inspect ${REVIEW_NESTED_UNC}`, 'failed'),
+    task('codex/nested-done', `Archive ${REVIEW_TRAILING_UNC}`, 'done'),
+  ],
+  frontierTaskIds: ['codex/nested-wip', 'codex/nested-failed', 'codex/nested-done'],
+  guidance: [{
+    id: 'nested-guidance',
+    question: `Approve ${NESTED_PATH_MUTATIONS[0]}?`,
+    severity: 'blocking',
+    resolved: false,
+    origin_task: 'codex/nested-wip',
+  }],
+  now: NOW,
+});
+assert.deepStrictEqual(nestedSnapshot.current_wip, ['Open [local path]']);
+assert.deepStrictEqual(nestedSnapshot.blocked_failed, [{ title: 'Inspect [local path]', state: 'Failed' }]);
+assert.deepStrictEqual(nestedSnapshot.recent_completions, ['Archive [local path]']);
+assert.deepStrictEqual(nestedSnapshot.user_decisions, ['Approve [local path]?']);
+const nestedText = dashboardSnapshotText(nestedSnapshot);
+for (const leaked of ['My Project', 'private file.txt', 'fileserver', 'My Share', 'private folder', 'Mixed Case']) {
+  assert(!JSON.stringify(nestedSnapshot).includes(leaked), `snapshot projection leaked nested path suffix ${leaked}`);
+  assert(!nestedText.includes(leaked), `accessible fallback leaked nested path suffix ${leaked}`);
+}
+
 const fallback = dashboardSnapshotText(snapshot);
 assert.match(fallback, /PLAN 4 \| READY 1 \| WIP 2 \| REVIEW 1 \| NEEDS YOU 2/);
 for (const title of [
@@ -209,6 +244,25 @@ for (const leaked of [
 ]) assert(!hostileText.includes(leaked), `accessible fallback leaked structured value or path fragment ${leaked}`);
 assert.deepStrictEqual(renderDashboardSnapshotPng(hostileSnapshot), renderDashboardSnapshotPng(sanitizedHostileSnapshot),
   'PNG render source must sanitize even caller-supplied snapshot fields');
+
+const nestedHostileSnapshot = {
+  ...nestedSnapshot,
+  current_wip: [REVIEW_NESTED_POSIX],
+  user_decisions: [REVIEW_NESTED_UNC],
+  blocked_failed: [{ state: 'Blocked', title: REVIEW_TRAILING_UNC }],
+  recent_completions: [NESTED_PATH_MUTATIONS[1]],
+};
+const nestedSafeSnapshot = {
+  ...nestedHostileSnapshot,
+  current_wip: ['[local path]'],
+  user_decisions: ['[local path]'],
+  blocked_failed: [{ state: 'Blocked', title: '[local path]' }],
+  recent_completions: ['[local path]'],
+};
+assert.strictEqual(dashboardSnapshotText(nestedHostileSnapshot), dashboardSnapshotText(nestedSafeSnapshot),
+  'caller fallback must structurally redact nested and trailing-separator paths');
+assert.deepStrictEqual(renderDashboardSnapshotPng(nestedHostileSnapshot), renderDashboardSnapshotPng(nestedSafeSnapshot),
+  'PNG render source must match explicitly sanitized nested-path input');
 
 const pngA = renderDashboardSnapshotPng(snapshot);
 const pngB = renderDashboardSnapshotPng(snapshot);
@@ -293,6 +347,14 @@ assert.strictEqual(
 assert.strictEqual(
   sanitizeDisplayText(`Read [${MNT_PATH_WITH_SPACES}], <${ETC_PATH_WITH_SPACES}>, "${MNT_PATH_WITH_SPACES}", and '${UNC_PATH_WITH_SPACES}'`),
   'Read [local path], [local path], [local path], and [local path]',
+);
+for (const value of [REVIEW_NESTED_POSIX, REVIEW_NESTED_UNC, REVIEW_TRAILING_UNC, ...NESTED_PATH_MUTATIONS]) {
+  assert.strictEqual(sanitizeDisplayText(value), '[local path]', `nested path wrapper leaked from ${value}`);
+}
+assert.strictEqual(
+  sanitizeDisplayText(`before(${REVIEW_NESTED_POSIX})after`),
+  'before([local path])after',
+  'adjacent punctuation must not expose a nested path suffix',
 );
 
 console.log('PASS  portable dashboard snapshot projection and deterministic PNG renderer');
