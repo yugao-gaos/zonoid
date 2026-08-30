@@ -40,7 +40,9 @@
   // ---- MCP Apps bridge + direct-fetch (belt and suspenders) ----
   const DAEMON = 'http://localhost:8787';
   const WS = new URLSearchParams(location.search).get('workspace') || '';
-  const scoped = (path) => WS ? path + (path.includes('?') ? '&' : '?') + 'workspace=' + encodeURIComponent(WS) : path;
+  const VIEWER_RAW = String(new URLSearchParams(location.search).get('viewer') || '').trim().toLowerCase();
+  const VIEWER_HOST = /^[a-z][a-z0-9_-]{0,31}$/.test(VIEWER_RAW) ? VIEWER_RAW : '';
+  const VIEWER_KIND = VIEWER_HOST === 'codex' ? 'codex' : VIEWER_HOST === 'claude' ? 'claude' : 'neutral';
   let started = false, rpc = 1000, useBridge = false; const pending = {};
 function postParent(msg){ try { parent.postMessage(msg, '*'); } catch(e){} }
 function bridgeCall(name, args){
@@ -74,8 +76,20 @@ async function getState(){
 }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function statusCount(sc,k){ return Number(sc&&sc[k]||0); }
+function scoped(path){
+  const url = new URL(DAEMON + path);
+  if (WS) url.searchParams.set('workspace', WS);
+  return url.pathname + url.search;
+}
+function dashboardButtonLabel(){
+  return VIEWER_KIND === 'codex' ? 'Open in Codex browser'
+    : VIEWER_KIND === 'claude' ? 'Open in Claude browser'
+    : 'Open dashboard';
+}
 function dashboardUrl(){
-  return DAEMON + scoped('/graph');
+  const url = new URL(DAEMON + scoped('/graph'));
+  if (VIEWER_HOST) url.searchParams.set('viewer', VIEWER_HOST);
+  return url.toString();
 }
 function render(d){
   const dash=document.getElementById('dash');
@@ -115,7 +129,7 @@ function render(d){
     </section>
     <section class="actions">
       <button type="button" id="refreshBtn">Refresh</button>
-      <a class="btn" target="_blank" rel="noreferrer" href="${esc(dashboardUrl())}">Open in Codex browser</a>
+      <a class="btn" target="_blank" rel="noreferrer" href="${esc(dashboardUrl())}">${esc(dashboardButtonLabel())}</a>
       <a class="btn" target="_blank" rel="noreferrer" href="${esc(dashboardUrl())}">Inspect frontier</a>
     </section>`;
   const refreshBtn=document.getElementById('refreshBtn');

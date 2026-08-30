@@ -33,7 +33,8 @@ test('OpenCode dashboard uses shared scoped launch contract without a token', as
   });
   assert.equal(result.ok, true);
   assert.equal(result.launch.workspace, workspace);
-  assert.equal(result.launch.url, `https://dashboard.example.test/graph?workspace=${encodeURIComponent(workspace)}`);
+  assert.equal(result.launch.viewer, 'opencode');
+  assert.equal(result.launch.url, `https://dashboard.example.test/graph?workspace=${encodeURIComponent(workspace)}&viewer=opencode`);
   assert.equal(result.launch.resource_uri, 'ui://orchestrator/graph');
   assert.deepEqual(result.opened, { ok: false, skipped: true });
   assert.ok(!result.launch.url.includes('token'));

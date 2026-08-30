@@ -53,11 +53,12 @@ function section(title) { console.log(`\n── ${title} ───────�
 // Windows too) and keep the JSON/TOML config values free of backslash-escaping
 // noise. Same convention as bin/install.js `fwd`.
 const fwdSlash = (p) => String(p).replace(/\\/g, '/');
-function dashboardUrl(cwd = process.cwd(), port = ORCH_PORT) {
-  return `http://localhost:${port}/graph?workspace=${encodeURIComponent(path.resolve(cwd))}`;
+function dashboardUrl(cwd = process.cwd(), port = ORCH_PORT, viewer = null) {
+  const host = viewer ? `&viewer=${encodeURIComponent(String(viewer).toLowerCase())}` : '';
+  return `http://localhost:${port}/graph?workspace=${encodeURIComponent(path.resolve(cwd))}${host}`;
 }
 function renderClaudeInstructions(content, cwd = process.cwd(), port = ORCH_PORT) {
-  const url = dashboardUrl(cwd, port);
+  const url = dashboardUrl(cwd, port, 'claude');
   return String(content)
     .replace(/http:\/\/localhost:\d+\/graph\?workspace=[^\s`)>\]]+/g, url)
     .replace(/http:\/\/localhost:\d+\/graph(?!\?workspace=)/g, url);
@@ -2021,7 +2022,7 @@ function wireHarness(harness, cwd) {
 }
 
 function printNextSteps(harness, cwd = process.cwd()) {
-  const dash = dashboardUrl(cwd);
+  const dash = dashboardUrl(cwd, ORCH_PORT, harness);
   if (harness === 'codex') {
     console.log('  Next steps (codex):');
     console.log('    1. Open /hooks in Codex CLI and trust the Zonoid hook definitions');

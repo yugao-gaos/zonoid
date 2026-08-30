@@ -894,7 +894,7 @@
     <button class="spsave" onclick="saveSettings()">Save</button>
     <div class="sprow" style="margin-top:14px;border-top:1px solid #21262d;padding-top:14px">
       <div class="splabel">LLM backend</div>
-      <div class="spdesc">Which engine drives background judging/learning. Claude is the default.</div>
+      <div class="spdesc" id="bk-viewer-desc">Which engine drives background judging/learning. Viewer presentation does not change usage accounting.</div>
       <div class="bk-list" id="bk-list"><div class="empty" style="font-size:11px">loading…</div></div>
       <div class="splabel" style="margin-top:12px">Model (optional)</div>
       <select class="spinput" id="bk-model"></select>
@@ -1025,12 +1025,13 @@
 <div id="billingPopup">
   <span class="appclose" onclick="document.getElementById('billingPopup').classList.remove('show')">✕</span>
   <h2 style="margin:10px 0 0">Billing Breakdown</h2>
+  <div id="billingViewerContext" style="font-size:10px;color:#6e7681;margin-top:2px">Provider-neutral view · all recorded providers included</div>
   <div id="billingBody"><div class="empty" style="padding:20px 0">loading…</div></div>
 </div>
 <!-- cron token usage popup -->
 <div id="cronPopup">
   <span class="appclose" onclick="document.getElementById('cronPopup').classList.remove('show')">✕</span>
-  <section class="feed"><h2 style="margin-left:0">Harness cost (cron + scheduled)</h2><div id="cronbody"><div class="empty">loading…</div></div></section>
+  <section class="feed"><h2 id="cronPopupTitle" style="margin-left:0">Harness cost (cron + scheduled)</h2><div id="cronbody"><div class="empty">loading…</div></div></section>
 </div>
 <!-- note-inspect modal: lives OUTSIDE #guidance so triage re-renders can't close it -->
 <div id="noteOverlay" onclick="if(event.target===this)closeNotePopup()"><div id="notePopup"></div></div>
@@ -4883,6 +4884,31 @@ function setDaemonBase(url){ BASE = normalizeDaemonUrl(url) || DEFAULT_BASE; }
 // ?token= query. Capture it in tab-scoped storage, then remove it from the address bar/history.
 const _PAGE_PARAMS = new URLSearchParams(location.search);
 const _HASH_PARAMS = new URLSearchParams(location.hash.replace(/^#/,''));
+const _VIEWER_RAW = String(_PAGE_PARAMS.get('viewer') || '').trim().toLowerCase();
+const VIEWER_HOST = /^[a-z][a-z0-9_-]{0,31}$/.test(_VIEWER_RAW) ? _VIEWER_RAW : '';
+const VIEWER_KIND = VIEWER_HOST === 'codex' ? 'codex' : VIEWER_HOST === 'claude' ? 'claude' : 'neutral';
+function viewerDisplayName(){ return VIEWER_KIND === 'codex' ? 'Codex' : VIEWER_KIND === 'claude' ? 'Claude' : 'Harness'; }
+function viewerOwnerName(){ return VIEWER_KIND === 'codex' ? 'Codex' : VIEWER_KIND === 'claude' ? 'Claude' : 'Zonoid'; }
+function viewerCostTitle(){ return `${viewerDisplayName()} cost`; }
+function viewerCostPopupTitle(){ return `${viewerCostTitle()} (cron + scheduled)`; }
+function applyViewerPresentation(){
+  document.documentElement.dataset.viewer=VIEWER_KIND;
+  const settings=document.getElementById('bk-viewer-desc');
+  const billing=document.getElementById('billingViewerContext');
+  const cronTitle=document.getElementById('cronPopupTitle');
+  if(VIEWER_KIND==='codex'){
+    if(settings) settings.textContent='Which engine drives background judging/learning. This Codex view does not change which providers are included in usage totals.';
+    if(billing) billing.textContent='Codex viewer · all recorded providers included';
+  }else if(VIEWER_KIND==='claude'){
+    if(settings) settings.textContent='Which engine drives background judging/learning. This Claude view does not change which providers are included in usage totals.';
+    if(billing) billing.textContent='Claude viewer · all recorded providers included';
+  }else{
+    if(settings) settings.textContent='Which engine drives background judging/learning. Viewer presentation does not change which providers are included in usage totals.';
+    if(billing) billing.textContent='Provider-neutral view · all recorded providers included';
+  }
+  if(cronTitle) cronTitle.textContent = viewerCostPopupTitle();
+}
+applyViewerPresentation();
 const _URL_TOKEN = _HASH_PARAMS.get('token') || _PAGE_PARAMS.get('token') || '';
 let _TOKEN = _URL_TOKEN;
 try {
@@ -6166,7 +6192,7 @@ async function tick(prefetchedState){
   liveAgentIds=new Set((d.agents||[]).filter(a=>a&&a.state==='running').map(a=>a.agent_id));
   const s=d.summary, sc=s.statuses||{}; const order=['not_ready','ready','in_progress','tested','done','failed','canceled'];
 
-  const cf=costCache, econ=cf&&(cf.economy_totals||cf.totals)||null, usageTotals=cf&&cf.usage_totals||null;
+  const cf=costCache, econ=cf&&(cf.economy_totals||cf.totals)||null;
   const cfShare=econ&&econ.total>0?Math.round(econ.productive*100/econ.total):null;
   document.getElementById('ws').textContent=d.workspace?d.workspace.split('/').pop():'';
   const autoScore=cf&&cf.autonomy_score!=null?cf.autonomy_score+'×':'—';
@@ -6181,15 +6207,10 @@ async function tick(prefetchedState){
   const billingAvailable=!!(cf&&cf.sources&&cf.sources.billing!=='missing');
   const billCost=cf&&cf.cost&&billingAvailable?Number(cf.cost.usd||0):null;
   const fmtUSD=n=>n==null?'—':n>=1000?'$'+Math.round(n/1000)+'K':n>=1?'$'+n.toFixed(0):'$'+n.toFixed(2);
-  // cronCostCached: from harnessOhCache (populated by refreshInfraHero); use 0 if not yet loaded
-  const cronCostCached=harnessOhCache?harnessOhCache.cronCost:0;
-  // Billing hero = sessions + cron so it agrees with "Total est." in the popup
-  const billStr=fmtUSD(billCost!=null?billCost+cronCostCached:null);
-  // Plan recommendation uses GROSS output (what was actually billed to the quota)
-  const outTokTotal=cf&&cf.gross_totals?cf.gross_totals.output_tokens:(usageTotals?usageTotals.output_tokens:0);
-  // estimate weekly rate: costCache refreshes periodically; use total as proxy for "lifetime"
-  // show plan fit based on absolute total (lifetime context)
-  const planRec=outTokTotal>50e6?'API direct (Max plan capacity far exceeded)':outTokTotal>10e6?'API direct or Max 20× ($200/mo)':outTokTotal>3e6?'Max 20× ($200/mo) or API direct':outTokTotal>1e6?'Max 5× ($100/mo) or Max 20×':'Max 5× ($100/mo) likely sufficient';
+  // Cron cost is shown only when the server supplied a priced value for every token-bearing entry.
+  const cronCostCached=harnessOhCache?harnessOhCache.cronCost:null;
+  const billStr=fmtUSD(billCost!=null&&cronCostCached!=null?billCost+cronCostCached:billCost);
+  const billingScope=cronCostCached==null?'Session estimate; cron/gate unpriced':'Sessions + server-priced cron/gate';
   // Header metrics; CSS moves this strip into a second row on narrow screens.
   const autoRaw=cf&&cf.autonomy_score!=null?cf.autonomy_score:null;
   // Industry benchmarks: autonomy ~3–5× typical agentic; productive% ~40–60% of total
@@ -6217,21 +6238,24 @@ async function tick(prefetchedState){
   const autoSubVs=autoRaw==null?'no data':autoRaw>=autoMedian?`+${(autoRaw-autoMedian).toFixed(1)}× median`:`${(autoMedian-autoRaw).toFixed(1)}× below median`;
   // Harness cost hero — uses cached overhead data populated by refreshInfraHero
   const oh_h=harnessOhCache;
-  const cronCost_h=oh_h?oh_h.cronCost:0;
+  const cronCost_h=oh_h?oh_h.cronCost:null;
   const grossTok_h=cf&&cf.gross_totals?(cf.gross_totals.input_tokens||0)+(cf.gross_totals.output_tokens||0)+(cf.gross_totals.cache_read||0):0;
   const blendedRate_h=grossTok_h>0&&billCost!=null?billCost/grossTok_h:null;
   const overheadEst_h=oh_h!=null&&blendedRate_h!=null?oh_h.ohTok*blendedRate_h:null;
-  const totalHarnessCost=overheadEst_h!=null?cronCost_h+overheadEst_h:null;
+  const totalHarnessCost=overheadEst_h!=null&&cronCost_h!=null?cronCost_h+overheadEst_h:null;
+  const viewerCostHeroLabel=viewerDisplayName().toUpperCase()+' COST';
+  const viewerCostHeroTitle=viewerCostTitle();
+  const viewerCostHeroOwner=viewerOwnerName();
   const harnessHval=totalHarnessCost!=null?fmtUSD(totalHarnessCost):(cronTokCache!=null?fmtK(cronTokCache):'—');
-  const harnessHsub=totalHarnessCost!=null?'direct + injected':'cron only';
+  const harnessHsub=totalHarnessCost!=null?'direct + injected':(oh_h&&cronCost_h==null?'cron unpriced':'cron only');
   const obc_h=oh_h?oh_h.byCategory:{};
   const sre_h=oh_h?oh_h.sysReminderEst:0;
   const harnessTipDetail=oh_h?
     `<div style="font-size:10px;color:#8b949e;margin-top:6px">`+
-    `<div><b style="color:#c9d1d9">Direct API</b> (cron + gate): ${fmtK(oh_h.cronTotal)} tok · ${fmtUSD(cronCost_h)}</div>`+
+    `<div><b style="color:#c9d1d9">Direct API</b> (cron + gate): ${fmtK(oh_h.cronTotal)} tok · ${cronCost_h!=null?fmtUSD(cronCost_h):'unpriced'}</div>`+
     `<div style="margin-top:3px"><b style="color:#c9d1d9">Machine-injected overhead</b>: ${fmtK(oh_h.ohTok)} tok`+(overheadEst_h!=null?` · ~${fmtUSD(overheadEst_h)}`:'')+(oh_h.harnessFraction!=null?` (${Math.round(oh_h.harnessFraction*100)}% of session input)`:'')+`</div>`+
     `<div style="padding-left:8px;color:#6e7681;margin-top:2px">tool results ${fmtK(obc_h.tool_result)} · automation ${fmtK(obc_h.automation_messages)} · cmd blocks ${fmtK(obc_h.command_blocks)}`+(sre_h>0?` · sys-reminder ${fmtK(sre_h)}`:'')+(obc_h.orchestrator_suffix?` · orch suffix ${fmtK(obc_h.orchestrator_suffix)}`:'')+`</div>`+
-    `<div style="margin-top:5px;font-size:9px;color:#484f58">Machine-injected = tool results, system-reminders, and automation prompts injected by the harness. Already counted in task-session billing — shown here so you can see what Zonoid consumed vs your productive work.</div>`+
+    `<div style="margin-top:5px;font-size:9px;color:#484f58">Machine-injected = tool results, system-reminders, and automation prompts injected by the harness. Already counted in task-session billing — shown here so you can see what ${viewerCostHeroOwner} consumed vs your productive work.</div>`+
     `</div>`:
     `<div style="font-size:10px;color:#484f58;margin-top:4px">Loading breakdown…</div>`;
   document.getElementById('sum').innerHTML=
@@ -6263,14 +6287,14 @@ async function tick(prefetchedState){
     `</div></span>` +
     `</span>` +
     `<span class="hero" id="hero-infra" onclick="toggleBillingPopup()">` +
-    `<span class="hlabel">HARNESS COST</span><span class="hval" style="color:#8b949e" id="hval-infra">${harnessHval}</span>` +
+    `<span class="hlabel">${viewerCostHeroLabel}</span><span class="hval" style="color:#8b949e" id="hval-infra">${harnessHval}</span>` +
     `<span class="hval-sub">${harnessHsub}</span>` +
-    `<span class="htip"><div class="tip-title">Harness cost</div>Cost from Zonoid's own machinery — not your productive work.${harnessTipDetail}</span>` +
+    `<span class="htip"><div class="tip-title">${viewerCostHeroTitle}</div>Cost from ${viewerCostHeroOwner}'s own machinery — not your productive work.${harnessTipDetail}</span>` +
     `</span>` +
     `<span class="hero" onclick="toggleBillingPopup()">` +
     `<span class="hlabel">Billing <span style="font-size:8px;color:#484f58;font-weight:400;text-transform:none">gross</span></span><span class="hval" style="color:#d29922">${billStr}</span>` +
     `<span class="hval-sub">${topModelShort?topModelShort+(topModelCost?' '+topModelCost:' gross tokens'):'sessions + cron'}</span>` +
-    `<span class="htip" style="width:200px"><div class="tip-title">Estimated API Cost</div>Sessions (gross, all models) + cron/gate. Click for full breakdown: productive vs trapped, infra overhead, per-model split.</span>` +
+    `<span class="htip" style="width:200px"><div class="tip-title">Estimated API Cost</div>${billingScope}. All recorded providers remain in the totals. Click for full breakdown.</span>` +
     `</span>` +
     (()=>{
       const ag=agreementCache;
@@ -8665,6 +8689,18 @@ async function refreshAgreement(){
     }
   }catch{}finally{ _agreementBusy=false; }
 }
+function serverCronCost(entries){
+  let total=0;
+  for(const entry of entries||[]){
+    const tokens=(entry.input_tokens||0)+(entry.output_tokens||0)+(entry.cache_read_tokens||0);
+    if(tokens<=0) continue;
+    const raw=entry.cost_usd!=null?entry.cost_usd:(entry.cost&&entry.cost.usd);
+    const usd=Number(raw);
+    if(raw==null||!Number.isFinite(usd)||usd<0) return null;
+    total+=usd;
+  }
+  return total;
+}
 // Fetch cron totals periodically and update infra hero
 let _infraAt=0, _infraBusy=false;
 async function refreshInfraHero(){
@@ -8673,8 +8709,7 @@ async function refreshInfraHero(){
   const [d, oh]=await Promise.all([fetchCronData(), daemonFetch(BASE+'/harness/overhead').then(r=>r.json()).catch(()=>null)]).finally(()=>{ _infraBusy=false; });
   const entries=(d&&d.entries)||[];
   const cronTotal=entries.reduce((s,e)=>(s+(e.input_tokens||0)+(e.output_tokens||0)+(e.cache_read_tokens||0)),0);
-  const rateForH=m=>{ if(m.includes('opus')) return [15,75,1.5]; if(m.includes('haiku')) return [0.8,4,0.08]; if(m.includes('fable')) return [3,15,0.3]; return [3,15,0.3]; };
-  const cronCost=entries.reduce((s,e)=>{ const [ri,ro,rc]=rateForH(e.model||''); return s+(e.input_tokens||0)*ri/1e6+(e.output_tokens||0)*ro/1e6+(e.cache_read_tokens||0)*rc/1e6; },0);
+  const cronCost=serverCronCost(entries);
   if(oh&&oh.overhead){
     const obc=oh.overhead.by_category||{};
     const ohTok=(oh.overhead.tokens||0)+(oh.system_reminder_est||0);
@@ -8704,14 +8739,16 @@ async function toggleBillingPopup(){
   const cronCache=entries.reduce((s,e)=>s+(e.cache_read_tokens||0),0);
   const cronTotal=cronIn+cronOut+cronCache;
 
-  // Cost helpers
-  const cronRateFor=m=>{ if(m.includes('opus')) return [15,75,1.5]; if(m.includes('haiku')) return [0.8,4,0.08]; if(m.includes('fable')) return [3,15,0.3]; return [3,15,0.3]; };
-  const cronCost=entries.reduce((s,e)=>{ const [ri,ro,rc]=cronRateFor(e.model||''); return s+(e.input_tokens||0)*ri/1e6+(e.output_tokens||0)*ro/1e6+(e.cache_read_tokens||0)*rc/1e6; },0);
-  const fmtUSD=v=>v<0.01?'<$0.01':v<1?'$'+v.toFixed(2):'$'+Math.round(v).toLocaleString();
+  // Cost helpers. Provider prices stay server-owned; unpriced cron entries remain visibly unpriced.
+  const cronCost=serverCronCost(entries);
+  const fmtUSD=v=>v==null?'—':v<0.01?'<$0.01':v<1?'$'+v.toFixed(2):'$'+Math.round(v).toLocaleString();
   const fmtN=n=>n==null?'—':Number(n).toLocaleString();
 
-  const sessionCost=serverCost&&billingAvailable?Number(serverCost.usd||0):0;
-  const sessionCostLabel=serverCost&&billingAvailable?`${fmtUSD(sessionCost)}${serverCost.source==='estimated'?' ≈':''}`:'unreconciled';
+  const sessionCost=serverCost&&billingAvailable?Number(serverCost.usd||0):null;
+  const sessionEstimated=!!(serverCost&&(serverCost.estimated===true||serverCost.kind==='estimate'||serverCost.source==='estimated'));
+  const sessionCostLabel=serverCost&&billingAvailable?`${fmtUSD(sessionCost)}${sessionEstimated?' ≈':''}`:'unreconciled';
+  const totalCost=sessionCost!=null&&cronCost!=null?sessionCost+cronCost:null;
+  const totalCostLabel=totalCost!=null?fmtUSD(totalCost):(sessionCost!=null?fmtUSD(sessionCost)+' + unpriced cron':'unreconciled');
   const costByCause=cf.cost_by_cause||cf.cause_ledger||{};
   const causeColor={foreground:'#79c0ff',worker:'#3fb950',review:'#d29922',daemon:'#a371f7',auxiliary:'#8b949e',unknown:'#484f58'};
   const causeRows=(costByCause.buckets||[]).filter(b=>b&&((b.tokens||0)>0||(b.usd||0)>0)).map(b=>{
@@ -8761,13 +8798,27 @@ async function toggleBillingPopup(){
     `<div class="bpdiv"></div>`+
 
     `<div class="bptotal"><span title="Adapter-priced from pricing.json, daemon-summed per-slice cost.usd">Task sessions</span><span style="color:#d29922">${sessionCostLabel}</span></div>`+
-    `<div class="bptotal" style="padding-top:4px"><span style="color:#6e7681;font-size:11px">+ cron/gate API cost (extra, not in sessions)</span><span style="color:#8b949e;font-size:11px">${fmtUSD(cronCost)}</span></div>`+
-    `<div class="bptotal" style="border-top:1px solid #30363d;margin-top:6px;padding-top:8px;font-size:15px;font-weight:700"><span>Total est. <span style="font-size:10px;font-weight:400;color:#484f58">this project</span></span><span style="color:#d29922;font-size:18px">${fmtUSD(sessionCost+cronCost)}</span></div>`+
+    `<div class="bptotal" style="padding-top:4px"><span style="color:#6e7681;font-size:11px">+ cron/gate API cost (server-priced only)</span><span style="color:#8b949e;font-size:11px">${cronCost!=null?fmtUSD(cronCost):'unpriced'}</span></div>`+
+    `<div class="bptotal" style="border-top:1px solid #30363d;margin-top:6px;padding-top:8px;font-size:15px;font-weight:700"><span>Total est. <span style="font-size:10px;font-weight:400;color:#484f58">this project</span></span><span style="color:#d29922;font-size:18px">${totalCostLabel}</span></div>`+
     `<div class="bpdiv"></div>`+
     `<div class="bpsec"><h3>By Cause <span style="font-size:9px;color:#484f58;font-weight:400">(task sessions)</span></h3>`+
     (causeRows||`<div style="font-size:10px;color:#484f58">No task-session cause ledger available.</div>`)+
     `<div style="font-size:10px;color:#6e7681;margin-top:5px">Cause total: ${fmtUSD(causeTotal)} · unknown is unclassified provenance, not productive work.</div></div>`+
     (()=>{
+      const billedModels=Object.entries(bm).filter(([m,v])=>m!=='<synthetic>'&&((v.input_tokens||0)+(v.output_tokens||0)+(v.cache_read||0))>0).map(([m])=>m);
+      if(VIEWER_KIND!=='claude'){
+        const heading=VIEWER_KIND==='codex'?'Codex cost view':'Provider-neutral cost view';
+        const detail=VIEWER_KIND==='codex'
+          ? 'Anthropic subscription advice is hidden in Codex. The totals above still include every recorded provider.'
+          : 'Provider subscription advice is hidden. The totals above still include every recorded provider.';
+        return `<div style="margin-top:12px;padding:10px 12px;background:#161b22;border-radius:6px;border-left:3px solid #58a6ff"><div style="font-size:11px;color:#58a6ff;font-weight:700">${heading}</div><div style="margin-top:3px;font-size:10px;color:#6e7681">${detail}</div></div>`;
+      }
+      if(!billedModels.length){
+        return `<div style="margin-top:12px;padding:10px 12px;background:#161b22;border-radius:6px;border-left:3px solid #58a6ff"><div style="font-size:11px;color:#58a6ff;font-weight:700">Claude cost view</div><div style="margin-top:3px;font-size:10px;color:#6e7681">Claude subscription guidance is unavailable until model usage has been reconciled.</div></div>`;
+      }
+      if(billedModels.some(m=>!m.startsWith('claude-'))){
+        return `<div style="margin-top:12px;padding:10px 12px;background:#161b22;border-radius:6px;border-left:3px solid #58a6ff"><div style="font-size:11px;color:#58a6ff;font-weight:700">Claude cost view</div><div style="margin-top:3px;font-size:10px;color:#6e7681">Claude subscription advice is hidden because this ledger includes non-Claude models. The totals above remain mixed.</div></div>`;
+      }
       const tasks=(delta&&delta.tasks_created)||[];
       const oldest=tasks.reduce((min,tk)=>{ const at=Date.parse(tk.firstSeen||''); return(at&&at<min)?at:min; },Infinity);
       const weeks=oldest<Infinity?(Date.now()-oldest)/(7*24*60*60*1000):null;
@@ -8809,7 +8860,7 @@ async function toggleBillingPopup(){
       else if(opusPct>=20) adviceLine='Balanced mix — lean into Opus for complex reasoning tasks';
       else adviceLine='Flagship (Opus) is included — use it for reasoning-heavy tasks to get more value';
       let overflowLine='';
-      if(plan.includes('overflow')&&wTotal&&wTotal>0&&allQ&&weeks&&weeks>0){
+      if(plan.includes('overflow')&&wTotal&&wTotal>0&&allQ&&weeks&&weeks>0&&sessionCost!=null){
         const overflowFrac=Math.max(0,(wTotal-allQ)/wTotal);
         const overflowMo=sessionCost/weeks*4.33*overflowFrac;
         overflowLine=`<div style="margin-top:4px;font-size:11px;color:#ff7b72">Est. API overflow: ~${fmtUSD(overflowMo)}/mo</div>`;
@@ -8838,7 +8889,7 @@ async function toggleBillingPopup(){
         `<div style="margin-top:5px;font-size:9px;color:#484f58">Anthropic does not publish real-time quota limits. Budget % is estimated from observed usage (Max 20× ≈ 80M/wk all-models).</div>`+
         `</div>`;
     })()+
-    `<div style="margin-top:8px;font-size:10px;color:#6e7681">Task-session dollars are server-priced from /costflow. Cron/gate API cost remains an auxiliary estimate from logged model hints.</div>`+
+    `<div style="margin-top:8px;font-size:10px;color:#6e7681">Task-session dollars are server-priced from /costflow. Cron/gate cost is shown only when the server supplies priced entries; otherwise it stays unpriced.</div>`+
     `<div style="margin-top:6px;font-size:10px;color:#484f58">Data as of ${new Date().toLocaleTimeString()} · daemon re-reads transcripts every ~4s</div>`;
 }
 document.addEventListener('click', ev=>{

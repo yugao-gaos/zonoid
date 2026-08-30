@@ -157,7 +157,9 @@ function harnessNameForWorkspace(state, ov, workspace, fallback) {
     .filter((s) => s && s.workspace === workspace && s.harness)
     .sort((a, b) => String(b.lastSeen || '').localeCompare(String(a.lastSeen || '')));
   if (sessions.length) return sessions[0].harness;
-  if (ov && ov.usage_reconcile_snapshot && ov.usage_reconcile_snapshot.harness) return ov.usage_reconcile_snapshot.harness;
+  const snapshot = ov && ov.usage_reconcile_snapshot;
+  if (snapshot && Array.isArray(snapshot.harnesses) && snapshot.harnesses.length === 1) return snapshot.harnesses[0];
+  if (snapshot && snapshot.harness && snapshot.harness !== 'mixed') return snapshot.harness;
   if (process.env.ZONOID_HARNESS) return process.env.ZONOID_HARNESS;
   return fallback || 'claude';
 }
@@ -303,13 +305,19 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // economy_totals: output-token attribution basis — productive/exploration/trapped partition.
     // usage_totals: scalar usage-record/reconcile basis — input/output/cache/cache-create.
     // `totals` remains an alias for economy_totals for dashboard/client backcompat.
-    const byModelEmit = Object.fromEntries(Object.entries(rawByModel).map(([m2,v])=>[m2,{input_tokens:rnd(v.input_tokens),output_tokens:rnd(v.output_tokens),cache_read:rnd(v.cache_read_input_tokens)}]));
+    const byModelEmit = Object.fromEntries(Object.entries(rawByModel).map(([m2,v])=>[m2,{
+      input_tokens: rnd(v.input_tokens),
+      output_tokens: rnd(v.output_tokens),
+      cache_read: rnd(v.cache_read_input_tokens),
+      cache_creation: rnd(v.cache_creation_input_tokens),
+    }]));
     const grossTotals = Object.values(byModelEmit).reduce((acc, v) => {
       acc.input_tokens += v.input_tokens || 0;
       acc.output_tokens += v.output_tokens || 0;
       acc.cache_read += v.cache_read || 0;
+      acc.cache_creation += v.cache_creation || 0;
       return acc;
-    }, { input_tokens: 0, output_tokens: 0, cache_read: 0 });
+    }, { input_tokens: 0, output_tokens: 0, cache_read: 0, cache_creation: 0 });
     const economyTotals = { total: productive + explorationTok + trappedTok, productive, exploration: explorationTok, trapped: trappedTok };
     const usageTotals = {
       input_tokens: rnd(rawInput),
@@ -318,7 +326,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       cache_creation: rnd(merged.totals.cache_creation_input_tokens || 0),
       total: rnd(rawInput + rawOutput + rawCacheRead + (merged.totals.cache_creation_input_tokens || 0)),
     };
-    const grossUsageTotal = grossTotals.input_tokens + grossTotals.output_tokens + grossTotals.cache_read;
+    const grossUsageTotal = grossTotals.input_tokens + grossTotals.output_tokens + grossTotals.cache_read + grossTotals.cache_creation;
     const hasBillingData = grossUsageTotal > 0 || (((merged.cost && merged.cost.usd) || 0) > 0);
     const costByCause = usageAccounting.costCauseLedger(T.ov, {
       tasks: g.tasks,
@@ -339,13 +347,21 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       sources: {
         economy: 'transcript_output_attribution',
         usage: usageTotals.total > 0 ? 'usage_records_or_reconcile' : 'missing',
-        billing: hasBillingData ? 'usage_records_or_reconcile' : 'missing',
+        billing: hasBillingData ? 'usage_estimate' : 'missing',
       },
       by_model: byModelEmit,
-      // cost: DOLLAR overlay (CDX-3). Daemon SUMS already-computed per-slice cost.usd (adapter-priced
-      // from pricing.json); it does NOT price here. source is weakest-wins ('estimated' if any
-      // contributing slice was a chars/4 estimate, else 'real'). ADDITIVE to the token figures above.
-      cost: { usd: Math.round(((merged.cost && merged.cost.usd) || 0) * 100) / 100, source: (merged.cost && merged.cost.source) || 'real', by_model: (merged.cost && merged.cost.by_model) || {} },
+      // Dollar values are published list-rate estimates derived from locally captured tokens. The
+      // source field still distinguishes captured-token vs chars/4 inputs; it is not a billing claim.
+      cost: {
+        usd: Math.round(((merged.cost && merged.cost.usd) || 0) * 100) / 100,
+        source: (merged.cost && merged.cost.source) || 'real',
+        kind: 'estimate',
+        estimated: true,
+        caveat: (merged.cost && merged.cost.caveat) || usageAccounting.COST_ESTIMATE_CAVEAT,
+        complete: !((merged.cost && merged.cost.unpriced_models) || []).length,
+        unpriced_models: (merged.cost && merged.cost.unpriced_models) || [],
+        by_model: (merged.cost && merged.cost.by_model) || {},
+      },
       cost_by_cause: costByCause,
       cause_ledger: costByCause,
       sessions: { count: catchalls.nodes.length, unattributed: rnd(catchalls.nodes.reduce((s, n) => s + n.own, 0)) },
