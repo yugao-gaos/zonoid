@@ -24,13 +24,18 @@ function normalizedOrigin(raw) {
   return parsed.origin;
 }
 
+function dashboardViewer(vscode) {
+  const appName = String(vscode && vscode.env && vscode.env.appName || '').toLowerCase();
+  return appName.includes('cursor') ? 'cursor' : 'vscode';
+}
+
 function localDashboardUrl(vscode, folder) {
   const configured = vscode.workspace.getConfiguration
     ? vscode.workspace.getConfiguration('zonoid').get('dashboardOrigin', DEFAULT_ORIGIN)
     : DEFAULT_ORIGIN;
   const workspace = folder && folder.uri && folder.uri.fsPath;
   if (!workspace) throw new Error('Open a workspace folder before opening the Zonoid dashboard.');
-  return `${normalizedOrigin(configured)}/graph?workspace=${encodeURIComponent(workspace)}`;
+  return `${normalizedOrigin(configured)}/graph?workspace=${encodeURIComponent(workspace)}&viewer=${dashboardViewer(vscode)}`;
 }
 
 function escapeHtmlAttribute(value) {
@@ -120,6 +125,7 @@ module.exports = {
   DEFAULT_ORIGIN,
   activeWorkspaceFolder,
   normalizedOrigin,
+  dashboardViewer,
   localDashboardUrl,
   escapeHtmlAttribute,
   dashboardHtml,

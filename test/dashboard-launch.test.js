@@ -3,9 +3,10 @@
 
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { buildDashboardLaunch, dashboardOrigin } = require('../lib/dashboard-launch');
+const { buildDashboardLaunch, dashboardOrigin, dashboardViewer } = require('../lib/dashboard-launch');
 const { openExternal } = require('../bin/dashboard');
 const uiTools = require('../lib/mcp/tools/ui');
+const mcpCore = require('../lib/mcp-core');
 
 let passed = 0;
 let failed = 0;
@@ -21,6 +22,13 @@ ok('launch contract is client neutral', launch.preferred_surface === 'mcp_app' &
 ok('launch contract offers capability-based surfaces', launch.surfaces.map((s) => s.id).join(',') === 'mcp_app,embedded_web,external_browser');
 ok('launch contract keeps MCP resource URI', launch.resource_uri === 'ui://orchestrator/graph' && launch.surfaces[0].resource_uri === launch.resource_uri);
 ok('launch contract contains no auth token', !/[#?&](?:token|auth)=/i.test(JSON.stringify(launch)));
+
+const codexLaunch = buildDashboardLaunch({ workspace, port: 8787, viewer: 'Codex' });
+ok('launch contract carries normalized viewer presentation context', codexLaunch.viewer === 'codex' && codexLaunch.url.endsWith(`${encodeURIComponent(workspace)}&viewer=codex`));
+ok('viewer ids normalize without becoming ledger providers', dashboardViewer(' OpenCode ') === 'opencode');
+let unsafeViewerRejected = false;
+try { dashboardViewer('codex&workspace=/other'); } catch { unsafeViewerRejected = true; }
+ok('unsafe dashboard viewer rejected', unsafeViewerRejected);
 
 ok('explicit dashboard origin is honored', dashboardOrigin({ origin: 'https://dashboard.example.test' }) === 'https://dashboard.example.test');
 for (const origin of ['file:///tmp/dashboard', 'https://user:secret@example.test', 'https://example.test/base', 'https://example.test/?token=secret', 'https://example.test/#secret']) {
@@ -46,13 +54,22 @@ ok('external-browser fallback is cross-platform and shell-free',
   ok('show_dashboard preserves legacy URL aliases', out.browser_url === out.deep_link && out.launch.url === out.browser_url);
   ok('show_dashboard launch result contains no auth token', !/[#?&](?:token|auth)=/i.test(JSON.stringify(out)));
 
+  const rpc = await mcpCore.handleRpc({
+    jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'show_dashboard', arguments: { workspace } },
+  }, {
+    client: 'codex', workspace, identity: { graph_repo: workspace }, call: async () => ({ ok: true }),
+  });
+  const rpcOut = JSON.parse(rpc.result.content[0].text);
+  ok('MCP launch derives viewer from the current client host', rpcOut.launch.viewer === 'codex' && rpcOut.launch.url.includes('&viewer=codex'));
+
   const cli = path.join(__dirname, '..', 'bin', 'dashboard.js');
-  const cliRun = spawnSync(process.execPath, [cli, '--workspace', workspace, '--json'], {
+  const cliRun = spawnSync(process.execPath, [cli, '--workspace', workspace, '--viewer', 'codex', '--json'], {
     encoding: 'utf8',
     env: { ...process.env, ORCH_TOKEN: 'must-not-appear', ZONOID_DASHBOARD_ORIGIN: 'http://127.0.0.1:9876' },
   });
   ok('dashboard CLI emits JSON launch contract', cliRun.status === 0 && JSON.parse(cliRun.stdout).version === 1);
   ok('dashboard CLI honors configured origin', JSON.parse(cliRun.stdout).url.startsWith('http://127.0.0.1:9876/graph?workspace='));
+  ok('dashboard CLI propagates explicit viewer host', JSON.parse(cliRun.stdout).viewer === 'codex' && JSON.parse(cliRun.stdout).url.includes('&viewer=codex'));
   ok('dashboard CLI output does not leak auth token', !cliRun.stdout.includes('must-not-appear') && !/[#?&](?:token|auth)=/i.test(cliRun.stdout));
 
   const unsafe = spawnSync(process.execPath, [cli, '--workspace', workspace], {

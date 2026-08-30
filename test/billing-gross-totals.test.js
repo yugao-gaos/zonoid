@@ -81,7 +81,9 @@ const ok = (label, cond) => {
   ok('browser billing has no hard-coded session MODEL_RATES table', !html.includes('MODEL_RATES'));
   ok('browser billing no longer computes task session total with modelCost()', !/const\s+totalCost\s*=.*modelCost/s.test(html));
   ok('billing hero uses guarded /costflow.cost.usd for task-session cost', html.includes('const billingAvailable=!!(cf&&cf.sources&&cf.sources.billing!==\'missing\');') && html.includes('const billCost=cf&&cf.cost&&billingAvailable?Number(cf.cost.usd||0):null'));
-  ok('billing popup uses guarded server session cost label', html.includes('const billingAvailable=!(cf.sources&&cf.sources.billing===\'missing\');') && html.includes('const sessionCost=serverCost&&billingAvailable?Number(serverCost.usd||0):0') && html.includes(":'unreconciled'"));
+  ok('billing popup uses guarded server session cost label', html.includes('const billingAvailable=!(cf.sources&&cf.sources.billing===\'missing\');') && html.includes('const sessionCost=serverCost&&billingAvailable?Number(serverCost.usd||0):null') && html.includes(":'unreconciled'"));
+  ok('billing popup recognizes the mixed-ledger estimate contract', html.includes("serverCost.estimated===true||serverCost.kind==='estimate'||serverCost.source==='estimated'"));
+  ok('billing popup does not turn an unpriced cron remainder into zero dollars', html.includes("fmtUSD(sessionCost)+' + unpriced cron'") && html.includes("cronCost!=null?fmtUSD(cronCost):'unpriced'"));
   ok('model rows use server-provided cost.by_model dollars', html.includes('const serverCostByModel=serverCost&&serverCost.by_model||{}') && html.includes('serverCostByModel[m]'));
   ok('billing popup renders server-provided By Cause ledger', html.includes('cf.cost_by_cause||cf.cause_ledger||{}') && html.includes('By Cause'));
   ok('unrouted wording is pre-flow, not a trapped subset claim', html.includes('unrouted session remainder before graph flow') && !html.includes('subset of trapped'));

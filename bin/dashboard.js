@@ -7,7 +7,7 @@ const { buildDashboardLaunch, DEFAULT_PORT } = require('../lib/dashboard-launch'
 
 function usage() {
   return [
-    'Usage: zonoid-dashboard [--workspace DIR] [--port PORT] [--origin URL] [--json] [--open]',
+    'Usage: zonoid-dashboard [--workspace DIR] [--port PORT] [--origin URL] [--viewer HOST] [--json] [--open]',
     '',
     'Print a workspace-scoped dashboard launch URL. --open uses the system browser.',
     'ZONOID_DASHBOARD_ORIGIN configures the daemon origin; the default is loopback.',
@@ -15,13 +15,13 @@ function usage() {
 }
 
 function parseArgs(argv) {
-  const out = { workspace: null, port: null, origin: null, json: false, open: false, help: false };
+  const out = { workspace: null, port: null, origin: null, viewer: null, json: false, open: false, help: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--json') out.json = true;
     else if (arg === '--open') out.open = true;
     else if (arg === '--help' || arg === '-h') out.help = true;
-    else if (['--workspace', '--port', '--origin'].includes(arg)) {
+    else if (['--workspace', '--port', '--origin', '--viewer'].includes(arg)) {
       if (!argv[i + 1]) throw new Error(`${arg} requires a value`);
       out[arg.slice(2)] = argv[++i];
     } else throw new Error(`unknown argument: ${arg}`);
@@ -48,6 +48,7 @@ function run(argv = process.argv.slice(2), env = process.env, io = process, open
     workspace,
     port: args.port || env.ORCH_PORT || DEFAULT_PORT,
     origin: args.origin || env.ZONOID_DASHBOARD_ORIGIN || null,
+    viewer: args.viewer || env.ZONOID_DASHBOARD_VIEWER || env.ORCH_CLIENT || null,
   });
   io.stdout.write((args.json ? JSON.stringify(launch, null, 2) : launch.url) + '\n');
   if (args.open) opener(launch.url);
