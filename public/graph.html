@@ -410,7 +410,9 @@
   #architectureMap { position: relative; flex: 1; min-width: 0; overflow: hidden; background-color: #0d1117; background-image: radial-gradient(circle, rgba(110,118,129,.22) 1px, transparent 1px); background-size: 22px 22px; }
   #architectureCanvas { display: block; width: 100%; height: 100%; min-height: 420px; cursor: grab; touch-action: none; }
   #architectureCanvas:active { cursor: grabbing; }
-  .arch-canvas-edge { fill: none; pointer-events: none; }
+  .arch-canvas-edge-halo { fill: none; stroke: #0d1117; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+  .arch-canvas-edge-halo.muted { opacity: .18; }
+  .arch-canvas-edge { fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
   .arch-canvas-edge.imports { stroke: #58a6ff; }
   .arch-canvas-edge.calls { stroke: #d29922; stroke-dasharray: 7 5; }
   .arch-canvas-edge.muted { opacity: .1; }
@@ -6691,6 +6693,19 @@ function architectureProjectionFiles(projection){
   for(const file of (projection&&projection.files||[])) byId.set(file.id,{...(byId.get(file.id)||{}),...file,has_rich_detail:true});
   return [...byId.values()];
 }
+const ARCHITECTURE_LAYOUT=Object.freeze({
+  rootWidth:380,
+  canvasInset:46,
+  childInset:24,
+  compoundHeader:56,
+  compoundBottom:24,
+  siblingGap:22,
+  columnGutter:140,
+  rowGutter:90,
+  nodeMinWidth:220,
+  fileHeight:64,
+  collapsedHeight:82,
+});
 function architectureFileMatches(file, query){
   const q=String(query||'').trim().toLowerCase();
   if(!q) return true;
@@ -6779,35 +6794,49 @@ function architectureBreadcrumbIds(projection, selectedId){
   while(current){ ids.unshift(current.id); current=current.parent_id?byId.get(current.parent_id):null; }
   return ids;
 }
+function architectureInspectorRelations(projection, visibleRelations, selectedId){
+  const relations=String(selectedId||'').startsWith('file:')
+    ? (projection&&projection.hierarchy_relations||[])
+    : (visibleRelations||[]);
+  return relations.filter(relation=>relation.from===selectedId||relation.to===selectedId);
+}
 function architectureLayoutHierarchy(visible){
+  const spacing=ARCHITECTURE_LAYOUT;
   const byId=new Map(visible.nodes.map(node=>[node.id,node]));
   const children=new Map();
   for(const node of visible.nodes) if(node.visible_parent_id){
     if(!children.has(node.visible_parent_id)) children.set(node.visible_parent_id,[]);
     children.get(node.visible_parent_id).push(node.id);
   }
+  const minimumWidth=id=>{
+    const node=byId.get(id), childIds=children.get(id)||[];
+    if(!node||node.hierarchy_kind==='file'||!visible.expanded.has(id)||!childIds.length) return spacing.nodeMinWidth;
+    return Math.max(spacing.nodeMinWidth,Math.max(...childIds.map(minimumWidth))+spacing.childInset*2);
+  };
   const measure=(id,width)=>{
     const node=byId.get(id), childIds=children.get(id)||[];
-    if(!node||node.hierarchy_kind==='file') return {id,w:width,h:58,children:[]};
-    if(!visible.expanded.has(id)||!childIds.length) return {id,w:width,h:76,children:[]};
-    const childWidth=Math.max(190,width-28);
+    if(!node||node.hierarchy_kind==='file') return {id,w:width,h:spacing.fileHeight,children:[]};
+    if(!visible.expanded.has(id)||!childIds.length) return {id,w:width,h:spacing.collapsedHeight,children:[]};
+    const childWidth=width-spacing.childInset*2;
     const measured=childIds.map(childId=>measure(childId,childWidth));
-    return {id,w:width,h:52+measured.reduce((sum,child)=>sum+child.h,0)+Math.max(0,measured.length-1)*10+14,children:measured};
+    return {id,w:width,h:spacing.compoundHeader+measured.reduce((sum,child)=>sum+child.h,0)+Math.max(0,measured.length-1)*spacing.siblingGap+spacing.compoundBottom,children:measured};
   };
-  const roots=visible.nodes.filter(node=>!node.visible_parent_id).map(node=>measure(node.id,330));
+  const rootIds=visible.nodes.filter(node=>!node.visible_parent_id).map(node=>node.id);
+  const rootWidth=Math.max(spacing.rootWidth,...rootIds.map(minimumWidth));
+  const roots=rootIds.map(id=>measure(id,rootWidth));
   const columns=Math.max(1,Math.min(4,Math.ceil(Math.sqrt(roots.length||1))));
-  const heights=Array(columns).fill(38), boxes=new Map();
+  const heights=Array(columns).fill(spacing.canvasInset), boxes=new Map();
   const place=(item,x,y)=>{
     boxes.set(item.id,{x,y,w:item.w,h:item.h});
-    let childY=y+44;
-    for(const child of item.children){ place(child,x+14,childY); childY+=child.h+10; }
+    let childY=y+spacing.compoundHeader;
+    for(const child of item.children){ place(child,x+spacing.childInset,childY); childY+=child.h+spacing.siblingGap; }
   };
   for(let i=0;i<roots.length;i++){
     const column=heights.indexOf(Math.min(...heights));
-    const x=38+column*390, y=heights[column];
-    place(roots[i],x,y); heights[column]+=roots[i].h+56;
+    const x=spacing.canvasInset+column*(rootWidth+spacing.columnGutter), y=heights[column];
+    place(roots[i],x,y); heights[column]+=roots[i].h+spacing.rowGutter;
   }
-  return {boxes,width:Math.max(760,38+columns*390),height:Math.max(520,...heights)+38};
+  return {boxes,width:Math.max(760,spacing.canvasInset*2+columns*rootWidth+Math.max(0,columns-1)*spacing.columnGutter),height:Math.max(520,...heights)+spacing.canvasInset};
 }
 function architectureCanvasNodeLabel(node){
   const label=node.hierarchy_kind==='file'?(node.name||String(node.path||'').split('/').pop()):(node.name||node.path||node.id);
@@ -6854,7 +6883,7 @@ function renderArchitectureInspector(projection,visibleRelations){
   }
   const isFile=String(node.id).startsWith('file:');
   const isExpanded=architectureExpandedIds.has(node.id);
-  const exactRelations=isFile?(projection.hierarchy_relations||[]).filter(relation=>relation.from===node.id||relation.to===node.id):visibleRelations.filter(relation=>relation.from===node.id||relation.to===node.id);
+  const exactRelations=architectureInspectorRelations(projection,visibleRelations,node.id);
   const relationHtml=exactRelations.map(relation=>{
     const outgoing=relation.from===node.id;
     const peer=byId.get(outgoing?relation.to:relation.from);
@@ -6915,14 +6944,16 @@ function renderArchitectureCanvas(projection){
   const layout=architectureLayoutHierarchy(visible);
   const relations=architectureRetargetRelations(projection,visible.expanded,visibleIds);
   architectureCanvasBounds={width:layout.width,height:layout.height};
-  const edges=relations.map(relation=>{
+  const edgeGeometry=relations.map(relation=>{
     const from=layout.boxes.get(relation.from), to=layout.boxes.get(relation.to);
-    if(!from||!to) return '';
+    if(!from||!to) return null;
     const p=architectureEdgeAnchors(from,to), mx=(p.x1+p.x2)/2+(relation.kind==='calls'?12:-12);
     const focused=!architectureSelectedId||relation.from===architectureSelectedId||relation.to===architectureSelectedId;
-    const width=Math.min(5,1+Math.log2(1+(relation.count||1))*.6);
-    return `<path class="arch-canvas-edge ${esc(relation.kind)}${focused?'':' muted'}" d="M${p.x1},${p.y1} C${mx},${p.y1} ${mx},${p.y2} ${p.x2},${p.y2}" stroke-width="${width}" stroke-opacity=".66" marker-end="url(#arch-canvas-${esc(relation.kind)})"><title>${esc(relation.kind)} · ${relation.count||1}</title></path>${relation.count>1?`<text class="arch-canvas-edge-label" x="${mx}" y="${(p.y1+p.y2)/2-4}">×${relation.count}</text>`:''}`;
-  }).join('');
+    const width=Math.min(5.5,1.5+Math.log2(1+(relation.count||1))*.65);
+    return {relation,mx,p,focused,width,path:`M${p.x1},${p.y1} C${mx},${p.y1} ${mx},${p.y2} ${p.x2},${p.y2}`};
+  }).filter(Boolean);
+  const halos=edgeGeometry.map(({path,focused,width})=>`<path class="arch-canvas-edge-halo${focused?'':' muted'}" d="${path}" stroke-width="${width+5}" stroke-opacity=".94"/>`).join('');
+  const edges=edgeGeometry.map(({relation,mx,p,focused,width,path})=>`<path class="arch-canvas-edge ${esc(relation.kind)}${focused?'':' muted'}" d="${path}" stroke-width="${width}" stroke-opacity=".88" marker-end="url(#arch-canvas-${esc(relation.kind)})"><title>${esc(relation.kind)} · ${relation.count||1}</title></path>${relation.count>1?`<text class="arch-canvas-edge-label" x="${mx}" y="${(p.y1+p.y2)/2-4}">×${relation.count}</text>`:''}`).join('');
   const backgrounds=visible.nodes.filter(node=>node.hierarchy_kind!=='file').map(node=>{
     const box=layout.boxes.get(node.id); if(!box) return '';
     const selected=node.id===architectureSelectedId;
@@ -6942,7 +6973,7 @@ function renderArchitectureCanvas(projection){
   const omittedRich=(projection.omitted||{}).files?` · ${(projection.omitted||{}).files} rich details omitted`:'';
   const omittedPaths=(projection.omitted||{}).hierarchy_files?` · ${(projection.omitted||{}).hierarchy_files} paths omitted by safety limit`:'';
   count.textContent=(architectureSearchText.trim()?`${matchCount} search result${matchCount===1?'':'s'} · ${visible.nodes.length} visible nodes`:`${(projection.modules||[]).length} modules · ${(projection.summary||{}).indexed_files||0} indexed files · ${relations.length} visible relations`)+omittedRich+omittedPaths;
-  map.innerHTML=`<svg id="architectureCanvas" role="region" aria-label="Pan and zoom architecture hierarchy" tabindex="0"><title>Architecture hierarchy</title><desc>Modules and folders expand recursively. Drag to pan and use the wheel to zoom.</desc><defs><marker id="arch-canvas-imports" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#58a6ff"/></marker><marker id="arch-canvas-calls" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#d29922"/></marker></defs><g class="arch-canvas-root"><g class="arch-compound-backgrounds">${backgrounds}</g><g class="arch-canvas-edges">${edges}</g><g class="arch-canvas-nodes">${nodes}</g></g></svg><div class="arch-canvas-hint">Drag to pan · wheel/pinch to zoom · Enter to expand</div>`;
+  map.innerHTML=`<svg id="architectureCanvas" role="region" aria-label="Pan and zoom architecture hierarchy" tabindex="0"><title>Architecture hierarchy</title><desc>Modules and folders expand recursively. Drag to pan and use the wheel to zoom.</desc><defs><marker id="arch-canvas-imports" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#58a6ff"/></marker><marker id="arch-canvas-calls" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#d29922"/></marker></defs><g class="arch-canvas-root"><g class="arch-compound-backgrounds">${backgrounds}</g><g class="arch-canvas-edge-halos">${halos}</g><g class="arch-canvas-edges">${edges}</g><g class="arch-canvas-nodes">${nodes}</g></g></svg><div class="arch-canvas-hint">Drag to pan · wheel/pinch to zoom · Enter to expand</div>`;
   map.querySelectorAll('.arch-canvas-node').forEach(element=>{
     const activate=event=>{ event.stopPropagation(); selectArchitectureNode(element.dataset.archId,true); };
     element.addEventListener('click',activate);

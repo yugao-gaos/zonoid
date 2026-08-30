@@ -241,6 +241,83 @@ const safetyIds = new Set([
 for (const node of [...safetyBoundedHierarchy.groups, ...safetyBoundedHierarchy.hierarchy_files]) {
   assert.ok(safetyIds.has(node.parent_id), 'safety-bounded hierarchy never emits a dangling parent');
 }
+
+const prefixNames = [
+  'service-auth.js',
+  'service-billing.js',
+  'service-cache.js',
+  'service-mail.js',
+  'service-users.js',
+];
+const moduleRangeNames = [
+  'alpha.js', 'bravo.js', 'charlie.js', 'delta.js', 'echo.js', 'foxtrot.js',
+  'golf.js', 'hotel.js', 'india.js', 'juliet.js', 'kilo.js', 'lima.js',
+  'mango.js', 'nectar.js', 'olive.js', 'pearl.js', 'quartz.js', 'river.js',
+];
+const directoryRangeNames = [
+  'amber.js', 'birch.js', 'cedar.js', 'dove.js', 'elm.js', 'fern.js', 'granite.js',
+  'hazel.js', 'iris.js', 'jade.js', 'koala.js', 'lotus.js', 'maple.js', 'navy.js',
+  'opal.js', 'pine.js', 'reed.js', 'stone.js', 'tulip.js', 'umber.js', 'violet.js',
+];
+const crowdedPaths = [
+  ...prefixNames.map((name) => `src/${name}`),
+  ...moduleRangeNames.map((name) => `src/${name}`),
+  ...directoryRangeNames.map((name) => `lib/flat/${name}`),
+];
+const crowdedNodes = Object.fromEntries(crowdedPaths.map((file, index) => [
+  `code:${file}#symbol${index}`,
+  { file, name: `symbol${index}`, kind: 'function', start_line: index + 1 },
+]));
+const crowdedEdges = [{
+  from_file: 'src/service-auth.js',
+  to_file: 'lib/flat/amber.js',
+  kind: 'calls',
+}];
+const crowded = buildArchitectureProjection({ codeNodes: crowdedNodes, codeEdges: crowdedEdges });
+const syntheticGroups = crowded.groups.filter((group) => group.synthetic);
+assert.ok(syntheticGroups.length > 0, 'crowded real parents gain synthetic display groups');
+assert.ok(syntheticGroups.every((group) => group.direct_file_count <= 12));
+assert.ok(syntheticGroups.every((group) => group.child_ids.every((id) => id.startsWith('file:'))));
+const serviceGroup = syntheticGroups.find((group) => group.parent_id === 'module:src'
+  && group.synthetic_kind === 'prefix' && group.prefix === 'service');
+assert.ok(serviceGroup, 'three or more shared filename prefixes are preferred');
+assert.equal(serviceGroup.direct_file_count, prefixNames.length);
+assert.deepEqual(serviceGroup.file_ids, prefixNames.map((name) => `file:src/${name}`).sort());
+const srcRanges = syntheticGroups.filter((group) => group.parent_id === 'module:src'
+  && group.synthetic_kind === 'range');
+assert.equal(srcRanges.length, 2, 'remaining module files use deterministic alphabetical ranges');
+assert.deepEqual(srcRanges.map((group) => group.direct_file_count), [9, 9]);
+const flatGroup = crowded.groups.find((group) => group.id === 'group:lib/flat');
+const flatSyntheticGroups = syntheticGroups.filter((group) => group.parent_id === flatGroup.id);
+assert.ok(flatSyntheticGroups.length > 1, 'a crowded real directory gains fallback range groups');
+assert.ok(flatSyntheticGroups.every((group) => group.synthetic_kind === 'range'));
+assert.equal(flatGroup.direct_file_count, 0);
+assert.ok(flatGroup.child_ids.every((id) => id.startsWith('group:@display/')));
+assert.ok(crowded.modules.find((module) => module.name === 'src').child_ids
+  .every((id) => id.startsWith('group:@display/')),
+  'a crowded module no longer emits more than twelve direct file children');
+const serviceFile = crowded.files.find((file) => file.path === 'src/service-auth.js');
+assert.equal(serviceFile.id, 'file:src/service-auth.js');
+assert.equal(serviceFile.symbols[0].name, 'symbol0', 'rich source file detail is preserved');
+assert.equal(serviceFile.parent_id, serviceGroup.id);
+assert.deepEqual(serviceFile.ancestor_ids, [serviceGroup.id, 'module:src']);
+const crowdedRelation = crowded.hierarchy_relations[0];
+assert.equal(crowdedRelation.from, serviceFile.id);
+assert.equal(crowdedRelation.from_ancestors[0], serviceGroup.id);
+assert.equal(crowdedRelation.to_ancestors[0], crowded.hierarchy_files
+  .find((file) => file.path === 'lib/flat/amber.js').parent_id);
+assert.ok(crowdedRelation.to_ancestors.includes('group:lib/flat'));
+assert.deepEqual(
+  crowded.groups.map((group) => [group.id, group.child_ids]),
+  buildArchitectureProjection({
+    codeNodes: Object.fromEntries(Object.entries(crowdedNodes).reverse()),
+    codeEdges: [...crowdedEdges].reverse(),
+  }).groups.map((group) => [group.id, group.child_ids]),
+  'synthetic display group ordering and ids are stable across input order',
+);
+assert.ok(hierarchy.groups.every((group) => !group.synthetic),
+  'synthetic display groups are not emitted beneath parents at or below the limit');
+
 assert.deepEqual(
   hierarchy,
   buildArchitectureProjection({
