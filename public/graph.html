@@ -157,10 +157,24 @@
   .toggle { display: inline-flex; border: 1px solid #30363d; border-radius: 6px; overflow: hidden; }
   .toggle button { background: #161b22; color: #8b949e; border: none; padding: 3px 12px; cursor: pointer; font: inherit; }
   .toggle button.on { background: #1f6feb33; color: #79c0ff; }
-  /* Canonical project Spec: one current system note, edited through versioned supersession. */
+  /* Project documentation hub: canonical Spec plus first-party repository documentation. */
   #spec { display: none; flex: 1; min-height: 0; overflow: auto; background: #0d1117; }
   #spec.show { display: block; }
-  .spec-shell { width: min(920px, 100%); min-height: 100%; margin: 0 auto; padding: clamp(20px, 4vw, 48px); box-sizing: border-box; }
+  .spec-shell { width: min(1320px, 100%); min-height: 100%; margin: 0 auto; padding: clamp(16px, 3vw, 36px); box-sizing: border-box; }
+  .spec-layout { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); gap: 14px; min-height: calc(100vh - var(--hdr-h) - var(--dock-h) - 72px); }
+  .spec-library { min-height: 0; border: 1px solid #30363d; border-radius: 12px; background: #11151c; overflow: hidden; }
+  .spec-library-head { padding: 16px; border-bottom: 1px solid #21262d; }
+  .spec-library-title { color: #e6edf3; font-size: 13px; font-weight: 700; }
+  .spec-library-meta { margin-top: 3px; color: #6e7681; font-size: 9px; }
+  .spec-search { width: 100%; margin-top: 11px; padding: 7px 9px; box-sizing: border-box; border: 1px solid #30363d; border-radius: 6px; outline: none; background: #0d1117; color: #c9d1d9; font: inherit; font-size: 10px; }
+  .spec-search:focus { border-color: #58a6ff; }
+  .spec-doc-list { max-height: calc(100vh - var(--hdr-h) - var(--dock-h) - 170px); overflow: auto; padding: 8px; }
+  .spec-doc-section { padding: 9px 7px 4px; color: #6e7681; font-size: 8px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+  .spec-doc-link { display: block; width: 100%; margin: 1px 0; padding: 7px 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #8b949e; cursor: pointer; font: inherit; text-align: left; }
+  .spec-doc-link:hover { border-color: #30363d; background: #161b22; color: #c9d1d9; }
+  .spec-doc-link.on { border-color: #1f6feb66; background: #1f6feb1c; color: #e6edf3; }
+  .spec-doc-name { display: block; overflow: hidden; font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+  .spec-doc-path { display: block; overflow: hidden; margin-top: 2px; color: #6e7681; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
   .spec-card { border: 1px solid #30363d; border-radius: 12px; background: #11151c; box-shadow: 0 14px 36px rgba(0,0,0,.2); overflow: hidden; }
   .spec-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 20px 22px 16px; border-bottom: 1px solid #21262d; }
   .spec-eyebrow { color: #58a6ff; font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
@@ -181,6 +195,10 @@
   .spec-status { flex: 1; min-height: 16px; color: #8b949e; font-size: 10px; text-align: right; }
   .spec-status.ok { color: #3fb950; }
   .spec-status.err { color: #ff7b72; }
+  @media (max-width: 780px) {
+    .spec-layout { grid-template-columns: 1fr; }
+    .spec-doc-list { max-height: 230px; }
+  }
   /* operational Kanban view */
   #kanban { display: none; flex: 1; min-height: 0; overflow: auto; background: #0d1117; }
   #kanban.show { display: block; }
@@ -813,7 +831,7 @@
       Zonoid
     </h1>
     <div class="toggle" id="viewToggle" role="tablist" aria-label="Dashboard views">
-      <button data-view="spec" role="tab" aria-selected="false" title="Spec — view and edit the canonical project specification. Saves create a new auditable version and retire the previous one.">Spec</button>
+      <button data-view="spec" role="tab" aria-selected="false" title="Spec — browse and edit the canonical project specification and all first-party repository documentation.">Spec</button>
       <button data-view="kanban" class="on" role="tab" aria-selected="true" title="Kanban — the operational task lifecycle from Plan through Done, including review, merge, and user-attention cues.">Kanban</button>
       <button data-view="frontier" role="tab" aria-selected="false" title="Frontier — tasks at the current working frontier: in-progress, ready, and their immediate dependencies. Best for day-to-day steering.">Frontier</button>
       <button data-view="cloud" role="tab" aria-selected="false" title="Knowledge — tasks, notes, and their full relationship graph. Best for retrieval and auditing the big picture.">Knowledge</button>
@@ -952,7 +970,7 @@
 <div class="wrap">
   <div class="left">
     <div id="ws" style="font-size:11px;color:#6e7681;padding:0 16px 8px;display:none"></div>
-    <div id="spec" role="region" aria-label="Project specification"></div>
+    <div id="spec" role="region" aria-label="Project specification and documentation"></div>
     <div id="kanban" role="region" aria-label="Operational Kanban board"></div>
     <div id="cloud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><div id="cloudTraceLegend"></div><div id="cloudSearchSummary"></div><svg id="cloudsvg"></svg></div>
     <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div></div>
@@ -5007,6 +5025,8 @@ function selectWorkspace(wsPath) {
   WS = wsPath || '';
   WS_RESOLVED = !!WS;
   specDraftText=null; specDraftId=null; specNotice=null;
+  documentationLibrary={workspace:null,documents:[],loading:false,loaded:false,error:null};
+  selectedDocumentationPath=null; documentationSearch=''; documentationFiles.clear();
   const u = new URL(location.href);
   if (WS) u.searchParams.set('workspace', WS);
   else u.searchParams.delete('workspace');
@@ -5079,6 +5099,10 @@ let specDraftText=null;
 let specDraftId=null;
 let specNotice=null;
 let specSaving=false;
+let documentationLibrary={workspace:null,documents:[],loading:false,loaded:false,error:null};
+let selectedDocumentationPath=null;
+let documentationSearch='';
+const documentationFiles=new Map();
 let architectureSearchText='';
 let architectureSelectedId=null;
 let architectureFocusedModuleId=null;
@@ -5840,8 +5864,29 @@ function currentSpecTask(d){
     .filter(task=>task&&task.kind==='note'&&task.category==='system'&&!task.validTo&&String(task.label||'').toLowerCase()===title)
     .sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')))[0]||null;
 }
-function renderSpec(d){
-  const root=document.getElementById('spec');
+function fmtDocBytes(bytes){
+  const n=Number(bytes)||0;
+  return n>=1024?`${(n/1024).toFixed(n>=10240?0:1)} KB`:`${n} B`;
+}
+function documentationNavHtml(){
+  const query=documentationSearch.trim().toLowerCase();
+  const documents=(documentationLibrary.documents||[]).filter(doc=>!query||String(doc.title||'').toLowerCase().includes(query)||String(doc.path||'').toLowerCase().includes(query));
+  const groups=[];
+  for(const doc of documents){
+    let group=groups.find(item=>item.name===doc.section);
+    if(!group){ group={name:doc.section||'Project',documents:[]}; groups.push(group); }
+    group.documents.push(doc);
+  }
+  const canonical=`<button type="button" class="spec-doc-link${selectedDocumentationPath?'':' on'}" data-document-path=""><span class="spec-doc-name">Project Spec</span><span class="spec-doc-path">System note · versioned</span></button>`;
+  const listed=groups.map(group=>`<div class="spec-doc-section">${esc(group.name)}</div>`+group.documents.map(doc=>
+    `<button type="button" class="spec-doc-link${selectedDocumentationPath===doc.path?' on':''}" data-document-path="${esc(doc.path)}"><span class="spec-doc-name">${esc(doc.title)}</span><span class="spec-doc-path">${esc(doc.path)}</span></button>`
+  ).join('')).join('');
+  const state=documentationLibrary.loading?'<div class="empty" style="font-size:10px">Loading project documentation…</div>'
+    :documentationLibrary.error?`<div class="empty" style="font-size:10px;color:#ff7b72">${esc(documentationLibrary.error)}</div>`
+    :documents.length?'':'<div class="empty" style="font-size:10px">No matching documentation.</div>';
+  return `<aside class="spec-library"><div class="spec-library-head"><div class="spec-library-title">Project documentation</div><div class="spec-library-meta">Canonical Spec + ${documentationLibrary.documents.length} tracked document${documentationLibrary.documents.length===1?'':'s'}</div><input id="specDocSearch" class="spec-search" type="search" value="${esc(documentationSearch)}" placeholder="Filter documentation…" aria-label="Filter project documentation"></div><nav class="spec-doc-list" aria-label="Project documentation">${canonical}${listed}${state}</nav></aside>`;
+}
+function canonicalSpecEditorHtml(d){
   const current=currentSpecTask(d);
   const currentId=current?current.id:null;
   if(specDraftId!==currentId){
@@ -5853,27 +5898,164 @@ function renderSpec(d){
   const dirty=draft.trim()!==currentSummary;
   const updated=current&&current.created_at?new Date(current.created_at).toLocaleString():'';
   const notice=specNotice||{};
-  root.innerHTML=`<div class="spec-shell"><section class="spec-card">`+
-    `<header class="spec-head"><div><div class="spec-eyebrow">Canonical system note</div><div class="spec-title">${esc(canonicalSpecTitle())}</div>`+
+  return `<section class="spec-card"><header class="spec-head"><div><div class="spec-eyebrow">Canonical project specification</div><div class="spec-title">${esc(canonicalSpecTitle())}</div>`+
     `<div class="spec-meta">${current?(updated?'Last updated '+esc(updated):'Current project specification'):'Create the first project specification for this workspace.'}</div></div>`+
     `<span class="spec-version">${current?'Current · versioned':'Not created'}</span></header>`+
-    `<div class="spec-body"><p class="spec-help">Agents receive this specification as the workspace-level source of goals, constraints, interfaces, and invariants. Saving creates a new version and preserves the previous one in graph history.</p>`+
+    `<div class="spec-body"><p class="spec-help">This is the authoritative workspace-level source of goals, constraints, interfaces, and invariants. The library also exposes the repository documentation that explains and supports it. Saving the Spec creates a new version and preserves the previous one in graph history.</p>`+
     `<textarea id="specEditor" class="spec-editor" spellcheck="true" aria-label="Project specification editor" placeholder="Describe the project goals, hard constraints, interfaces, and invariants…"${specSaving?' disabled':''}>${esc(draft)}</textarea>`+
     `<div class="spec-actions"><button type="button" class="spec-btn primary" id="specSaveBtn" onclick="saveSpec()"${specSaving||!dirty||!draft.trim()?' disabled':''}>${specSaving?'Saving…':current?'Save new version':'Create Spec'}</button>`+
-    `<button type="button" class="spec-btn" onclick="resetSpecDraft()"${specSaving||!dirty?' disabled':''}>Reset</button>`+
-    `<span id="specStatus" class="spec-status${notice.type?' '+esc(notice.type):''}">${esc(notice.text||'')}</span></div></div></section></div>`;
+    `<button type="button" class="spec-btn" id="specResetBtn" onclick="resetSpecDraft()"${specSaving||!dirty?' disabled':''}>Reset</button>`+
+    `<span id="specStatus" class="spec-status${notice.type?' '+esc(notice.type):''}">${esc(notice.text||'')}</span></div></div></section>`;
+}
+function documentationEditorHtml(pathValue){
+  const meta=(documentationLibrary.documents||[]).find(doc=>doc.path===pathValue)||{path:pathValue,title:pathValue};
+  const state=documentationFiles.get(pathValue);
+  if(!state||state.loading){
+    return `<section class="spec-card"><header class="spec-head"><div><div class="spec-eyebrow">Repository documentation</div><div class="spec-title">${esc(meta.title)}</div><div class="spec-meta">${esc(pathValue)}</div></div><span class="spec-version">Loading…</span></header><div class="spec-body"><div class="empty">Loading document…</div></div></section>`;
+  }
+  if(state.error){
+    return `<section class="spec-card"><header class="spec-head"><div><div class="spec-eyebrow">Repository documentation</div><div class="spec-title">${esc(meta.title)}</div><div class="spec-meta">${esc(pathValue)}</div></div><span class="spec-version">Unavailable</span></header><div class="spec-body"><p class="spec-help" style="color:#ff7b72">${esc(state.error)}</p><button type="button" class="spec-btn" onclick="loadDocumentationFile(selectedDocumentationPath,true)">Retry</button></div></section>`;
+  }
+  const draft=String(state.draft==null?state.content:state.draft);
+  const dirty=draft!==String(state.content||'');
+  const updated=state.modified_at?new Date(state.modified_at).toLocaleString():'';
+  const notice=state.notice||{};
+  return `<section class="spec-card"><header class="spec-head"><div><div class="spec-eyebrow">Repository documentation</div><div class="spec-title">${esc(state.title||meta.title)}</div><div class="spec-meta">${esc(pathValue)}${updated?' · Modified '+esc(updated):''}</div></div><span class="spec-version">${fmtDocBytes(state.size)}</span></header>`+
+    `<div class="spec-body"><p class="spec-help">Tracked first-party documentation. Saves update this existing file only; if another tool changes it first, conflict protection requires a reload instead of overwriting newer work.</p>`+
+    `<textarea id="documentationEditor" class="spec-editor" spellcheck="true" aria-label="Documentation editor"${state.saving?' disabled':''}>${esc(draft)}</textarea>`+
+    `<div class="spec-actions"><button type="button" class="spec-btn primary" id="documentationSaveBtn" onclick="saveDocumentation()"${state.saving||!dirty?' disabled':''}>${state.saving?'Saving…':'Save document'}</button>`+
+    `<button type="button" class="spec-btn" id="documentationResetBtn" onclick="resetDocumentationDraft()"${state.saving||!dirty?' disabled':''}>Reset</button>`+
+    `<button type="button" class="spec-btn" onclick="loadDocumentationFile(selectedDocumentationPath,true)"${state.saving?' disabled':''}>Reload</button>`+
+    `<span id="documentationStatus" class="spec-status${notice.type?' '+esc(notice.type):''}">${esc(notice.text||'')}</span></div></div></section>`;
+}
+function renderSpec(d){
+  const root=document.getElementById('spec');
+  if(documentationLibrary.workspace!==WS){
+    documentationLibrary={workspace:WS,documents:[],loading:false,loaded:false,error:null};
+    selectedDocumentationPath=null; documentationSearch=''; documentationFiles.clear();
+  }
+  if(WS&&!documentationLibrary.loaded&&!documentationLibrary.loading) loadDocumentationIndex();
+  root.innerHTML=`<div class="spec-shell"><div class="spec-layout">${documentationNavHtml()}${selectedDocumentationPath?documentationEditorHtml(selectedDocumentationPath):canonicalSpecEditorHtml(d)}</div></div>`;
+  root.querySelectorAll('.spec-doc-link').forEach(button=>button.addEventListener('click',()=>selectDocumentation(button.dataset.documentPath||null)));
+  const search=document.getElementById('specDocSearch');
+  if(search) search.addEventListener('input',()=>{
+    documentationSearch=search.value;
+    renderSpec(lastState);
+    const next=document.getElementById('specDocSearch');
+    if(next){ next.focus(); next.setSelectionRange(next.value.length,next.value.length); }
+  });
+  if(selectedDocumentationPath){
+    const fileState=documentationFiles.get(selectedDocumentationPath);
+    if(!fileState&&!documentationLibrary.loading) loadDocumentationFile(selectedDocumentationPath);
+    const editor=document.getElementById('documentationEditor');
+    if(editor&&fileState) editor.addEventListener('input',()=>{
+      fileState.draft=editor.value; fileState.notice=null;
+      const changed=editor.value!==String(fileState.content||'');
+      const save=document.getElementById('documentationSaveBtn');
+      const reset=document.getElementById('documentationResetBtn');
+      if(save) save.disabled=fileState.saving||!changed;
+      if(reset) reset.disabled=fileState.saving||!changed;
+      const status=document.getElementById('documentationStatus');
+      if(status){ status.textContent=''; status.className='spec-status'; }
+    });
+    return;
+  }
+  const current=currentSpecTask(d);
+  const currentSummary=current?String(current.summary||'').trim():'';
   const editor=document.getElementById('specEditor');
   if(editor) editor.addEventListener('input',()=>{
     specDraftText=editor.value;
     specNotice=null;
     const save=document.getElementById('specSaveBtn');
-    const reset=editor.parentElement.querySelector('.spec-actions .spec-btn:not(.primary)');
+    const reset=document.getElementById('specResetBtn');
     const changed=editor.value.trim()!==currentSummary;
     if(save) save.disabled=specSaving||!changed||!editor.value.trim();
     if(reset) reset.disabled=specSaving||!changed;
     const status=document.getElementById('specStatus');
     if(status){ status.textContent=''; status.className='spec-status'; }
   });
+}
+async function loadDocumentationIndex(force=false){
+  if(!WS) return;
+  const requestedWorkspace=WS;
+  if(documentationLibrary.workspace!==WS) documentationLibrary={workspace:WS,documents:[],loading:false,loaded:false,error:null};
+  if(documentationLibrary.loading||documentationLibrary.loaded&&!force) return;
+  documentationLibrary.loading=true; documentationLibrary.error=null;
+  if(lastState&&currentView==='spec') renderSpec(lastState);
+  try{
+    const response=await dfetch('/documentation');
+    const result=await response.json();
+    if(!response.ok||!result.ok) throw new Error(result.error||`Documentation load failed (${response.status})`);
+    if(WS!==requestedWorkspace||documentationLibrary.workspace!==requestedWorkspace) return;
+    documentationLibrary.documents=Array.isArray(result.documents)?result.documents:[];
+    documentationLibrary.loaded=true;
+    if(selectedDocumentationPath&&!documentationLibrary.documents.some(doc=>doc.path===selectedDocumentationPath)) selectedDocumentationPath=null;
+  }catch(error){
+    if(WS!==requestedWorkspace||documentationLibrary.workspace!==requestedWorkspace) return;
+    documentationLibrary.error=error&&error.message?error.message:'Could not load project documentation.';
+    documentationLibrary.loaded=true;
+  }finally{
+    if(WS===requestedWorkspace&&documentationLibrary.workspace===requestedWorkspace){
+      documentationLibrary.loading=false;
+      if(lastState&&currentView==='spec') renderSpec(lastState);
+    }
+  }
+}
+function selectDocumentation(pathValue){
+  selectedDocumentationPath=pathValue||null;
+  if(selectedDocumentationPath&&!documentationFiles.has(selectedDocumentationPath)) loadDocumentationFile(selectedDocumentationPath);
+  if(lastState) renderSpec(lastState);
+}
+async function loadDocumentationFile(pathValue,force=false){
+  const filePath=String(pathValue||'');
+  if(!filePath) return;
+  const requestedWorkspace=WS;
+  const previous=documentationFiles.get(filePath);
+  if(previous&&previous.loading||previous&&!force&&previous.content!=null) return;
+  documentationFiles.set(filePath,{...(previous||{}),path:filePath,loading:true,error:null,notice:null});
+  if(lastState&&currentView==='spec') renderSpec(lastState);
+  try{
+    const response=await dfetch('/documentation/file?path='+encodeURIComponent(filePath));
+    const result=await response.json();
+    if(!response.ok||!result.ok) throw new Error(result.error||`Document load failed (${response.status})`);
+    if(WS!==requestedWorkspace) return;
+    const document=result.document||{};
+    documentationFiles.set(filePath,{...document,draft:String(document.content||''),loading:false,saving:false,error:null,notice:null});
+  }catch(error){
+    if(WS!==requestedWorkspace) return;
+    documentationFiles.set(filePath,{...(previous||{}),path:filePath,loading:false,saving:false,error:error&&error.message?error.message:'Could not load document.',notice:null});
+  }
+  if(lastState&&currentView==='spec') renderSpec(lastState);
+}
+function resetDocumentationDraft(){
+  const state=documentationFiles.get(selectedDocumentationPath);
+  if(!state) return;
+  state.draft=String(state.content||''); state.notice=null;
+  if(lastState) renderSpec(lastState);
+}
+async function saveDocumentation(){
+  const pathValue=selectedDocumentationPath;
+  const state=documentationFiles.get(pathValue);
+  if(!pathValue||!state||state.saving||state.loading) return;
+  const requestedWorkspace=WS;
+  const content=String(state.draft==null?state.content:state.draft);
+  if(content===String(state.content||'')){ state.notice={type:'',text:'No changes to save.'}; if(lastState) renderSpec(lastState); return; }
+  state.saving=true; state.notice={type:'',text:'Saving document…'};
+  if(lastState) renderSpec(lastState);
+  try{
+    const response=await dfetch('/documentation/file',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:pathValue,content,expected_hash:state.hash})});
+    const result=await response.json();
+    if(!response.ok||!result.ok) throw new Error(result.error||`Save failed (${response.status})`);
+    if(WS!==requestedWorkspace) return;
+    const document=result.document||{};
+    documentationFiles.set(pathValue,{...document,draft:String(document.content||''),loading:false,saving:false,error:null,notice:{type:'ok',text:'Saved to the repository documentation file.'}});
+    documentationLibrary.documents=documentationLibrary.documents.map(item=>item.path===pathValue?{...item,...document,content:undefined}:item);
+  }catch(error){
+    if(WS!==requestedWorkspace) return;
+    state.saving=false;
+    state.notice={type:'err',text:error&&error.message?error.message:'Could not save document.'};
+  }
+  if(lastState) renderSpec(lastState);
 }
 function resetSpecDraft(){
   const current=currentSpecTask(lastState);
