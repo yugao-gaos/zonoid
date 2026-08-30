@@ -94,7 +94,12 @@ async function main() {
   const { workspace, daemon } = args;
 
   if (args.sync) {
-    const sync = await syncRepo({ repo: repoAbs, workspace, daemon }, { async: args.async });
+    const sync = await syncRepo({
+      repo: repoAbs,
+      workspace,
+      daemon,
+      expectedHead: args.expectedHead,
+    }, { async: args.async });
     if (sync.full_onboard_needed) {
       console.log(`[onboard-code] no prior index (${sync.reason}); running a FULL onboard instead.`);
       const full = await fullOnboard({ repoAbs, workspace, daemon, async: args.async, expectedHead: args.expectedHead });
@@ -102,7 +107,7 @@ async function main() {
       else printSummary(full, { workspace, daemon });
       return;
     }
-    const result = { mode: 'sync', repo: repoAbs, ...sync };
+    const result = { mode: 'sync', repo: repoAbs, ...sync, watermark_recorded: true };
     if (args.json) process.stdout.write(`${JSON.stringify(result)}\n`);
     else printSummary(result, { workspace, daemon });
     return;

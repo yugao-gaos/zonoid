@@ -24,9 +24,11 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const http = require('http');
 const ov = require('../lib/overlay');
 const graphStore = require('../lib/graph-store');
 const sync = require('../lib/code-extract/sync');
+const ingest = require('../lib/code-extract/ingest');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
@@ -92,6 +94,33 @@ function makeCtx(overlay, ws, body) {
   ok('isCodeFile true for .py', sync.isCodeFile('app/y.py') === true);
   ok('isCodeFile false for .md', sync.isCodeFile('README.md') === false);
   ok('isCodeFile false for .json', sync.isCodeFile('pkg.json') === false);
+
+  // Automatic sync runs as a daemon child, so its loopback writes must authenticate when the daemon
+  // has a runtime token (the same contract used by MCP and the other headless drains).
+  {
+    const savedToken = process.env.ORCH_TOKEN;
+    process.env.ORCH_TOKEN = 'sync-test-token';
+    const receivedTokens = [];
+    const server = http.createServer((req, res) => {
+      receivedTokens.push({ path: req.url, token: req.headers['x-orch-token'] || null });
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{"ok":true}');
+    });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const daemonUrl = `http://127.0.0.1:${server.address().port}`;
+      await sync.requestJSON(daemonUrl, 'GET', '/config', null);
+      await ingest.postJSON(`${daemonUrl}/overlay/code-nodes/bulk`, { nodes: [{}], workspace: '/ws' });
+      ok('incremental daemon requests carry the configured auth token',
+        receivedTokens.some((entry) => entry.path === '/config' && entry.token === 'sync-test-token'));
+      ok('full bulk-ingest requests carry the configured auth token',
+        receivedTokens.some((entry) => entry.path === '/overlay/code-nodes/bulk' && entry.token === 'sync-test-token'));
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+      if (savedToken === undefined) delete process.env.ORCH_TOKEN;
+      else process.env.ORCH_TOKEN = savedToken;
+    }
+  }
 
   // ================================================================================================
   // syncRepo — injected git + injected daemon client (no HTTP, no real git)
@@ -184,6 +213,32 @@ function makeCtx(overlay, ws, body) {
     );
     ok('syncRepo no-ops when HEAD === lastCommit', res.up_to_date === true && res.changed_files.length === 0);
     ok('syncRepo does NOT diff when already up to date', diffed === false);
+  }
+
+  // ---- syncRepo: a moving HEAD never advances a stale watermark -----------------------------------
+  {
+    let headReads = 0;
+    let watermarkSet = false;
+    let threw = false;
+    try {
+      await sync.syncRepo(
+        { repo: '/fake/repo-moving', workspace: '/ws', lastCommit: 'OLD', expectedHead: 'EXPECTED' },
+        { git: async (_r, args) => {
+            if (args[0] === 'rev-parse') return ++headReads === 1 ? 'EXPECTED' : 'MOVED';
+            if (args[0] === 'diff') return 'M\tchanged.js';
+            return '';
+          },
+          daemon: {
+            replaceFile: async () => ({ created: 1 }), deleteFile: async () => ({ deleted: 0 }),
+            setLastIndexedCommit: async () => { watermarkSet = true; },
+          },
+          readFile: () => 'export function changed(){ return true; }\n' }
+      );
+    } catch (err) {
+      threw = /HEAD changed during incremental indexing/.test(String(err && err.message));
+    }
+    ok('syncRepo rejects when HEAD moves during extraction', threw);
+    ok('syncRepo does not advance a stale watermark', watermarkSet === false);
   }
 
   // ---- syncRepo: rename deletes old path + replaces new path -------------------------------------

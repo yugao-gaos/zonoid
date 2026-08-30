@@ -143,6 +143,93 @@ test('a watermark committed before parent exit repairs stale running status on r
   }
 });
 
+test('a changed canonical HEAD schedules one serialized incremental sync and persists counts', () => {
+  const fixture = completedRepo();
+  try {
+    const overlay = overlayStore.load(fixture.repo);
+    overlayStore.setLastIndexedCommit(overlay, fixture.repo, fixture.head);
+    overlayStore.save(fixture.repo, overlay);
+    fs.writeFileSync(path.join(fixture.repo, 'index.js'), 'exports.ready = false;\n');
+    git(fixture.repo, ['add', 'index.js']);
+    git(fixture.repo, ['commit', '-m', 'change']);
+    const nextHead = git(fixture.repo, ['rev-parse', 'HEAD']);
+
+    const job = lifecycle.findDueIncrementalIndexJobs({ registeredWorkspaces: [fixture.repo] })[0];
+    assert.equal(job.from, fixture.head);
+    assert.equal(job.head, nextHead);
+    const owner = 'sync-owner';
+    assert.equal(lifecycle.claimIncrementalIndex(job, {
+      owner, timeoutMs: 60_000, pid: process.pid,
+    }).applied, true);
+    assert.equal(lifecycle.findDueIncrementalIndexJobs({ registeredWorkspaces: [fixture.repo] }).length, 0,
+      'the shared live lease coalesces repeated maintenance ticks');
+
+    lifecycle.completeIncrementalIndex(job, owner, {
+      from: fixture.head, head: nextHead, changed_files: ['index.js'], upserted: 2,
+      files_replaced: 1, edges_replaced: 1,
+    });
+    const status = JSON.parse(fs.readFileSync(path.join(fixture.outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.codeIndexState, 'succeeded');
+    assert.equal(status.codeIndexMode, 'sync');
+    assert.equal(status.codeIndexFrom, fixture.head);
+    assert.equal(status.codeIndexHead, nextHead);
+    assert.deepEqual(status.codeIndexCounts, {
+      changed_files: 1, upserted: 2, deleted: 0, files_replaced: 1,
+      files_deleted: 0, edges_replaced: 1, edges_deleted: 0,
+    });
+  } finally {
+    fs.rmSync(fixture.repo, { recursive: true, force: true });
+  }
+});
+
+test('incremental failure backs off for the same HEAD but a newer HEAD is immediately eligible', () => {
+  const fixture = completedRepo();
+  try {
+    const overlay = overlayStore.load(fixture.repo);
+    overlayStore.setLastIndexedCommit(overlay, fixture.repo, fixture.head);
+    overlayStore.save(fixture.repo, overlay);
+    fs.writeFileSync(path.join(fixture.repo, 'index.js'), 'exports.ready = 2;\n');
+    git(fixture.repo, ['add', 'index.js']);
+    git(fixture.repo, ['commit', '-m', 'change one']);
+    const firstHead = git(fixture.repo, ['rev-parse', 'HEAD']);
+    const job = lifecycle.findDueIncrementalIndexJobs({ registeredWorkspaces: [fixture.repo] })[0];
+    lifecycle.claimIncrementalIndex(job, {
+      owner: 'failed-sync', timeoutMs: 60_000, now: 10_000, pid: process.pid,
+    });
+    lifecycle.failIncrementalIndex(job, 'failed-sync', 'daemon unavailable', 20_000);
+    const failed = JSON.parse(fs.readFileSync(path.join(fixture.outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(lifecycle.findDueIncrementalIndexJobs({ registeredWorkspaces: [fixture.repo] }, {
+      now: failed.codeIndexRetryAt - 1,
+    }).length, 0);
+
+    fs.writeFileSync(path.join(fixture.repo, 'index.js'), 'exports.ready = 3;\n');
+    git(fixture.repo, ['add', 'index.js']);
+    git(fixture.repo, ['commit', '-m', 'change two']);
+    const newer = lifecycle.findDueIncrementalIndexJobs({ registeredWorkspaces: [fixture.repo] }, {
+      now: failed.codeIndexRetryAt - 1,
+    });
+    assert.equal(newer.length, 1);
+    assert.equal(newer[0].from, fixture.head);
+    assert.notEqual(newer[0].head, firstHead);
+  } finally {
+    fs.rmSync(fixture.repo, { recursive: true, force: true });
+  }
+});
+
+test('linked attempt worktrees resolve to the canonical checkout instead of a second index identity', () => {
+  const fixture = completedRepo();
+  const worktree = fs.mkdtempSync(path.join(os.tmpdir(), 'code-index-linked-'));
+  fs.rmSync(worktree, { recursive: true, force: true });
+  try {
+    git(fixture.repo, ['worktree', 'add', '--detach', worktree, fixture.head]);
+    assert.deepEqual(lifecycle.registeredRepos({ registeredWorkspaces: [worktree] }), [fs.realpathSync(fixture.repo)]);
+  } finally {
+    try { git(fixture.repo, ['worktree', 'remove', '--force', worktree]); } catch { /* cleanup below */ }
+    fs.rmSync(worktree, { recursive: true, force: true });
+    fs.rmSync(fixture.repo, { recursive: true, force: true });
+  }
+});
+
 test('headless maintenance pump invokes the existing multi-language onboarder', async () => {
   const originalSpawn = childProcess.spawn;
   const originalLease = process.env.HEADLESS_DRAIN_LEASE_FILE;
@@ -196,6 +283,69 @@ test('headless maintenance pump invokes the existing multi-language onboarder', 
       mode: 'full', head: 'abc123', watermark_recorded: true,
       symbols: 4, created: 4, edges: 2, edges_added: 2, batches: 1,
     });
+    assert.equal(headless._governor.concurrentRunning, 0);
+  } finally {
+    childProcess.spawn = originalSpawn;
+    if (originalLease === undefined) delete process.env.HEADLESS_DRAIN_LEASE_FILE;
+    else process.env.HEADLESS_DRAIN_LEASE_FILE = originalLease;
+    fs.rmSync(leaseDir, { recursive: true, force: true });
+    delete require.cache[require.resolve('../lib/headless-drain')];
+  }
+});
+
+test('headless maintenance pump automatically invokes incremental sync after HEAD changes', async () => {
+  const originalSpawn = childProcess.spawn;
+  const originalLease = process.env.HEADLESS_DRAIN_LEASE_FILE;
+  const leaseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'code-sync-lease-'));
+  process.env.HEADLESS_DRAIN_LEASE_FILE = path.join(leaseDir, 'leases.json');
+  const calls = [];
+  childProcess.spawn = (bin, args, opts) => {
+    calls.push({ bin, args, opts });
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter(); child.stdout.setEncoding = () => {};
+    child.stderr = new EventEmitter(); child.stderr.setEncoding = () => {};
+    child.kill = () => { child.emit('close', null); return true; };
+    setImmediate(() => {
+      child.stdout.emit('data', JSON.stringify({
+        mode: 'sync', from: 'old', head: 'new', watermark_recorded: true,
+        changed_files: ['index.js'], upserted: 2, deleted: 0,
+        files_replaced: 1, files_deleted: 0, edges_replaced: 1, edges_deleted: 0,
+      }) + '\n');
+      child.emit('close', 0);
+    });
+    return child;
+  };
+  delete require.cache[require.resolve('../lib/headless-drain')];
+  const headless = require('../lib/headless-drain');
+  const completed = [];
+  const fakeLifecycle = {
+    findDueFullIndexJobs: () => [],
+    findDueIncrementalIndexJobs: () => [{
+      repo: os.tmpdir(), workspace: os.tmpdir(), outDir: os.tmpdir(), from: 'old', head: 'new', status: {},
+    }],
+    claimIncrementalIndex: () => ({ applied: true }),
+    buildIncrementalIndexArgs: lifecycle.buildIncrementalIndexArgs,
+    parseSyncResult: lifecycle.parseSyncResult,
+    completeIncrementalIndex: (_job, _owner, result) => { completed.push(result); return { applied: true }; },
+    failIncrementalIndex: () => { throw new Error('unexpected failure'); },
+  };
+  try {
+    const result = await headless.runDueDrains({ workspace: os.tmpdir() }, null, {
+      codeIndexDeps: { lifecycle: fakeLifecycle, daemonUrl: 'http://127.0.0.1:9876' },
+      judgeDeps: {
+        overlayLoad: () => ({}),
+        judgeLib: { judgeQueueDepth: () => 0, buildQueue: () => [], eagerJudgeNodes: () => [] },
+      },
+      labelDeps: {
+        rowKey: () => '', journalPath: () => '/none', labeledPath: () => '/none', readJsonl: () => [],
+      },
+    });
+    assert.equal(result.drains.some((entry) => entry.mode === 'sync'), true);
+    assert.equal(calls.length, 1);
+    assert.ok(calls[0].args.includes('--sync'));
+    assert.ok(calls[0].args.includes('--async'));
+    assert.equal(calls[0].args[calls[0].args.indexOf('--expected-head') + 1], 'new');
+    assert.equal(completed[0].watermark_recorded, true);
     assert.equal(headless._governor.concurrentRunning, 0);
   } finally {
     childProcess.spawn = originalSpawn;
