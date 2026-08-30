@@ -1085,15 +1085,98 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     return true;
   }
 
-    if (p === '/overlay/claim-session' && m === 'POST') {
+  if (p === '/overlay/claim-session' && m === 'POST') {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
-    if (!b.task_key || !b.session_id) { send(res, 400, { ok: false, error: 'task_key and session_id required' }); return true; }
+    if (!b.task_key || !b.session_id || !b.agent_id) {
+      send(res, 400, { ok: false, error: 'task_key, session_id, and agent_id required' }); return true;
+    }
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
-    if (!T.ov.claimSessions) T.ov.claimSessions = {};
-    T.ov.claimSessions[b.task_key] = b.session_id;
-    T.save();
-    send(res, 200, { ok: true }); return true;
+    const taskKey = String(b.task_key);
+    const sessionId = String(b.session_id);
+    const agentId = String(b.agent_id);
+    const currentStatus = T.ov.status && T.ov.status[taskKey];
+    const owner = T.ov.assignee && T.ov.assignee[taskKey];
+    const previousSessionId = T.ov.claimSessions && T.ov.claimSessions[taskKey];
+    const gitInfo = T.ov.git && T.ov.git[taskKey];
+    if (currentStatus !== 'in_progress' || !previousSessionId) {
+      send(res, 409, { ok: false, error: 'claim-session binding requires an active claimed task' }); return true;
+    }
+    if (!owner || owner !== agentId) {
+      send(res, 409, {
+        ok: false,
+        error: 'claim-session agent_id does not match the active assignee',
+        expected: owner || null,
+        actual: agentId,
+      });
+      return true;
+    }
+    if (!gitInfo || !gitInfo.worktree || !gitInfo.branch) {
+      send(res, 409, { ok: false, error: 'claim-session binding requires a prepared branch and worktree' }); return true;
+    }
+
+    // PostToolUse may learn the real worker thread only after assignment accept used an MCP
+    // fallback session. Authorize the real identity, persist its alias, then revoke the fallback
+    // permit before returning. This handler does not yield between those operations, so readers
+    // observe either the old binding or the complete new binding+permit pair.
+    const permitStore = ctx.subconscious || defaultSubconsciousStore;
+    const executionPermit = ensureExecutionPermitForClaim(permitStore, {
+      workspace: T.ws,
+      sessionId,
+      agentId,
+      taskKey,
+      worktree: gitInfo.worktree,
+      branch: gitInfo.branch,
+    });
+    if (!executionPermit) {
+      send(res, 409, { ok: false, error: 'failed to issue execution permit for the rebound claim session' }); return true;
+    }
+
+    const revokePermit = (targetSessionId, reason) => permitStore.executionPermit({
+      action: 'revoke',
+      workspace: T.ws,
+      session_id: targetSessionId,
+      agent_id: agentId,
+      task_key: taskKey,
+      reason,
+    });
+    T.ov.claimSessions[taskKey] = sessionId;
+    try {
+      T.save();
+    } catch {
+      T.ov.claimSessions[taskKey] = previousSessionId;
+      if (previousSessionId !== sessionId) {
+        revokePermit(sessionId, 'claim session rebind rolled back after binding persistence failed');
+      }
+      send(res, 500, { ok: false, error: 'failed to persist the rebound claim session' }); return true;
+    }
+
+    if (previousSessionId !== sessionId) {
+      const revoked = revokePermit(previousSessionId, 'claim session rebound to the real worker session');
+      if (!revoked || (!revoked.ok && revoked.status !== 404)) {
+        T.ov.claimSessions[taskKey] = previousSessionId;
+        let rollbackPersisted = true;
+        try { T.save(); } catch { rollbackPersisted = false; }
+        revokePermit(sessionId, 'claim session rebind rolled back after fallback permit revoke failed');
+        send(res, 409, {
+          ok: false,
+          error: 'failed to revoke the previous claim-session permit',
+          rollback_persisted: rollbackPersisted,
+        });
+        return true;
+      }
+    }
+
+    notifyChange(T.ws);
+    send(res, 200, {
+      ok: true,
+      task_key: taskKey,
+      session_id: sessionId,
+      previous_session_id: previousSessionId,
+      rebound: previousSessionId !== sessionId,
+      execution_permit: executionPermit,
+    });
+    return true;
   }
 
   if (p === '/overlay/knowledge' && m === 'POST') {
