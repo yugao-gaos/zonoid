@@ -3381,12 +3381,26 @@ if (require.main === module) {
 
   const maintenanceDrainExecutor = {
     _governor: headlessDrain._governor,
-    runDueDrains: (currentState) => headlessDrain.runDueDrains(currentState, undefined, {
-      // Native tasks may carry a completed review lifecycle while readiness is temporarily masked
-      // by context judging. Give review discovery the canonical graph so it can distinguish that
-      // valid attempt from terminal/blocked lifecycle debris.
-      reviewVerdictDeps: { buildGraph },
-    }),
+    runDueDrains: (currentState) => {
+      const workspace = (currentState && currentState.workspace) || __dirname;
+      const overlay = overlayFor(workspace);
+      const overlaySave = (ws, value) => {
+        overlayStore.save(ws, value);
+        refreshOverlayStamp(ws, value);
+      };
+      return headlessDrain.runDueDrains(currentState, undefined, {
+        // The daemon's per-workspace cache is authoritative and mtime-coherent with out-of-process
+        // writers. Reuse it across judge/review/code lifecycle discovery; saves re-stamp that same
+        // cache entry so the next pump does not replay a 500MB graph it just wrote itself.
+        overlay,
+        overlayLoad: overlayFor,
+        overlaySave,
+        // Native tasks may carry a completed review lifecycle while readiness is temporarily masked
+        // by context judging. Give review discovery the canonical graph so it can distinguish that
+        // valid attempt from terminal/blocked lifecycle debris.
+        reviewVerdictDeps: { buildGraph },
+      });
+    },
   };
   const headlessDrainRunner = createHeadlessDrainRunner({
     headlessDrain: maintenanceDrainExecutor,

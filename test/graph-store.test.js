@@ -634,6 +634,60 @@ function tmpDir() {
   ok('fileToId normalizes windows separators', gs.fileToId('followup\\harness-judge-drain.jsonl') === 'followup/harness-judge-drain');
 }
 
+// ── code-node replacement replay skips superseded vector payloads ────────────
+{
+  const dir = tmpDir();
+  const store = gs.open(dir);
+  const id = 'code:src/replay.js#run';
+  const event = (name, marker) => ({
+    evt: 'code_node_upserted', actor: 'test', id, key: id, kind: 'code_node',
+    symbol_kind: 'function', name, file: 'src/replay.js', vec: Array(128).fill(marker),
+  });
+
+  for (let i = 0; i < 100; i++) gs.appendEvent(store, id, event(`old-${i}`, i));
+  gs.appendEvent(store, id, { evt: 'code_node_removed', actor: 'test', id });
+  gs.appendEvent(store, id, event('latest', 999));
+  const file = path.join(store.nodesDir, gs.idToFile(id));
+  fs.appendFileSync(file, '{"evt":\n'); // crash-truncated trailing event
+
+  const originalParse = JSON.parse;
+  let parseCalls = 0;
+  let graph;
+  try {
+    JSON.parse = (...args) => { parseCalls++; return originalParse(...args); };
+    graph = gs.loadGraph(store);
+  } finally {
+    JSON.parse = originalParse;
+  }
+  ok('code replay: remove then re-upsert resolves to latest symbol', graph.nodes[id].label === 'latest');
+  ok('code replay: latest vector survives replacement collapse', graph.nodes[id].vec[0] === 999);
+  ok('code replay: malformed tail is skipped without parsing superseded history', parseCalls === 2);
+
+  gs.appendEvent(store, id, { evt: 'code_node_removed', actor: 'test', id });
+  fs.appendFileSync(file, '{"evt":\n');
+  const removed = gs.loadGraph(store);
+  ok('code replay: final removal wins despite malformed trailing line', !removed.nodes[id]);
+
+  fs.rmSync(dir, { recursive: true });
+}
+
+// ── setPrevState keeps a shallow identity snapshot for large code indexes ────
+{
+  const dir = tmpDir();
+  const ws = path.join(dir, 'identity-snapshot');
+  const codeNodes = {};
+  for (let i = 0; i < 2000; i++) {
+    const id = `code:src/file-${i}.js#symbol`;
+    codeNodes[id] = { id, key: id, kind: 'function', vec: Array(128).fill(i) };
+  }
+  gs.setPrevState(ws, { code_nodes: codeNodes });
+  const snapshot = gs.getPrevState(ws).code_nodes;
+  const first = Object.keys(codeNodes)[0];
+  ok('setPrevState: code-node map is snapshotted', snapshot !== codeNodes);
+  ok('setPrevState: large code-node payload keeps object identity', snapshot[first] === codeNodes[first]);
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
