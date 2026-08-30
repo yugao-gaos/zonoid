@@ -143,6 +143,54 @@ test('a watermark committed before parent exit repairs stale running status on r
   }
 });
 
+test('a succeeded full index restores a lost watermark and does not rerun at the same HEAD', () => {
+  const fixture = completedRepo();
+  try {
+    const statusFile = path.join(fixture.outDir, 'onboard-drain-status.json');
+    const status = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+    fs.writeFileSync(statusFile, JSON.stringify({
+      ...status,
+      codeIndexState: 'succeeded',
+      codeIndexMode: 'full',
+      codeIndexHead: fixture.head,
+      codeIndexCounts: { symbols: 7, edges: 3 },
+    }));
+
+    assert.equal(lifecycle.findDueFullIndexJobs({ registeredWorkspaces: [fixture.repo] }).length, 0);
+    const restored = overlayStore.load(fixture.repo);
+    assert.equal(overlayStore.getLastIndexedCommit(restored, fixture.repo), fixture.head,
+      'the succeeded full-index status is a durable recovery source');
+  } finally {
+    fs.rmSync(fixture.repo, { recursive: true, force: true });
+  }
+});
+
+test('a newer HEAD incrementally syncs from a watermark recovered from full-index status', () => {
+  const fixture = completedRepo();
+  try {
+    const statusFile = path.join(fixture.outDir, 'onboard-drain-status.json');
+    const status = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+    fs.writeFileSync(statusFile, JSON.stringify({
+      ...status,
+      codeIndexState: 'succeeded',
+      codeIndexMode: 'full',
+      codeIndexHead: fixture.head,
+    }));
+    fs.writeFileSync(path.join(fixture.repo, 'index.js'), 'exports.ready = false;\n');
+    git(fixture.repo, ['add', 'index.js']);
+    git(fixture.repo, ['commit', '-m', 'change after full index']);
+    const nextHead = git(fixture.repo, ['rev-parse', 'HEAD']);
+
+    assert.equal(lifecycle.findDueFullIndexJobs({ registeredWorkspaces: [fixture.repo] }).length, 0);
+    const jobs = lifecycle.findDueIncrementalIndexJobs({ registeredWorkspaces: [fixture.repo] });
+    assert.equal(jobs.length, 1);
+    assert.equal(jobs[0].from, fixture.head);
+    assert.equal(jobs[0].head, nextHead);
+  } finally {
+    fs.rmSync(fixture.repo, { recursive: true, force: true });
+  }
+});
+
 test('a changed canonical HEAD schedules one serialized incremental sync and persists counts', () => {
   const fixture = completedRepo();
   try {
