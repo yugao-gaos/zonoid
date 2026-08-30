@@ -31,6 +31,67 @@ assert.ok(html.includes("v==='cloud'||v==='frontier'||v==='kanban'||v==='archite
 assert.ok(html.includes("document.getElementById('architecture').classList.toggle('show', v==='architecture')"));
 assert.ok(html.includes("else if(currentView==='architecture') renderArchitecture(d)"));
 
+const fingerprintSource = html.slice(
+  html.indexOf('function architectureFingerprint'),
+  html.indexOf('function statusLabel'),
+);
+const fingerprintContext = {};
+vm.runInNewContext(`${fingerprintSource};this.stateFingerprint=stateFingerprint;`, fingerprintContext);
+const fingerprintProjection = {
+  version: 1,
+  status: 'ready',
+  summary: { visible_files: 1 },
+  omitted: { files: 0 },
+  files: [{
+    id: 'file:src/api.js',
+    path: 'src/api.js',
+    module: 'src',
+    symbol_count: 1,
+    exported_count: 1,
+    incoming_count: 0,
+    outgoing_count: 1,
+    internal_count: 0,
+    omitted_symbols: 0,
+    symbols: [{
+      id: 'code:src/api.js#loadUsers',
+      name: 'loadUsers',
+      kind: 'function',
+      signature: 'loadUsers()',
+      summary: 'Loads users',
+      exported: true,
+      start_line: 8,
+      end_line: 10,
+    }],
+  }],
+  relations: [{
+    id: 'relation:src/api.js:calls:lib/db.js',
+    from: 'file:src/api.js',
+    to: 'file:lib/db.js',
+    kind: 'calls',
+    count: 1,
+    ambiguous_count: 0,
+  }],
+};
+const baseFingerprint = fingerprintContext.stateFingerprint({ architecture: fingerprintProjection });
+assert.equal(
+  fingerprintContext.stateFingerprint({ architecture: JSON.parse(JSON.stringify(fingerprintProjection)) }),
+  baseFingerprint,
+  'the Architecture fingerprint is deterministic for identical bounded projections',
+);
+for (const [label, mutate] of [
+  ['symbol rename', projection => { projection.files[0].symbols[0].name = 'loadAccounts'; }],
+  ['signature change', projection => { projection.files[0].symbols[0].signature = 'loadUsers(limit)'; }],
+  ['summary change', projection => { projection.files[0].symbols[0].summary = 'Loads active users'; }],
+  ['export change', projection => { projection.files[0].symbols[0].exported = false; }],
+  ['line change', projection => { projection.files[0].symbols[0].start_line = 9; }],
+  ['relation detail change', projection => { projection.relations[0].ambiguous_count = 1; }],
+]) {
+  const changed = JSON.parse(JSON.stringify(fingerprintProjection));
+  mutate(changed);
+  assert.notEqual(fingerprintContext.stateFingerprint({ architecture: changed }), baseFingerprint,
+    `${label} invalidates the Architecture render fingerprint without changing counts`);
+}
+
 const helperSource = html.slice(
   html.indexOf('function architectureFileMatches'),
   html.indexOf('function architectureCard'),
