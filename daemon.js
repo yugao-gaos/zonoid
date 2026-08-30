@@ -104,33 +104,42 @@ function authed(req, u) {
 const cache = { agg: new Map(), aggAt: new Map(), usage: new Map(), usageStamp: new Map() };
 const AGG_TTL = 1500;
 
-// Response cache for expensive read endpoints: dashboards + heartbeats
-// poll both, and every call rebuilds the whole graph (buildGraph) / recomputes SCC+flow. A short
-// The default short TTL bounds state staleness; analytics callers may pass a longer bounded TTL.
-// EVERY overlay mutation invalidates immediately — notifyChange()
-// is the choke point all mutation routes already call — so status/claim flows never read stale
-// state. The harness task watch below covers native task-file writes that bypass the daemon.
+// Response cache for expensive read endpoints: dashboards + heartbeats poll both, and every call
+// rebuilds the whole graph (buildGraph) / recomputes SCC+flow. The default short TTL bounds state
+// staleness. Ordinary entries invalidate immediately through
+// notifyChange and the source watches below, so status/claim flows never read stale state. A route
+// may explicitly opt an expensive response into bounded-stale caching; those entries survive broad
+// graph churn and rely on their caller-supplied safety TTL instead.
 // buildGraph carries side effects (timestamp stamping, unwired-quarantine stamp, autowire of
 // newly-seen tasks); caching delays those by at most RESP_TTL, which is acceptable.
 // Dependency-free: a Map of { key -> { ts, payload } }, keyed per workspace + query params.
-// A hit additionally requires the workspace's overlay FILE mtime to be unchanged, so overlay
-// writes from OTHER processes (scripts/tests calling overlayStore.save directly — invisible to
-// notifyChange) also invalidate immediately. One stat per request: trivial next to a rebuild.
+// An ordinary hit additionally requires the workspace's overlay FILE mtime to be unchanged, so
+// writes from OTHER processes (invisible to notifyChange) invalidate immediately. Bounded-stale
+// entries deliberately skip that check until their safety TTL. One stat per ordinary request is
+// trivial next to a rebuild.
 const RESP_TTL = 3000;
 const respCache = new Map();
 function overlayStamp(ws) {
   try { return fs.statSync(overlayStore.fileFor(ws)).mtimeMs; } catch { return 0; }
 }
-function respCacheGet(ws, key, maxAgeMs = RESP_TTL) {
+function respCacheGet(ws, key, maxAgeMs = RESP_TTL, options = {}) {
   const hit = respCache.get(key);
   const ttl = Number.isFinite(Number(maxAgeMs)) ? Math.max(0, Number(maxAgeMs)) : RESP_TTL;
-  return (hit && Date.now() - hit.ts < ttl && hit.stamp === overlayStamp(ws)) ? hit.payload : undefined;
+  const boundedStale = !!(options && options.boundedStale === true && hit && hit.boundedStale === true);
+  return (hit && Date.now() - hit.ts < ttl && (boundedStale || hit.stamp === overlayStamp(ws)))
+    ? hit.payload
+    : undefined;
 }
-function respCachePut(ws, key, payload) {
+function respCachePut(ws, key, payload, options = {}) {
   // Stamp AFTER the build: buildGraph itself may have saved the overlay (timestamp stamping,
   // autowire) and the payload already reflects that state — stamping post-build lets it hit.
-  respCache.set(key, { ts: Date.now(), payload, stamp: overlayStamp(ws) });
+  respCache.set(key, { ts: Date.now(), payload, stamp: overlayStamp(ws), boundedStale: !!(options && options.boundedStale === true) });
   return payload;
+}
+function invalidateRespCache() {
+  for (const [key, hit] of respCache) {
+    if (!hit.boundedStale) respCache.delete(key);
+  }
 }
 
 // --- per-workspace overlay cache (P3: the ONLY overlay store — no global default) ------------
@@ -313,9 +322,9 @@ function usageCached(p) {
   }
   return v;
 }
-claudeHarness.tasks.watch(() => { cache.agg.clear(); cache.aggAt.clear(); snapCache.clear(); respCache.clear(); }); // Claude native task dir
+claudeHarness.tasks.watch(() => { cache.agg.clear(); cache.aggAt.clear(); snapCache.clear(); invalidateRespCache(); }); // Claude native task dir
 // filedrop.watch below covers designated-folder stubs
-filedrop.watch(() => { cache.agg.clear(); cache.aggAt.clear(); snapCache.clear(); respCache.clear(); }); // designated-folder stub drops surface without /sync
+filedrop.watch(() => { cache.agg.clear(); cache.aggAt.clear(); snapCache.clear(); invalidateRespCache(); }); // designated-folder stub drops surface without /sync
 
 const ACTION_STATUSES = ['in_progress', 'tested', 'done', 'failed', 'canceled'];
 const ALL_STATUSES = ['not_ready', 'ready', ...ACTION_STATUSES];
@@ -444,7 +453,7 @@ const graphAutoflush = createGraphAutoflush();
 // refetches that don't affect their selected workspace. Bare call (no ws) emits the legacy
 // `data: changed\n\n` payload and always triggers a refetch on all clients (back-compat).
 function notifyChange(ws) {
-  respCache.clear();
+  invalidateRespCache();
   const payload = ws ? `data: changed:${ws}\n\n` : 'data: changed\n\n';
   for (const r of sseClients) { try { r.write(payload); } catch { sseClients.delete(r); } }
   const graphRepo = ws && typeof ws === 'object' ? (ws.graph_repo || ws.workspace) : ws;
@@ -608,7 +617,7 @@ function saveAgents() {
   // Agent counts and local_in_progress live in buildGraph's cached summary even though the agent
   // registry is stored outside the workspace overlay. Any agent transition must therefore bust
   // graph/response caches or /state can pair a current agents[] array with stale summary counts.
-  try { snapCache.clear(); respCache.clear(); } catch { /* caches may not be initialized during boot */ }
+  try { snapCache.clear(); invalidateRespCache(); } catch { /* caches may not be initialized during boot */ }
 }
 
 // touchAgent: register or heartbeat-stamp an agent in the global registry. Idempotent with
@@ -3189,7 +3198,7 @@ function isPrimaryCheckout(root) {
 module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleSnapshotClaimKeys, releaseSnapshotClaim, staleNativeClaimKeys, releaseNativeClaim, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings, worktreeVouchesLive, depSatisfied, vouchedLive, STALE_MINUTES_DEFAULT,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, graphAutoflush, RESP_TTL, sseClients, nodeExistsInGraph, dispatchInProgressCount,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
-  decideOne, decideAll, ensureManagedGraphLoops, buildGraph, effectiveTaskStatuses, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __readinessDetailForTest: readinessDetail, __compareLoopPriorityForTest: compareLoopPriority, __createHeadlessSpawnExecutorForTest: createDaemonHeadlessSpawnExecutor, __usageCachedForTest: usageCached, __clearUsageCacheForTest: () => { cache.usage.clear(); cache.usageStamp.clear(); }, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
+  decideOne, decideAll, ensureManagedGraphLoops, buildGraph, effectiveTaskStatuses, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __readinessDetailForTest: readinessDetail, __compareLoopPriorityForTest: compareLoopPriority, __createHeadlessSpawnExecutorForTest: createDaemonHeadlessSpawnExecutor, __usageCachedForTest: usageCached, __clearUsageCacheForTest: () => { cache.usage.clear(); cache.usageStamp.clear(); }, __invalidateRespCacheForTest: invalidateRespCache, __clearRespCacheForTest: () => respCache.clear(), __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
 
 if (require.main === module) {
   // Log unhandled promise rejections instead of crashing (Node's default is to exit the process).
@@ -3519,7 +3528,7 @@ if (require.main === module) {
         nativeTaskSigs.set(ws, sig);
         if (prev === undefined || prev === sig) continue;
         invalidateAggregate(ws);
-        respCache.clear();
+        invalidateRespCache();
         buildGraph(ws);
       }
     } catch { /* best effort */ }
