@@ -20,7 +20,15 @@ const ok = (label, cond) => {
 };
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) <= eps;
 
-const { claimedOutputForSession } = analyticsRoute._internal;
+const { claimedOutputForSession, harnessNameForWorkspace } = analyticsRoute._internal;
+
+ok('mixed usage history does not become the active viewer/adapter harness',
+  harnessNameForWorkspace(
+    { sessions: {} },
+    { usage_reconcile_snapshot: { harness: 'mixed', harnesses: ['claude', 'codex'] } },
+    '/tmp/workspace',
+    'codex',
+  ) === 'codex');
 
 {
   const claims = [
@@ -360,6 +368,52 @@ async function runAsyncTests() {
     ok('/costflow cause ledger classifies worker/review/daemon usage', near(byCause.worker.usd, 1) && near(byCause.review.usd, 2) && near(byCause.daemon.usd, 0.5));
     ok('/costflow cause ledger keeps unknown plus merged-basis remainder unknown', near(byCause.unknown.usd, 5.4) && byCause.unknown.tokens === 53);
     ok('/costflow cause USD total equals /costflow.cost.usd within cents', near(causeRes.body.cost_by_cause.total.usd, causeRes.body.cost.usd, 0.01));
+
+    const mixedOv = {
+      assignee: {},
+      timestamps: {},
+      work_sessions: {},
+      usage_records: {},
+      usage_reconcile_snapshot: {
+        harness: 'mixed',
+        harnesses: ['claude', 'codex'],
+        totals: {
+          input_tokens: 5,
+          output_tokens: 7,
+          cache_read_input_tokens: 3,
+          cache_creation_input_tokens: 2,
+          by_model: {
+            'gpt-5.6-sol': { input_tokens: 4, output_tokens: 5, cache_read_input_tokens: 3, cache_creation_input_tokens: 2 },
+            'claude-sonnet-5': { input_tokens: 1, output_tokens: 2, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+          },
+        },
+        cost: {
+          usd: 1.5,
+          source: 'real',
+          kind: 'estimate',
+          estimated: true,
+          caveat: 'Published list-rate estimate, not billed cost; long-context adjustments may apply.',
+          by_model: {
+            'gpt-5.6-sol': { tokens: 14, usd: 1.2 },
+            'claude-sonnet-5': { tokens: 3, usd: 0.3 },
+          },
+        },
+        human: { tokens: 0, chars: 0, messages: 0, dropped: 0 },
+        sessions: [],
+      },
+      edges: [],
+      guidance: [],
+      snapshots: {},
+    };
+    const mixedRes = {};
+    const mixedRoute = makeCostflowRoute([], mixedOv, routeWorkspace);
+    await mixedRoute('/costflow', 'GET', {}, mixedRes, new URL(`http://127.0.0.1/costflow?workspace=${encodeURIComponent(routeWorkspace)}&since=mixed`), null);
+    ok('/costflow aggregates mixed-provider model rows and estimate dollars',
+      mixedRes.body.cost.usd === 1.5 && mixedRes.body.by_model['gpt-5.6-sol'].output_tokens === 5 && mixedRes.body.by_model['claude-sonnet-5'].output_tokens === 2);
+    ok('/costflow preserves cache writes in gross billable totals',
+      mixedRes.body.gross_totals.cache_creation === 2 && mixedRes.body.usage_totals.cache_creation === 2 && mixedRes.body.gross_totals.input_tokens + mixedRes.body.gross_totals.output_tokens + mixedRes.body.gross_totals.cache_read + mixedRes.body.gross_totals.cache_creation === 17);
+    ok('/costflow labels local dollars as estimates with caveat',
+      mixedRes.body.cost.estimated === true && mixedRes.body.cost.kind === 'estimate' && /not billed cost/i.test(mixedRes.body.cost.caveat) && mixedRes.body.sources.billing === 'usage_estimate');
   } finally {
     if (prevHome === undefined) delete process.env.CODEX_HOME;
     else process.env.CODEX_HOME = prevHome;
