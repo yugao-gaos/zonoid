@@ -10,6 +10,7 @@ const { noteEmbedText, codeNodeEmbedText, noteFieldTexts, taskEmbedText } = requ
 const newlyReady = require('../lib/newly-ready');
 const { requeueStandingHarness } = require('../lib/harness-task');
 const recallJournal = require('../lib/recall-outcome-journal');
+const outcomePolicyMemory = require('../lib/outcome-policy-memory');
 const retrievalWeights = require('../lib/search/retrieval-weights');
 const gitClaims = require('../lib/git-claims');
 const noteSourceCluster = require('../lib/note-source-cluster');
@@ -938,6 +939,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // joining the task_key to its outcome. Readers take the latest row per task_key — this
     // supersedes any prior 'pending' row written at context-assembly time (/search?task_key=).
     // Best-effort: never block the status write on journal IO.
+    let outcomePolicyResult = null;
     if (['done', 'tested', 'failed', 'canceled'].includes(b.status) && b.key) {
       let latestRecall = null;
       let outcome = null;
@@ -953,6 +955,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       try {
         reinforceRecalledContextEdges(T.ws, b.key, latestRecall, outcome);
       } catch { /* retrieval-weight feedback must never block the status write */ }
+      try {
+        outcomePolicyResult = outcomePolicyMemory.deriveFromJournal({
+          overlay: T.ov,
+          workspace: T.ws,
+          taskKey: b.key,
+        });
+      } catch { /* optional policy derivation must never block the status write */ }
     }
     let followUpResults = null;
     let bucketCleanup = null;
@@ -1033,6 +1042,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (bucketCleanup) statusResp.bucket_cleanup = bucketCleanup;
     if (harnessRequeued) statusResp.harness_requeued = true;
     if (lintWarning) statusResp.warning = lintWarning;
+    if (outcomePolicyResult && outcomePolicyResult.enabled) statusResp.outcome_policy = outcomePolicyResult;
     // Report any REFUSED lifecycle transition. The status write itself still succeeded — only the
     // review-lifecycle half was declined (already merged / already settled) — so this is a field on
     // a 200, not an error. Silence here is what let late writers look like they had landed.
