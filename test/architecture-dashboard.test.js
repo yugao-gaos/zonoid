@@ -289,6 +289,29 @@ const deepestExpanded = new Set(['module:src', 'group:src/api', 'group:src/api/h
 const deepestRelations = helperContext.helpers.architectureRetargetRelations(projection, deepestExpanded);
 assert.ok(deepestRelations.some(edge => edge.from === 'file:src/api/http/routes.js' && edge.to === 'file:lib/db/query.js'),
   'when both sides are expanded, edges terminate at the deepest visible files');
+const focusedSearch = helperContext.helpers.architectureVisibleHierarchy(
+  projection,
+  new Set(['module:lib', 'group:lib/db']),
+  'loadusers',
+  false,
+);
+assert.deepEqual(focusedSearch.nodes.map(node => node.id), [
+  'module:src',
+  'group:src/api',
+  'group:src/api/http',
+  'file:src/api/http/routes.js',
+  'module:lib',
+  'module:test',
+], 'a single search match reveals only its ancestor branch while keeping every top-level module endpoint');
+assert.ok(!focusedSearch.nodes.some(node => node.id === 'file:src/api/helper.js' || node.id === 'group:lib/db'),
+  'search suppresses unrelated siblings and ignores prior manual expansion in unmatched modules');
+const focusedSearchRelations = helperContext.helpers.architectureRetargetRelations(
+  projection,
+  focusedSearch.expanded,
+  new Set(focusedSearch.nodes.map(node => node.id)),
+);
+assert.ok(focusedSearchRelations.some(edge => edge.from === 'file:src/api/http/routes.js' && edge.to === 'module:lib'),
+  'a matched file keeps its deepest endpoint while the unmatched cross-module peer retargets to its collapsed module');
 const searchVisible = helperContext.helpers.architectureVisibleHierarchy(projection, new Set(), 'routes.test', false);
 assert.ok(searchVisible.nodes.some(node => node.id === 'file:test/api/routes.test.js'),
   'search auto-expands ancestors and reveals a normally hidden noisy match');

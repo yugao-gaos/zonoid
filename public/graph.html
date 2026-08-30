@@ -6682,7 +6682,8 @@ function architectureSearchMatchIds(projection, query){
   return new Set(q?architectureProjectionFiles(projection).filter(file=>architectureFileMatches(file,q)).map(file=>file.id):[]);
 }
 function architectureEffectiveExpandedIds(projection, expandedIds, query){
-  const expanded=new Set(expandedIds||[]);
+  const searching=!!String(query||'').trim();
+  const expanded=new Set(searching?[]:(expandedIds||[]));
   const matches=architectureSearchMatchIds(projection,query);
   for(const file of architectureProjectionFiles(projection)) if(matches.has(file.id)){
     for(const ancestor of (file.ancestor_ids||[])) expanded.add(ancestor);
@@ -6691,6 +6692,7 @@ function architectureEffectiveExpandedIds(projection, expandedIds, query){
 }
 function architectureVisibleHierarchy(projection, expandedIds, query, showNoise){
   const byId=architectureHierarchyById(projection);
+  const searching=!!String(query||'').trim();
   const matchIds=architectureSearchMatchIds(projection,query);
   const expanded=architectureEffectiveExpandedIds(projection,expandedIds,query);
   const matchedAncestors=new Set();
@@ -6699,6 +6701,11 @@ function architectureVisibleHierarchy(projection, expandedIds, query, showNoise)
   }
   const allowed=node=>{
     if(!node) return false;
+    if(searching){
+      if(String(node.id).startsWith('module:')) return true;
+      if(String(node.id).startsWith('group:')) return matchedAncestors.has(node.id);
+      return matchIds.has(node.id);
+    }
     if(String(node.id).startsWith('file:')) return showNoise||!node.is_noisy||matchIds.has(node.id);
     return showNoise||(node.default_file_count||0)>0||matchedAncestors.has(node.id);
   };
