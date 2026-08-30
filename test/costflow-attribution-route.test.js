@@ -276,11 +276,20 @@ async function runAsyncTests() {
       respCachePut,
     });
     const cacheUrl = new URL(`http://127.0.0.1/costflow?workspace=${encodeURIComponent(routeWorkspace)}&since=shared-cache`);
-    await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
-    await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
-    ok('analytics cache: repeated costflow requests share one graph projection', cachedBuilds === 1);
-    ok('analytics cache: transcript-only freshness fallback is bounded at 60 seconds',
-      cacheTtls.length === 2 && cacheTtls.every((ttl) => ttl === analyticsRoute._internal.ANALYTICS_CACHE_TTL_MS));
+    const realDateNow = Date.now;
+    let cacheNow = realDateNow();
+    Date.now = () => cacheNow;
+    try {
+      await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
+      await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
+      cacheNow += 61 * 1000;
+      await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
+    } finally {
+      Date.now = realDateNow;
+    }
+    ok('analytics cache: repeated costflow requests remain shared after the old 60s cold boundary', cachedBuilds === 1);
+    ok('analytics cache: bounded-stale safety fallback is at least 10 minutes',
+      cacheTtls.length === 3 && cacheTtls.every((ttl) => ttl >= 10 * 60 * 1000));
     notifyChange(routeWorkspace);
     await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
     ok('analytics cache: notifyChange invalidates costflow immediately', cachedBuilds === 2);

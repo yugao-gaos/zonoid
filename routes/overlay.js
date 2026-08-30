@@ -375,6 +375,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, sendOp, readBody, notifyChange, buildGraph, targetOverlay, nodeExistsInGraph,
     embed, knowledgeText, snapshotNative, now, suggestToks, scoreNodeAgainstTokens,
     SUGGEST_DUP_THRESHOLD, DIMS, seedBlockingDepContext } = ctx;
+  const publishCodeChange = (T, b) => {
+    if (!b || b.defer_publish !== true) notifyChange(T.ws);
+  };
   const graphHasKey = (ws, key) => {
     if (typeof nodeExistsInGraph !== 'function') return true;
     return nodeExistsInGraph(buildGraph(ws), key);
@@ -1426,7 +1429,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     // Exactly ONE epoch bump for the whole batch (same as notes/bulk).
     overlayStore.bumpEpoch(T.ov);
-    T.save(); notifyChange(T.ws);
+    T.save(); publishCodeChange(T, b);
     send(res, 200, { ok: true, created: created.length, keys: created, edges_added: edgesAdded, workspace: T.ws }); return true;
   }
 
@@ -1450,7 +1453,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     const { removed } = overlayStore.removeCodeNodesForFile(T.ov, file);
     if (removed.length) overlayStore.bumpEpoch(T.ov);
-    T.save(); notifyChange(T.ws);
+    T.save(); publishCodeChange(T, b);
     send(res, 200, { ok: true, file, deleted: removed.length, keys: removed, workspace: T.ws }); return true;
   }
 
@@ -1505,7 +1508,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       edgesReplaced = { removed: er.removed, added: er.added.length };
     }
     overlayStore.bumpEpoch(T.ov);
-    T.save(); notifyChange(T.ws);
+    T.save(); publishCodeChange(T, b);
     const resp = { ok: true, file, deleted: removed.length, created: created.length, keys: created, workspace: T.ws };
     if (edgesReplaced) resp.edges = edgesReplaced;
     send(res, 200, resp); return true;
@@ -1523,7 +1526,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     const er = overlayStore.addCodeEdges(T.ov, b.edges);
     if (er.added.length) overlayStore.bumpEpoch(T.ov);
-    T.save(); notifyChange(T.ws);
+    T.save(); publishCodeChange(T, b);
     send(res, 200, { ok: true, created: er.added.length, edges_added: er.added.length, workspace: T.ws }); return true;
   }
 
@@ -1543,7 +1546,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!file) { send(res, 400, { ok: false, error: 'file required (repo-relative path)' }); return true; }
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     const { removed } = overlayStore.removeCodeEdgesForFile(T.ov, file);
-    T.save(); notifyChange(T.ws);
+    T.save(); publishCodeChange(T, b);
     send(res, 200, { ok: true, file, deleted: removed, workspace: T.ws }); return true;
   }
 
@@ -1556,7 +1559,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!Array.isArray(b.edges)) { send(res, 400, { ok: false, error: 'edges[] required (array; may be empty to just clear the file)' }); return true; }
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     const er = overlayStore.replaceCodeEdgesForFile(T.ov, file, b.edges);
-    T.save(); notifyChange(T.ws);
+    T.save(); publishCodeChange(T, b);
     send(res, 200, { ok: true, file, deleted: er.removed, created: er.added.length, workspace: T.ws }); return true;
   }
 

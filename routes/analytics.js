@@ -11,9 +11,10 @@ const { getPromotionState } = require('../lib/promotion-gate');
 const { estimatedSavings } = require('../lib/economy');
 
 // Shared daemon cache: graph/overlay mutations invalidate immediately through notifyChange and
-// out-of-process overlay writes invalidate by mtime. The bounded TTL is the fallback for transcript
-// or analytics-file growth that does not touch the overlay.
-const ANALYTICS_CACHE_TTL_MS = 60 * 1000;
+// out-of-process overlay writes invalidate by mtime. Analytics may be bounded-stale when only a
+// transcript grows; use a long safety fallback so idle dashboards do not synchronously cold-scan at
+// an arbitrary one-minute boundary across clients.
+const ANALYTICS_CACHE_TTL_MS = 10 * 60 * 1000;
 
 function sessionsFromOverlay(ov) {
   const snap = ov && ov.usage_reconcile_snapshot;

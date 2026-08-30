@@ -42,11 +42,12 @@ const dummyVec = (seed) => Array.from({ length: DIMS }, (_, i) => ((i + seed) % 
 // Reusable stubbed route ctx (mirrors test/code-node-bulk.test.js).
 function makeCtx(overlay, ws, body) {
   let lastSent = null;
+  let notifyCount = 0;
   const ctx = {
     send(res, status, b) { lastSent = { status, body: b }; },
     sendOp(res, b, status, bb) { lastSent = { status, body: bb }; },
     readBody: async () => body,
-    notifyChange: () => {},
+    notifyChange: () => { notifyCount++; },
     buildGraph: () => ({ tasks: [] }),
     targetOverlay: () => ({ ov: overlay, ws, save: () => {} }),
     opReplay: () => false,
@@ -64,7 +65,7 @@ function makeCtx(overlay, ws, body) {
     cache: { agg: new Map(), aggAt: new Map() },
     git: { currentBranch: () => null },
   };
-  return { ctx, getLastSent: () => lastSent };
+  return { ctx, getLastSent: () => lastSent, getNotifyCount: () => notifyCount };
 }
 
 (async () => {
@@ -154,8 +155,8 @@ function makeCtx(overlay, ws, body) {
     const deleteCalls = [];
     let watermarkSet = null;
     const fakeDaemon = {
-      replaceFile: async ({ file, nodes, workspace }) => { replaceCalls.push({ file, nodes, workspace }); return { ok: true, file, deleted: 0, created: nodes.length }; },
-      deleteFile: async ({ file, workspace }) => { deleteCalls.push({ file, workspace }); return { ok: true, file, deleted: 3 }; },
+      replaceFile: async ({ file, nodes, workspace, deferPublish }) => { replaceCalls.push({ file, nodes, workspace, deferPublish }); return { ok: true, file, deleted: 0, created: nodes.length }; },
+      deleteFile: async ({ file, workspace, deferPublish }) => { deleteCalls.push({ file, workspace, deferPublish }); return { ok: true, file, deleted: 3 }; },
       setLastIndexedCommit: async ({ key, commit, workspace }) => { watermarkSet = { key, commit, workspace }; return { ok: true }; },
     };
 
@@ -172,6 +173,8 @@ function makeCtx(overlay, ws, body) {
     ok('syncRepo did NOT replace the deleted code file', !replaceCalls.some((c) => c.file === 'deleted.js'));
     ok('syncRepo deleted the DELETED code file', deleteCalls.some((c) => c.file === 'deleted.js'));
     ok('syncRepo SKIPPED the non-code delete (notes.md)', !deleteCalls.some((c) => c.file === 'notes.md'));
+    ok('syncRepo defers every intermediate node mutation until the final watermark',
+      replaceCalls.every((c) => c.deferPublish === true) && deleteCalls.every((c) => c.deferPublish === true));
     ok('notes.md reported as skipped', res.skipped.includes('notes.md'));
 
     // The ADDED file extracted >=2 real symbols (brandNew + arrowAdd) -> nodes were sent.
@@ -342,7 +345,7 @@ function makeCtx(overlay, ws, body) {
         { name: 'newA', kind: 'function', file: 'w.js', signature: 'newA()' },
         { name: 'newB', kind: 'function', file: 'w.js', signature: 'newB()' },
       ];
-      const { ctx, getLastSent } = makeCtx(o, TMP_WS, { file: 'w.js', nodes: newNodes, workspace: TMP_WS });
+      const { ctx, getLastSent, getNotifyCount } = makeCtx(o, TMP_WS, { file: 'w.js', nodes: newNodes, workspace: TMP_WS, defer_publish: true });
       await overlayRoute(ctx)('/overlay/code-nodes/replace', 'POST', { method: 'POST', headers: {} }, {}, { searchParams: { get: () => null } }, null);
       const r = getLastSent();
       ok('REPLACE returns 200', r && r.status === 200);
@@ -350,6 +353,7 @@ function makeCtx(overlay, ws, body) {
       ok('REPLACE removed the OLD symbol', !o.code_nodes['code:w.js#oldFn']);
       ok('REPLACE added both NEW symbols', !!o.code_nodes['code:w.js#newA'] && !!o.code_nodes['code:w.js#newB']);
       ok('REPLACE-created nodes carry a pooled vec (embeds ran)', o.code_nodes['code:w.js#newA'].vec && o.code_nodes['code:w.js#newA'].vec.length === DIMS);
+      ok('deferred REPLACE persists without publishing an intermediate dashboard refresh', getNotifyCount() === 0);
     }
     // REPLACE with empty nodes[] just clears the file.
     {
@@ -368,6 +372,27 @@ function makeCtx(overlay, ws, body) {
     }
 
     fs.rmSync(TMP_WS, { recursive: true, force: true });
+  }
+
+  // The final watermark is the single publish point after all deferred code writes have succeeded.
+  {
+    const sessionRoute = require('../routes/session');
+    const o = ov.EMPTY();
+    const repo = '/repo/final-watermark';
+    let sent = null;
+    let saves = 0;
+    let notifications = 0;
+    const route = sessionRoute({
+      send(_res, status, body) { sent = { status, body }; },
+      readBody: async () => ({ last_indexed_commit: { key: repo, commit: 'HEADSHA' }, workspace: '/ws' }),
+      notifyChange() { notifications++; },
+      targetOverlay: () => ({ ov: o, ws: '/ws', graph_repo: '/ws', save() { saves++; } }),
+      ESCALATION_DEFAULTS: () => ({}),
+      OPTIMIZE_DEFAULTS: () => ({}),
+    });
+    await route('/config', 'POST', { method: 'POST' }, {}, new URL('http://127.0.0.1/config'), null);
+    ok('final watermark config persists before publishing', saves === 1 && ov.getLastIndexedCommit(o, repo) === 'HEADSHA');
+    ok('final watermark config emits exactly one workspace refresh', notifications === 1 && sent && sent.status === 200);
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);
