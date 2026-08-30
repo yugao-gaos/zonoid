@@ -7746,7 +7746,8 @@ function buildLinks(d){
   for(const t of tasks) if(t.kind==='note'&&t.supersededBy) push(t.id,t.supersededBy,'supersede');
   return {tasks,byId,links};
 }
-const LIVE_STATUS=new Set(['ready','in_progress','failed','tested','not_ready']);
+// Blocked not_ready plans stay in Plan/Kanban; Frontier starts from actionable work.
+const LIVE_STATUS=new Set(['ready','in_progress','failed','tested']);
 // Frontier selection: live seeds + ALL 1-hop neighbors (either direction), then walk
 // UP the dependency ancestry — blocking deps always (transitively, to root), context
 // deps only when important (weight>=0.5 OR top-3 for that node), recursively, with

@@ -322,6 +322,36 @@ test('review merge drain promotes already-merged tested task to done', async () 
   assert.equal(o.status[key], 'done');
 });
 
+test('review merge drain repairs approved task left in review_pending', async () => {
+  const hd = freshModule();
+  const overlayStore = require('../lib/overlay');
+  const o = overlayStore.EMPTY();
+  const key = 'codex/review-approved-stale-pending';
+  overlayStore.setStatus(o, key, 'tested');
+  overlayStore.setReviewLifecycle(o, key, {
+    review_state: 'approved',
+    review_verdict: 'APPROVE',
+    merge_state: 'review_pending',
+  });
+  const calls = [];
+  const result = await hd.runReviewMergeDrain(os.tmpdir(), {
+    overlay: o,
+    overlayStore,
+    mergeTask: async (candidate) => {
+      calls.push(['merge', candidate.key]);
+      return { merged: true, head: 'abc789' };
+    },
+    promoteTask: async (candidate, merge) => {
+      calls.push(['promote', candidate.key, merge.head]);
+      overlayStore.setStatus(o, candidate.key, 'done');
+      return { ok: true };
+    },
+  });
+  assert.equal(result.ran, 1);
+  assert.deepEqual(calls, [['merge', key], ['promote', key, 'abc789']]);
+  assert.equal(o.status[key], 'done');
+});
+
 test('review merge drain repairs ready task that already has merged metadata', async () => {
   const hd = freshModule();
   const overlayStore = require('../lib/overlay');
