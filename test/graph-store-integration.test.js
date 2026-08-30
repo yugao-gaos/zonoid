@@ -182,6 +182,48 @@ try {
   ok('11. removed code-node emits one tombstone', lineCount(codeFile) === initialCodeLines + 2);
   ok('11. removed code-node stays absent after replay', !graphStore.loadGraph(store).nodes[inserted.key]);
 
+  // Test 12: removing one edge from a high-cardinality overlay stays linear. The indexed-read
+  // counter makes the complexity regression deterministic; the generous wall-clock bound catches
+  // accidental expensive work outside that membership scan without being a microbenchmark.
+  const HIGH_FROM = 'task/high-cardinality';
+  const HIGH_EDGE_COUNT = 8000;
+  const highEdges = Array.from({ length: HIGH_EDGE_COUNT }, (_, i) => ({
+    from: HIGH_FROM, to: `task/high-target-${i}`, kind: 'context', weight: 0.5,
+  }));
+  ov.edges.push(...highEdges);
+  overlayStore.save(WS, ov);
+  const highFile = path.join(nodesDir, graphStore.idToFile(HIGH_FROM));
+  ok('12. high-cardinality baseline emits each edge once',
+    parseEvents(highFile).filter((event) => event.evt === 'edge_added').length === HIGH_EDGE_COUNT);
+
+  const removedTarget = highEdges[Math.floor(HIGH_EDGE_COUNT / 2)].to;
+  overlayStore.removeEdge(ov, HIGH_FROM, removedTarget, null, 'context');
+  const currentEdges = ov.edges;
+  let indexedReads = 0;
+  ov.edges = new Proxy(currentEdges, {
+    get(target, property, receiver) {
+      if (typeof property === 'string' && /^\d+$/.test(property)) indexedReads++;
+      return Reflect.get(target, property, receiver);
+    },
+  });
+  const started = process.hrtime.bigint();
+  overlayStore.save(WS, ov);
+  const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+  ok('12. high-cardinality removal uses linear edge reads', indexedReads < HIGH_EDGE_COUNT * 10);
+  ok('12. high-cardinality removal completes within generous runtime bound', elapsedMs < 5000);
+
+  overlayStore.save(WS, ov); // unchanged save must not duplicate add/remove events
+  const highEvents = parseEvents(highFile);
+  ok('12. unchanged resave does not duplicate edge additions',
+    highEvents.filter((event) => event.evt === 'edge_added').length === HIGH_EDGE_COUNT);
+  ok('12. removed edge emits exactly one tombstone',
+    highEvents.filter((event) => event.evt === 'edge_removed' && event.to === removedTarget).length === 1);
+  const reloadedHighEdges = graphStore.loadGraph(store).edges.filter((edge) => edge.from === HIGH_FROM);
+  ok('12. reload preserves every remaining high-cardinality edge',
+    reloadedHighEdges.length === HIGH_EDGE_COUNT - 1);
+  ok('12. reload keeps the removed edge absent',
+    !reloadedHighEdges.some((edge) => edge.to === removedTarget));
+
 } finally {
   fs.rmSync(TMP, { recursive: true, force: true });
 }
