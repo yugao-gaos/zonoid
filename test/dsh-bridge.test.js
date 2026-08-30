@@ -202,38 +202,67 @@ test('pre-tool stop and write claim decisions block before the tool body', async
   assert.equal(bodyCalls, 2);
 });
 
-test('write gate accepts only a target covered by the exact claim permit', async () => {
-  const { gateExecution } = await bridgeModules();
+test('pre-tool write gate uses the claimed worker identity, not the DSH session identity', async () => {
+  const { createBridge } = await bridgeModules();
   const worktree = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-dsh-permit-')));
   const sessionId = 'dsh-permit-session';
+  const agentId = 'prepared-worker';
   const taskKey = 'dsh/task';
   const permit = {
     status: 'active',
     expires_at: new Date(Date.now() + 60_000).toISOString(),
     session_id: sessionId,
-    agent_id: sessionId,
+    agent_id: agentId,
     task_key: taskKey,
     branch: 'orch/attempt/dsh-task',
     worktree,
     allowed_paths: [worktree],
   };
   const relay = fakeRelay((method, pathname) => {
-    if (pathname.startsWith('/active-claim?')) return { claimed: true, claims: [{ key: taskKey, workspace: worktree }] };
+    if (pathname.startsWith('/should-stop?')) return { stop: false };
+    if (pathname.startsWith('/active-claim?')) {
+      return { claimed: true, claims: [{ key: taskKey, agent_id: agentId, workspace: worktree }] };
+    }
     if (pathname.startsWith('/task/detail?')) return { task: { git: { branch: permit.branch, worktree } } };
     if (pathname.startsWith('/subconscious/permit?')) return { execution_permit: permit };
     return {};
   });
+  const bridge = createBridge({ relay });
+  const dshAgent = agent(worktree, sessionId);
+  let bodyCalls = 0;
 
-  const allowed = await gateExecution({
-    name: 'write', arguments: { path: path.join(worktree, 'inside.js') },
-  }, { relay, sessionId, agentId: sessionId, workspace: worktree });
-  assert.deepEqual(allowed, { allow: true });
+  const allowed = await bridge.preTool({
+    name: 'write', arguments: { path: path.join(worktree, 'inside.js') }, agent: dshAgent,
+    signal: new AbortController().signal,
+  }, async () => { bodyCalls++; return { kind: 'allow' }; });
+  assert.deepEqual(allowed, { kind: 'allow' });
+  assert.equal(bodyCalls, 1);
+  const permitLookup = relay.calls.find((call) => call.pathname.startsWith('/subconscious/permit?'));
+  assert.equal(new URL(`http://localhost${permitLookup.pathname}`).searchParams.get('session_id'), sessionId);
+  assert.equal(new URL(`http://localhost${permitLookup.pathname}`).searchParams.get('agent_id'), agentId);
 
-  const outside = await gateExecution({
-    name: 'write', arguments: { path: path.join(path.dirname(worktree), 'outside.js') },
-  }, { relay, sessionId, agentId: sessionId, workspace: worktree });
-  assert.equal(outside.allow, false);
+  const outside = await bridge.preTool({
+    name: 'write', arguments: { path: path.join(path.dirname(worktree), 'outside.js') }, agent: dshAgent,
+    signal: new AbortController().signal,
+  }, async () => { bodyCalls++; return { kind: 'allow' }; });
+  assert.equal(outside.kind, 'deny');
   assert.match(outside.reason, /outside the assigned worktree/);
+  assert.equal(bodyCalls, 1);
+
+  const invalidRelay = fakeRelay((method, pathname) => {
+    if (pathname.startsWith('/should-stop?')) return { stop: false };
+    if (pathname.startsWith('/active-claim?')) return { claimed: true, claims: [{ key: taskKey, workspace: worktree }] };
+    return {};
+  });
+  const invalidBridge = createBridge({ relay: invalidRelay });
+  const invalid = await invalidBridge.preTool({
+    name: 'write', arguments: { path: path.join(worktree, 'inside.js') }, agent: dshAgent,
+    signal: new AbortController().signal,
+  }, async () => { bodyCalls++; return { kind: 'allow' }; });
+  assert.equal(invalid.kind, 'deny');
+  assert.match(invalid.reason, /missing an authoritative agent identity/);
+  assert.equal(bodyCalls, 1);
+  assert.ok(!invalidRelay.calls.some((call) => call.pathname.startsWith('/subconscious/permit?')));
 });
 
 test('Cordis profile preserves the pinned blocking and teardown contract', () => {

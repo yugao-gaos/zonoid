@@ -93,6 +93,11 @@ export async function gateExecution(exec, options = {}) {
   let lastReason = 'no matching Subconscious execution permit found'
   for (const item of Array.isArray(claim.claims) ? claim.claims : []) {
     if (!item?.key) continue
+    const claimAgentId = String(item.agent_id || '').trim()
+    if (!claimAgentId) {
+      lastReason = 'claimed assignment is missing an authoritative agent identity'
+      continue
+    }
     const detail = await relay.get(query('/task/detail', { key: item.key, workspace: item.workspace || options.workspace }), options.signal, 600)
     const git = claimGit(detail)
     if (!git) {
@@ -106,7 +111,7 @@ export async function gateExecution(exec, options = {}) {
     }
     const permit = await permitForClaim(relay, {
       sessionId,
-      agentId: options.agentId,
+      agentId: claimAgentId,
       workspace: item.workspace || options.workspace,
       taskKey: item.key,
       signal: options.signal,
@@ -116,7 +121,7 @@ export async function gateExecution(exec, options = {}) {
       taskKey: item.key,
       branch: git.branch,
       worktree: git.worktree,
-      agentId: options.agentId,
+      agentId: claimAgentId,
     })
     if (!validation.ok) {
       lastReason = validation.reason

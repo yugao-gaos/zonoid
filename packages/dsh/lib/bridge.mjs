@@ -101,7 +101,6 @@ export function createBridge({ relay, port } = {}) {
         port,
         signal: exec.signal,
         sessionId: identity.sessionId,
-        agentId: identity.sessionId,
         workspace: identity.workspace,
       })
       if (!gate.allow) return { kind: 'deny', reason: gate.reason }
