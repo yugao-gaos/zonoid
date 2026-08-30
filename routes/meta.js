@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const mcpCore = require('../lib/mcp-core');
+const workspaceRegistry = require('../lib/workspace-registry');
 
 // Package identity for /version — resolved once at module load; tolerant of a broken checkout.
 const PKG_VERSION = (() => {
@@ -23,11 +24,11 @@ function nativeFormatHealth(harness, workspace) {
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, notifyChange, state, setState, setWorkspace,
-    GIT_HEAD, BOOTED_AT, FEATURES, sseClients, overlayStore, harness, analytics,
+    GIT_HEAD, DAEMON_BUILD_ID, BOOTED_AT, FEATURES, sseClients, overlayStore, harness, analytics,
     analyticsState, analyticsFlush, PUBLIC, loops, taskTranscript, usageCached,
     staleClaimKeys, releaseClaim, reapAgent, saveAgents, cache, targetOverlay, buildGraph,
     embedStatus, isTruthy, sessionCount,
-    WORKSPACES_FILE, graphStore, loadRegistry, repoToWorkspace, repoRoot } = ctx;
+    WORKSPACES_FILE, graphStore, loadRegistry, repoToWorkspace, repoRoot, registrationRepoRoot } = ctx;
 
   if (p === '/ping') { send(res, 200, { ok: true, sessions: sessionCount() }); return true; }
 
@@ -38,6 +39,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     send(res, 200, {
       ok: true,
       head: GIT_HEAD,
+      build: DAEMON_BUILD_ID,
       bootedAt: BOOTED_AT,
       features: FEATURES,
       version: PKG_VERSION,
@@ -128,29 +130,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // creates its .graph). We only substitute repoRoot's result when it CLIMBED to a STRICT ANCESTOR
     // — i.e. b.path is genuinely nested inside an existing repo — so a fresh top-level workspace dir is
     // never silently re-homed onto a stray ancestor marker.
-    const resolvedRoot = repoRoot(requestedGraphRepo);
-    const norm = (s) => {
-      const resolved = path.resolve(s).replace(/[/\\]+$/, '');
-      try { return fs.realpathSync(resolved).replace(/[/\\]+$/, ''); }
-      catch { return resolved; }
-    };
-    // Climb ONLY when repoRoot found a STRICT ancestor (b.path is genuinely nested in a repo) and that
-    // ancestor is not a filesystem "container" root (system temp / home / fs root) — an incidental
-    // `.graph`/`.git` left in such a container must never re-home a fresh top-level workspace dir.
-    // NOTE (U7, note note-mqj20ekamwy): the container-root guard is now ALSO enforced inside
-    // lib/workspace-registry.repoRoot itself (so hooks + CLI callers benefit), meaning repoRoot can no
-    // longer return a container root and this local `containers` check is redundant. It is kept as
-    // cheap defense-in-depth at the climb seam (the climb decision is route-specific and reads clearer
-    // with the guard inline); both layers agree, so the behavior is unchanged.
-    const os = require('os');
-    const containers = new Set([norm(os.tmpdir()), norm(os.homedir())]);
-    const climbed = resolvedRoot
-      && norm(resolvedRoot) !== norm(requestedGraphRepo)
-      && !containers.has(norm(resolvedRoot))
-      && path.dirname(norm(resolvedRoot)) !== norm(resolvedRoot); // not the fs root
-    const repoRootPath = climbed ? resolvedRoot : requestedGraphRepo;
+    const repoRootPath = (registrationRepoRoot || require('../lib/workspace-registry').registrationRepoRoot)(requestedGraphRepo);
     const workspaceId = b.workspace_id || b.workspace || path.basename(repoRootPath);
-    setWorkspace(repoRootPath, { ...b, path: repoRootPath, workspace: workspaceId });
+    try {
+      setWorkspace(repoRootPath, { ...b, path: repoRootPath, workspace: workspaceId });
+    } catch (e) {
+      send(res, 500, { ok: false, error: `workspace registration failed: ${String(e && e.message || e)}` });
+      return true;
+    }
     send(res, 200, { ok: true, workspace_id: workspaceId, graph_repo: repoRootPath, workspace: repoRootPath }); return true;
   }
 
@@ -203,7 +190,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // P3: no global current workspace. `workspace`/`native_format` reflect the OPTIONAL ?workspace=
     // the dashboard passes (null when absent — health is otherwise workspace-agnostic).
     const hwWs = u.searchParams.get('workspace') || null;
-    send(res, 200, { ok: true, phase: boot.phase, step: boot.step, progress: boot.progress, bootedAt: BOOTED_AT, head: GIT_HEAD, workspace: hwWs, sessions: sessionCount(), loops: loopHealth, embedding: embedStatus(), native_format: nativeFormatHealth(harness, hwWs) }); return true;
+    send(res, 200, { ok: true, phase: boot.phase, step: boot.step, progress: boot.progress, bootedAt: BOOTED_AT, head: GIT_HEAD, build: DAEMON_BUILD_ID, pid: process.pid, workspace: hwWs, sessions: sessionCount(), loops: loopHealth, embedding: embedStatus(), native_format: nativeFormatHealth(harness, hwWs) }); return true;
   }
 
   if (p === '/ready') {
@@ -244,9 +231,17 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     //    member repos are registry-known repos that join their named group.
     const reg = loadRegistry();
     const repoWs = repoToWorkspace(reg);            // Map<normalizedRepoPath, workspaceName>
-    // repoToWorkspace keys are the raw stored paths; re-key by normPath so lookups match seenPaths.
+    const registeredRepos = workspaceRegistry.allRepos(reg);
+    // Registry history keeps raw mount paths. Re-key active entries by their canonical repo root so
+    // a linked worktree resolves to its primary checkout while absent paths remain history-only.
     const repoWsNorm = new Map();
-    for (const [repo, name] of repoWs) { repoWsNorm.set(normPath(repo), name); addPath(repo); }
+    for (const [repo, name] of repoWs) {
+      const activeRepo = workspaceRegistry.activeRepoRoot(repo, { registeredRepos });
+      if (!activeRepo) continue;
+      const normalized = normPath(activeRepo);
+      repoWsNorm.set(normalized, workspaceRegistry.preferWorkspaceId(repoWsNorm.get(normalized), name));
+      addPath(activeRepo);
+    }
 
     // 2. (P3) No daemon-global current workspace — sessions/agents/registry are the sources.
 
@@ -274,7 +269,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // graphStore._stores via ?workspace= reads but should never appear in the user-facing switcher.
     const repoEntries = [...seenPaths]
       .filter((wsPath) => {
-        if (!fs.existsSync(wsPath)) return false;
+        if (!workspaceRegistry.isActiveRepoPath(wsPath)) return false;
         if (!fs.existsSync(path.join(wsPath, '.graph'))) return false;
         // Exclude git worktrees: in a worktree .git is a regular file (gitdir pointer), not a dir.
         try { if (fs.statSync(path.join(wsPath, '.git')).isFile()) return false; } catch { /* no .git = not a repo clone, allow */ }

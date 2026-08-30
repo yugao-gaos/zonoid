@@ -12,6 +12,7 @@ const { rowKey, readJsonl, journalPath, labeledPath } = require('../scripts/gate
 const { HARNESS_LEARNER_DRAIN_KEY, ensureHarnessLearnerDrainTask } = require('../lib/harness-task');
 const { JUDGE_DEPTH, LABEL_DEPTH, computePressureNudge } = require('../lib/pressure-nudge');
 const decisionDelivery = require('../lib/decision-delivery');
+const { readOnboardQueue } = require('../lib/onboard-state');
 
 const DRAIN_TASK_KEYS = new Set([
   judgeRoute.HARNESS_JUDGE_DRAIN_KEY,
@@ -80,9 +81,8 @@ function learnerPressure(ws, sessionId, ctx, ov) {
       .map(function(d) { return d.name; });
     for (const repoName of subdirs) {
       const outDir = require('path').join(onboardDir, repoName);
-      const qf = require('path').join(outDir, 'onboard-queue.json');
-      let q = null;
-      try { q = JSON.parse(require('fs').readFileSync(qf, 'utf8')); } catch (e) { continue; }
+      const q = readOnboardQueue(outDir);
+      if (!q) continue;
       const remaining = (q.total || 0) - (q.cursor || 0);
       if (remaining <= 0) continue;
       let repoPath = null;

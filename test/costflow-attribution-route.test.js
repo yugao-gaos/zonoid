@@ -8,9 +8,12 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const analyticsRoute = require('../routes/analytics');
 const { sessionCatchalls } = require('../lib/costflow');
+const overlayStore = require('../lib/overlay');
 const codex = require('../lib/adapters/codex');
 const { claimRelPath } = require('../lib/git-claims');
-const { taskTranscript } = require('../daemon.js');
+const { taskTranscript, respCacheGet, respCachePut, notifyChange,
+  __invalidateRespCacheForTest, __clearRespCacheForTest } = require('../daemon.js');
+const { appendShadow } = require('../lib/shadow-journal');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
@@ -19,7 +22,15 @@ const ok = (label, cond) => {
 };
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) <= eps;
 
-const { claimedOutputForSession } = analyticsRoute._internal;
+const { claimedOutputForSession, harnessNameForWorkspace } = analyticsRoute._internal;
+
+ok('mixed usage history does not become the active viewer/adapter harness',
+  harnessNameForWorkspace(
+    { sessions: {} },
+    { usage_reconcile_snapshot: { harness: 'mixed', harnesses: ['claude', 'codex'] } },
+    '/tmp/workspace',
+    'codex',
+  ) === 'codex');
 
 {
   const claims = [
@@ -81,7 +92,7 @@ async function runAsyncTests() {
     ].join('\n') + '\n');
     fs.utimesSync(rolloutPath, new Date('2026-06-22T10:20:00.000Z'), new Date('2026-06-22T10:20:00.000Z'));
 
-    const makeCostflowRoute = (tasks, ov, ws) => analyticsRoute({
+    const makeCostflowRoute = (tasks, ov, ws, overrides = {}) => analyticsRoute({
       send(_res, code, body) { _res.statusCode = code; _res.body = body; },
       buildGraph() { return { tasks, ghosts: [] }; },
       state: { sessions: {} },
@@ -96,6 +107,7 @@ async function runAsyncTests() {
       harnessRegistry: { get(name) { if (name === 'codex') return codex; throw new Error(name); } },
       notifyChange() {},
       CATCHALL_ESCALATE_TOKENS: 1e9,
+      ...overrides,
     });
 
     const uuid = '119eef9f-bc70-7541-8f76-379400ff71e2';
@@ -266,6 +278,76 @@ async function runAsyncTests() {
     ok('/costflow flow total does not exceed accounting snapshot output', res.body.totals.total === 4000 && res.body.totals.total <= res.body.usage_totals.output_tokens);
     ok('/costflow subtracts claimed Codex rollout tokens from catch-all remainder', res.body.sessions.unattributed === 0);
 
+    let cachedBuilds = 0;
+    const cacheTtls = [];
+    const cachePolicies = [];
+    const cachedRoute = makeCostflowRoute(tasks, ov, routeWorkspace, {
+      buildGraph() { cachedBuilds++; return { tasks, ghosts: [] }; },
+      respCacheGet(ws, key, ttl, options) {
+        cacheTtls.push(ttl); cachePolicies.push(options);
+        return respCacheGet(ws, key, ttl, options);
+      },
+      respCachePut(ws, key, payload, options) { return respCachePut(ws, key, payload, options); },
+    });
+    const cacheUrl = new URL(`http://127.0.0.1/costflow?workspace=${encodeURIComponent(routeWorkspace)}&since=shared-cache`);
+    const realDateNow = Date.now;
+    let cacheNow = realDateNow();
+    Date.now = () => cacheNow;
+    try {
+      await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
+      await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
+      cacheNow += 61 * 1000;
+      await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
+    } finally {
+      Date.now = realDateNow;
+    }
+    ok('analytics cache: repeated costflow requests remain shared after the old 60s cold boundary', cachedBuilds === 1);
+    ok('analytics cache: bounded-stale safety fallback is at least 10 minutes',
+      cacheTtls.length === 3 && cacheTtls.every((ttl) => ttl >= 10 * 60 * 1000));
+    ok('analytics cache: costflow explicitly opts into bounded-stale caching',
+      cachePolicies.length === 3 && cachePolicies.every((options) => options && options.boundedStale === true));
+    respCachePut(routeWorkspace, 'ordinary-cache-fixture', { ordinary: true });
+    notifyChange(routeWorkspace);
+    ok('response cache: ordinary entries still invalidate immediately on graph notification',
+      respCacheGet(routeWorkspace, 'ordinary-cache-fixture') === undefined);
+    await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
+    ok('analytics cache: unrelated graph notification preserves bounded costflow response', cachedBuilds === 1);
+    __invalidateRespCacheForTest();
+    await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
+    ok('analytics cache: task/filedrop watcher invalidation preserves bounded costflow response', cachedBuilds === 1);
+    const overlayFile = overlayStore.fileFor(routeWorkspace);
+    fs.mkdirSync(path.dirname(overlayFile), { recursive: true });
+    fs.writeFileSync(overlayFile, '{}\n');
+    await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
+    ok('analytics cache: out-of-process overlay mtime churn preserves bounded costflow response', cachedBuilds === 1);
+    Date.now = () => cacheNow;
+    cacheNow += 10 * 60 * 1000;
+    try {
+      await cachedRoute('/costflow', 'GET', {}, {}, cacheUrl, null);
+    } finally {
+      Date.now = realDateNow;
+    }
+    ok('analytics cache: safety TTL eventually refreshes costflow', cachedBuilds === 2);
+
+    const overheadUrl = new URL(`http://127.0.0.1/harness/overhead?workspace=${encodeURIComponent(routeWorkspace)}`);
+    await cachedRoute('/harness/overhead', 'GET', {}, {}, overheadUrl, null);
+    await cachedRoute('/harness/overhead', 'GET', {}, {}, overheadUrl, null);
+    ok('analytics cache: repeated harness overhead requests share one graph projection', cachedBuilds === 3);
+
+    fs.mkdirSync(path.join(routeWorkspace, '.graph'), { recursive: true });
+    appendShadow(routeWorkspace, { verdict: 'keep', shadow_verdict: 'keep' });
+    const agreementUrl = new URL(`http://127.0.0.1/metrics/agreement?workspace=${encodeURIComponent(routeWorkspace)}`);
+    const agreementFirst = {}, agreementCached = {}, agreementFresh = {};
+    await cachedRoute('/metrics/agreement', 'GET', {}, agreementFirst, agreementUrl, null);
+    appendShadow(routeWorkspace, { verdict: 'prune', shadow_verdict: 'prune' });
+    await cachedRoute('/metrics/agreement', 'GET', {}, agreementCached, agreementUrl, null);
+    ok('analytics cache: agreement is shared between clients inside the bounded fallback',
+      agreementFirst.body.agreement.total === 1 && agreementCached.body.agreement.total === 1);
+    notifyChange(routeWorkspace);
+    await cachedRoute('/metrics/agreement', 'GET', {}, agreementFresh, agreementUrl, null);
+    ok('analytics cache: graph mutation invalidation refreshes agreement immediately',
+      agreementFresh.body.agreement.total === 2);
+
     const usage = (output) => ({
       input_tokens: 0,
       output_tokens: output,
@@ -313,7 +395,55 @@ async function runAsyncTests() {
     ok('/costflow cause ledger classifies worker/review/daemon usage', near(byCause.worker.usd, 1) && near(byCause.review.usd, 2) && near(byCause.daemon.usd, 0.5));
     ok('/costflow cause ledger keeps unknown plus merged-basis remainder unknown', near(byCause.unknown.usd, 5.4) && byCause.unknown.tokens === 53);
     ok('/costflow cause USD total equals /costflow.cost.usd within cents', near(causeRes.body.cost_by_cause.total.usd, causeRes.body.cost.usd, 0.01));
+
+    const mixedOv = {
+      assignee: {},
+      timestamps: {},
+      work_sessions: {},
+      usage_records: {},
+      usage_reconcile_snapshot: {
+        harness: 'mixed',
+        harnesses: ['claude', 'codex'],
+        totals: {
+          input_tokens: 5,
+          output_tokens: 7,
+          cache_read_input_tokens: 3,
+          cache_creation_input_tokens: 2,
+          by_model: {
+            'gpt-5.6-sol': { input_tokens: 4, output_tokens: 5, cache_read_input_tokens: 3, cache_creation_input_tokens: 2 },
+            'claude-sonnet-5': { input_tokens: 1, output_tokens: 2, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+          },
+        },
+        cost: {
+          usd: 1.5,
+          source: 'real',
+          kind: 'estimate',
+          estimated: true,
+          caveat: 'Published list-rate estimate, not billed cost; long-context adjustments may apply.',
+          by_model: {
+            'gpt-5.6-sol': { tokens: 14, usd: 1.2 },
+            'claude-sonnet-5': { tokens: 3, usd: 0.3 },
+          },
+        },
+        human: { tokens: 0, chars: 0, messages: 0, dropped: 0 },
+        sessions: [],
+      },
+      edges: [],
+      guidance: [],
+      snapshots: {},
+    };
+    const mixedRes = {};
+    const mixedRoute = makeCostflowRoute([], mixedOv, routeWorkspace);
+    await mixedRoute('/costflow', 'GET', {}, mixedRes, new URL(`http://127.0.0.1/costflow?workspace=${encodeURIComponent(routeWorkspace)}&since=mixed`), null);
+    ok('/costflow aggregates mixed-provider model rows and estimate dollars',
+      mixedRes.body.cost.usd === 1.5 && mixedRes.body.by_model['gpt-5.6-sol'].output_tokens === 5 && mixedRes.body.by_model['claude-sonnet-5'].output_tokens === 2);
+    ok('/costflow preserves cache writes in gross billable totals',
+      mixedRes.body.gross_totals.cache_creation === 2 && mixedRes.body.usage_totals.cache_creation === 2 && mixedRes.body.gross_totals.input_tokens + mixedRes.body.gross_totals.output_tokens + mixedRes.body.gross_totals.cache_read + mixedRes.body.gross_totals.cache_creation === 17);
+    ok('/costflow labels local dollars as estimates with caveat',
+      mixedRes.body.cost.estimated === true && mixedRes.body.cost.kind === 'estimate' && /not billed cost/i.test(mixedRes.body.cost.caveat) && mixedRes.body.sources.billing === 'usage_estimate');
   } finally {
+    __clearRespCacheForTest();
+    try { fs.rmSync(overlayStore.fileFor(routeWorkspace), { force: true }); } catch { /* best effort */ }
     if (prevHome === undefined) delete process.env.CODEX_HOME;
     else process.env.CODEX_HOME = prevHome;
     fs.rmSync(tmp, { recursive: true, force: true });

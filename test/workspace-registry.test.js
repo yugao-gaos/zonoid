@@ -60,6 +60,21 @@ function repoRootWithContainers(startDir, { tmpdir, homedir }) {
   return m.exports.repoRoot(startDir);
 }
 
+function workspaceRegistryWithFs(stubFs) {
+  const Module = require('module');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'workspace-registry.js'), 'utf8');
+  const m = new Module('ws-reg-stub-fs', module);
+  m.filename = path.join(__dirname, '..', 'lib', 'workspace-registry.js');
+  m.paths = Module._nodeModulePaths(path.dirname(m.filename));
+  const origLoad = Module._load;
+  Module._load = function (req, parent, isMain) {
+    if (req === 'fs') return stubFs;
+    return origLoad.call(this, req, parent, isMain);
+  };
+  try { m._compile(src, m.filename); } finally { Module._load = origLoad; }
+  return m.exports;
+}
+
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
   if (cond) { console.log(`PASS  ${label}`); pass++; }
@@ -124,6 +139,8 @@ try {
   touchFile(linkedWorktree, '.git', `gitdir: ${linkedGitDir}\n`);
   ok('repoRoot maps a linked worktree with tracked .graph to its primary checkout',
     reg.repoRoot(linkedWorktree) === fs.realpathSync(linkedPrimary));
+  ok('activeRepoRoot maps a registered linked worktree to its primary checkout',
+    reg.activeRepoRoot(linkedWorktree) === fs.realpathSync(linkedPrimary));
   const nestedLinked = touchDir(linkedWorktree, 'src');
   ok('repoRoot maps a nested path in a tracked-graph worktree to its primary checkout',
     reg.repoRoot(nestedLinked) === fs.realpathSync(linkedPrimary));
@@ -305,6 +322,215 @@ try {
   let r4 = reg.addRepo(addFile, { workspace: 'second', repo: '/repos/three' });
   ok('addRepo creates an additional named workspace', r4.workspaces.second && r4.workspaces.second.repos.includes('/repos/three'));
   ok('addRepo allRepos sees all members across workspaces', reg.allRepos(r4).length === 3);
+
+  // Deterministic stale-owner recovery: age the lock explicitly rather than racing a timeout.
+  const staleLock = `${addFile}.lock`;
+  fs.writeFileSync(staleLock, JSON.stringify({ pid: process.pid, owner: 'stale-test-owner', at: 1 }));
+  fs.utimesSync(staleLock, new Date(0), new Date(0));
+  const staleLiveBytes = fs.readFileSync(staleLock, 'utf8');
+  let staleLiveTimedOut = false;
+  try {
+    reg.addRepo(addFile, { workspace: 'second', repo: '/repos/four' }, { staleMs: 1, waitMs: 35 });
+  } catch (err) { staleLiveTimedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('addRepo never reclaims an aged well-formed live-owner lock',
+    staleLiveTimedOut && fs.readFileSync(staleLock, 'utf8') === staleLiveBytes);
+  fs.unlinkSync(staleLock);
+  const recovered = reg.addRepo(addFile, { workspace: 'second', repo: '/repos/four' });
+  ok('addRepo proceeds after the live legacy owner releases its lock',
+    recovered.workspaces.second.repos.includes('/repos/four'));
+
+  const currentIncarnation = require('../lib/onboard-state').processIncarnation(process.pid);
+  let registryOwner = null;
+  reg.withRegistryLock(addFile, () => {
+    const held = path.join(`${addFile}.lock`, 'held');
+    registryOwner = JSON.parse(fs.readFileSync(path.join(held, fs.readdirSync(held)[0]), 'utf8'));
+  });
+  ok('new registry lock owners persist their exact process incarnation',
+    registryOwner && Object.prototype.hasOwnProperty.call(registryOwner, 'processIncarnation')
+      && registryOwner.processIncarnation === currentIncarnation);
+
+  const reusedRegistryFile = path.join(SANDBOX, 'reused-pid-registry.json');
+  const reusedRegistryHeld = path.join(`${reusedRegistryFile}.lock`, 'held');
+  fs.mkdirSync(reusedRegistryHeld, { recursive: true });
+  fs.writeFileSync(path.join(reusedRegistryHeld, 'owner-10101010101010101010101010101010.json'), JSON.stringify({
+    pid: process.pid,
+    processIncarnation: 'test:older-process-incarnation',
+    owner: 'reused-registry-owner',
+    at: Date.now(),
+  }));
+  const reusedRegistry = reg.addRepo(reusedRegistryFile,
+    { workspace: 'recovered', repo: '/repos/reused-pid' }, { staleMs: 60000, waitMs: 500 });
+  ok('registry multiwriter recovery does not trust a reused live PID',
+    reusedRegistry.workspaces.recovered.repos.includes('/repos/reused-pid')
+      && !fs.existsSync(`${reusedRegistryFile}.lock`));
+
+  // Empty/truncated/malformed locks can be the brief create-before-owner-write window. A fresh one
+  // must remain untouched, while an unchanged sufficiently stale one is safe to recover.
+  for (const [label, contents] of [['empty', ''], ['truncated', '{"pid":'], ['malformed', '{}']]) {
+    const malformedFile = path.join(SANDBOX, `malformed-${label}.json`);
+    const malformedLock = `${malformedFile}.lock`;
+    fs.writeFileSync(malformedLock, contents);
+    fs.utimesSync(malformedLock, new Date(0), new Date(0));
+    const value = reg.addRepo(malformedFile, { workspace: 'recovered', repo: `/repos/${label}` },
+      { staleMs: 1, waitMs: 500 });
+    ok(`addRepo reclaims an unchanged stale ${label} lock`,
+      value.workspaces.recovered.repos.includes(`/repos/${label}`));
+    ok(`addRepo releases its owner lock after stale ${label} recovery`, !fs.existsSync(malformedLock));
+  }
+
+  const freshMalformedFile = path.join(SANDBOX, 'fresh-malformed.json');
+  const freshMalformedLock = `${freshMalformedFile}.lock`;
+  fs.writeFileSync(freshMalformedLock, '{"pid":');
+  let freshMalformedTimedOut = false;
+  try {
+    reg.addRepo(freshMalformedFile, { workspace: 'blocked', repo: '/repos/blocked' },
+      { staleMs: 60000, waitMs: 35 });
+  } catch (err) { freshMalformedTimedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('addRepo never reclaims a fresh truncated lock',
+    freshMalformedTimedOut && fs.readFileSync(freshMalformedLock, 'utf8') === '{"pid":');
+  fs.unlinkSync(freshMalformedLock);
+
+  const liveToMalformedFile = path.join(SANDBOX, 'live-to-malformed.json');
+  const liveToMalformedLock = `${liveToMalformedFile}.lock`;
+  fs.writeFileSync(liveToMalformedLock,
+    JSON.stringify({ pid: process.pid, owner: 'live-before-corruption', at: Date.now() }));
+  fs.writeFileSync(liveToMalformedLock, '{"pid":');
+  let liveToMalformedTimedOut = false;
+  try {
+    reg.addRepo(liveToMalformedFile, { workspace: 'blocked', repo: '/repos/live-corrupt' },
+      { staleMs: 60000, waitMs: 35 });
+  } catch (err) { liveToMalformedTimedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('a live lock that becomes malformed is protected while fresh',
+    liveToMalformedTimedOut && fs.readFileSync(liveToMalformedLock, 'utf8') === '{"pid":');
+  fs.utimesSync(liveToMalformedLock, new Date(0), new Date(0));
+  const corruptRecovered = reg.addRepo(liveToMalformedFile,
+    { workspace: 'recovered', repo: '/repos/live-corrupt' }, { staleMs: 1, waitMs: 500 });
+  ok('the unchanged live-to-malformed lock becomes recoverable only after staleness',
+    corruptRecovered.workspaces.recovered.repos.includes('/repos/live-corrupt'));
+
+  const deadOwnerFile = path.join(SANDBOX, 'dead-owner.json');
+  const deadOwnerLock = `${deadOwnerFile}.lock`;
+  fs.writeFileSync(deadOwnerLock, JSON.stringify({ pid: 2147483647, owner: 'dead-owner', at: Date.now() }));
+  const deadRecovered = reg.addRepo(deadOwnerFile, { workspace: 'recovered', repo: '/repos/dead' },
+    { staleMs: 60000, waitMs: 500 });
+  ok('addRepo reclaims a well-formed lock whose owner process is dead',
+    deadRecovered.workspaces.recovered.repos.includes('/repos/dead'));
+
+  const liveOwnerFile = path.join(SANDBOX, 'live-owner.json');
+  const liveOwnerLock = `${liveOwnerFile}.lock`;
+  const liveOwnerBytes = JSON.stringify({ pid: process.pid, owner: 'live-owner', at: Date.now() });
+  fs.writeFileSync(liveOwnerLock, liveOwnerBytes);
+  let liveOwnerTimedOut = false;
+  try {
+    reg.addRepo(liveOwnerFile, { workspace: 'blocked', repo: '/repos/live' },
+      { staleMs: 60000, waitMs: 35 });
+  } catch (err) { liveOwnerTimedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('addRepo leaves a fresh live-owner lock intact',
+    liveOwnerTimedOut && fs.readFileSync(liveOwnerLock, 'utf8') === liveOwnerBytes);
+  fs.unlinkSync(liveOwnerLock);
+
+  // Deterministically replace a stale malformed incumbent between its first snapshot and reclaim
+  // check. The changed inode/content must protect the fresh live lock from the old recovery pass.
+  const replaceFile = path.join(SANDBOX, 'replaced-lock.json');
+  const replaceLock = `${replaceFile}.lock`;
+  fs.writeFileSync(replaceLock, '');
+  fs.utimesSync(replaceLock, new Date(0), new Date(0));
+  const replacementBytes = JSON.stringify({ pid: process.pid, owner: 'replacement-live', at: Date.now() });
+  let incumbentFd = null;
+  let replaced = false;
+  const swappingFs = new Proxy(fs, { get(target, key) {
+    if (key === 'openSync') return (file, flags, ...args) => {
+      const opened = target.openSync(file, flags, ...args);
+      if (file === replaceLock && flags === 'r') incumbentFd = opened;
+      return opened;
+    };
+    if (key === 'readFileSync') return (file, ...args) => {
+      const value = target.readFileSync(file, ...args);
+      if (!replaced && file === incumbentFd) {
+        replaced = true;
+        target.unlinkSync(replaceLock);
+        target.writeFileSync(replaceLock, replacementBytes);
+      }
+      return value;
+    };
+    return target[key];
+  }});
+  let replacementTimedOut = false;
+  try {
+    workspaceRegistryWithFs(swappingFs).addRepo(replaceFile,
+      { workspace: 'blocked', repo: '/repos/replaced' }, { staleMs: 60000, waitMs: 35 });
+  } catch (err) { replacementTimedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('stale malformed recovery never removes a replaced live lock',
+    replaced && replacementTimedOut && fs.readFileSync(replaceLock, 'utf8') === replacementBytes);
+  if (fs.existsSync(replaceLock)) fs.unlinkSync(replaceLock);
+
+  const releaseFile = path.join(SANDBOX, 'release-token.json');
+  const releaseLock = `${releaseFile}.lock`;
+  const releaseReplacement = JSON.stringify({ pid: process.pid, owner: 'release-replacement', at: Date.now() });
+  reg.withRegistryLock(releaseFile, () => {
+    const held = path.join(releaseLock, 'held');
+    const own = fs.readdirSync(held).map((name) => path.join(held, name))[0];
+    fs.unlinkSync(own);
+    fs.rmdirSync(held);
+    fs.mkdirSync(held);
+    fs.writeFileSync(path.join(held, 'owner-00000000000000000000000000000000.json'), releaseReplacement);
+  });
+  ok('an old owner release never unlinks a replacement lock',
+    fs.readFileSync(path.join(releaseLock, 'held', 'owner-00000000000000000000000000000000.json'), 'utf8') === releaseReplacement);
+  fs.rmSync(releaseLock, { recursive: true, force: true });
+
+  const ownerFaultFile = path.join(SANDBOX, 'owner-write-fault.json');
+  let ownerFd = null;
+  let ownerPath = null;
+  let ownerFdClosed = false;
+  let ownerPathRemoved = false;
+  const ownerFaultFs = new Proxy(fs, { get(target, key) {
+    if (key === 'openSync') return (file, flags, ...args) => {
+      const opened = target.openSync(file, flags, ...args);
+      if (flags === 'wx' && /\.lock\/held\/owner-[a-f0-9]+\.json$/.test(String(file))) {
+        ownerFd = opened;
+        ownerPath = file;
+      }
+      return opened;
+    };
+    if (key === 'writeFileSync') return (file, ...args) => {
+      if (file === ownerFd) throw Object.assign(new Error('injected owner record failure'), { code: 'EIO' });
+      return target.writeFileSync(file, ...args);
+    };
+    if (key === 'closeSync') return (fd, ...args) => {
+      if (fd === ownerFd) ownerFdClosed = true;
+      return target.closeSync(fd, ...args);
+    };
+    if (key === 'unlinkSync') return (file, ...args) => {
+      if (file === ownerPath) ownerPathRemoved = true;
+      return target.unlinkSync(file, ...args);
+    };
+    return target[key];
+  }});
+  let ownerFaultThrown = false;
+  try {
+    workspaceRegistryWithFs(ownerFaultFs).addRepo(ownerFaultFile,
+      { workspace: 'fault', repo: '/repos/fault' });
+  } catch (err) { ownerFaultThrown = err && err.code === 'EIO'; }
+  ok('registry owner-record write failure surfaces the original error', ownerFaultThrown);
+  ok('registry owner-record write failure closes its descriptor', ownerFd != null && ownerFdClosed);
+  ok('registry owner-record write failure removes only its empty owned lock',
+    ownerPathRemoved && !fs.existsSync(`${ownerFaultFile}.lock`));
+
+  const activeDir = mk('active-repo-path');
+  const inactiveFile = touchFile(SANDBOX, 'inactive-repo-file');
+  ok('isActiveRepoPath accepts an existing directory', reg.isActiveRepoPath(activeDir));
+  ok('isActiveRepoPath rejects a regular file', !reg.isActiveRepoPath(inactiveFile));
+  ok('isActiveRepoPath rejects an absent path', !reg.isActiveRepoPath(path.join(SANDBOX, 'absent-repo')));
+  ok('activeRepoRoot keeps an existing markerless registered directory active',
+    reg.activeRepoRoot(activeDir) === path.resolve(activeDir));
+  ok('activeRepoRoot leaves an absent registered path inactive',
+    reg.activeRepoRoot(path.join(SANDBOX, 'absent-repo')) === null);
+  const activeLink = path.join(SANDBOX, 'active-repo-link');
+  try { fs.symlinkSync(activeDir, activeLink, 'dir'); } catch { /* symlinks may be unavailable */ }
+  if (fs.existsSync(activeLink)) {
+    ok('isActiveRepoPath accepts a symlink to an existing directory', reg.isActiveRepoPath(activeLink));
+  }
 
   // addRepo validates inputs
   let threw = false;

@@ -1,20 +1,58 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { defaultOnboardOutDir } = require('../lib/onboard-paths');
+const crypto = require('crypto');
+const workspaceRegistry = require('../lib/workspace-registry');
+const onboardInitTransaction = require('../lib/onboard-init-transaction');
+const {
+  resolveOnboardPaths,
+  ensureOnboardRuntimeIgnored,
+} = require('../lib/onboard-paths');
+const {
+  readOnboardStatus,
+  readOnboardQueue,
+  patchOnboardStatus,
+  mutateOnboardStatus,
+  confirmedInjectedCount,
+  processIncarnation,
+  liveOnboardInjectionLease: liveInjectionLease,
+  liveOnboardPreparationLease: livePreparationLease,
+  validateOnboardQueue,
+  loadGenerationMatchedOnboardNotes,
+  reconcileOnboardPublication,
+} = require('../lib/onboard-state');
 
-const DRAIN_STATUS_FILE = 'onboard-drain-status.json';
 const DEFAULT_DRAIN_BATCH_SIZE = 20;
+const DEFAULT_INJECTION_MAX_ATTEMPTS = 3;
+const DEFAULT_INJECTION_BACKOFF_BASE_MS = 5 * 1000;
+const DEFAULT_INJECTION_BACKOFF_CAP_MS = 60 * 1000;
+const DEFAULT_INJECTION_LEASE_MS = 5 * 60 * 1000;
 
 function readJSON(file, def) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')); } catch { return def; }
 }
 
-function writeJSONAtomic(file, data) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + '\n');
-  fs.renameSync(tmp, file);
+function newQueueGeneration() {
+  return `onboard-${crypto.randomBytes(12).toString('hex')}`;
+}
+
+function countOrZero(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, n) : 0;
+}
+
+function injectionMaxAttempts() {
+  return Math.max(1, Number(process.env.HEADLESS_DRAIN_INJECTION_MAX_ATTEMPTS) || DEFAULT_INJECTION_MAX_ATTEMPTS);
+}
+
+function injectionRetryDelay(attempts) {
+  const baseMs = Math.max(1, Number(process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS) || DEFAULT_INJECTION_BACKOFF_BASE_MS);
+  const capMs = Math.max(1, Number(process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_CAP_MS) || DEFAULT_INJECTION_BACKOFF_CAP_MS);
+  return Math.min(capMs, baseMs * Math.pow(2, Math.max(0, attempts - 1)));
+}
+
+function injectionLeaseMs() {
+  return Math.max(1000, Number(process.env.HEADLESS_DRAIN_TIMEOUT_MS) || DEFAULT_INJECTION_LEASE_MS);
 }
 
 function isPidAlive(pid) {
@@ -26,10 +64,6 @@ function isPidAlive(pid) {
   } catch (err) {
     return !!(err && err.code === 'EPERM');
   }
-}
-
-function drainStatusFile(outDir) {
-  return path.join(outDir, DRAIN_STATUS_FILE);
 }
 
 function summarizeInflight(q) {
@@ -62,9 +96,16 @@ function summarizeInflight(q) {
   };
 }
 
-function queueStatus(outDir) {
-  const q = readJSON(path.join(outDir, 'onboard-queue.json'), null);
-  if (!q || typeof q.total !== 'number' || typeof q.cursor !== 'number') return null;
+function queueStatus(outDir, options = {}) {
+  if (!options.statusLocked) {
+    try {
+      const reconciled = reconcileOnboardPublication(outDir);
+      if (!reconciled.ok) return null;
+    } catch { return null; }
+  }
+  const q = readOnboardQueue(outDir);
+  const validated = validateOnboardQueue(q, { allowLegacy: true });
+  if (!validated.ok) return null;
   const processed = q.cursor;
   const remaining = Math.max(0, q.total - q.cursor);
   const kept = Array.isArray(q.kept) ? q.kept.length : 0;
@@ -73,31 +114,228 @@ function queueStatus(outDir) {
     summary: String(n && n.summary || '').trim(),
     kind: String(n && n.kind || 'note').trim() || 'note',
   }));
-  return { total: q.total, processed, kept, keptNotes, remaining, drainDone: remaining === 0, ...summarizeInflight(q) };
+  return {
+    total: q.total,
+    processed,
+    kept,
+    keptNotes,
+    remaining,
+    drainDone: remaining === 0,
+    queueGeneration: validated.generation,
+    ...summarizeInflight(q),
+  };
 }
 
 function readDrainMeta(outDir) {
-  return readJSON(drainStatusFile(outDir), null) || {};
+  return readOnboardStatus(outDir);
 }
 
 function writeDrainMeta(outDir, patch) {
-  const prev = readDrainMeta(outDir);
-  const next = { ...prev, ...patch, updatedAt: new Date().toISOString() };
-  writeJSONAtomic(drainStatusFile(outDir), next);
-  return next;
+  return patchOnboardStatus(outDir, patch).value;
+}
+
+function resolveRequestPaths(ctx, repo, outDir) {
+  return resolveOnboardPaths({
+    repo,
+    outDir,
+    registeredWorkspaces: ctx.registeredWorkspaces,
+  });
+}
+
+function sendPathError(send, res, err) {
+  send(res, Number(err && err.statusCode) || 400, {
+    ok: false,
+    error: err && err.message ? err.message : String(err),
+  });
+}
+
+function pathsNameSameDirectory(left, right) {
+  try { return fs.realpathSync(path.resolve(left)) === fs.realpathSync(path.resolve(right)); }
+  catch { return path.resolve(left) === path.resolve(right); }
+}
+
+function snapshotFile(file) {
+  try { return { exists: true, bytes: fs.readFileSync(file) }; }
+  catch (err) {
+    if (err && err.code === 'ENOENT') return { exists: false, bytes: null };
+    throw err;
+  }
+}
+
+function restoreFile(file, snapshot) {
+  if (snapshot.exists) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, snapshot.bytes);
+  } else {
+    try { fs.unlinkSync(file); } catch (err) { if (!err || err.code !== 'ENOENT') throw err; }
+  }
+}
+
+function removeEmptyParents(start, stop) {
+  const boundary = path.resolve(stop);
+  let cursor = path.resolve(start);
+  while (cursor !== boundary && path.dirname(cursor) !== cursor) {
+    try { fs.rmdirSync(cursor); } catch { break; }
+    cursor = path.dirname(cursor);
+  }
+}
+
+function removeNewRegistryTransactionFiles(registryFile, registryEntriesBefore) {
+  let registryEntries = [];
+  try { registryEntries = fs.readdirSync(path.dirname(registryFile)); } catch { /* registry directory may be absent */ }
+  const registryBase = path.basename(registryFile).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const ownRegistryTmp = new RegExp(`^${registryBase}\\.${process.pid}\\.[a-f0-9]+\\.tmp$`);
+  for (const name of registryEntries) {
+    if (registryEntriesBefore.has(name) || !ownRegistryTmp.test(name)) continue;
+    try { fs.unlinkSync(path.join(path.dirname(registryFile), name)); } catch { /* best-effort rollback */ }
+  }
+}
+
+// Test-only deterministic hard-exit seam. process.exit intentionally bypasses catch/finally, leaving
+// the same dead-owner locks and journal a daemon crash would leave at the named durable boundary.
+function maybeCrashInitBoundary(boundary) {
+  if (process.env.ZONOID_TEST_ONBOARD_INIT_CRASH_AFTER === boundary) process.exit(86);
+}
+
+function observeInitBoundary(ctx, boundary, detail) {
+  if (typeof ctx.onboardInitBoundary === 'function') ctx.onboardInitBoundary(boundary, detail);
+}
+
+function injectionRetryIsCapped(status, meta) {
+  if (!status || !status.queueGeneration || !status.drainDone || status.kept <= 0) return false;
+  if (meta.injectionGeneration !== status.queueGeneration) return false;
+  const attempts = countOrZero(meta.injectionAttempts);
+  return meta.injectionRetryCapped === true
+    || (meta.injectionState === 'failed' && attempts >= injectionMaxAttempts());
+}
+
+function forcePreparationPending(meta) {
+  return meta && meta.preparationForce === true
+    && ['pending', 'running', 'failed'].includes(meta.preparationState);
+}
+
+function pendingPreparation(repo, outDir, current, force) {
+  return {
+    ...current,
+    repo,
+    outDir,
+    preparationGeneration: newQueueGeneration(),
+    preparationState: 'pending',
+    preparationStage: null,
+    preparationRequestedAt: new Date().toISOString(),
+    preparationForce: force === true,
+    preparationOwner: null,
+    preparationPid: null,
+    preparationLeaseExpiresAt: null,
+    queueGeneration: null,
+    injected: false,
+    injectedGeneration: null,
+    injectedKept: 0,
+    injectionGeneration: null,
+    injectionState: 'idle',
+    injectionOwner: null,
+    injectionPid: null,
+    injectionProcessIdentity: null,
+    injectionLeaseExpiresAt: null,
+    injectionCancelRequestedOwner: null,
+    injectionCancelRequestedAt: null,
+    injectionAttempts: 0,
+    injectionRetryAt: null,
+    injectionRetryCapped: false,
+    injectionError: null,
+    injecting: false,
+    error: null,
+  };
 }
 
 function buildDrainJob(repo, outDir, patch = {}) {
-  const meta = { ...readDrainMeta(outDir), ...patch };
-  const qs = queueStatus(outDir) || {};
+  // The headless learner persists progress independently of the route process. A cached POST job
+  // is only a fallback; it must never overwrite a newer on-disk injection result or error.
+  const persistedQueue = queueStatus(outDir);
+  const persistedMeta = readDrainMeta(outDir);
+  let meta = Object.keys(persistedMeta).length ? persistedMeta : patch;
+  const qs = persistedQueue || {};
   const autoInject = meta.autoInject !== false;
-  const injected = meta.injected === true;
   const drainDone = qs.drainDone === true;
-  const error = meta.error || null;
+  const noCandidates = drainDone && qs.total === 0;
   const kept = typeof qs.kept === 'number' ? qs.kept : (meta.kept || 0);
-  const injectedKept = Math.max(0, Number(meta.injectedKept) || (injected ? kept : 0));
   const processed = qs.processed || meta.processed || 0;
   const visualProcessed = Math.max(processed, qs.visualProcessed || meta.visualProcessed || 0);
+  const preparationState = persistedQueue && meta.preparationForce !== true
+    ? 'ready'
+    : (meta.preparationState || (persistedQueue ? 'ready' : 'idle'));
+  const preparing = preparationState === 'pending' || preparationState === 'running';
+  const queueGen = qs.queueGeneration || meta.queueGeneration || null;
+  const nothingToInject = drainDone && kept === 0 && !preparing && meta.preparationForce !== true;
+  if (nothingToInject && queueGen && (meta.injectionGeneration !== queueGen
+      || meta.injectionState !== 'not_needed' || meta.injectedKept !== 0
+      || meta.injecting === true || meta.injectionError)) {
+    const terminal = mutateOnboardStatus(outDir, (current) => {
+      const latest = queueStatus(outDir, { statusLocked: true });
+      if (!latest || latest.queueGeneration !== queueGen || latest.drainDone !== true || latest.kept !== 0) return undefined;
+      if (current.preparationForce === true || ['pending', 'running'].includes(current.preparationState)) return undefined;
+      const previousInjectionError = !!current.injectionError
+        || ['backoff', 'failed'].includes(current.injectionState)
+        || /^inject(?:ion)?\b/i.test(String(current.error || ''));
+      return {
+        ...current,
+        repo,
+        outDir,
+        injected: false,
+        injectedKept: 0,
+        injectionGeneration: queueGen,
+        injectionState: 'not_needed',
+        injectionAttempts: 0,
+        injectionRetryAt: null,
+        injectionRetryCapped: false,
+        injectionError: null,
+        injecting: false,
+        error: previousInjectionError ? null : (current.error || null),
+      };
+    });
+    if (terminal.applied) {
+      meta = terminal.value;
+    }
+  }
+  const injectionGen = typeof meta.injectionGeneration === 'string'
+    ? meta.injectionGeneration
+    : ((meta.injected === true || meta.injecting === true || meta.injectionState) ? queueGen : null);
+  const generationMatches = !!queueGen && injectionGen === queueGen;
+  // An explicit zero is a real watermark. Do not replace it with the current kept count merely
+  // because zero is falsy; that was the original stale-completion bug.
+  const injectedKept = generationMatches && Object.prototype.hasOwnProperty.call(meta, 'injectedKept')
+    ? countOrZero(meta.injectedKept)
+    : 0;
+  const legacyInjectionError = meta.error && /^inject(?:ion)?\b/i.test(String(meta.error));
+  const inferredInjectionState = meta.injecting === true
+    ? 'running'
+    : (meta.injected === true ? 'succeeded' : ((meta.injectionError || legacyInjectionError) ? 'failed' : null));
+  let injectionState = generationMatches ? (meta.injectionState || inferredInjectionState) : null;
+  const noNotesToInject = drainDone && qs.total > 0 && kept === 0;
+  if (preparing) injectionState = 'blocked';
+  else if (nothingToInject) injectionState = 'not_needed';
+  else if (!injectionState) injectionState = autoInject && kept > 0 ? 'pending' : 'idle';
+  const injecting = generationMatches && (meta.injecting === true || injectionState === 'running');
+  const injectionError = generationMatches
+    ? (meta.injectionError || ((['backoff', 'failed'].includes(injectionState) || legacyInjectionError) ? meta.error : null))
+    : null;
+  const hasInjectionErrorMetadata = !!meta.injectionError || legacyInjectionError
+    || ['backoff', 'failed'].includes(meta.injectionState);
+  const error = injectionError || (hasInjectionErrorMetadata ? null : meta.error) || null;
+  const injected = !preparing
+    && !injecting
+    && !injectionError
+    && generationMatches
+    && (injectionState === 'succeeded' || (!meta.injectionState && meta.injected === true))
+    && injectedKept >= kept;
+  const attempts = generationMatches ? countOrZero(meta.injectionAttempts) : 0;
+  const maxAttempts = injectionMaxAttempts();
+  const retryAt = generationMatches ? countOrZero(meta.injectionRetryAt) : 0;
+  const retryCapped = generationMatches && (meta.injectionRetryCapped === true || (injectionState === 'failed' && attempts >= maxAttempts));
+  const retryPending = generationMatches && injectionState === 'backoff' && !retryCapped && retryAt > Date.now();
+  const successfulTerminal = nothingToInject || !autoInject || injected;
+  const retryablePending = !!error && !injectionError && !!persistedQueue && !preparing
+    && preparationState !== 'failed' && (qs.remaining > 0 || drainDone);
   return {
     repo,
     outDir,
@@ -111,92 +349,612 @@ function buildDrainJob(repo, outDir, patch = {}) {
     staleInflight: qs.staleInflight || 0,
     inflightRanges: Array.isArray(qs.inflightRanges) ? qs.inflightRanges : [],
     injectedKept,
-    done: drainDone && (!autoInject || injected || !!error),
+    queueGeneration: queueGen,
+    done: (!!error && !persistedQueue) || (!preparing && drainDone && successfulTerminal),
     error,
     autoInject,
     injected,
-    injecting: meta.injecting === true,
-    needsReview: drainDone && !autoInject && !injected,
+    injecting,
+    injectionState,
+    injectionAttempts: attempts,
+    injectionMaxAttempts: maxAttempts,
+    injectionRetryAt: retryAt || null,
+    injectionRetryPending: retryPending,
+    injectionRetryCapped: retryCapped,
+    injectionError,
+    retryablePending,
+    preparing,
+    preparationState,
+    preparationStage: meta.preparationStage || null,
+    preparationAttempts: Math.max(0, Number(meta.preparationAttempts) || 0),
+    noCandidates,
+    noNotesToInject,
+    needsReview: drainDone && !noCandidates && !autoInject && !injected,
   };
 }
 
-function runNode(args) {
+function runNode(args, options = {}) {
   const { spawn } = require('child_process');
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, args, { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
-    child.on('error', reject);
-    child.on('close', (code) => code === 0 ? resolve() : reject(new Error(`child exited ${code}`)));
+    let settled = false;
+    let timedOut = false;
+    const timeoutMs = Math.max(0, Number(options.timeoutMs) || 0);
+    const timer = timeoutMs ? setTimeout(() => {
+      timedOut = true;
+      try { child.kill('SIGKILL'); } catch { /* child already exited */ }
+    }, timeoutMs) : null;
+    if (timer && typeof timer.unref === 'function') timer.unref();
+    if (typeof options.onSpawn === 'function') options.onSpawn(child);
+    const finish = (err) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      if (err) reject(err); else resolve();
+    };
+    child.on('error', (err) => finish(err));
+    child.on('close', (code) => finish(timedOut
+      ? new Error(`child timed out after ${timeoutMs}ms`)
+      : (code === 0 ? null : new Error(`child exited ${code}`))));
   });
 }
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, notifyChange } = ctx;
 
-  if (p === '/onboard/enqueue' && m === 'POST') {
+  if (p === '/onboard/init' && m === 'POST') {
     const b = await readBody(req);
-    const repo = b.repo;
-    if (!repo) { send(res, 400, { ok: false, error: 'repo required' }); return true; }
-    const outDir = b.outDir || defaultOnboardOutDir(repo);
-    const existingStatus = queueStatus(outDir);
-    const existingMeta = readDrainMeta(outDir);
-    if (!b.force && existingStatus && existingStatus.total > 0 && existingStatus.drainDone && existingMeta.repo === repo) {
-      send(res, 200, { ok: true, total: existingStatus.total, remaining: existingStatus.remaining, outDir, reused: true, completed: true });
+    const requestedRepo = b.repo || b.graph_repo;
+    if (!requestedRepo || typeof requestedRepo !== 'string') {
+      send(res, 400, { ok: false, error: 'repo required' }); return true;
+    }
+    if (b.workspace_id !== undefined && (typeof b.workspace_id !== 'string' || !b.workspace_id.trim())) {
+      send(res, 400, { ok: false, error: 'workspace_id must be a non-empty string' }); return true;
+    }
+
+    let resolved;
+    try {
+      const repoCandidate = (ctx.registrationRepoRoot || workspaceRegistry.registrationRepoRoot)(requestedRepo, {
+        registeredRepos: Array.from(ctx.registeredWorkspaces ? ctx.registeredWorkspaces() : []),
+      });
+      resolved = resolveOnboardPaths({
+        repo: repoCandidate,
+        outDir: b.outDir,
+        // This endpoint validates a prospective registration read-only. The candidate is admitted
+        // only for this validation call; it is not visible to any other route until commit below.
+        registeredWorkspaces: [repoCandidate],
+      });
+    } catch (err) {
+      sendPathError(send, res, err);
       return true;
     }
-    const { spawnSync } = require('child_process');
-    const SCRIPTS = path.join(__dirname, '..', 'scripts');
-    for (const s of ['onboard-mine-structure.js', 'onboard-mine-git.js', 'onboard-mine-docs.js', 'onboard-mine-assets.js', 'onboard-mine-config.js']) {
-      spawnSync(process.execPath, [path.join(SCRIPTS, s), '--repo', repo, '--out', outDir], { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
+
+    const { repo, outDir } = resolved;
+    const workspaceId = (b.workspace_id && b.workspace_id.trim()) || path.basename(repo);
+    const existingStatus = queueStatus(outDir);
+    const existingMeta = readDrainMeta(outDir);
+    const sameRepo = existingMeta.repo
+      ? pathsNameSameDirectory(existingMeta.repo, repo)
+      : resolved.kind === 'default';
+    if (sameRepo && !forcePreparationPending(existingMeta)
+        && injectionRetryIsCapped(existingStatus, existingMeta)) {
+      send(res, 409, {
+        ok: false,
+        code: 'onboarding_injection_retry_capped',
+        retryable: false,
+        error: 'existing onboarding queue is injection-failed and retry-capped; explicitly retry injection before init can succeed',
+      });
+      return true;
     }
-    const enqR = spawnSync(process.execPath, [path.join(SCRIPTS, 'onboard-learn.js'), '--repo', repo, '--in', outDir, '--enqueue'], { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
-    if (enqR.status !== 0) { send(res, 500, { ok: false, error: `enqueue failed (exit ${enqR.status})` }); return true; }
-    const statusR = spawnSync(process.execPath, [path.join(SCRIPTS, 'onboard-learn.js'), '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: path.join(__dirname, '..'), encoding: 'utf8', windowsHide: true });
-    let status = null;
-    try { status = JSON.parse(statusR.stdout || ''); } catch { /* ignore */ }
-    send(res, 200, { ok: true, total: status && status.total, remaining: status && status.remaining, outDir }); return true;
+
+    const registryFile = ctx.WORKSPACES_FILE;
+    if (!registryFile) {
+      send(res, 500, { ok: false, error: 'workspace registry is unavailable' }); return true;
+    }
+    const statusFile = path.join(outDir, 'onboard-drain-status.json');
+    let transactionResult = null;
+    try {
+      transactionResult = workspaceRegistry.withRegistryLock(registryFile, () => {
+        // A second daemon can become the recovery owner immediately after a hard exit. Finish every
+        // older durable intent before deriving this request's idempotent reuse state.
+        onboardInitTransaction.reconcilePending(registryFile, { locked: true });
+
+        const lockedStatus = queueStatus(outDir);
+        const lockedMeta = readDrainMeta(outDir);
+        const lockedSameRepo = lockedMeta.repo
+          ? pathsNameSameDirectory(lockedMeta.repo, repo)
+          : resolved.kind === 'default';
+        const forceReplacementPending = forcePreparationPending(lockedMeta);
+        if (lockedSameRepo && !forceReplacementPending
+            && injectionRetryIsCapped(lockedStatus, lockedMeta)) {
+          const capped = new Error('existing onboarding queue is injection-failed and retry-capped; explicitly retry injection before init can succeed');
+          capped.code = 'onboarding_injection_retry_capped';
+          throw capped;
+        }
+        if (lockedSameRepo && forceReplacementPending && liveInjectionLease(lockedMeta).live) {
+          const busy = new Error('cannot rearm forced onboarding replacement while live injection is writing the old generation');
+          busy.code = 'onboarding_injection_in_progress';
+          busy.retryAt = liveInjectionLease(lockedMeta).retryAt;
+          throw busy;
+        }
+
+        const registryBefore = snapshotFile(registryFile);
+        const registryBackupBefore = snapshotFile(`${registryFile}.bak`);
+        const statusBefore = onboardInitTransaction.snapshotStatusFile(statusFile);
+        if (statusBefore.exists && statusBefore.kind !== 'file') {
+          const invalid = new Error(`onboarding status pre-image is not a readable regular file (${statusBefore.kind})`);
+          invalid.code = 'ONBOARD_STATUS_PREIMAGE_UNREADABLE';
+          throw invalid;
+        }
+        const outDirExisted = fs.existsSync(outDir);
+        const registryEntriesBefore = new Set(fs.readdirSync(path.dirname(registryFile)));
+        let intent = null;
+        let committed = false;
+        let reuseQueue = false;
+        let reusePreparation = false;
+        try {
+          reuseQueue = lockedSameRepo && !!lockedStatus && !forceReplacementPending;
+          reusePreparation = lockedSameRepo && ['pending', 'running'].includes(lockedMeta.preparationState);
+          const needsPreparation = !reuseQueue && !reusePreparation;
+          const needsDrainPatch = lockedMeta.autoInject !== true
+            || countOrZero(lockedMeta.batchSize) !== DEFAULT_DRAIN_BATCH_SIZE;
+          const desiredStatus = {
+            ...(needsPreparation
+              ? pendingPreparation(repo, outDir, lockedMeta, forceReplacementPending)
+              : lockedMeta),
+            repo,
+            outDir,
+            batchSize: DEFAULT_DRAIN_BATCH_SIZE,
+            autoInject: true,
+            ...(reuseQueue ? {
+              preparationState: 'ready',
+              preparationGeneration: null,
+              preparationForce: false,
+              queueGeneration: lockedStatus.queueGeneration,
+            } : {}),
+            ...(needsPreparation || needsDrainPatch ? { updatedAt: new Date().toISOString() } : {}),
+          };
+          intent = onboardInitTransaction.createIntent({
+            repo,
+            outDir,
+            workspaceId,
+            beforeStatus: lockedMeta,
+            beforeStatusSnapshot: statusBefore,
+            desiredStatus,
+            ensureRuntimeIgnore: resolved.kind === 'default',
+          });
+
+          // Write-ahead protocol: journal -> onboarding status -> registry -> committed reread ->
+          // journal removal. Git exclusion is a separate advisory effect after settlement.
+          onboardInitTransaction.writeIntent(registryFile, intent);
+          maybeCrashInitBoundary('journal');
+          observeInitBoundary(ctx, 'journal', { intent, repo, outDir, registryFile });
+          onboardInitTransaction.ensureIntentStatus(intent);
+          maybeCrashInitBoundary('status');
+          observeInitBoundary(ctx, 'status', { intent, repo, outDir, registryFile });
+          workspaceRegistry.addRepo(registryFile, { workspace: workspaceId, repo }, { locked: true });
+          maybeCrashInitBoundary('registry');
+          observeInitBoundary(ctx, 'registry', { intent, repo, outDir, registryFile });
+          onboardInitTransaction.verifyIntent(registryFile, intent);
+          committed = true;
+          maybeCrashInitBoundary('verified');
+          observeInitBoundary(ctx, 'verified', { intent, repo, outDir, registryFile });
+          onboardInitTransaction.removeIntent(registryFile, intent);
+          maybeCrashInitBoundary('journal_removed');
+          observeInitBoundary(ctx, 'journal_removed', { intent, repo, outDir, registryFile });
+          return { reuseQueue, reusePreparation };
+        } catch (err) {
+          // Once both durable halves reread successfully, acceptance is truthful. Keep the journal
+          // for boot to retry a post-commit ignore/cleanup failure and do not claim rollback.
+          if (committed) return { reuseQueue, reusePreparation, reconciliationPending: true };
+          // Ordinary exceptions retain the previous exact transactional behavior. A real hard exit
+          // never enters this catch, so its durable intent remains available to boot reconciliation.
+          let statusRollback = null;
+          try {
+            if (intent) statusRollback = onboardInitTransaction.rollbackIntentStatus(registryFile, intent, statusBefore);
+          } catch { /* preserve primary error */ }
+          let registryRolledBack = false;
+          if (statusRollback && statusRollback.owned && !statusRollback.stale) {
+            try {
+              restoreFile(registryFile, registryBefore);
+              restoreFile(`${registryFile}.bak`, registryBackupBefore);
+              registryRolledBack = true;
+            } catch { /* keep the journal so boot can roll the transaction forward */ }
+          }
+          try {
+            if (intent && statusRollback && statusRollback.owned
+                && (statusRollback.stale || registryRolledBack)) {
+              onboardInitTransaction.removeIntent(registryFile, intent);
+            } else if (intent) {
+              // A request that reports failure must not leave a valid roll-forward journal behind.
+              // If exact rollback could not settle ownership, quarantine this transaction and let a
+              // concurrent accepted generation (if any) remain authoritative.
+              onboardInitTransaction.quarantineIntent(registryFile, intent.id);
+            }
+          } catch { /* preserve primary error */ }
+          if (registryRolledBack) removeNewRegistryTransactionFiles(registryFile, registryEntriesBefore);
+          if (!outDirExisted && registryRolledBack && statusRollback && !statusRollback.stale) {
+            removeEmptyParents(outDir, repo);
+          }
+          throw err;
+        }
+      });
+    } catch (err) {
+      const capped = err && err.code === 'onboarding_injection_retry_capped';
+      const busy = err && err.code === 'onboarding_injection_in_progress';
+      send(res, capped || busy ? 409 : 500, {
+        ok: false,
+        ...(capped ? { code: err.code, retryable: false } : {}),
+        ...(busy ? { code: err.code, retryable: true, retryAt: err.retryAt || null } : {}),
+        error: capped || busy
+          ? err.message
+          : `workspace registration and onboarding transaction failed: ${err && err.message ? err.message : err}`,
+      });
+      return true;
+    }
+
+    // Registration and durable drain intent are now committed and the journal is settled. Warming
+    // graph/Git integration and adding the local runtime ignore are idempotent advisory effects.
+    try { if (typeof ctx.setWorkspace === 'function') ctx.setWorkspace(repo, { workspace: workspaceId }); } catch { /* lazy routes can warm later */ }
+    if (resolved.kind === 'default') {
+      onboardInitTransaction.tryRuntimeIgnore(repo, { onError: ctx.onboardRuntimeIgnoreError });
+    }
+    maybeCrashInitBoundary('exclude');
+    observeInitBoundary(ctx, 'exclude', { repo, outDir, registryFile });
+    if (notifyChange) notifyChange(repo);
+    send(res, 200, {
+      ok: true,
+      accepted: true,
+      registered: true,
+      graph_repo: repo,
+      workspace_id: workspaceId,
+      outDir,
+      reused: !!(transactionResult && (transactionResult.reuseQueue || transactionResult.reusePreparation)),
+      queued: !(transactionResult && (transactionResult.reuseQueue || transactionResult.reusePreparation)),
+      preparing: !(transactionResult && transactionResult.reuseQueue),
+      preparationState: transactionResult && transactionResult.reuseQueue
+        ? (readDrainMeta(outDir).preparationState || 'ready')
+        : 'pending',
+    });
+    return true;
+  }
+
+  if (p === '/onboard/enqueue' && m === 'POST') {
+    const b = await readBody(req);
+    if (!b.repo) { send(res, 400, { ok: false, error: 'repo required' }); return true; }
+    let resolved;
+    try { resolved = resolveRequestPaths(ctx, b.repo, b.outDir); } catch (err) {
+      sendPathError(send, res, err);
+      return true;
+    }
+    const { repo, outDir } = resolved;
+    const existingStatus = queueStatus(outDir);
+    const existingMeta = readDrainMeta(outDir);
+    const sameRepo = existingMeta.repo
+      ? pathsNameSameDirectory(existingMeta.repo, repo)
+      : resolved.kind === 'default';
+    const rearm = b.rearm === true;
+    // Repeated init/dashboard requests must resume an existing queue at its current cursor. Re-mining
+    // an incomplete queue would discard already-kept notes and make normal idempotent setup destructive.
+    if (!b.force && !rearm && existingStatus && sameRepo) {
+      send(res, 200, {
+        ok: true,
+        total: existingStatus.total,
+        remaining: existingStatus.remaining,
+        outDir,
+        reused: true,
+        completed: existingStatus.drainDone,
+      });
+      return true;
+    }
+    if (!b.force && !rearm && sameRepo && ['pending', 'running'].includes(existingMeta.preparationState)) {
+      const job = buildDrainJob(repo, outDir);
+      send(res, 200, {
+        ok: true,
+        total: job.total,
+        remaining: job.remaining,
+        outDir,
+        reused: true,
+        preparing: true,
+        preparationState: job.preparationState,
+      });
+      return true;
+    }
+
+    try {
+      const preparationGeneration = newQueueGeneration();
+      const queued = mutateOnboardStatus(outDir, (current) => {
+        if (liveInjectionLease(current).live || livePreparationLease(current).live) return undefined;
+        return {
+          ...pendingPreparation(repo, outDir, current, b.force === true || (rearm && existingMeta.preparationForce === true)),
+          preparationGeneration,
+        };
+      });
+      if (!queued.applied) {
+        const injectionLease = liveInjectionLease(queued.value);
+        const preparationLease = livePreparationLease(queued.value);
+        const preparing = preparationLease.live && !injectionLease.live;
+        const lease = preparing ? preparationLease : injectionLease;
+        send(res, 409, {
+          ok: false,
+          retryable: true,
+          conflict: preparing ? 'preparation_in_progress' : 'injection_in_progress',
+          retryAt: preparing ? lease.expiresAt : lease.retryAt,
+          error: preparing
+            ? 'cannot replace onboarding while preparation is running for the current generation; retry after it finishes'
+            : 'cannot replace onboarding while live injection is writing the current generation; retry after it finishes',
+        });
+        return true;
+      }
+      // Git-local ignore state is a post-acceptance side effect. A rejected force/live-owner CAS
+      // must be byte-for-byte read-only, while a successful enqueue may add the advisory rule.
+      try { if (resolved.kind === 'default') ensureOnboardRuntimeIgnored(repo); } catch { /* advisory after accepted CAS */ }
+    } catch (err) {
+      send(res, 500, { ok: false, error: `could not persist onboarding request: ${err && err.message ? err.message : err}` });
+      return true;
+    }
+    if (notifyChange) notifyChange();
+    send(res, 200, {
+      ok: true,
+      total: 0,
+      remaining: 0,
+      outDir,
+      queued: true,
+      preparing: true,
+      preparationState: 'pending',
+    });
+    return true;
   }
 
   if (!global.__drainJobs) global.__drainJobs = new Map();
   const drainJobs = global.__drainJobs;
 
+  if (p === '/onboard/cancel-inject' && m === 'POST') {
+    const b = await readBody(req);
+    if (!b.repo || !b.outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
+    let resolved;
+    try { resolved = resolveRequestPaths(ctx, b.repo, b.outDir); } catch (err) {
+      sendPathError(send, res, err);
+      return true;
+    }
+    const { outDir } = resolved;
+    const requested = mutateOnboardStatus(outDir, (meta) => {
+      const running = meta.injectionState === 'running' || meta.injecting === true;
+      if (!running || !meta.injectionOwner) return undefined;
+      if (meta.injectionCancelRequestedOwner === meta.injectionOwner) return undefined;
+      return {
+        ...meta,
+        injectionCancelRequestedOwner: meta.injectionOwner,
+        injectionCancelRequestedAt: new Date().toISOString(),
+      };
+    });
+    const running = requested.value
+      && (requested.value.injectionState === 'running' || requested.value.injecting === true)
+      && !!requested.value.injectionOwner;
+    if (!running) {
+      send(res, 200, { ok: true, cancelRequested: false, message: 'no onboarding injection is running' });
+      return true;
+    }
+    if (notifyChange) notifyChange();
+    // Cancellation is cooperative. Ownership is intentionally retained until the exact process
+    // exits, so force/rearm cannot race the writer between its last preflight and graph request.
+    send(res, 202, {
+      ok: true,
+      cancelRequested: true,
+      owner: requested.value.injectionOwner,
+      retryAt: liveInjectionLease(requested.value).retryAt,
+    });
+    return true;
+  }
+
   if (p === '/onboard/drain-queue' && m === 'POST') {
     const b = await readBody(req);
-    const { repo, outDir, batchSize } = b;
+    const { batchSize } = b;
     const autoInject = b.autoInject !== false;
-    if (!repo || !outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
-    const jobKey = `${repo}::${outDir}`;
-    if (drainJobs.has(jobKey)) {
-      const existing = drainJobs.get(jobKey);
-      if (!existing.done && !existing.error) {
-        send(res, 200, { ok: true, status: existing, message: 'drain already in progress' }); return true;
-      }
+    if (!b.repo || !b.outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
+    let resolved;
+    try { resolved = resolveRequestPaths(ctx, b.repo, b.outDir); } catch (err) {
+      sendPathError(send, res, err);
+      return true;
     }
+    const { repo, outDir } = resolved;
+    const jobKey = `${repo}::${outDir}`;
+    const existing = drainJobs.get(jobKey);
+    const alreadyInProgress = !!existing && !existing.done && !existing.error;
     const status = queueStatus(outDir);
-    if (!status) { send(res, 404, { ok: false, error: 'queue not found for this repo+outDir' }); return true; }
-    writeDrainMeta(outDir, { repo, outDir, batchSize: batchSize || DEFAULT_DRAIN_BATCH_SIZE, autoInject, injecting: false, error: null });
+    const meta = readDrainMeta(outDir);
+    const preparationKnown = ['pending', 'running', 'failed', 'ready'].includes(meta.preparationState);
+    if (!status && !preparationKnown) { send(res, 404, { ok: false, error: 'queue not found for this repo+outDir' }); return true; }
+    const queueGen = status && status.queueGeneration;
+    const injectionGen = typeof meta.injectionGeneration === 'string'
+      ? meta.injectionGeneration
+      : ((meta.injected === true || meta.injecting === true || meta.injectionState) ? queueGen : null);
+    const currentInjection = !!queueGen && injectionGen === queueGen;
+    const injectionManaged = currentInjection && ['running', 'backoff', 'failed'].includes(meta.injectionState);
+    writeDrainMeta(outDir, {
+      repo,
+      outDir,
+      batchSize: batchSize || DEFAULT_DRAIN_BATCH_SIZE,
+      autoInject,
+      ...(currentInjection && (meta.injecting === true || meta.injectionState === 'running') ? {} : { injecting: false }),
+      // A failed preparation is terminal until /onboard/enqueue explicitly rearms it. Merely
+      // polling/arming the drain must not erase preparation or injection retry state.
+      ...(injectionManaged ? {} : (status || meta.preparationState !== 'failed' ? { error: null } : {})),
+    });
     const job = buildDrainJob(repo, outDir);
     drainJobs.set(jobKey, job);
     if (notifyChange) notifyChange();
-    send(res, 200, { ok: true, status: job, message: job.done ? 'queue already empty' : 'queued for headless drain' }); return true;
+    send(res, 200, {
+      ok: true,
+      status: job,
+      message: alreadyInProgress
+        ? 'drain already in progress'
+        : (job.done ? 'queue already empty' : 'queued for headless drain'),
+    });
+    return true;
   }
 
   if (p === '/onboard/inject' && m === 'POST') {
     const b = await readBody(req);
-    const { repo, outDir } = b;
-    if (!repo || !outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
+    if (!b.repo || !b.outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
+    let resolved;
+    try { resolved = resolveRequestPaths(ctx, b.repo, b.outDir); } catch (err) {
+      sendPathError(send, res, err);
+      return true;
+    }
+    const { repo, outDir } = resolved;
     const learnScript = path.join(__dirname, '..', 'scripts', 'onboard-learn.js');
+    const status = queueStatus(outDir);
+    if (!status) { send(res, 404, { ok: false, error: 'queue not found for this repo+outDir' }); return true; }
+    const generation = status.queueGeneration;
+    if (status.drainDone && status.kept === 0) {
+      writeDrainMeta(outDir, {
+        repo, outDir, injected: false, injectedKept: 0,
+        injectionGeneration: generation, injectionState: 'not_needed',
+        injectionOwner: null, injectionPid: null, injectionProcessIdentity: null, injectionLeaseExpiresAt: null,
+        injectionCancelRequestedOwner: null, injectionCancelRequestedAt: null,
+        injectionAttempts: 0, injectionRetryAt: null, injectionRetryCapped: false,
+        injectionError: null, injecting: false, error: null,
+      });
+      const job = buildDrainJob(repo, outDir);
+      drainJobs.set(`${repo}::${outDir}`, job);
+      if (notifyChange) notifyChange();
+      send(res, 200, { ok: true, injected: false, notNeeded: true, status: job });
+      return true;
+    }
+    const matched = loadGenerationMatchedOnboardNotes(outDir, generation);
+    const attemptNotes = matched.ok ? matched.artifact.kept : [];
+    const confirmedAtStart = confirmedInjectedCount(outDir, generation, attemptNotes);
+    let attempt = 1;
+    const owner = `inject-route-${process.pid}-${crypto.randomBytes(8).toString('hex')}`;
+    const leaseMs = injectionLeaseMs();
+    const leaseExpiresAt = Date.now() + leaseMs;
     try {
-      writeDrainMeta(outDir, { repo, outDir, injecting: true, error: null });
-      await runNode([learnScript, '--repo', repo, '--in', outDir, '--inject', '--confirm']);
-      writeDrainMeta(outDir, { repo, outDir, injecting: false, injected: true, injectedAt: new Date().toISOString(), error: null });
+      const claimed = mutateOnboardStatus(outDir, (meta) => {
+        const current = queueStatus(outDir, { statusLocked: true });
+        if (!current || current.queueGeneration !== generation) return undefined;
+        if (meta.preparationGeneration && meta.preparationGeneration !== generation) return undefined;
+        if (liveInjectionLease(meta).live) return undefined;
+        const nextAttempt = (meta.injectionGeneration === generation ? countOrZero(meta.injectionAttempts) : 0) + 1;
+        return {
+          ...meta,
+          repo, outDir, injecting: true, injectionGeneration: generation, injectionState: 'running',
+          injectionOwner: owner, injectionPid: process.pid,
+          injectionProcessIdentity: processIncarnation(process.pid),
+          injectionLeaseExpiresAt: leaseExpiresAt,
+          injectionCancelRequestedOwner: null, injectionCancelRequestedAt: null,
+          injectionAttempts: nextAttempt, injectionRetryAt: null, injectionRetryCapped: false,
+          injectionError: null, error: null,
+        };
+      });
+      if (!claimed.applied) {
+        const lease = liveInjectionLease(claimed.value);
+        if (lease.live) {
+          send(res, 409, {
+            ok: false,
+            retryable: true,
+            conflict: 'injection_in_progress',
+            retryAt: lease.retryAt,
+            error: 'onboarding injection is already running for this generation',
+          });
+          return true;
+        }
+        send(res, 409, { ok: false, stale: true, error: 'onboarding generation was replaced before injection started' });
+        return true;
+      }
+      attempt = countOrZero(claimed.value.injectionAttempts);
+      await runNode([learnScript, '--repo', repo, '--in', outDir, '--inject', '--confirm', '--generation', generation, '--owner', owner], {
+        timeoutMs: leaseMs,
+        onSpawn: (child) => mutateOnboardStatus(outDir, (meta) => {
+          if (meta.injectionGeneration !== generation || meta.injectionOwner !== owner) return undefined;
+          const pid = child.pid || process.pid;
+          return {
+            ...meta,
+            injectionPid: pid,
+            injectionProcessIdentity: processIncarnation(pid),
+            injectionLeaseExpiresAt: leaseExpiresAt,
+          };
+        }),
+      });
+      const notes = (readJSON(path.join(outDir, 'onboard-notes.json'), {}) || {}).kept || [];
+      const injectedKept = confirmedInjectedCount(outDir, generation, notes);
+      if (injectedKept < notes.length) throw new Error(`inject confirmed ${injectedKept} of ${notes.length} current-generation notes`);
+      const committed = mutateOnboardStatus(outDir, (meta) => {
+        const current = queueStatus(outDir, { statusLocked: true });
+        if (!current || current.queueGeneration !== generation
+            || meta.injectionGeneration !== generation || meta.injectionOwner !== owner) return undefined;
+        return {
+          ...meta,
+          repo, outDir, injecting: false, injected: true, injectedGeneration: generation,
+          injectionGeneration: generation, injectionState: 'succeeded', injectionOwner: null, injectionPid: null,
+          injectionProcessIdentity: null,
+          injectionLeaseExpiresAt: null,
+          injectionCancelRequestedOwner: null, injectionCancelRequestedAt: null,
+          injectionAttempts: 0, injectionRetryAt: null, injectionRetryCapped: false, injectionError: null,
+          injectedKept, injectedAt: new Date().toISOString(), error: null,
+        };
+      });
+      if (!committed.applied) {
+        send(res, 409, { ok: false, stale: true, error: 'onboarding generation was replaced during injection' });
+        return true;
+      }
     } catch (err) {
-      writeDrainMeta(outDir, { repo, outDir, injecting: false, error: String(err && err.message || err) });
-      send(res, 500, { ok: false, error: `inject failed: ${err && err.message ? err.message : err}` }); return true;
+      const error = String(err && err.message || err);
+      const injectedKept = confirmedInjectedCount(outDir, generation, attemptNotes);
+      const progressed = injectedKept > confirmedAtStart;
+      const failureStreak = progressed ? 0 : attempt;
+      const capped = !progressed && failureStreak >= injectionMaxAttempts();
+      const retryAt = capped ? null : Date.now() + injectionRetryDelay(failureStreak);
+      const committed = mutateOnboardStatus(outDir, (meta) => {
+        const current = queueStatus(outDir, { statusLocked: true });
+        if (!current || current.queueGeneration !== generation
+            || meta.injectionGeneration !== generation || meta.injectionOwner !== owner) return undefined;
+        return {
+          ...meta,
+          repo, outDir, injecting: false, injected: false, injectedKept,
+          injectionGeneration: generation,
+          injectionState: progressed ? 'pending' : (capped ? 'failed' : 'backoff'),
+          injectionOwner: null, injectionPid: null,
+          injectionProcessIdentity: null,
+          injectionLeaseExpiresAt: null,
+          injectionCancelRequestedOwner: null, injectionCancelRequestedAt: null,
+          injectionAttempts: failureStreak, injectionRetryAt: retryAt, injectionRetryCapped: capped,
+          injectionError: progressed ? null : error,
+          injectionFailedAt: progressed ? null : new Date().toISOString(),
+          lastError: progressed ? null : error,
+          error: progressed ? null : error,
+        };
+      });
+      if (!committed.applied) {
+        send(res, 409, { ok: false, stale: true, error: 'onboarding generation was replaced during injection' });
+        return true;
+      }
+      if (progressed) {
+        const job = buildDrainJob(repo, outDir);
+        drainJobs.set(`${repo}::${outDir}`, job);
+        if (notifyChange) notifyChange();
+        send(res, 202, {
+          ok: true,
+          injected: false,
+          progressed: true,
+          status: job,
+          message: 'injection advanced and will resume automatically',
+        });
+        return true;
+      }
+      send(res, 500, {
+        ok: false,
+        retryable: !capped,
+        retryAt,
+        error: `inject failed: ${err && err.message ? err.message : err}`,
+      });
+      return true;
     }
     const jobKey = `${repo}::${outDir}`;
     if (drainJobs.has(jobKey)) {
       const job = drainJobs.get(jobKey);
       job.injected = true;
+      job.injectedKept = (queueStatus(outDir) || {}).kept || 0;
       job.needsReview = false;
       job.done = true;
     }
@@ -204,12 +962,92 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     send(res, 200, { ok: true, injected: true }); return true;
   }
 
+  if (p === '/onboard/retry-inject' && m === 'POST') {
+    const b = await readBody(req);
+    if (!b.repo || !b.outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
+    let resolved;
+    try { resolved = resolveRequestPaths(ctx, b.repo, b.outDir); } catch (err) {
+      sendPathError(send, res, err);
+      return true;
+    }
+    const { repo, outDir } = resolved;
+    const status = queueStatus(outDir);
+    if (!status) { send(res, 404, { ok: false, error: 'queue not found for this repo+outDir' }); return true; }
+    const meta = readDrainMeta(outDir);
+    const generation = status.queueGeneration;
+    if (status.drainDone && status.kept === 0) {
+      writeDrainMeta(outDir, {
+        repo, outDir, autoInject: true, injected: false, injectedKept: 0,
+        injectionGeneration: generation, injectionState: 'not_needed',
+        injectionOwner: null, injectionPid: null, injectionProcessIdentity: null, injectionLeaseExpiresAt: null,
+        injectionCancelRequestedOwner: null, injectionCancelRequestedAt: null,
+        injectionAttempts: 0, injectionRetryAt: null, injectionRetryCapped: false,
+        injectionError: null, injecting: false, error: null,
+      });
+      const job = buildDrainJob(repo, outDir);
+      drainJobs.set(`${repo}::${outDir}`, job);
+      if (notifyChange) notifyChange();
+      send(res, 200, { ok: true, status: job, message: 'no injection needed' });
+      return true;
+    }
+    const injectedGeneration = meta.injectedGeneration === generation ? generation : null;
+    const rearmed = mutateOnboardStatus(outDir, (current) => {
+      if (liveInjectionLease(current).live) return undefined;
+      return {
+        ...current,
+        repo,
+        outDir,
+        autoInject: true,
+        injected: injectedGeneration !== null,
+        injectionGeneration: generation,
+        injectionState: 'pending',
+        injectionOwner: null,
+        injectionPid: null,
+        injectionProcessIdentity: null,
+        injectionLeaseExpiresAt: null,
+        injectionCancelRequestedOwner: null,
+        injectionCancelRequestedAt: null,
+        injectionAttempts: 0,
+        injectionRetryAt: null,
+        injectionRetryCapped: false,
+        injectionError: null,
+        injecting: false,
+        error: null,
+      };
+    });
+    if (!rearmed.applied) {
+      const lease = liveInjectionLease(rearmed.value);
+      send(res, 409, {
+        ok: false,
+        retryable: true,
+        conflict: 'injection_in_progress',
+        retryAt: lease.retryAt,
+        error: 'onboarding injection is already running; retry after it finishes',
+      });
+      return true;
+    }
+    const job = buildDrainJob(repo, outDir);
+    drainJobs.set(`${repo}::${outDir}`, job);
+    if (notifyChange) notifyChange();
+    send(res, 200, { ok: true, status: job, message: 'injection retry queued' });
+    return true;
+  }
+
   if (p === '/onboard/drain-queue' && m === 'GET') {
-    const repo = u.searchParams.get('repo');
-    const outDir = u.searchParams.get('outDir');
-    if (!repo || !outDir) { send(res, 400, { ok: false, error: 'repo and outDir query params required' }); return true; }
+    const requestedRepo = u.searchParams.get('repo');
+    const requestedOutDir = u.searchParams.get('outDir');
+    if (!requestedRepo || !requestedOutDir) { send(res, 400, { ok: false, error: 'repo and outDir query params required' }); return true; }
+    let resolved;
+    try { resolved = resolveRequestPaths(ctx, requestedRepo, requestedOutDir); } catch (err) {
+      sendPathError(send, res, err);
+      return true;
+    }
+    const { repo, outDir } = resolved;
     const jobKey = `${repo}::${outDir}`;
-    if (!queueStatus(outDir) && (!global.__drainJobs || !global.__drainJobs.has(jobKey))) {
+    const persistedQueue = queueStatus(outDir);
+    const meta = readDrainMeta(outDir);
+    const preparationKnown = ['pending', 'running', 'failed', 'ready'].includes(meta.preparationState);
+    if (!persistedQueue && !preparationKnown && (!global.__drainJobs || !global.__drainJobs.has(jobKey))) {
       send(res, 404, { ok: false, error: 'no drain job found for this repo+outDir' }); return true;
     }
     const job = buildDrainJob(repo, outDir, global.__drainJobs && global.__drainJobs.get(jobKey));
@@ -219,16 +1057,23 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
   if (p === '/onboard/drain-next' && m === 'POST') {
     const b = await readBody(req);
-    const { repo, outDir, batchSize } = b;
-    if (!repo || !outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
-    const { spawnSync } = require('child_process');
+    const { batchSize } = b;
+    if (!b.repo || !b.outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
+    let resolved;
+    try { resolved = resolveRequestPaths(ctx, b.repo, b.outDir); } catch (err) {
+      sendPathError(send, res, err);
+      return true;
+    }
+    const { repo, outDir } = resolved;
     const learnScript = path.join(__dirname, '..', 'scripts', 'onboard-learn.js');
-    const drainR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--drain', '--batch', String(batchSize || DEFAULT_DRAIN_BATCH_SIZE)], { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
-    if (drainR.status !== 0) { send(res, 500, { ok: false, error: `drain failed (exit ${drainR.status})` }); return true; }
-    const statusR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: path.join(__dirname, '..'), encoding: 'utf8', windowsHide: true });
-    let status = null;
-    try { status = JSON.parse(statusR.stdout || ''); } catch { /* ignore */ }
-    send(res, 200, { ok: true, status }); return true;
+    try {
+      await runNode([learnScript, '--repo', repo, '--in', outDir, '--drain', '--batch', String(batchSize || DEFAULT_DRAIN_BATCH_SIZE)]);
+    } catch (err) {
+      writeDrainMeta(outDir, { repo, outDir, error: `drain failed: ${err && err.message ? err.message : err}` });
+      send(res, 500, { ok: false, error: `drain failed: ${err && err.message ? err.message : err}` });
+      return true;
+    }
+    send(res, 200, { ok: true, status: buildDrainJob(repo, outDir) }); return true;
   }
 
   return false;

@@ -1,0 +1,25 @@
+# Overlay for the pinned @deepseek-ai/dsh 0.1.1-rc.2 headless profile.
+# ZONOID_ROOT and ORCH_GRAPH_REPO are supplied by the installer/runtime.
+- insert:
+    - id: zonoid-mcp
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: zonoid
+        transport: stdio
+        command: !!js process.execPath
+        args:
+          - !!js process.env.ZONOID_DSH_MCP_ENTRY || process.env.ZONOID_ROOT + '/mcp-graph.js'
+        env:
+          ORCH_CLIENT: dsh
+          ORCH_GRAPH_REPO: !!js process.env.ORCH_GRAPH_REPO || process.cwd()
+          ORCH_TARGET_REPO: !!js process.env.ORCH_TARGET_REPO || process.cwd()
+        cwd: !!js process.env.ORCH_GRAPH_REPO || process.cwd()
+        failOnStartupError: true
+        reconnect:
+          enabled: false
+
+    - id: zonoid-cordis-bridge
+      name: '@zonoid/dsh'
+      inject: [tools]
+      config:
+        port: !!js Number(process.env.ORCH_PORT || 8787)

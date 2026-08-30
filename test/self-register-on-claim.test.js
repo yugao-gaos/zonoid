@@ -102,7 +102,7 @@ function runWriteGate(filePath) {
 
     // Branch a worktree (proof of delegation) via the real branch_task endpoint, which registers
     // it in overlay.git — then claim → self-register-on-claim allows it.
-    const wt = await req('POST', '/git/worktree', { key: K(1) });
+    const wt = await req('POST', '/git/worktree', { key: K(1), target_repo: WS });
     ok('attempt worktree created + registered', wt.status === 200 && String(wt.body.branch).startsWith('orch/attempt/'));
     // Claim carries the session workspace (main repo), exactly as the start_task MCP tool does —
     // the overlay (and its git registration) is keyed on the repo, not the worktree path.

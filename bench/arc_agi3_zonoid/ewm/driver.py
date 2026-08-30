@@ -684,6 +684,7 @@ def live_run(
             "won": bool(summary.get("won")),
             "levels_completed": session.levels_completed,
             "actions_taken": session.actions_taken,
+            "session_recoveries": getattr(session, "_recoveries", 0),
             "decide_calls": summary.get("decide_calls", 0),
             "reflect_calls": summary.get("reflect_calls", 0),
             "modes_visited": sorted(set(summary.get("modes", []))),
@@ -813,6 +814,11 @@ def main(argv: list[str] | None = None) -> int:
         "synth_graph.SynthSession backed by a DaemonGraph (ZONOID_DAEMON_URL, default "
         "http://localhost:8787).",
     )
+    parser.add_argument(
+        "--no-graph",
+        action="store_true",
+        help="Explicit alias for graph-native synthesis off.",
+    )
     args = parser.parse_args(argv)
 
     if args.smoke:
@@ -830,7 +836,7 @@ def main(argv: list[str] | None = None) -> int:
             max_seconds=args.max_seconds,
             vision=args.vision,
             synth_model=args.synth_model,
-            graph=(args.graph == "on"),
+            graph=(False if args.no_graph else args.graph == "on"),
         )
         print(json.dumps(summary))
         return 0

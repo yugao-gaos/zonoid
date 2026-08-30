@@ -7,6 +7,7 @@ set -u
 cd "$(dirname "$0")/.." || exit 1
 PORT=${ORCH_SMOKE_PORT:-8799}; pass=0; fail=0; DPID=""
 SMOKE_ROOT=$(mktemp -d /tmp/orch-smoke.XXXXXX)
+SMOKE_ROOT=$(cd "$SMOKE_ROOT" && pwd -P)
 SMOKE_LOG="$SMOKE_ROOT/daemon.log"
 SSE_OUT="$SMOKE_ROOT/sse.out"
 export CLAUDE_PLUGIN_DATA="$SMOKE_ROOT/data"      # isolate overlay/loop/workspace from production
@@ -274,7 +275,7 @@ jpost loop/stop "$(printf '{"loopId":"%s"}' "$LID3")" >/dev/null
 
 # target-repo decoupling: workspace is NOT a git repo, so a task carries a separate target repo path.
 GREPO=$(mktemp -d "$SMOKE_ROOT/repo.XXXXXX"); GK="$S/1"
-chk "git_status: workspace not a repo" "$(g 'git/status' | jq -r .isRepo)"        "false"
+chk "git_status: workspace not a repo" "$(g "git/status?repo_path=$(urlenc "$WS")" | jq -r .isRepo)" "false"
 jpost git/repo "$(printf '{"key":"%s","repo_path":"%s"}' "$GK" "$GREPO")" >/dev/null
 chk "task carries target repo"  "$(g 'task/detail?key='"$GK" | jq -r .repo)"      "$GREPO"
 chk "node exposes repo field"   "$(g state | jq -r '.tasks[]|select(.id=="'"$GK"'")|.repo')" "$GREPO"

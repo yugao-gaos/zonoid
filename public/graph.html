@@ -15,7 +15,7 @@
   .hd-right{ display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; }
   .settings-btn { background: none; border: 1px solid #30363d; color: #8b949e; border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; font-family: inherit; }
   .settings-btn:hover { background: #161b22; color: #e6edf3; }
-  .notif-btn { background: none; border: 1px solid #30363d; color: #8b949e; border-radius: 6px; padding: 0 8px; height: 28px; cursor: pointer; font-size: 12px; display: none; align-items: center; gap: 5px; font-family: inherit; }
+  .notif-btn { background: none; border: 1px solid #30363d; color: #8b949e; border-radius: 6px; padding: 0 8px; height: 28px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 5px; font-family: inherit; }
   .notif-btn.show { display: flex; }
   .notif-btn:hover { background: #161b22; color: #e6edf3; }
   .notif-btn.has-pending { border-color: #bb8009; color: #f0d77a; }
@@ -107,7 +107,7 @@
   body { margin: 0; padding-bottom: var(--dock-h); font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; background: #0d1117; color: #e6edf3; }
   .wrap { display: flex; height: calc(100vh - var(--hdr-h) - var(--dock-h)); overflow: hidden; }
   .left { flex: 1; min-width: 0; overflow: auto; display: flex; flex-direction: column; }
-  #cloud.show, #flow.show { flex: 1; min-height: 0; }
+  #spec.show, #cloud.show, #flow.show, #architecture.show { flex: 1; min-height: 0; }
   #flowstats { flex-shrink: 0; }
   /* (legacy DAG-column view removed — Flow is the structure view) */
   .badge { display: inline-block; font-size: 10px; background: #1f6feb33; color: #79c0ff; border: 1px solid #1f6feb55; border-radius: 9px; padding: 0 6px; margin-left: 6px; }
@@ -141,6 +141,8 @@
   .pad { padding: 16px; width: 348px; }
   .pclose { float: right; color: #8b949e; cursor: pointer; }
   .ptitle { font-size: 15px; font-weight: 600; margin: 0 0 2px; }
+  .dep-link { display: block; width: 100%; margin: 3px 0; padding: 3px 0; border: 0; background: none; color: #58a6ff; cursor: pointer; font: inherit; text-align: left; word-break: break-word; }
+  .dep-link:hover { color: #79c0ff; text-decoration: underline; }
   .kv { margin: 10px 0; } .kv .k { color: #8b949e; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
   .kv .v { margin-top: 3px; white-space: pre-wrap; word-break: break-word; }
   .usage { display: flex; gap: 12px; flex-wrap: wrap; } .usage div { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 6px 9px; }
@@ -155,6 +157,79 @@
   .toggle { display: inline-flex; border: 1px solid #30363d; border-radius: 6px; overflow: hidden; }
   .toggle button { background: #161b22; color: #8b949e; border: none; padding: 3px 12px; cursor: pointer; font: inherit; }
   .toggle button.on { background: #1f6feb33; color: #79c0ff; }
+  /* Project documentation hub: canonical Spec plus first-party repository documentation. */
+  #spec { display: none; flex: 1; min-height: 0; overflow: auto; background: #0d1117; }
+  #spec.show { display: block; }
+  .spec-shell { width: min(1320px, 100%); min-height: 100%; margin: 0 auto; padding: clamp(16px, 3vw, 36px); box-sizing: border-box; }
+  .spec-layout { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); gap: 14px; min-height: calc(100vh - var(--hdr-h) - var(--dock-h) - 72px); }
+  .spec-library { min-height: 0; border: 1px solid #30363d; border-radius: 12px; background: #11151c; overflow: hidden; }
+  .spec-library-head { padding: 16px; border-bottom: 1px solid #21262d; }
+  .spec-library-title { color: #e6edf3; font-size: 13px; font-weight: 700; }
+  .spec-library-meta { margin-top: 3px; color: #6e7681; font-size: 9px; }
+  .spec-search { width: 100%; margin-top: 11px; padding: 7px 9px; box-sizing: border-box; border: 1px solid #30363d; border-radius: 6px; outline: none; background: #0d1117; color: #c9d1d9; font: inherit; font-size: 10px; }
+  .spec-search:focus { border-color: #58a6ff; }
+  .spec-doc-list { max-height: calc(100vh - var(--hdr-h) - var(--dock-h) - 170px); overflow: auto; padding: 8px; }
+  .spec-doc-section { padding: 9px 7px 4px; color: #6e7681; font-size: 8px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+  .spec-doc-link { display: block; width: 100%; margin: 1px 0; padding: 7px 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #8b949e; cursor: pointer; font: inherit; text-align: left; }
+  .spec-doc-link:hover { border-color: #30363d; background: #161b22; color: #c9d1d9; }
+  .spec-doc-link.on { border-color: #1f6feb66; background: #1f6feb1c; color: #e6edf3; }
+  .spec-doc-name { display: block; overflow: hidden; font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+  .spec-doc-path { display: block; overflow: hidden; margin-top: 2px; color: #6e7681; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+  .spec-card { border: 1px solid #30363d; border-radius: 12px; background: #11151c; box-shadow: 0 14px 36px rgba(0,0,0,.2); overflow: hidden; }
+  .spec-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 20px 22px 16px; border-bottom: 1px solid #21262d; }
+  .spec-eyebrow { color: #58a6ff; font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+  .spec-title { margin-top: 4px; color: #e6edf3; font-size: 18px; font-weight: 700; }
+  .spec-meta { margin-top: 5px; color: #6e7681; font-size: 10px; }
+  .spec-version { flex: none; padding: 2px 7px; border: 1px solid #30363d; border-radius: 10px; color: #8b949e; background: #0d1117; font-size: 9px; }
+  .spec-body { padding: 20px 22px 22px; }
+  .spec-help { margin: 0 0 12px; color: #8b949e; font-size: 11px; line-height: 1.55; }
+  .spec-editor { display: block; width: 100%; min-height: clamp(320px, 52vh, 640px); resize: vertical; box-sizing: border-box; padding: 16px; border: 1px solid #30363d; border-radius: 8px; outline: none; background: #0d1117; color: #e6edf3; font: 13px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace; tab-size: 2; }
+  .spec-editor:focus { border-color: #58a6ff; box-shadow: 0 0 0 3px #1f6feb22; }
+  .spec-editor::placeholder { color: #484f58; }
+  .spec-actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+  .spec-btn { border: 1px solid #30363d; border-radius: 7px; padding: 6px 11px; background: #161b22; color: #c9d1d9; cursor: pointer; font: inherit; font-size: 11px; }
+  .spec-btn:hover:not(:disabled) { border-color: #484f58; background: #1c2230; }
+  .spec-btn.primary { border-color: #238636; background: #238636; color: #fff; font-weight: 650; }
+  .spec-btn.primary:hover:not(:disabled) { border-color: #2ea043; background: #2ea043; }
+  .spec-btn:disabled { cursor: default; opacity: .45; }
+  .spec-status { flex: 1; min-height: 16px; color: #8b949e; font-size: 10px; text-align: right; }
+  .spec-status.ok { color: #3fb950; }
+  .spec-status.err { color: #ff7b72; }
+  @media (max-width: 780px) {
+    .spec-layout { grid-template-columns: 1fr; }
+    .spec-doc-list { max-height: 230px; }
+  }
+  /* operational Kanban view */
+  #kanban { display: none; flex: 1; min-height: 0; overflow: auto; background: #0d1117; }
+  #kanban.show { display: block; }
+  .kb-board { display: grid; grid-template-columns: repeat(5, minmax(224px, 1fr)); gap: 12px; min-width: 1180px; min-height: 100%; padding: 16px; box-sizing: border-box; }
+  .kb-lane { display: flex; flex-direction: column; min-width: 0; min-height: 180px; border: 1px solid #21262d; border-radius: 10px; background: #11151c; overflow: hidden; }
+  .kb-lane-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 0 10px; border-bottom: 1px solid #21262d; background: rgba(17,21,28,.96); backdrop-filter: blur(8px); }
+  .kb-lane-title { color: #c9d1d9; font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .07em; }
+  .kb-count { min-width: 18px; padding: 0 5px; border: 1px solid #30363d; border-radius: 10px; color: #8b949e; background: #0d1117; font-size: 10px; font-variant-numeric: tabular-nums; text-align: center; }
+  .kb-lane-meta { margin-left: auto; color: #6e7681; font-size: 9px; white-space: nowrap; }
+  .kb-live-dot { display: inline-block; width: 7px; height: 7px; margin-right: 4px; border-radius: 50%; background: #58a6ff; box-shadow: 0 0 0 0 rgba(88,166,255,.58); animation: kbLive 1.6s ease-out infinite; vertical-align: -1px; }
+  @keyframes kbLive { 0% { box-shadow: 0 0 0 0 rgba(88,166,255,.58); } 70%,100% { box-shadow: 0 0 0 6px rgba(88,166,255,0); } }
+  .kb-history { padding: 2px 6px; border: 0; border-radius: 5px; background: transparent; color: #58a6ff; cursor: pointer; font: inherit; font-size: 9px; }
+  .kb-history:hover { background: #1f6feb22; color: #79c0ff; }
+  .kb-cards { display: flex; flex: 1; flex-direction: column; gap: 8px; padding: 8px; }
+  .kb-empty { padding: 22px 8px; color: #484f58; font-size: 11px; text-align: center; }
+  .kb-card { position: relative; width: 100%; padding: 9px 10px 8px 12px; border: 1px solid #30363d; border-left: 3px solid var(--kb-tone, #6e7681); border-radius: 8px; background: #161b22; color: #e6edf3; cursor: pointer; font: inherit; text-align: left; box-sizing: border-box; transition: border-color .15s, background .15s, transform .15s; }
+  .kb-card:hover { border-color: #484f58; border-left-color: var(--kb-tone, #6e7681); background: #1c2230; transform: translateY(-1px); }
+  .kb-card.selected { outline: 1px solid #58a6ff; outline-offset: 1px; }
+  .kb-card.live { border-color: #1f6feb88; border-left-color: #58a6ff; box-shadow: 0 0 0 1px #1f6feb22; }
+  .kb-card-title { display: -webkit-box; overflow: hidden; color: #e6edf3; font-size: 12px; font-weight: 650; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+  .kb-card-key { margin-top: 3px; overflow: hidden; color: #6e7681; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+  .kb-card-meta { display: flex; align-items: center; gap: 6px; margin-top: 7px; min-width: 0; color: #8b949e; font-size: 9px; }
+  .kb-status { color: var(--kb-tone, #8b949e); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .kb-assignee { min-width: 0; overflow: hidden; color: #79c0ff; text-overflow: ellipsis; white-space: nowrap; }
+  .kb-flags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+  .kb-flag { padding: 1px 5px; border: 1px solid #30363d; border-radius: 8px; color: #8b949e; background: #0d1117; font-size: 9px; line-height: 1.4; }
+  .kb-flag.wait { border-color: #bb800966; color: #f0d77a; background: #bb800918; }
+  .kb-flag.bad { border-color: #f8514966; color: #ff7b72; background: #f8514918; }
+  .kb-flag.ok { border-color: #2ea04366; color: #7ee787; background: #2ea04318; }
+  .kb-flag.info { border-color: #1f6feb66; color: #79c0ff; background: #1f6feb18; }
+  .kb-tag { max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   @media (max-width: 1180px) {
     :root { --hdr-h: 116px; }
     header { align-content: flex-start; gap: 0 10px; padding: 0 14px; }
@@ -192,6 +267,11 @@
     .repo-btn { max-width: 150px; padding: 0 7px; }
     .repo-btn-label { display: none; }
     .repo-btn-name { max-width: 104px; }
+    .kb-board { grid-template-columns: repeat(5, minmax(210px, 76vw)); gap: 9px; min-width: max-content; padding: 10px; }
+    .kb-lane { min-height: 150px; }
+    #panel { position: fixed; top: var(--hdr-h); right: 0; bottom: var(--dock-h); height: auto; z-index: 45; box-shadow: -10px 0 28px rgba(0,0,0,.5); }
+    #panel.open { width: min(380px, 100vw); }
+    #panel .pad { width: auto; }
     .hd-mid {
       flex-basis: calc(100% + 20px);
       width: calc(100% + 20px);
@@ -307,6 +387,81 @@
   #flowsvg:active { cursor: grabbing; }
   #flowsvg text { font: 11px ui-monospace, Menlo, monospace; pointer-events: none; user-select: none; }
   #flowsvg g.fn { cursor: pointer; }
+  /* Architecture: pan/zoom compound canvas with recursively expandable hierarchy. */
+  #architecture { display: none; min-width: 0; background: #0d1117; }
+  #architecture.show { display: flex; flex-direction: column; }
+  .arch-toolbar { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 7px 12px; border-bottom: 1px solid #21262d; background: #11151c; box-sizing: border-box; }
+  .arch-search { display: flex; align-items: center; gap: 6px; width: min(340px, 38vw); padding: 5px 9px; border: 1px solid #30363d; border-radius: 7px; background: #0d1117; }
+  .arch-search input { min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; color: #e6edf3; font: inherit; }
+  .arch-search input::placeholder { color: #6e7681; }
+  .arch-breadcrumb { display: flex; align-items: center; gap: 5px; min-width: 0; color: #6e7681; font-size: 10px; }
+  .arch-breadcrumb button { max-width: 180px; overflow: hidden; padding: 2px 4px; border: 0; background: none; color: #79c0ff; cursor: pointer; font: inherit; text-overflow: ellipsis; white-space: nowrap; }
+  .arch-breadcrumb button[aria-current="page"] { color: #c9d1d9; cursor: default; font-weight: 700; }
+  #architectureCount { color: #8b949e; font-size: 11px; white-space: nowrap; }
+  .arch-controls { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+  .arch-noise-toggle { display: flex; align-items: center; gap: 5px; color: #8b949e; cursor: pointer; font-size: 10px; white-space: nowrap; }
+  .arch-noise-toggle input { accent-color: #58a6ff; }
+  .arch-fit { padding: 4px 7px; border: 1px solid #30363d; border-radius: 5px; background: #161b22; color: #c9d1d9; cursor: pointer; font: inherit; font-size: 10px; }
+  .arch-fit:hover { border-color: #58a6ff; color: #79c0ff; }
+  .arch-legend { display: flex; align-items: center; gap: 10px; color: #8b949e; font-size: 10px; }
+  .arch-legend-line { display: inline-block; width: 22px; height: 0; margin-right: 4px; border-top: 2px solid #58a6ff; vertical-align: middle; }
+  .arch-legend-line.calls { border-top-color: #d29922; border-top-style: dashed; }
+  .arch-shell { display: flex; flex: 1; min-height: 0; }
+  #architectureMap { position: relative; flex: 1; min-width: 0; overflow: hidden; background-color: #0d1117; background-image: radial-gradient(circle, rgba(110,118,129,.22) 1px, transparent 1px); background-size: 22px 22px; }
+  #architectureCanvas { display: block; width: 100%; height: 100%; min-height: 420px; cursor: grab; touch-action: none; }
+  #architectureCanvas:active { cursor: grabbing; }
+  .arch-canvas-edge-halo { fill: none; stroke: #0d1117; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+  .arch-canvas-edge-halo.muted { opacity: .18; }
+  .arch-canvas-edge { fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+  .arch-canvas-edge.imports { stroke: #58a6ff; }
+  .arch-canvas-edge.calls { stroke: #d29922; stroke-dasharray: 7 5; }
+  .arch-canvas-edge.muted { opacity: .1; }
+  .arch-canvas-node { cursor: pointer; outline: none; }
+  .arch-canvas-node > rect { transition: stroke .15s, fill .15s; }
+  .arch-canvas-node:hover > rect, .arch-canvas-node:focus > rect { stroke: #58a6ff; stroke-width: 2; }
+  .arch-canvas-node.selected > rect { stroke: #e3b341; stroke-width: 2.5; }
+  .arch-canvas-node.search-hit > rect { stroke: #3fb950; stroke-width: 2; }
+  .arch-compound-boundary { fill: rgba(13,17,23,.88); stroke: #484f58; stroke-width: 1.5; pointer-events: none; }
+  .arch-compound-boundary.module { stroke: #58a6ff; }
+  .arch-compound-boundary.selected { stroke: #e3b341; stroke-width: 2.5; }
+  .arch-compound > rect { fill: #161b22; stroke: #30363d; }
+  .arch-compound.expanded > rect { fill: #11151c; stroke: #484f58; stroke-width: 1.5; }
+  .arch-compound.module > rect { stroke: #58a6ff; }
+  .arch-canvas-file > rect { fill: #161b22; stroke: #30363d; }
+  .arch-canvas-file > .arch-file-accent { fill: #58a6ff; stroke: none; }
+  .arch-canvas-title { fill: #e6edf3; font-size: 13px; font-weight: 700; pointer-events: none; }
+  .arch-canvas-meta { fill: #8b949e; font-size: 9px; pointer-events: none; }
+  .arch-canvas-chevron { fill: #79c0ff; font-size: 12px; pointer-events: none; }
+  .arch-canvas-edge-label { fill: #8b949e; font-size: 8px; paint-order: stroke; stroke: #0d1117; stroke-width: 3px; pointer-events: none; }
+  .arch-canvas-hint { position: absolute; right: 12px; bottom: 10px; padding: 5px 8px; border: 1px solid #30363d; border-radius: 6px; background: rgba(13,17,23,.86); color: #6e7681; font-size: 9px; pointer-events: none; }
+  .arch-file-noise { display: inline-block; margin-left: 5px; padding: 1px 5px; border: 1px solid #6e7681; border-radius: 999px; color: #8b949e; font-size: 8px; font-weight: 500; }
+  #architectureInspector { width: 310px; flex-shrink: 0; overflow: auto; border-left: 1px solid #21262d; background: #11151c; box-sizing: border-box; }
+  .arch-inspector-pad { padding: 14px; }
+  .arch-inspector-title { padding-right: 22px; color: #e6edf3; font-size: 13px; font-weight: 700; word-break: break-word; }
+  .arch-inspector-meta { margin-top: 4px; color: #8b949e; font-size: 10px; }
+  .arch-inspector-section { margin-top: 14px; }
+  .arch-inspector-label { margin-bottom: 5px; color: #6e7681; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; }
+  .arch-symbol, .arch-relation { padding: 5px 0; border-top: 1px solid #21262d; color: #c9d1d9; font-size: 10px; }
+  .arch-symbol:first-child, .arch-relation:first-child { border-top: 0; }
+  .arch-symbol b { color: #e6edf3; }
+  .arch-symbol span, .arch-relation span { color: #6e7681; }
+  .arch-relation.imports b { color: #79c0ff; }
+  .arch-relation.calls b { color: #e3b341; }
+  .arch-clear { float: right; border: 0; background: none; color: #8b949e; cursor: pointer; font: inherit; }
+  .arch-inspector-action { display: inline-block; margin-top: 12px; padding: 6px 9px; border: 1px solid #30363d; border-radius: 6px; background: #161b22; color: #79c0ff; cursor: pointer; font: inherit; font-size: 10px; }
+  .arch-empty { display: flex; min-height: 280px; align-items: center; justify-content: center; padding: 24px; color: #8b949e; text-align: center; }
+  @media (max-width: 760px) {
+    #viewToggle { max-width: calc(100vw - 118px); overflow-x: auto; }
+    #viewToggle button { padding: 3px 9px; white-space: nowrap; }
+    .arch-toolbar { align-items: flex-start; flex-wrap: wrap; }
+    .arch-search { width: 100%; box-sizing: border-box; }
+    .arch-breadcrumb { order: 3; width: 100%; }
+    .arch-controls { width: 100%; margin-left: 0; justify-content: space-between; }
+    .arch-shell { flex-direction: column; overflow: auto; }
+    #architectureMap { flex: none; min-height: 60vh; }
+    #architectureCanvas { min-height: 60vh; }
+    #architectureInspector { width: 100%; max-height: none; border-top: 1px solid #21262d; border-left: 0; }
+  }
   /* work-in-progress: pulsing blue ring + left-to-right shine sweep on node body */
   #flowsvg g.fn .fhalo { opacity: 0; pointer-events: none; }
   #flowsvg g.fn.wip .fhalo { opacity: 1; stroke: #58a6ff; animation: wipHalo 1.6s ease-in-out infinite; }
@@ -319,6 +474,8 @@
   #flowsvg g.fn.merging .fshine-wrap { opacity: 1; }
   /* Focus view: steady amber halo on the focused node */
   #flowsvg g.fn.focused .fhalo { opacity: 1; stroke: #e3b341; }
+  #flowsvg g.fn.task-selected .fbg { stroke: #58a6ff; stroke-width: 2; }
+  #cloudsvg g.cn.task-selected circle { stroke: #58a6ff; stroke-width: 3; }
   /* ── Status Dock ── */
   #statusDock { position: fixed; bottom: 0; left: 0; right: 0; height: var(--dock-h); background: #0d1117; border-top: 1px solid #21262d; display: flex; align-items: center; padding: 0 12px; gap: 2px; z-index: 50; justify-content: space-between; }
   .sd-group { display: flex; align-items: center; gap: 2px; }
@@ -401,8 +558,8 @@
   .cfrow .cfm { color: #8b949e; font-size: 11px; }
   .appclose { float: right; color: #8b949e; cursor: pointer; padding: 6px 2px; font-size: 14px; }
   .appclose:hover { color: #e6edf3; }
-  /* escalation: guidance popup — the loop is paused waiting on the user */
-  #guidance { position: fixed; top: calc(var(--hdr-h) + 4px); right: 14px; width: 480px; max-height: 72vh; overflow-y: auto; background: #11151c; border: 1px solid #30363d; border-radius: 10px; box-shadow: 0 10px 34px #0009; z-index: 60; display: none; padding: 14px 16px; color: #f0d77a; }
+  /* Shared Needs You sidebar — one durable user-decision inbox across every dashboard view. */
+  #guidance { position: fixed; top: var(--hdr-h); right: 0; bottom: var(--dock-h); width: min(440px, 100vw); overflow-y: auto; box-sizing: border-box; background: #11151c; border: 0; border-left: 1px solid #30363d; box-shadow: -10px 0 34px #0009; z-index: 60; display: none; padding: 16px; color: #f0d77a; }
   #guidance.show { display: block; }
   #guidance.has-pending { border-color: #bb8009; }
   #guidance .gtitle { font-weight: 600; color: #ffd95c; }
@@ -603,6 +760,18 @@
   }
   .ol-status { color: #8b949e; font-size: 12px; margin-top: 12px; min-height: 18px; }
   .ol-status.err { color: #f85149; }
+  .ol-retry {
+    display: none;
+    align-self: flex-start;
+    margin-top: 8px;
+    padding: 7px 12px;
+    border: 1px solid #f85149;
+    border-radius: 6px;
+    background: #21262d;
+    color: #f0f6fc;
+    cursor: pointer;
+  }
+  .ol-retry:disabled { cursor: wait; opacity: .65; }
   @keyframes onboardCloudFieldBreathe {
     0%,100% { opacity: .46; transform: scale(.92); }
     50% { opacity: .78; transform: scale(1.04); }
@@ -648,6 +817,8 @@
       </div>
     </div>
     <div class="ol-status" id="onboardStatus"></div>
+    <button class="ol-retry" id="onboardRetryPrepareBtn" type="button" onclick="retryOnboardPreparation()">Retry project preparation</button>
+    <button class="ol-retry" id="onboardRetryInjectBtn" type="button" onclick="retryOnboardInjection()">Retry live injection</button>
   </div>
 </div>
 <header>
@@ -663,9 +834,12 @@
       </svg>
       Zonoid
     </h1>
-    <div class="toggle" id="viewToggle">
-      <button data-view="frontier" class="on" title="Frontier view — DAG layout showing tasks at the current working frontier: in-progress, ready, and their immediate dependencies. Best for day-to-day steering.">Frontier Tasks</button>
-      <button data-view="cloud" title="Force Cloud — all tasks in a force-directed layout. Shows the full graph structure and long-range dependencies at once. Best for auditing the big picture.">Force Cloud</button>
+    <div class="toggle" id="viewToggle" role="tablist" aria-label="Dashboard views">
+      <button data-view="spec" role="tab" aria-selected="false" title="Spec — browse and edit the canonical project specification and all first-party repository documentation.">Spec</button>
+      <button data-view="kanban" class="on" role="tab" aria-selected="true" title="Kanban — the operational task lifecycle from Plan through Done, including review, merge, and user-attention cues.">Kanban</button>
+      <button data-view="frontier" role="tab" aria-selected="false" title="Frontier — tasks at the current working frontier: in-progress, ready, and their immediate dependencies. Best for day-to-day steering.">Frontier</button>
+      <button data-view="cloud" role="tab" aria-selected="false" title="Knowledge — tasks, notes, and their full relationship graph. Best for retrieval and auditing the big picture.">Knowledge</button>
+      <button data-view="architecture" role="tab" aria-selected="false" title="Architecture — a bounded, inspectable map of indexed source files, symbols, calls, and imports.">Architecture</button>
     </div>
   </div>
   <div class="hd-mid" id="sum"></div>
@@ -678,7 +852,7 @@
       </button>
       <div class="repo-list" id="repoList" role="menu"></div>
     </div>
-    <button class="notif-btn" id="notifBtn" title="Notifications" onclick="toggleGuidancePopup()">🗂 <span id="notifCount">0</span></button>
+    <button class="notif-btn show" id="notifBtn" title="Open the shared Needs You decision inbox" aria-controls="guidance" aria-expanded="false" onclick="toggleGuidancePopup()">Needs You <span id="notifCount">0</span></button>
     <button class="settings-btn" title="Settings" onclick="toggleSettingsPopup()">⚙</button>
   </div>
 </header>
@@ -722,7 +896,7 @@
     <button class="spsave" onclick="saveSettings()">Save</button>
     <div class="sprow" style="margin-top:14px;border-top:1px solid #21262d;padding-top:14px">
       <div class="splabel">LLM backend</div>
-      <div class="spdesc">Which engine drives background judging/learning. Claude is the default.</div>
+      <div class="spdesc" id="bk-viewer-desc">Which engine drives background judging/learning. Viewer presentation does not change usage accounting.</div>
       <div class="bk-list" id="bk-list"><div class="empty" style="font-size:11px">loading…</div></div>
       <div class="splabel" style="margin-top:12px">Model (optional)</div>
       <select class="spinput" id="bk-model"></select>
@@ -800,11 +974,29 @@
 <div class="wrap">
   <div class="left">
     <div id="ws" style="font-size:11px;color:#6e7681;padding:0 16px 8px;display:none"></div>
+    <div id="spec" role="region" aria-label="Project specification and documentation"></div>
+    <div id="kanban" role="region" aria-label="Operational Kanban board"></div>
     <div id="cloud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><div id="cloudTraceLegend"></div><div id="cloudSearchSummary"></div><svg id="cloudsvg"></svg></div>
     <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div></div>
+    <div id="architecture" role="region" aria-label="Code architecture map">
+      <div class="arch-toolbar">
+        <label class="arch-search"><span aria-hidden="true">⌕</span><input id="architectureSearchInput" type="search" placeholder="Search files or symbols…" aria-label="Search architecture files and symbols" /></label>
+        <nav id="architectureBreadcrumbs" class="arch-breadcrumb" aria-label="Architecture breadcrumb"><button type="button" aria-current="page">Overview</button></nav>
+        <span id="architectureCount"></span>
+        <div class="arch-controls">
+          <label class="arch-noise-toggle"><input id="architectureNoiseToggle" type="checkbox" /> Include tests &amp; generated</label>
+          <button id="architectureFitButton" class="arch-fit" type="button" aria-label="Fit architecture canvas">Fit</button>
+          <div class="arch-legend" aria-label="Architecture relationship legend"><span><i class="arch-legend-line"></i>imports</span><span><i class="arch-legend-line calls"></i>calls</span></div>
+        </div>
+      </div>
+      <div class="arch-shell">
+        <div id="architectureMap"></div>
+        <aside id="architectureInspector" aria-label="Architecture inspector" aria-live="polite"><div class="arch-inspector-pad"><div class="empty">Select a subsystem to inspect its role and connections.</div></div></aside>
+      </div>
+    </div>
     <div id="flowstats"></div>
   </div>
-  <div id="panel"><div class="pad" id="pad"></div></div>
+  <div id="panel" role="complementary" aria-label="Task inspector"><div class="pad" id="pad"></div></div>
 </div>
 <div id="historyPopup">
   <div class="hphead">
@@ -835,12 +1027,13 @@
 <div id="billingPopup">
   <span class="appclose" onclick="document.getElementById('billingPopup').classList.remove('show')">✕</span>
   <h2 style="margin:10px 0 0">Billing Breakdown</h2>
+  <div id="billingViewerContext" style="font-size:10px;color:#6e7681;margin-top:2px">Provider-neutral view · all recorded providers included</div>
   <div id="billingBody"><div class="empty" style="padding:20px 0">loading…</div></div>
 </div>
 <!-- cron token usage popup -->
 <div id="cronPopup">
   <span class="appclose" onclick="document.getElementById('cronPopup').classList.remove('show')">✕</span>
-  <section class="feed"><h2 style="margin-left:0">Harness cost (cron + scheduled)</h2><div id="cronbody"><div class="empty">loading…</div></div></section>
+  <section class="feed"><h2 id="cronPopupTitle" style="margin-left:0">Harness cost (cron + scheduled)</h2><div id="cronbody"><div class="empty">loading…</div></div></section>
 </div>
 <!-- note-inspect modal: lives OUTSIDE #guidance so triage re-renders can't close it -->
 <div id="noteOverlay" onclick="if(event.target===this)closeNotePopup()"><div id="notePopup"></div></div>
@@ -4689,20 +4882,67 @@ function setDaemonBase(url){ BASE = normalizeDaemonUrl(url) || DEFAULT_BASE; }
 // the registered set (workspaces.json via GET /workspaces): the single registered ws if there's
 // exactly one, else a picker prompt the user must choose from. Until an explicit ws is chosen, data
 // fetches are GATED (gateOnExplicitWorkspace) so the view never falls back to the global pointer.
-// ?token= is threaded alongside workspace for token-gated deploys.
-let WS = new URLSearchParams(location.search).get('workspace') || '';
+// LAN/token-gated dashboards accept the token in the URL fragment (preferred) or the legacy
+// ?token= query. Capture it in tab-scoped storage, then remove it from the address bar/history.
+const _PAGE_PARAMS = new URLSearchParams(location.search);
+const _HASH_PARAMS = new URLSearchParams(location.hash.replace(/^#/,''));
+const _VIEWER_RAW = String(_PAGE_PARAMS.get('viewer') || '').trim().toLowerCase();
+const VIEWER_HOST = /^[a-z][a-z0-9_-]{0,31}$/.test(_VIEWER_RAW) ? _VIEWER_RAW : '';
+const VIEWER_KIND = VIEWER_HOST === 'codex' ? 'codex' : VIEWER_HOST === 'claude' ? 'claude' : 'neutral';
+function viewerDisplayName(){ return VIEWER_KIND === 'codex' ? 'Codex' : VIEWER_KIND === 'claude' ? 'Claude' : 'Harness'; }
+function viewerOwnerName(){ return VIEWER_KIND === 'codex' ? 'Codex' : VIEWER_KIND === 'claude' ? 'Claude' : 'Zonoid'; }
+function viewerCostTitle(){ return `${viewerDisplayName()} cost`; }
+function viewerCostPopupTitle(){ return `${viewerCostTitle()} (cron + scheduled)`; }
+function applyViewerPresentation(){
+  document.documentElement.dataset.viewer=VIEWER_KIND;
+  const settings=document.getElementById('bk-viewer-desc');
+  const billing=document.getElementById('billingViewerContext');
+  const cronTitle=document.getElementById('cronPopupTitle');
+  if(VIEWER_KIND==='codex'){
+    if(settings) settings.textContent='Which engine drives background judging/learning. This Codex view does not change which providers are included in usage totals.';
+    if(billing) billing.textContent='Codex viewer · all recorded providers included';
+  }else if(VIEWER_KIND==='claude'){
+    if(settings) settings.textContent='Which engine drives background judging/learning. This Claude view does not change which providers are included in usage totals.';
+    if(billing) billing.textContent='Claude viewer · all recorded providers included';
+  }else{
+    if(settings) settings.textContent='Which engine drives background judging/learning. Viewer presentation does not change which providers are included in usage totals.';
+    if(billing) billing.textContent='Provider-neutral view · all recorded providers included';
+  }
+  if(cronTitle) cronTitle.textContent = viewerCostPopupTitle();
+}
+applyViewerPresentation();
+const _URL_TOKEN = _HASH_PARAMS.get('token') || _PAGE_PARAMS.get('token') || '';
+let _TOKEN = _URL_TOKEN;
+try {
+  if (_TOKEN) sessionStorage.setItem('zonoid-dashboard-token', _TOKEN);
+  else _TOKEN = sessionStorage.getItem('zonoid-dashboard-token') || '';
+} catch {}
+if (_URL_TOKEN) {
+  _PAGE_PARAMS.delete('token');
+  _HASH_PARAMS.delete('token');
+  const cleanSearch = _PAGE_PARAMS.toString();
+  const cleanHash = _HASH_PARAMS.toString();
+  history.replaceState(null, '', location.pathname + (cleanSearch ? '?' + cleanSearch : '') + (cleanHash ? '#' + cleanHash : ''));
+}
+let WS = _PAGE_PARAMS.get('workspace') || '';
 let WS_RESOLVED = !!WS;   // false until an explicit workspace is chosen (gate for data fetches)
-const _TOKEN = new URLSearchParams(location.search).get('token') || '';
-// dfetch: wrapper that appends workspace= + token= to any per-repo fetch.
-// Leave /health and /cron/usage UNWRAPPED (global endpoints).
+function daemonFetch(url, init) {
+  if (!_TOKEN) return fetch(url, init);
+  const next = Object.assign({}, init || {});
+  const headers = new Headers(next.headers || {});
+  if (!headers.has('Authorization')) headers.set('Authorization', 'Bearer ' + _TOKEN);
+  next.headers = headers;
+  return fetch(url, next);
+}
+// dfetch: wrapper that appends workspace= and authenticates token-gated requests.
+// Global endpoints use daemonFetch directly so they receive auth without workspace scoping.
 function dfetch(pathAndQuery, init) {
   let url = BASE + pathAndQuery;
   const sep = url.includes('?') ? '&' : '?';
   const parts = [];
   if (WS) parts.push('workspace=' + encodeURIComponent(WS));
-  if (_TOKEN) parts.push('token=' + encodeURIComponent(_TOKEN));
   if (parts.length) url += sep + parts.join('&');
-  return fetch(url, init);
+  return daemonFetch(url, init);
 }
 // flattenWorkspaceRepos: GET /workspaces returns U3's GROUPED shape
 //   [{ name, repos:[{path,name,current}], current }] (orphans under "(unregistered)").
@@ -4815,6 +5055,9 @@ async function loadWorkspacePicker() {
 function selectWorkspace(wsPath) {
   WS = wsPath || '';
   WS_RESOLVED = !!WS;
+  specDraftText=null; specDraftId=null; specNotice=null;
+  documentationLibrary={workspace:null,documents:[],loading:false,loaded:false,error:null};
+  selectedDocumentationPath=null; documentationSearch=''; documentationFiles.clear();
   const u = new URL(location.href);
   if (WS) u.searchParams.set('workspace', WS);
   else u.searchParams.delete('workspace');
@@ -4875,10 +5118,30 @@ function showWorkspaceGate(message, list) {
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 let selected=null;
 let lastDetailFp='';
+let detailRequestSeq=0;
+let selectedDetailData=null;
 let lastState=null; // most recent full /state payload, for re-render on view switch
 let liveAgentIds=new Set();
-let currentView=(v=>v==='cloud'?'cloud':'frontier')(localStorage.getItem('orchView'));  // Flow renamed → Frontier (stale 'flow' migrates; Frontier stays the default)
+let currentView=(v=>v==='spec'||v==='cloud'||v==='frontier'||v==='kanban'||v==='architecture'?v:(v==='flow'?'frontier':'kanban'))(localStorage.getItem('orchView'));  // stale Flow migrates; Kanban is the operational default
 let focusedId=null;            // Focus view target; survives view switches, NOT persisted
+let focusReturnView='frontier'; // return to the tab that opened Focus, with its state intact
+const viewUiState={kanban:{scrollLeft:0,scrollTop:0}};
+let specDraftText=null;
+let specDraftId=null;
+let specNotice=null;
+let specSaving=false;
+let documentationLibrary={workspace:null,documents:[],loading:false,loaded:false,error:null};
+let selectedDocumentationPath=null;
+let documentationSearch='';
+const documentationFiles=new Map();
+let architectureSearchText='';
+let architectureSelectedId=null;
+let architectureShowNoise=false;
+let architectureExpandedIds=new Set();
+let architectureCanvasTransform=null;
+let architectureCanvasBounds=null;
+let architectureZoom=null;
+let architectureFitPending=true;
 let cloudSim=null;             // live d3 force simulation
 const cloudPos={};             // id -> {x,y} preserved across ticks so it doesn't re-jiggle
 let cloudArchiveOpen=false;    // whether the server-archive bundle is expanded
@@ -5270,14 +5533,63 @@ function truncate(s,n){ s=String(s||''); return s.length>n?s.slice(0,n)+'…':s;
 function wrapLabel(s,perLine){ s=String(s||''); const lines=[]; while(s.length>perLine){ let cut=s.lastIndexOf(' ',perLine); if(cut<Math.floor(perLine*0.5)) cut=perLine; lines.push(s.slice(0,cut)); s=s.slice(cut).trimStart(); } if(s) lines.push(s); return lines; }
 async function openDetail(key){
   selected=key; document.getElementById('panel').classList.add('open');
-  const pad=document.getElementById('pad'); pad.innerHTML='loading…';
-  let d; try{ d=await(await dfetch('/task/detail?key='+encodeURIComponent(key))).json(); }catch{ pad.innerHTML='error'; return; }
+  syncSelectedTask();
+  selectedDetailData=null;
+  const requestSeq=++detailRequestSeq;
+  const cached=lastState&&(lastState.tasks||[]).find(t=>t.id===key);
+  const pad=document.getElementById('pad');
+  if(cached) renderDetail(key,{ task:cached, summary:cached.summary||'' },{ loading:true });
+  else pad.innerHTML='<button class="pclose" onclick="closeDetail()" aria-label="Close">✕</button>loading…';
+  // Yield once so the useful cached shell is visible before transcript/token enrichment starts.
+  await new Promise(resolve=>setTimeout(resolve,0));
+  if(selected!==key||requestSeq!==detailRequestSeq) return;
+  let d;
+  try{ d=await(await dfetch('/task/detail?key='+encodeURIComponent(key))).json(); }
+  catch{
+    if(selected!==key||requestSeq!==detailRequestSeq) return;
+    if(cached) renderDetail(key,{ task:cached, summary:cached.summary||'' },{ error:'Additional details could not be loaded.' });
+    else pad.innerHTML='<button class="pclose" onclick="closeDetail()" aria-label="Close">✕</button>error';
+    return;
+  }
+  if(selected!==key) return; // a slower response must not replace a newer shared selection
+  if(requestSeq!==detailRequestSeq) return; // a repeated request for this task also supersedes older enrichment
   if(d.error||!d.task){ pad.innerHTML='<span class="pclose" onclick="closeDetail()">✕</span>not found'; return; }
-  const t=d.task, u=d.tokenUsage||{};
+  const live=lastState&&(lastState.tasks||[]).find(t=>t.id===key);
+  if(live) d={ ...d, task:{ ...d.task, ...live }, summary: live.summary || d.summary || d.task.summary || '' };
+  selectedDetailData=d;
+  renderDetail(key,d);
+}
+function detailFingerprint(t){
+  return t?[t.status,t.agent_id||'',t.summary||'',t.review_state||'',t.review_verdict||'',t.merge_state||'',t.review_requested_at||'',t.reviewed_at||''].join(':'):'';
+}
+function syncSelectedDetailFromState(key){
+  if(selected!==key) return;
+  const dt=lastState&&lastState.tasks&&lastState.tasks.find(t=>t.id===key);
+  if(!dt) return;
+  const cached=selectedDetailData&&selectedDetailData.task&&selectedDetailData.task.id===key ? selectedDetailData : null;
+  const shellTask=cached ? { ...cached.task, ...dt } : dt;
+  const payload=cached
+    ? { ...cached, task: shellTask, summary: dt.summary || cached.summary || cached.task.summary || '' }
+    : { task: shellTask, summary: dt.summary || '' };
+  renderDetail(key, payload, cached ? {} : { loading: true });
+  lastDetailFp=detailFingerprint(dt);
+}
+function renderDetail(key,d,{loading=false,error=''}={}){
+  if(selected!==key||!d||!d.task) return;
+  const pad=document.getElementById('pad');
+  const t=d.task, u=d.tokenUsage;
   const byId=lastState?Object.fromEntries((lastState.tasks||[]).map(x=>[x.id,x])):{};
   const ds=taskDisplayStatus(t,byId);
-  const know=(d.knowledge||[]).map(k=>`<div class="row">${esc(k.type||'item')}: ${esc(k.value||JSON.stringify(k))}${k.note?'<div class="muted">'+esc(k.note)+'</div>':''}</div>`).join('')||'<div class="empty">none</div>';
-  const depList=t.deps.length?t.deps.map(x=>esc(x.replace('ghost:','(ghost) '))).join('<br>'):'none';
+  const summary=d.summary||t.summary||'';
+  const know=loading?'<div class="empty">loading…</div>':(d.knowledge||[]).map(k=>`<div class="row">${esc(k.type||'item')}: ${esc(k.value||JSON.stringify(k))}${k.note?'<div class="muted">'+esc(k.note)+'</div>':''}</div>`).join('')||'<div class="empty">none</div>';
+  const deps=t.deps||[];
+  const depList=deps.length?deps.map(dep=>String(dep).startsWith('ghost:')
+    ? `<span class="muted">${esc(dep.replace('ghost:','(ghost) '))}</span>`
+    : `<button type="button" class="dep-link" data-task-key="${esc(dep)}">${esc(dep)}</button>`).join(''):'none';
+  const usage=t.kind==='note'?'':loading
+    ? `<div class="kv"><div class="k">Token usage</div><div class="v muted">loading…</div></div>`
+    : (u&&!u.error?`<div class="kv"><div class="k">Token usage</div><div class="v usage"><div>total <b>${fmtK(u.total||0)}</b></div><div>out <b>${fmtK(u.output_tokens||0)}</b></div><div>in ${fmtK(u.input_tokens||0)}</div><div>cache ${fmtK(u.cache_read_input_tokens||0)}</div></div></div>`:`<div class="kv"><div class="k">Token usage</div><div class="v muted">not available</div></div>`);
+  pad.dataset.taskKey=key;
   pad.innerHTML =
     `<button class="pclose" onclick="closeDetail()" aria-label="Close">✕</button>`+
     `<div class="ptitle">${esc(t.label)}</div>`+
@@ -5287,25 +5599,41 @@ async function openDetail(key){
     (t.agent_id?`<span class="badge">${esc(t.agent_id)}</span>`:'')+
     `</div>`+
     reviewBadgesHtml(t)+
-    (u&&!u.error&&t.kind!=='note'?`<div class="kv"><div class="k">Token usage</div><div class="v usage"><div>total <b>${fmtK(u.total||0)}</b></div><div>out <b>${fmtK(u.output_tokens||0)}</b></div><div>in ${fmtK(u.input_tokens||0)}</div><div>cache ${fmtK(u.cache_read_input_tokens||0)}</div></div></div>`:'')+
+    usage+
     (t.note&&(ds.key==='needs_guidance'||ds.key==='needs_approval'||ds.key==='blocked')?`<div class="kv"><div class="k">Hold reason</div><div class="v" style="font-size:12px;color:#e3b341">${esc(t.note)}</div></div>`:'')+
     `<div style="margin-bottom:12px"><button id="focusToggleBtn" style="width:100%;background:none;border:1px solid #30363d;color:#8b949e;border-radius:6px;padding:7px 10px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;text-align:center;letter-spacing:.02em" onclick="toggleFocus('${esc(key)}')">${currentView==='focus'&&focusedId===key?'✕ Exit Focus':'⌖ Focus view'}</button></div>`+
-    (d.summary?`<div style="font-size:12px;line-height:1.5;color:#c9d1d9;margin-bottom:12px">${esc(d.summary)}</div>`:
+    (summary?`<div style="font-size:12px;line-height:1.5;color:#c9d1d9;margin-bottom:12px">${esc(summary)}</div>`:
     `<div class="muted" style="font-size:12px;margin-bottom:12px">No summary yet.</div>`)+
+    (error?`<div class="muted" style="font-size:11px;margin-bottom:12px">${esc(error)}</div>`:'')+
     `<details style="font-size:12px"><summary style="cursor:pointer;color:#58a6ff;list-style:none;padding:4px 0">Details ▾</summary>`+
     `<div class="kv"><div class="k">ID</div><div class="v muted" style="font-size:11px">${esc(t.id)}</div></div>`+
     `<div class="kv"><div class="k">Dependencies</div><div class="v">${depList}</div></div>`+
     `<div class="kv"><div class="k">Knowledge</div><div class="v">${know}</div></div>`+
     (d.transcript?`<div class="kv"><div class="k">Transcript</div><div class="v"><a href="${BASE}/agent/${encodeURIComponent(d.assignee)}" target="_blank">open subagent transcript ↗</a></div></div>`:'')+
     `</details>`;
+  pad.querySelectorAll('.dep-link').forEach(button=>button.addEventListener('click',()=>navigateToDependency(button.dataset.taskKey)));
+  lastDetailFp=detailFingerprint(t);
 }
-function closeDetail(){ selected=null; document.getElementById('panel').classList.remove('open'); }
+function syncSelectedTask(){
+  document.querySelectorAll('#kanban .kb-card').forEach(el=>el.classList.toggle('selected',el.dataset.taskKey===selected));
+  if(typeof d3!=='undefined'){
+    d3.selectAll('#flowsvg g.fn').classed('task-selected',t=>!!t&&t.id===selected);
+    d3.selectAll('#cloudsvg g.cn').classed('task-selected',n=>!!n&&!n.archive&&n.id===selected);
+  }
+  if(currentView==='cloud'&&lastState) renderCloud(lastState);
+}
+function navigateToDependency(key){
+  selected=key;
+  setView('cloud');
+  openDetail(key);
+}
+function closeDetail(){ selected=null; selectedDetailData=null; detailRequestSeq++; document.getElementById('panel').classList.remove('open'); syncSelectedTask(); }
 // Top-bar autonomy score: the VALUE rendered always-visible in the summary bar (the popup stays
 // the click-through detail). /costflow walks every transcript — too heavy per 2s tick — so the
 // cache refreshes on the graph tick but at most every 30s (and never overlaps itself).
 let costCache=null, costAt=0, costBusy=false;
 function refreshCost(){
-  if(costBusy||Date.now()-costAt<2000) return;
+  if(costBusy||Date.now()-costAt<30000) return;
   costBusy=true;
   dfetch('/costflow').then(r=>r.json()).then(d=>{ if(d&&!d.error&&d.totals){ costCache=d; costAt=Date.now(); } }).catch(()=>{}).finally(()=>{ costAt=Date.now(); costBusy=false; });
 }
@@ -5314,11 +5642,46 @@ let harnessOhCache=null;
 function refreshCronTok(){
   if(cronBusy||Date.now()-cronAt<60000) return;
   cronBusy=true;
-  fetch(BASE+'/cron/usage').then(r=>r.json()).then(d=>{
+  daemonFetch(BASE+'/cron/usage').then(r=>r.json()).then(d=>{
     if(d&&d.entries) cronTokCache=d.entries.reduce((s,e)=>s+(e.input_tokens||0)+(e.output_tokens||0)+(e.cache_read_tokens||0),0);
   }).catch(()=>{}).finally(()=>{ cronAt=Date.now(); cronBusy=false; });
 }
 let lastRenderFp='';
+function architectureFingerprint(projection){
+  if(!projection||projection.version!==1) return '';
+  // These arrays are bounded by the server projection, so hashing all visible details stays bounded.
+  const modules=(projection.modules||[]).map(module=>[
+    module.id,module.name,module.parent_id,module.child_ids||[],module.file_count,module.default_file_count,
+    module.hidden_file_count,module.symbol_count,module.incoming_count,module.outgoing_count,module.file_ids||[]
+  ]);
+  const groups=(projection.groups||[]).map(group=>[
+    group.id,group.name,group.path,group.parent_id,group.child_ids||[],group.file_ids||[],group.depth,
+    group.module,group.direct_file_count,group.file_count,group.default_file_count,group.hidden_file_count,group.symbol_count
+  ]);
+  const moduleRelations=(projection.module_relations||[]).map(relation=>[
+    relation.id,relation.from,relation.to,relation.kind,relation.count,relation.ambiguous_count
+  ]);
+  const hierarchyFiles=(projection.hierarchy_files||[]).map(file=>[
+    file.id,file.path,file.name,file.module,file.parent_id,file.ancestor_ids||[],file.noise,file.is_noisy,
+    file.symbol_count,file.exported_count,file.incoming_count,file.outgoing_count,file.internal_count,file.has_rich_detail
+  ]);
+  const files=(projection.files||[]).map(file=>[
+    file.id,file.path,file.module,file.parent_id,file.ancestor_ids||[],file.noise,file.is_noisy,file.symbol_count,
+    file.exported_count,file.incoming_count,file.outgoing_count,file.internal_count,file.omitted_symbols,
+    (file.symbols||[]).map(symbol=>[
+      symbol.id,symbol.name,symbol.kind,symbol.signature,symbol.summary,symbol.exported,
+      symbol.start_line,symbol.end_line
+    ])
+  ]);
+  const relations=(projection.relations||[]).map(relation=>[
+    relation.id,relation.from,relation.to,relation.kind,relation.count,relation.ambiguous_count
+  ]);
+  const hierarchyRelations=(projection.hierarchy_relations||[]).map(relation=>[
+    relation.id,relation.from,relation.to,relation.from_ancestors||[],relation.to_ancestors||[],
+    relation.kind,relation.count,relation.ambiguous_count
+  ]);
+  return JSON.stringify([projection.status,projection.message||'',projection.summary||{},projection.omitted||{},modules,groups,moduleRelations,hierarchyFiles,files,relations,hierarchyRelations]);
+}
 function stateFingerprint(d){
   const s=d.summary||{}, sc=s.statuses||{};
   const taskFp=(d.tasks||[]).map(t=>[
@@ -5332,7 +5695,9 @@ function stateFingerprint(d){
     t.reviewed_at||''
   ].join(':')).sort().join('|');
   const guidFp=(d.guidance||[]).map(g=>g.id+':'+g.resolved).join('|');
-  return JSON.stringify({sc, taskFp, guidFp, agents: s.agents, archived: s.archived});
+  const kanbanFp=d.kanban&&d.kanban.version===1?(d.kanban.columns||[]).map(c=>c.id+':'+(c.task_keys||[]).join(',')).join('|'):'';
+  const architectureFp=architectureFingerprint(d.architecture);
+  return JSON.stringify({sc, taskFp, guidFp, kanbanFp, architectureFp, agents: s.agents, archived: s.archived});
 }
 function statusLabel(s){ const m={'not_ready':'Not ready','in_progress':'In progress','canceled':'Canceled','not ready':'Not ready','in progress':'In progress','needs_guidance':'Needs guidance','needs_approval':'Needs approval','waiting_deps':'Waiting on deps','waiting_ghost':'Waiting on ghost','blocked':'Blocked'}; return m[s]||(s.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())); }
 function reviewText(s){ return String(s||'').replace(/_/g,' ').replace(/\s+/g,' ').trim(); }
@@ -5443,6 +5808,350 @@ function taskStatusLine(t,byId){
   return taskDisplayStatus(t,byId).label+(t.agent_id?' ▶'+(t.agent_id.length>14?t.agent_id.slice(0,14)+'…':t.agent_id):'');
 }
 
+const OPAQUE_KANBAN_TASK_KEY=/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}(?:\/\d+)?$/i;
+function kanbanCardDisplay(card){
+  const key=String(card&&card.task_key||'').trim();
+  const label=typeof (card&&card.label)==='string'?card.label.trim():'';
+  const opaque=OPAQUE_KANBAN_TASK_KEY.test(key);
+  return {
+    title:opaque&&(!label||label===key)?'Untitled legacy task':(label||key),
+    subtitle:opaque?'':key,
+  };
+}
+function kanbanCueLabel(kind,value,count){
+  const clean=reviewText(value);
+  if(kind==='user') return 'Needs You · '+count+' '+(count===1?'decision':'decisions');
+  if(kind==='review') return clean==='kick back'?'review · kick back':'review · '+clean;
+  return 'merge · '+clean;
+}
+function kanbanCueTone(value){
+  const tone=reviewTone(value);
+  return tone==='bad'?'bad':tone==='wait'?'wait':tone==='ok'?'ok':'info';
+}
+function kanbanFlagsHtml(card){
+  const cues=card.cues||{}, flags=[];
+  if(cues.user_gate) flags.push({label:kanbanCueLabel('user',cues.user_gate.state,cues.user_gate.count||1),tone:cues.user_gate.state==='blocked'?'bad':'wait'});
+  if(cues.review) flags.push({label:kanbanCueLabel('review',cues.review),tone:kanbanCueTone(cues.review)});
+  if(cues.merge) flags.push({label:kanbanCueLabel('merge',cues.merge),tone:kanbanCueTone(cues.merge)});
+  for(const tag of (card.tags||[]).slice(0,2)) flags.push({label:String(tag),tone:'',tag:true});
+  if((card.tags||[]).length>2) flags.push({label:'+'+((card.tags||[]).length-2),tone:'',tag:true});
+  if(!flags.length) return '';
+  return `<div class="kb-flags">${flags.map(flag=>`<span class="kb-flag ${esc(flag.tone)}${flag.tag?' kb-tag':''}">${esc(flag.label)}</span>`).join('')}</div>`;
+}
+const KB_DONE_CAP=12;
+function kanbanTaskTime(t){
+  return Date.parse(t&&(
+    t.completed_at||t.updated_at||t.reviewed_at||t.lastChanged||t.created_at||t.firstSeen
+  )||0)||0;
+}
+function recentKanbanCards(cards,byTask,cap=KB_DONE_CAP){
+  return cards.slice()
+    .sort((a,b)=>kanbanTaskTime(byTask[b.task_key])-kanbanTaskTime(byTask[a.task_key]))
+    .slice(0,cap);
+}
+function kanbanHistoryItems(d){
+  const terminal=new Set(['done','canceled','failed']);
+  return (d&&d.tasks||[]).filter(t=>t&&t.kind!=='note'&&terminal.has(t.status)).slice().sort((a,b)=>kanbanTaskTime(b)-kanbanTaskTime(a));
+}
+function openKanbanHistory(){
+  _historyItems=kanbanHistoryItems(lastState);
+  openHistory();
+}
+function selectKanbanCard(button){
+  document.querySelectorAll('#kanban .kb-card.selected').forEach(el=>el.classList.remove('selected'));
+  button.classList.add('selected');
+  openDetail(button.dataset.taskKey);
+}
+function renderKanban(d){
+  const root=document.getElementById('kanban');
+  if(currentView==='kanban') viewUiState.kanban={scrollLeft:root.scrollLeft,scrollTop:root.scrollTop};
+  const projection=d&&d.kanban;
+  if(!projection||projection.version!==1){
+    root.innerHTML='<div class="empty" style="padding:24px">Kanban projection unavailable for this daemon version.</div>';
+    return;
+  }
+  const byCard=Object.fromEntries((projection.cards||[]).map(card=>[card.task_key,card]));
+  const byTask=Object.fromEntries((d.tasks||[]).map(task=>[task.id,task]));
+  _historyItems=kanbanHistoryItems(d);
+  root.innerHTML=`<div class="kb-board">${(projection.columns||[]).map(column=>{
+    const allCards=(column.task_keys||[]).map(key=>byCard[key]).filter(Boolean);
+    const cards=column.id==='done'?recentKanbanCards(allCards,byTask):allCards;
+    const active=column.id==='wip'?cards.filter(card=>card.assignee&&liveAgentIds.has(card.assignee)).length:0;
+    const laneMeta=column.id==='done'
+      ? `<span class="kb-lane-meta">Recent ${cards.length} of ${allCards.length}</span><button class="kb-history" type="button" title="Open recent completed, canceled, and failed task history" onclick="event.stopPropagation();openKanbanHistory()">History ↗</button>`
+      : active?`<span class="kb-lane-meta"><span class="kb-live-dot"></span>${active} active</span>`:'';
+    const cardHtml=cards.map(card=>{
+      const task=byTask[card.task_key]||{id:card.task_key,status:card.status,agent_id:card.assignee};
+      const ds=taskDisplayStatus(task,byTask);
+      const live=card.lane==='wip'&&card.assignee&&liveAgentIds.has(card.assignee);
+      const display=kanbanCardDisplay(card);
+      return `<button type="button" class="kb-card${selected===card.task_key?' selected':''}${live?' live':''}" data-task-key="${esc(card.task_key)}" style="--kb-tone:${esc(ds.color)}">`+
+        `<span class="kb-card-title">${esc(display.title)}</span>`+
+        (display.subtitle?`<span class="kb-card-key">${esc(display.subtitle)}</span>`:'')+
+        `<span class="kb-card-meta"><span class="kb-status">${esc(ds.label)}</span>${card.assignee?`<span class="kb-assignee">▶ ${esc(card.assignee)}</span>`:''}</span>`+
+        kanbanFlagsHtml(card)+
+        `</button>`;
+    }).join('')||'<div class="kb-empty">No tasks</div>';
+    return `<section class="kb-lane kb-lane-${esc(column.id)}" aria-labelledby="kb-${esc(column.id)}-title">`+
+      `<div class="kb-lane-head"><span class="kb-lane-title" id="kb-${esc(column.id)}-title">${esc(column.label)}</span><span class="kb-count">${allCards.length}</span>${laneMeta}</div>`+
+      `<div class="kb-cards">${cardHtml}</div></section>`;
+  }).join('')}</div>`;
+  root.querySelectorAll('.kb-card').forEach(button=>button.addEventListener('click',()=>selectKanbanCard(button)));
+  root.scrollLeft=viewUiState.kanban.scrollLeft;
+  root.scrollTop=viewUiState.kanban.scrollTop;
+}
+
+function canonicalSpecTitle(){
+  return 'SPEC: '+(currentRepoName()||repoBasename(WS)||'project');
+}
+function currentSpecTask(d){
+  const title=canonicalSpecTitle().toLowerCase();
+  return (d&&d.tasks||[])
+    .filter(task=>task&&task.kind==='note'&&task.category==='system'&&!task.validTo&&String(task.label||'').toLowerCase()===title)
+    .sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')))[0]||null;
+}
+function fmtDocBytes(bytes){
+  const n=Number(bytes)||0;
+  return n>=1024?`${(n/1024).toFixed(n>=10240?0:1)} KB`:`${n} B`;
+}
+function documentationNavHtml(){
+  const query=documentationSearch.trim().toLowerCase();
+  const documents=(documentationLibrary.documents||[]).filter(doc=>!query||String(doc.title||'').toLowerCase().includes(query)||String(doc.path||'').toLowerCase().includes(query));
+  const groups=[];
+  for(const doc of documents){
+    let group=groups.find(item=>item.name===doc.section);
+    if(!group){ group={name:doc.section||'Project',documents:[]}; groups.push(group); }
+    group.documents.push(doc);
+  }
+  const canonical=`<button type="button" class="spec-doc-link${selectedDocumentationPath?'':' on'}" data-document-path=""><span class="spec-doc-name">Project Spec</span><span class="spec-doc-path">System note · versioned</span></button>`;
+  const listed=groups.map(group=>`<div class="spec-doc-section">${esc(group.name)}</div>`+group.documents.map(doc=>
+    `<button type="button" class="spec-doc-link${selectedDocumentationPath===doc.path?' on':''}" data-document-path="${esc(doc.path)}"><span class="spec-doc-name">${esc(doc.title)}</span><span class="spec-doc-path">${esc(doc.path)}</span></button>`
+  ).join('')).join('');
+  const state=documentationLibrary.loading?'<div class="empty" style="font-size:10px">Loading project documentation…</div>'
+    :documentationLibrary.error?`<div class="empty" style="font-size:10px;color:#ff7b72">${esc(documentationLibrary.error)}</div>`
+    :documents.length?'':'<div class="empty" style="font-size:10px">No matching documentation.</div>';
+  return `<aside class="spec-library"><div class="spec-library-head"><div class="spec-library-title">Project documentation</div><div class="spec-library-meta">Canonical Spec + ${documentationLibrary.documents.length} tracked document${documentationLibrary.documents.length===1?'':'s'}</div><input id="specDocSearch" class="spec-search" type="search" value="${esc(documentationSearch)}" placeholder="Filter documentation…" aria-label="Filter project documentation"></div><nav class="spec-doc-list" aria-label="Project documentation">${canonical}${listed}${state}</nav></aside>`;
+}
+function canonicalSpecEditorHtml(d){
+  const current=currentSpecTask(d);
+  const currentId=current?current.id:null;
+  if(specDraftId!==currentId){
+    specDraftId=currentId;
+    specDraftText=current?String(current.summary||''):'';
+  }
+  const currentSummary=current?String(current.summary||'').trim():'';
+  const draft=specDraftText==null?currentSummary:String(specDraftText);
+  const dirty=draft.trim()!==currentSummary;
+  const updated=current&&current.created_at?new Date(current.created_at).toLocaleString():'';
+  const notice=specNotice||{};
+  return `<section class="spec-card"><header class="spec-head"><div><div class="spec-eyebrow">Canonical project specification</div><div class="spec-title">${esc(canonicalSpecTitle())}</div>`+
+    `<div class="spec-meta">${current?(updated?'Last updated '+esc(updated):'Current project specification'):'Create the first project specification for this workspace.'}</div></div>`+
+    `<span class="spec-version">${current?'Current · versioned':'Not created'}</span></header>`+
+    `<div class="spec-body"><p class="spec-help">This is the authoritative workspace-level source of goals, constraints, interfaces, and invariants. The library also exposes the repository documentation that explains and supports it. Saving the Spec creates a new version and preserves the previous one in graph history.</p>`+
+    `<textarea id="specEditor" class="spec-editor" spellcheck="true" aria-label="Project specification editor" placeholder="Describe the project goals, hard constraints, interfaces, and invariants…"${specSaving?' disabled':''}>${esc(draft)}</textarea>`+
+    `<div class="spec-actions"><button type="button" class="spec-btn primary" id="specSaveBtn" onclick="saveSpec()"${specSaving||!dirty||!draft.trim()?' disabled':''}>${specSaving?'Saving…':current?'Save new version':'Create Spec'}</button>`+
+    `<button type="button" class="spec-btn" id="specResetBtn" onclick="resetSpecDraft()"${specSaving||!dirty?' disabled':''}>Reset</button>`+
+    `<span id="specStatus" class="spec-status${notice.type?' '+esc(notice.type):''}">${esc(notice.text||'')}</span></div></div></section>`;
+}
+function documentationEditorHtml(pathValue){
+  const meta=(documentationLibrary.documents||[]).find(doc=>doc.path===pathValue)||{path:pathValue,title:pathValue};
+  const state=documentationFiles.get(pathValue);
+  if(!state||state.loading){
+    return `<section class="spec-card"><header class="spec-head"><div><div class="spec-eyebrow">Repository documentation</div><div class="spec-title">${esc(meta.title)}</div><div class="spec-meta">${esc(pathValue)}</div></div><span class="spec-version">Loading…</span></header><div class="spec-body"><div class="empty">Loading document…</div></div></section>`;
+  }
+  if(state.error){
+    return `<section class="spec-card"><header class="spec-head"><div><div class="spec-eyebrow">Repository documentation</div><div class="spec-title">${esc(meta.title)}</div><div class="spec-meta">${esc(pathValue)}</div></div><span class="spec-version">Unavailable</span></header><div class="spec-body"><p class="spec-help" style="color:#ff7b72">${esc(state.error)}</p><button type="button" class="spec-btn" onclick="loadDocumentationFile(selectedDocumentationPath,true)">Retry</button></div></section>`;
+  }
+  const draft=String(state.draft==null?state.content:state.draft);
+  const dirty=draft!==String(state.content||'');
+  const updated=state.modified_at?new Date(state.modified_at).toLocaleString():'';
+  const notice=state.notice||{};
+  return `<section class="spec-card"><header class="spec-head"><div><div class="spec-eyebrow">Repository documentation</div><div class="spec-title">${esc(state.title||meta.title)}</div><div class="spec-meta">${esc(pathValue)}${updated?' · Modified '+esc(updated):''}</div></div><span class="spec-version">${fmtDocBytes(state.size)}</span></header>`+
+    `<div class="spec-body"><p class="spec-help">Tracked first-party documentation. Saves update this existing file only; if another tool changes it first, conflict protection requires a reload instead of overwriting newer work.</p>`+
+    `<textarea id="documentationEditor" class="spec-editor" spellcheck="true" aria-label="Documentation editor"${state.saving?' disabled':''}>${esc(draft)}</textarea>`+
+    `<div class="spec-actions"><button type="button" class="spec-btn primary" id="documentationSaveBtn" onclick="saveDocumentation()"${state.saving||!dirty?' disabled':''}>${state.saving?'Saving…':'Save document'}</button>`+
+    `<button type="button" class="spec-btn" id="documentationResetBtn" onclick="resetDocumentationDraft()"${state.saving||!dirty?' disabled':''}>Reset</button>`+
+    `<button type="button" class="spec-btn" onclick="loadDocumentationFile(selectedDocumentationPath,true)"${state.saving?' disabled':''}>Reload</button>`+
+    `<span id="documentationStatus" class="spec-status${notice.type?' '+esc(notice.type):''}">${esc(notice.text||'')}</span></div></div></section>`;
+}
+function renderSpec(d){
+  const root=document.getElementById('spec');
+  if(documentationLibrary.workspace!==WS){
+    documentationLibrary={workspace:WS,documents:[],loading:false,loaded:false,error:null};
+    selectedDocumentationPath=null; documentationSearch=''; documentationFiles.clear();
+  }
+  if(WS&&!documentationLibrary.loaded&&!documentationLibrary.loading) loadDocumentationIndex();
+  root.innerHTML=`<div class="spec-shell"><div class="spec-layout">${documentationNavHtml()}${selectedDocumentationPath?documentationEditorHtml(selectedDocumentationPath):canonicalSpecEditorHtml(d)}</div></div>`;
+  root.querySelectorAll('.spec-doc-link').forEach(button=>button.addEventListener('click',()=>selectDocumentation(button.dataset.documentPath||null)));
+  const search=document.getElementById('specDocSearch');
+  if(search) search.addEventListener('input',()=>{
+    documentationSearch=search.value;
+    renderSpec(lastState);
+    const next=document.getElementById('specDocSearch');
+    if(next){ next.focus(); next.setSelectionRange(next.value.length,next.value.length); }
+  });
+  if(selectedDocumentationPath){
+    const fileState=documentationFiles.get(selectedDocumentationPath);
+    if(!fileState&&!documentationLibrary.loading) loadDocumentationFile(selectedDocumentationPath);
+    const editor=document.getElementById('documentationEditor');
+    if(editor&&fileState) editor.addEventListener('input',()=>{
+      fileState.draft=editor.value; fileState.notice=null;
+      const changed=editor.value!==String(fileState.content||'');
+      const save=document.getElementById('documentationSaveBtn');
+      const reset=document.getElementById('documentationResetBtn');
+      if(save) save.disabled=fileState.saving||!changed;
+      if(reset) reset.disabled=fileState.saving||!changed;
+      const status=document.getElementById('documentationStatus');
+      if(status){ status.textContent=''; status.className='spec-status'; }
+    });
+    return;
+  }
+  const current=currentSpecTask(d);
+  const currentSummary=current?String(current.summary||'').trim():'';
+  const editor=document.getElementById('specEditor');
+  if(editor) editor.addEventListener('input',()=>{
+    specDraftText=editor.value;
+    specNotice=null;
+    const save=document.getElementById('specSaveBtn');
+    const reset=document.getElementById('specResetBtn');
+    const changed=editor.value.trim()!==currentSummary;
+    if(save) save.disabled=specSaving||!changed||!editor.value.trim();
+    if(reset) reset.disabled=specSaving||!changed;
+    const status=document.getElementById('specStatus');
+    if(status){ status.textContent=''; status.className='spec-status'; }
+  });
+}
+async function loadDocumentationIndex(force=false){
+  if(!WS) return;
+  const requestedWorkspace=WS;
+  if(documentationLibrary.workspace!==WS) documentationLibrary={workspace:WS,documents:[],loading:false,loaded:false,error:null};
+  if(documentationLibrary.loading||documentationLibrary.loaded&&!force) return;
+  documentationLibrary.loading=true; documentationLibrary.error=null;
+  if(lastState&&currentView==='spec') renderSpec(lastState);
+  try{
+    const response=await dfetch('/documentation');
+    const result=await response.json();
+    if(!response.ok||!result.ok) throw new Error(result.error||`Documentation load failed (${response.status})`);
+    if(WS!==requestedWorkspace||documentationLibrary.workspace!==requestedWorkspace) return;
+    documentationLibrary.documents=Array.isArray(result.documents)?result.documents:[];
+    documentationLibrary.loaded=true;
+    if(selectedDocumentationPath&&!documentationLibrary.documents.some(doc=>doc.path===selectedDocumentationPath)) selectedDocumentationPath=null;
+  }catch(error){
+    if(WS!==requestedWorkspace||documentationLibrary.workspace!==requestedWorkspace) return;
+    documentationLibrary.error=error&&error.message?error.message:'Could not load project documentation.';
+    documentationLibrary.loaded=true;
+  }finally{
+    if(WS===requestedWorkspace&&documentationLibrary.workspace===requestedWorkspace){
+      documentationLibrary.loading=false;
+      if(lastState&&currentView==='spec') renderSpec(lastState);
+    }
+  }
+}
+function selectDocumentation(pathValue){
+  selectedDocumentationPath=pathValue||null;
+  if(selectedDocumentationPath&&!documentationFiles.has(selectedDocumentationPath)) loadDocumentationFile(selectedDocumentationPath);
+  if(lastState) renderSpec(lastState);
+}
+async function loadDocumentationFile(pathValue,force=false){
+  const filePath=String(pathValue||'');
+  if(!filePath) return;
+  const requestedWorkspace=WS;
+  const previous=documentationFiles.get(filePath);
+  if(previous&&previous.loading||previous&&!force&&previous.content!=null) return;
+  documentationFiles.set(filePath,{...(previous||{}),path:filePath,loading:true,error:null,notice:null});
+  if(lastState&&currentView==='spec') renderSpec(lastState);
+  try{
+    const response=await dfetch('/documentation/file?path='+encodeURIComponent(filePath));
+    const result=await response.json();
+    if(!response.ok||!result.ok) throw new Error(result.error||`Document load failed (${response.status})`);
+    if(WS!==requestedWorkspace) return;
+    const document=result.document||{};
+    documentationFiles.set(filePath,{...document,draft:String(document.content||''),loading:false,saving:false,error:null,notice:null});
+  }catch(error){
+    if(WS!==requestedWorkspace) return;
+    documentationFiles.set(filePath,{...(previous||{}),path:filePath,loading:false,saving:false,error:error&&error.message?error.message:'Could not load document.',notice:null});
+  }
+  if(lastState&&currentView==='spec') renderSpec(lastState);
+}
+function resetDocumentationDraft(){
+  const state=documentationFiles.get(selectedDocumentationPath);
+  if(!state) return;
+  state.draft=String(state.content||''); state.notice=null;
+  if(lastState) renderSpec(lastState);
+}
+async function saveDocumentation(){
+  const pathValue=selectedDocumentationPath;
+  const state=documentationFiles.get(pathValue);
+  if(!pathValue||!state||state.saving||state.loading) return;
+  const requestedWorkspace=WS;
+  const content=String(state.draft==null?state.content:state.draft);
+  if(content===String(state.content||'')){ state.notice={type:'',text:'No changes to save.'}; if(lastState) renderSpec(lastState); return; }
+  state.saving=true; state.notice={type:'',text:'Saving document…'};
+  if(lastState) renderSpec(lastState);
+  try{
+    const response=await dfetch('/documentation/file',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:pathValue,content,expected_hash:state.hash})});
+    const result=await response.json();
+    if(!response.ok||!result.ok) throw new Error(result.error||`Save failed (${response.status})`);
+    if(WS!==requestedWorkspace) return;
+    const document=result.document||{};
+    documentationFiles.set(pathValue,{...document,draft:String(document.content||''),loading:false,saving:false,error:null,notice:{type:'ok',text:'Saved to the repository documentation file.'}});
+    documentationLibrary.documents=documentationLibrary.documents.map(item=>item.path===pathValue?{...item,...document,content:undefined}:item);
+  }catch(error){
+    if(WS!==requestedWorkspace) return;
+    state.saving=false;
+    state.notice={type:'err',text:error&&error.message?error.message:'Could not save document.'};
+  }
+  if(lastState) renderSpec(lastState);
+}
+function resetSpecDraft(){
+  const current=currentSpecTask(lastState);
+  specDraftId=current?current.id:null;
+  specDraftText=current?String(current.summary||''):'';
+  specNotice=null;
+  if(lastState) renderSpec(lastState);
+}
+async function saveSpec(){
+  if(specSaving) return;
+  const editor=document.getElementById('specEditor');
+  const current=currentSpecTask(lastState);
+  const summary=String(editor&&editor.value||'').trim();
+  const currentSummary=String(current&&current.summary||'').trim();
+  if(!summary){ specNotice={type:'err',text:'The project Spec cannot be empty.'}; if(lastState) renderSpec(lastState); return; }
+  if(summary===currentSummary){ specNotice={type:'',text:'No changes to save.'}; if(lastState) renderSpec(lastState); return; }
+  specSaving=true;
+  specDraftText=summary;
+  specNotice={type:'',text:'Saving a new version…'};
+  if(lastState) renderSpec(lastState);
+  try{
+    const savedAt=new Date().toISOString();
+    const opId='dashboard-spec-'+(globalThis.crypto&&typeof globalThis.crypto.randomUUID==='function'?globalThis.crypto.randomUUID():Date.now());
+    const body={
+      title:canonicalSpecTitle(), summary, category:'system', created_by:'dashboard-spec',
+      valid_from:savedAt, op_id:opId, ...(current?{supersedes:current.id}:{})
+    };
+    const response=await dfetch('/overlay/note',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const result=await response.json();
+    if(!response.ok||!result.ok) throw new Error(result.error||`Save failed (${response.status})`);
+    specDraftId=result.key||null;
+    specDraftText=summary;
+    specNotice={type:'ok',text:'Saved. The previous Spec remains in graph history.'};
+    if(lastState&&result.key){
+      if(current) current.validTo=result.superseded&&result.superseded.at||savedAt;
+      lastState.tasks=[...(lastState.tasks||[]),{
+        id:result.key, kind:'note', label:body.title, summary, category:'system',
+        created_at:savedAt, validFrom:savedAt, validTo:null
+      }];
+    }
+    lastRenderFp='';
+    await tick();
+  }catch(error){
+    specNotice={type:'err',text:error&&error.message?error.message:'Could not save the project Spec.'};
+  }finally{
+    specSaving=false;
+    if(lastState) renderSpec(lastState);
+  }
+}
+
 function fmtK(n){ if(n==null)return'—'; return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(Math.round(n)); }
 function setDockVal(id, val, nonZeroColor){
   const el=document.getElementById(id); if(!el) return;
@@ -5474,17 +6183,18 @@ function updateDock(s, sc){
   const hbtn=document.getElementById('sd-history');
   if(hbtn && excl>0) hbtn.textContent='History ('+excl+') ▾';
 }
-async function tick(){
+async function tick(prefetchedState){
   // P2b: never fetch workspace-scoped data until an EXPLICIT workspace is chosen. If unresolved,
   // try to resolve one (auto-select single ws / show picker) and bail this tick — selectWorkspace
   // re-ticks once a choice lands. This is what prevents a silent fall-through to the global pointer.
   if (!WS_RESOLVED) { try { await resolveExplicitWorkspace(); } catch {} if (!WS_RESOLVED) return; }
-  let d; try{ d=await(await dfetch('/state')).json(); }catch{ return; }
+  let d=prefetchedState;
+  if(!d){ try{ d=await(await dfetch('/state')).json(); }catch{ return; } }
   refreshCost(); refreshCronTok(); refreshInfraHero(); refreshAgreement(); refreshEconomy(); refreshAutonomy();
   liveAgentIds=new Set((d.agents||[]).filter(a=>a&&a.state==='running').map(a=>a.agent_id));
   const s=d.summary, sc=s.statuses||{}; const order=['not_ready','ready','in_progress','tested','done','failed','canceled'];
 
-  const cf=costCache, econ=cf&&(cf.economy_totals||cf.totals)||null, usageTotals=cf&&cf.usage_totals||null;
+  const cf=costCache, econ=cf&&(cf.economy_totals||cf.totals)||null;
   const cfShare=econ&&econ.total>0?Math.round(econ.productive*100/econ.total):null;
   document.getElementById('ws').textContent=d.workspace?d.workspace.split('/').pop():'';
   const autoScore=cf&&cf.autonomy_score!=null?cf.autonomy_score+'×':'—';
@@ -5499,15 +6209,10 @@ async function tick(){
   const billingAvailable=!!(cf&&cf.sources&&cf.sources.billing!=='missing');
   const billCost=cf&&cf.cost&&billingAvailable?Number(cf.cost.usd||0):null;
   const fmtUSD=n=>n==null?'—':n>=1000?'$'+Math.round(n/1000)+'K':n>=1?'$'+n.toFixed(0):'$'+n.toFixed(2);
-  // cronCostCached: from harnessOhCache (populated by refreshInfraHero); use 0 if not yet loaded
-  const cronCostCached=harnessOhCache?harnessOhCache.cronCost:0;
-  // Billing hero = sessions + cron so it agrees with "Total est." in the popup
-  const billStr=fmtUSD(billCost!=null?billCost+cronCostCached:null);
-  // Plan recommendation uses GROSS output (what was actually billed to the quota)
-  const outTokTotal=cf&&cf.gross_totals?cf.gross_totals.output_tokens:(usageTotals?usageTotals.output_tokens:0);
-  // estimate weekly rate: costCache refreshes periodically; use total as proxy for "lifetime"
-  // show plan fit based on absolute total (lifetime context)
-  const planRec=outTokTotal>50e6?'API direct (Max plan capacity far exceeded)':outTokTotal>10e6?'API direct or Max 20× ($200/mo)':outTokTotal>3e6?'Max 20× ($200/mo) or API direct':outTokTotal>1e6?'Max 5× ($100/mo) or Max 20×':'Max 5× ($100/mo) likely sufficient';
+  // Cron cost is shown only when the server supplied a priced value for every token-bearing entry.
+  const cronCostCached=harnessOhCache?harnessOhCache.cronCost:null;
+  const billStr=fmtUSD(billCost!=null&&cronCostCached!=null?billCost+cronCostCached:billCost);
+  const billingScope=cronCostCached==null?'Session estimate; cron/gate unpriced':'Sessions + server-priced cron/gate';
   // Header metrics; CSS moves this strip into a second row on narrow screens.
   const autoRaw=cf&&cf.autonomy_score!=null?cf.autonomy_score:null;
   // Industry benchmarks: autonomy ~3–5× typical agentic; productive% ~40–60% of total
@@ -5535,21 +6240,24 @@ async function tick(){
   const autoSubVs=autoRaw==null?'no data':autoRaw>=autoMedian?`+${(autoRaw-autoMedian).toFixed(1)}× median`:`${(autoMedian-autoRaw).toFixed(1)}× below median`;
   // Harness cost hero — uses cached overhead data populated by refreshInfraHero
   const oh_h=harnessOhCache;
-  const cronCost_h=oh_h?oh_h.cronCost:0;
+  const cronCost_h=oh_h?oh_h.cronCost:null;
   const grossTok_h=cf&&cf.gross_totals?(cf.gross_totals.input_tokens||0)+(cf.gross_totals.output_tokens||0)+(cf.gross_totals.cache_read||0):0;
   const blendedRate_h=grossTok_h>0&&billCost!=null?billCost/grossTok_h:null;
   const overheadEst_h=oh_h!=null&&blendedRate_h!=null?oh_h.ohTok*blendedRate_h:null;
-  const totalHarnessCost=overheadEst_h!=null?cronCost_h+overheadEst_h:null;
+  const totalHarnessCost=overheadEst_h!=null&&cronCost_h!=null?cronCost_h+overheadEst_h:null;
+  const viewerCostHeroLabel=viewerDisplayName().toUpperCase()+' COST';
+  const viewerCostHeroTitle=viewerCostTitle();
+  const viewerCostHeroOwner=viewerOwnerName();
   const harnessHval=totalHarnessCost!=null?fmtUSD(totalHarnessCost):(cronTokCache!=null?fmtK(cronTokCache):'—');
-  const harnessHsub=totalHarnessCost!=null?'direct + injected':'cron only';
+  const harnessHsub=totalHarnessCost!=null?'direct + injected':(oh_h&&cronCost_h==null?'cron unpriced':'cron only');
   const obc_h=oh_h?oh_h.byCategory:{};
   const sre_h=oh_h?oh_h.sysReminderEst:0;
   const harnessTipDetail=oh_h?
     `<div style="font-size:10px;color:#8b949e;margin-top:6px">`+
-    `<div><b style="color:#c9d1d9">Direct API</b> (cron + gate): ${fmtK(oh_h.cronTotal)} tok · ${fmtUSD(cronCost_h)}</div>`+
+    `<div><b style="color:#c9d1d9">Direct API</b> (cron + gate): ${fmtK(oh_h.cronTotal)} tok · ${cronCost_h!=null?fmtUSD(cronCost_h):'unpriced'}</div>`+
     `<div style="margin-top:3px"><b style="color:#c9d1d9">Machine-injected overhead</b>: ${fmtK(oh_h.ohTok)} tok`+(overheadEst_h!=null?` · ~${fmtUSD(overheadEst_h)}`:'')+(oh_h.harnessFraction!=null?` (${Math.round(oh_h.harnessFraction*100)}% of session input)`:'')+`</div>`+
     `<div style="padding-left:8px;color:#6e7681;margin-top:2px">tool results ${fmtK(obc_h.tool_result)} · automation ${fmtK(obc_h.automation_messages)} · cmd blocks ${fmtK(obc_h.command_blocks)}`+(sre_h>0?` · sys-reminder ${fmtK(sre_h)}`:'')+(obc_h.orchestrator_suffix?` · orch suffix ${fmtK(obc_h.orchestrator_suffix)}`:'')+`</div>`+
-    `<div style="margin-top:5px;font-size:9px;color:#484f58">Machine-injected = tool results, system-reminders, and automation prompts injected by the harness. Already counted in task-session billing — shown here so you can see what Zonoid consumed vs your productive work.</div>`+
+    `<div style="margin-top:5px;font-size:9px;color:#484f58">Machine-injected = tool results, system-reminders, and automation prompts injected by the harness. Already counted in task-session billing — shown here so you can see what ${viewerCostHeroOwner} consumed vs your productive work.</div>`+
     `</div>`:
     `<div style="font-size:10px;color:#484f58;margin-top:4px">Loading breakdown…</div>`;
   document.getElementById('sum').innerHTML=
@@ -5581,14 +6289,14 @@ async function tick(){
     `</div></span>` +
     `</span>` +
     `<span class="hero" id="hero-infra" onclick="toggleBillingPopup()">` +
-    `<span class="hlabel">HARNESS COST</span><span class="hval" style="color:#8b949e" id="hval-infra">${harnessHval}</span>` +
+    `<span class="hlabel">${viewerCostHeroLabel}</span><span class="hval" style="color:#8b949e" id="hval-infra">${harnessHval}</span>` +
     `<span class="hval-sub">${harnessHsub}</span>` +
-    `<span class="htip"><div class="tip-title">Harness cost</div>Cost from Zonoid's own machinery — not your productive work.${harnessTipDetail}</span>` +
+    `<span class="htip"><div class="tip-title">${viewerCostHeroTitle}</div>Cost from ${viewerCostHeroOwner}'s own machinery — not your productive work.${harnessTipDetail}</span>` +
     `</span>` +
     `<span class="hero" onclick="toggleBillingPopup()">` +
     `<span class="hlabel">Billing <span style="font-size:8px;color:#484f58;font-weight:400;text-transform:none">gross</span></span><span class="hval" style="color:#d29922">${billStr}</span>` +
     `<span class="hval-sub">${topModelShort?topModelShort+(topModelCost?' '+topModelCost:' gross tokens'):'sessions + cron'}</span>` +
-    `<span class="htip" style="width:200px"><div class="tip-title">Estimated API Cost</div>Sessions (gross, all models) + cron/gate. Click for full breakdown: productive vs trapped, infra overhead, per-model split.</span>` +
+    `<span class="htip" style="width:200px"><div class="tip-title">Estimated API Cost</div>${billingScope}. All recorded providers remain in the totals. Click for full breakdown.</span>` +
     `</span>` +
     (()=>{
       const ag=agreementCache;
@@ -5640,14 +6348,17 @@ async function tick(){
   const graphChanged=fp!==lastRenderFp;
   if(graphChanged){
     lastRenderFp=fp;
-    if(currentView==='cloud') renderCloud(d);
+    if(currentView==='spec') renderSpec(d);
+    else if(currentView==='kanban') renderKanban(d);
+    else if(currentView==='cloud') renderCloud(d);
+    else if(currentView==='architecture') renderArchitecture(d);
     else if(currentView==='focus') renderFocus(d);
     else renderFrontier(d);
   }
   if(selected){
   const dt=lastState&&lastState.tasks&&lastState.tasks.find(t=>t.id===selected);
-  const fp=dt?[dt.status,dt.agent_id||'',dt.summary||'',dt.review_state||'',dt.review_verdict||'',dt.merge_state||'',dt.review_requested_at||'',dt.reviewed_at||''].join(':'):'';
-  if(fp!==lastDetailFp){ lastDetailFp=fp; openDetail(selected); }
+  const fp=detailFingerprint(dt);
+  if(fp!==lastDetailFp) syncSelectedDetailFromState(selected);
 }
   const rt=document.getElementById('routes');
   rt.innerHTML=!d.routes.length?'<div class="empty">none</div>':d.routes.slice().reverse().slice(0,6).map(r=>`<div class="row"><span class="tag ${esc(r.decision)}">${esc(r.decision)}</span> ${esc(r.prompt.slice(0,60))}</div>`).join('');
@@ -5655,8 +6366,9 @@ async function tick(){
   ag.innerHTML=!d.agents.length?'<div class="empty">none</div>':d.agents.slice().reverse().map(a=>`<div class="row">${a.state==='running'?'▶':'✓'} <b>${esc(a.agent_type)}</b> <span class="muted">${esc(a.agent_id)}</span></div>`).join('');
   renderGuidance();
 }
-// Escalation: BLOCKING guidance gets the prominent paused banner; 'review' items (judge
-// housekeeping — never pause the loop) render as a quiet collapsed triage list.
+// User decisions are leased to the relevant live agent session AND retained in this shared dashboard
+// inbox. Session delivery gets the question into the active conversation; the durable sidebar makes
+// it discoverable from Spec, Kanban, Frontier, Knowledge, Architecture, and Focus after that nudge scrolls away.
 // tick() re-runs this every 2s, so re-render is SIGNATURE-GATED: the DOM is only rebuilt when the
 // queue actually changes (or force=true after a resolve). UI state that must survive a rebuild —
 // answer drafts, keeper picks, expanded rows, inline errors, fetched note details — lives in the
@@ -5689,6 +6401,13 @@ function defKeeper(a){
     if(newest&&newest.key) return newest.key;
   }
   return a.keys[a.keys.length-1];
+}
+function guidanceAge(ts){
+  const ms=Date.now()-Date.parse(ts||0); if(!Number.isFinite(ms)||ms<0) return '';
+  const mins=Math.floor(ms/60000); if(mins<1) return 'just now';
+  if(mins<60) return mins+'m ago';
+  const hrs=Math.floor(mins/60); if(hrs<24) return hrs+'h ago';
+  return Math.floor(hrs/24)+'d ago';
 }
 function guidToggle(id,open){
   if(open) guidOpen.add(id); else guidOpen.delete(id);
@@ -5787,13 +6506,18 @@ async function renderGuidance(force){
   guidanceItems={};
   [...pending,...review].forEach(it=>{ guidanceItems[it.id]=it; });
   guidReview=review;
-  const sig=JSON.stringify(pending.concat(review).map(it=>it.id));
+  const sig=JSON.stringify([...pending,...review].map(it=>it.id));
   if(!force&&sig===guidSig) return;   // queue unchanged — don't clobber in-progress typing/expansion
   guidSig=sig;
   const reviewFollowUps=review.filter(it=>it.action&&it.action.kind==='follow-up');
   const reviewClusters=dedupeClustersBySig(review.filter(isCluster));
   const reviewStale=review.filter(it=>it.action&&it.action.kind==='stale-verdict');
-  if(!pending.length&&!reviewFollowUps.length&&!reviewClusters.length&&!reviewStale.length){ box.classList.remove('show','has-pending'); box.innerHTML=''; const btn=document.getElementById('notifBtn'); if(btn) btn.classList.remove('show','has-pending'); return; }
+  if(!pending.length&&!reviewFollowUps.length&&!reviewClusters.length&&!reviewStale.length){
+    box.classList.remove('show','has-pending'); box.innerHTML='';
+    const btn=document.getElementById('notifBtn'); if(btn){ btn.classList.add('show'); btn.classList.remove('has-pending'); btn.setAttribute('aria-expanded','false'); }
+    const cnt=document.getElementById('notifCount'); if(cnt) cnt.textContent='0';
+    return;
+  }
   // One expandable member row per cluster note: radio keeper pick + label + lazy summary.
   const memberRow=(it,k,i)=>{
     const meta=(Array.isArray(it.action.notes)?it.action.notes:[]).find(n=>n.key===k)||{};
@@ -5823,6 +6547,22 @@ async function renderGuidance(force){
         '<button class="gbtn" onclick="resolveGuidance(\''+esc(it.id)+'\',\'reject\')">Reject</button>'+
         copyBtn(it)+'<span class="gstat" id="gst-'+esc(it.id)+'"></span></div>';
     }
+    if(it.action&&it.action.kind==='user-hold'){
+      return '<div class="gact"><button class="gbtn primary" onclick="resolveGuidance(\''+esc(it.id)+'\',\'release\')">Release</button>'+
+        '<button class="gbtn" onclick="resolveGuidance(\''+esc(it.id)+'\',\'keep\')">Keep hold</button>'+
+        '<span class="gstat" id="gst-'+esc(it.id)+'"></span></div>';
+    }
+    if(it.action&&it.action.kind==='task-recovery'){
+      return '<div class="gact"><button class="gbtn primary" onclick="resolveGuidance(\''+esc(it.id)+'\',\'retry\')">Retry</button>'+
+        '<button class="gbtn" onclick="resolveGuidance(\''+esc(it.id)+'\',\'keep\')">Keep blocked</button>'+
+        '<button class="gbtn" onclick="resolveGuidance(\''+esc(it.id)+'\',\'cancel\')">Cancel task</button>'+
+        '<span class="gstat" id="gst-'+esc(it.id)+'"></span></div>';
+    }
+    if(it.action&&it.action.kind==='cost_gate'){
+      return '<div class="gact"><button class="gbtn primary" onclick="resolveGuidance(\''+esc(it.id)+'\',\'approve\')">Approve run</button>'+
+        '<button class="gbtn" onclick="resolveGuidance(\''+esc(it.id)+'\',\'reject\')">Keep blocked</button>'+
+        '<span class="gstat" id="gst-'+esc(it.id)+'"></span></div>';
+    }
     if(it.action&&it.action.kind==='force_claim_cap'){
       return '<div class="gact"><button class="gbtn primary" onclick="resolveGuidance(\''+esc(it.id)+'\',\'approved\')">Approve &amp; reset counter</button>'+
         '<span class="gstat" id="gst-'+esc(it.id)+'"></span></div>';
@@ -5843,11 +6583,14 @@ async function renderGuidance(force){
     (it.trigger?'<div class="gtrig">'+esc(it.trigger)+'</div>':'')+
     '<div class="gq">'+linkifyNoteKeys(esc(it.question))+'</div>'+
     (it.context?'<div class="gctx">'+linkifyNoteKeys(esc(it.context))+'</div>':'')+
+    (it.action&&it.action.recommended?'<div class="gctx"><b>Recommended:</b> '+esc(it.action.recommended)+'</div>':'')+
+    '<div class="gact">'+(guidanceAge(it.ts)?'<span class="gstat">'+esc(guidanceAge(it.ts))+'</span>':'')+
+    ((it.action&&(it.action.task_key||it.action.taskKey))||it.origin_task?'<button class="gbtn" onclick="closeGuidancePopup();openDetail(\''+esc((it.action&&(it.action.task_key||it.action.taskKey))||it.origin_task)+'\')">Open task</button>':'')+'</div>'+
     controls(it)+
     (guidErr[it.id]?'<div class="gerr">'+esc(guidErr[it.id])+'</div>':'')+
     '</div>';
-  let html='<button class="appclose" style="float:right;margin:-2px -2px 6px 8px" onclick="closeGuidancePopup()">✕</button>';
-  if(pending.length) html+='<span class="gtitle">Dashboard decisions (non-blocking) ('+pending.length+')</span>'+pending.map(gitem).join('');
+  let html='<button class="appclose" style="float:right;margin:-2px -2px 6px 8px" onclick="closeGuidancePopup()">✕</button><span class="gtitle">Needs You ('+(pending.length+review.length)+')</span>';
+  if(pending.length) html+=pending.map(gitem).join('');
   if(reviewFollowUps.length) html+='<span class="gtitle" style="margin-top:10px">Follow-up review ('+reviewFollowUps.length+')</span>'+reviewFollowUps.map(gitem).join('');
   if(reviewClusters.length) html+='<span class="gtitle" style="margin-top:10px">Dup clusters ('+reviewClusters.length+')</span>'+reviewClusters.map(gitem).join('');
   if(reviewStale.length) html+='<span class="gtitle" style="margin-top:10px">⚠ Stale work — session gone ('+reviewStale.length+')</span>'+reviewStale.map(gitem).join('');
@@ -5855,11 +6598,10 @@ async function renderGuidance(force){
   box.classList.add('has-pending');
   const btn=document.getElementById('notifBtn');
   if(btn){
-    const cnt=document.getElementById('notifCount'); if(cnt) cnt.textContent=pending.length+reviewStale.length;
+    const cnt=document.getElementById('notifCount'); if(cnt) cnt.textContent=pending.length+review.length;
     btn.classList.add('has-pending','show');
   }
-  // Keep pending decisions visible; they do not pause the scheduler.
-  if(pending.length||reviewFollowUps.length||reviewClusters.length||reviewStale.length) box.classList.add('show');
+  if(reviewFollowUps.length||reviewClusters.length||reviewStale.length){ box.classList.add('show'); if(btn) btn.setAttribute('aria-expanded','true'); }
 }
 // POST a resolution. decision: 'consolidate'|'distinct' for dup-clusters (consolidate sends the
 // picked keeper, daemon defaults to newest if omitted); absent → send the answer box as { answer }.
@@ -5873,7 +6615,7 @@ async function resolveGuidance(id,decision){
     if(sel) body.keep=sel.value;
   }
   else if(decision==='distinct'){ body.decision='distinct'; }
-  else if(decision==='approve'||decision==='reject'||decision==='merge'||decision==='dismiss'){ body.decision=decision; }
+  else if(['approve','reject','merge','dismiss','release','keep','retry','cancel'].includes(decision)){ body.decision=decision; }
   else { const inp=document.getElementById('ans-'+id); body.answer=(inp?inp.value:guidAns[id])||''; }
   delete guidErr[id];
   try{
@@ -5944,41 +6686,381 @@ function fallbackCopy(text,done){
   try{ document.execCommand('copy'); done&&done(); }catch(e){}
   document.body.removeChild(ta);
 }
-// ---- view switching: Frontier (default, dagre subset) | Cloud (whole-graph) | Focus (one node's lineage)
+// ---- Architecture: recursively expandable compound hierarchy on an infinite SVG canvas ----------
+function architectureProjectionFiles(projection){
+  const byId=new Map();
+  for(const file of (projection&&projection.hierarchy_files||[])) byId.set(file.id,{...file,has_rich_detail:false});
+  for(const file of (projection&&projection.files||[])) byId.set(file.id,{...(byId.get(file.id)||{}),...file,has_rich_detail:true});
+  return [...byId.values()];
+}
+const ARCHITECTURE_LAYOUT=Object.freeze({
+  rootWidth:380,
+  canvasInset:46,
+  childInset:24,
+  compoundHeader:56,
+  compoundBottom:24,
+  siblingGap:22,
+  columnGutter:140,
+  rowGutter:90,
+  nodeMinWidth:220,
+  fileHeight:64,
+  collapsedHeight:82,
+});
+function architectureFileMatches(file, query){
+  const q=String(query||'').trim().toLowerCase();
+  if(!q) return true;
+  return [file.path,file.module,file.noise,...(file.symbols||[]).flatMap(symbol=>[symbol.name,symbol.kind,symbol.signature])]
+    .some(value=>String(value||'').toLowerCase().includes(q));
+}
+function architectureHierarchyById(projection){
+  return new Map([...(projection&&projection.modules||[]),...(projection&&projection.groups||[]),...architectureProjectionFiles(projection)]
+    .map(node=>[node.id,node]));
+}
+function architectureSearchMatchIds(projection, query){
+  const q=String(query||'').trim();
+  return new Set(q?architectureProjectionFiles(projection).filter(file=>architectureFileMatches(file,q)).map(file=>file.id):[]);
+}
+function architectureEffectiveExpandedIds(projection, expandedIds, query){
+  const searching=!!String(query||'').trim();
+  const expanded=new Set(searching?[]:(expandedIds||[]));
+  const matches=architectureSearchMatchIds(projection,query);
+  for(const file of architectureProjectionFiles(projection)) if(matches.has(file.id)){
+    for(const ancestor of (file.ancestor_ids||[])) expanded.add(ancestor);
+  }
+  return expanded;
+}
+function architectureVisibleHierarchy(projection, expandedIds, query, showNoise){
+  const byId=architectureHierarchyById(projection);
+  const searching=!!String(query||'').trim();
+  const matchIds=architectureSearchMatchIds(projection,query);
+  const expanded=architectureEffectiveExpandedIds(projection,expandedIds,query);
+  const matchedAncestors=new Set();
+  for(const file of architectureProjectionFiles(projection)) if(matchIds.has(file.id)){
+    for(const ancestor of (file.ancestor_ids||[])) matchedAncestors.add(ancestor);
+  }
+  const allowed=node=>{
+    if(!node) return false;
+    if(searching){
+      if(String(node.id).startsWith('module:')) return true;
+      if(String(node.id).startsWith('group:')) return matchedAncestors.has(node.id);
+      return matchIds.has(node.id);
+    }
+    if(String(node.id).startsWith('file:')) return showNoise||!node.is_noisy||matchIds.has(node.id);
+    return showNoise||(node.default_file_count||0)>0||matchedAncestors.has(node.id);
+  };
+  const nodes=[];
+  const visit=(id,parentId)=>{
+    const node=byId.get(id);
+    if(!allowed(node)) return;
+    const hierarchy_kind=String(id).startsWith('module:')?'module':String(id).startsWith('group:')?'group':'file';
+    nodes.push({...node,hierarchy_kind,visible_parent_id:parentId||null});
+    if(hierarchy_kind!=='file'&&expanded.has(id)) for(const childId of (node.child_ids||[])) visit(childId,id);
+  };
+  for(const module of (projection&&projection.modules||[])) visit(module.id,null);
+  return {nodes,expanded,match_ids:matchIds};
+}
+function architectureRetargetEndpoint(fileId, ancestors, expandedIds){
+  const chain=[...(ancestors||[])].reverse();
+  chain.push(fileId);
+  if(!chain.length) return fileId;
+  let endpoint=chain[0];
+  for(let i=0;i<chain.length-1;i++){
+    if(!expandedIds.has(chain[i])) break;
+    endpoint=chain[i+1];
+  }
+  return endpoint;
+}
+function architectureRetargetRelations(projection, expandedIds, visibleIds){
+  const aggregate=new Map();
+  for(const relation of (projection&&projection.hierarchy_relations||[])){
+    const from=architectureRetargetEndpoint(relation.from,relation.from_ancestors,expandedIds);
+    const to=architectureRetargetEndpoint(relation.to,relation.to_ancestors,expandedIds);
+    if(from===to||(visibleIds&&(!visibleIds.has(from)||!visibleIds.has(to)))) continue;
+    const key=`${from}\u0000${to}\u0000${relation.kind}`;
+    const item=aggregate.get(key)||{id:`visible-relation:${from}:${relation.kind}:${to}`,from,to,kind:relation.kind,count:0,ambiguous_count:0};
+    item.count+=relation.count||1;
+    item.ambiguous_count+=relation.ambiguous_count||0;
+    aggregate.set(key,item);
+  }
+  return [...aggregate.values()].sort((a,b)=>a.from.localeCompare(b.from)||a.to.localeCompare(b.to)||a.kind.localeCompare(b.kind));
+}
+function architectureBreadcrumbIds(projection, selectedId){
+  if(!selectedId) return [];
+  const byId=architectureHierarchyById(projection);
+  const selected=byId.get(selectedId);
+  if(!selected) return [];
+  if(String(selectedId).startsWith('file:')) return [...(selected.ancestor_ids||[])].reverse().concat(selectedId);
+  const ids=[]; let current=selected;
+  while(current){ ids.unshift(current.id); current=current.parent_id?byId.get(current.parent_id):null; }
+  return ids;
+}
+function architectureInspectorRelations(projection, visibleRelations, selectedId){
+  const relations=String(selectedId||'').startsWith('file:')
+    ? (projection&&projection.hierarchy_relations||[])
+    : (visibleRelations||[]);
+  return relations.filter(relation=>relation.from===selectedId||relation.to===selectedId);
+}
+function architectureLayoutHierarchy(visible){
+  const spacing=ARCHITECTURE_LAYOUT;
+  const byId=new Map(visible.nodes.map(node=>[node.id,node]));
+  const children=new Map();
+  for(const node of visible.nodes) if(node.visible_parent_id){
+    if(!children.has(node.visible_parent_id)) children.set(node.visible_parent_id,[]);
+    children.get(node.visible_parent_id).push(node.id);
+  }
+  const minimumWidth=id=>{
+    const node=byId.get(id), childIds=children.get(id)||[];
+    if(!node||node.hierarchy_kind==='file'||!visible.expanded.has(id)||!childIds.length) return spacing.nodeMinWidth;
+    return Math.max(spacing.nodeMinWidth,Math.max(...childIds.map(minimumWidth))+spacing.childInset*2);
+  };
+  const measure=(id,width)=>{
+    const node=byId.get(id), childIds=children.get(id)||[];
+    if(!node||node.hierarchy_kind==='file') return {id,w:width,h:spacing.fileHeight,children:[]};
+    if(!visible.expanded.has(id)||!childIds.length) return {id,w:width,h:spacing.collapsedHeight,children:[]};
+    const childWidth=width-spacing.childInset*2;
+    const measured=childIds.map(childId=>measure(childId,childWidth));
+    return {id,w:width,h:spacing.compoundHeader+measured.reduce((sum,child)=>sum+child.h,0)+Math.max(0,measured.length-1)*spacing.siblingGap+spacing.compoundBottom,children:measured};
+  };
+  const rootIds=visible.nodes.filter(node=>!node.visible_parent_id).map(node=>node.id);
+  const rootWidth=Math.max(spacing.rootWidth,...rootIds.map(minimumWidth));
+  const roots=rootIds.map(id=>measure(id,rootWidth));
+  const columns=Math.max(1,Math.min(4,Math.ceil(Math.sqrt(roots.length||1))));
+  const heights=Array(columns).fill(spacing.canvasInset), boxes=new Map();
+  const place=(item,x,y)=>{
+    boxes.set(item.id,{x,y,w:item.w,h:item.h});
+    let childY=y+spacing.compoundHeader;
+    for(const child of item.children){ place(child,x+spacing.childInset,childY); childY+=child.h+spacing.siblingGap; }
+  };
+  for(let i=0;i<roots.length;i++){
+    const column=heights.indexOf(Math.min(...heights));
+    const x=spacing.canvasInset+column*(rootWidth+spacing.columnGutter), y=heights[column];
+    place(roots[i],x,y); heights[column]+=roots[i].h+spacing.rowGutter;
+  }
+  return {boxes,width:Math.max(760,spacing.canvasInset*2+columns*rootWidth+Math.max(0,columns-1)*spacing.columnGutter),height:Math.max(520,...heights)+spacing.canvasInset};
+}
+function architectureCanvasNodeLabel(node){
+  const label=node.hierarchy_kind==='file'?(node.name||String(node.path||'').split('/').pop()):(node.name||node.path||node.id);
+  return label.length>34?label.slice(0,33)+'…':label;
+}
+function architectureCanvasNodeMeta(node, expanded){
+  if(node.hierarchy_kind==='file') return node.has_rich_detail===false
+    ? `${node.symbol_count||0} indexed symbols · rich detail omitted`
+    : `${node.symbol_count||0} symbols · ←${node.incoming_count||0} · →${node.outgoing_count||0}`;
+  if(expanded) return `${(node.child_ids||[]).length} immediate items`;
+  return `${node.default_file_count||0} source files · ${node.symbol_count||0} symbols`;
+}
+function architectureEdgeAnchors(from,to){
+  const ax=from.x+from.w/2, ay=from.y+from.h/2, bx=to.x+to.w/2, by=to.y+to.h/2;
+  const dx=bx-ax, dy=by-ay;
+  const fromScale=Math.min(Math.abs(dx)>0?(from.w/2)/Math.abs(dx):Infinity,Math.abs(dy)>0?(from.h/2)/Math.abs(dy):Infinity);
+  const toScale=Math.min(Math.abs(dx)>0?(to.w/2)/Math.abs(dx):Infinity,Math.abs(dy)>0?(to.h/2)/Math.abs(dy):Infinity);
+  return {x1:ax+dx*fromScale,y1:ay+dy*fromScale,x2:bx-dx*toScale,y2:by-dy*toScale};
+}
+function renderArchitectureBreadcrumbs(projection){
+  const breadcrumbs=document.getElementById('architectureBreadcrumbs');
+  if(!breadcrumbs) return;
+  const byId=architectureHierarchyById(projection);
+  const ids=architectureBreadcrumbIds(projection,architectureSelectedId);
+  const parts=['<button type="button" data-arch-crumb="overview">Overview</button>'];
+  for(const id of ids){
+    const node=byId.get(id); if(!node) continue;
+    parts.push('<span aria-hidden="true">/</span>',`<button type="button" data-arch-crumb-id="${esc(id)}"${id===architectureSelectedId?' aria-current="page"':''}>${esc(node.name||node.path||id)}</button>`);
+  }
+  if(architectureSearchText.trim()) parts.push('<span aria-hidden="true">·</span><span>search</span>');
+  breadcrumbs.innerHTML=parts.join('');
+  breadcrumbs.querySelector('[data-arch-crumb="overview"]').addEventListener('click',showArchitectureOverview);
+  breadcrumbs.querySelectorAll('[data-arch-crumb-id]').forEach(button=>button.addEventListener('click',()=>selectArchitectureNode(button.dataset.archCrumbId,false)));
+}
+function renderArchitectureInspector(projection,visibleRelations){
+  const inspector=document.getElementById('architectureInspector');
+  if(!inspector) return;
+  const byId=architectureHierarchyById(projection);
+  const node=byId.get(architectureSelectedId);
+  if(!node){
+    architectureSelectedId=null;
+    inspector.innerHTML='<div class="arch-inspector-pad"><div class="empty">Select a module or folder to inspect it. Expand recursively to reveal files; relationships retarget to the deepest visible endpoint.</div></div>';
+    return;
+  }
+  const isFile=String(node.id).startsWith('file:');
+  const isExpanded=architectureExpandedIds.has(node.id);
+  const exactRelations=architectureInspectorRelations(projection,visibleRelations,node.id);
+  const relationHtml=exactRelations.map(relation=>{
+    const outgoing=relation.from===node.id;
+    const peer=byId.get(outgoing?relation.to:relation.from);
+    return `<div class="arch-relation ${esc(relation.kind)}"><b>${outgoing?'→':'←'} ${esc(relation.kind)}</b> ${esc(peer&&(peer.path||peer.name)||'visible endpoint')} <span>×${relation.count||1}${relation.ambiguous_count?' · '+relation.ambiguous_count+' ambiguous':''}</span></div>`;
+  }).join('');
+  if(isFile){
+    const hasRichDetail=node.has_rich_detail!==false;
+    const symbolHtml=hasRichDetail?(node.symbols||[]).map(symbol=>`<div class="arch-symbol"><b>${esc(symbol.name)}</b> <span>${esc(symbol.kind)}${symbol.start_line!=null?' · line '+symbol.start_line:''}${symbol.exported?' · exported':''}</span>${symbol.summary?`<div><span>${esc(symbol.summary)}</span></div>`:''}</div>`).join(''):'';
+    const symbolDetail=hasRichDetail
+      ? symbolHtml||'<div class="empty">No symbol details indexed.</div>'
+      : `<div class="empty">Rich symbol and signature detail is omitted for this lightweight hierarchy record. This path remains searchable; rich detail is limited to ${(projection.limits||{}).files||120} files.</div>`;
+    inspector.innerHTML=`<div class="arch-inspector-pad"><button class="arch-clear" type="button" aria-label="Clear selected file" onclick="clearArchitectureSelection()">✕</button><div class="arch-inspector-title">${esc(node.path)}${node.is_noisy?` <span class="arch-file-noise">${esc(node.noise)}</span>`:''}</div><div class="arch-inspector-meta">${esc(node.module)} · ${node.symbol_count||0} indexed symbols · ${node.incoming_count||0} incoming · ${node.outgoing_count||0} outgoing${hasRichDetail?'':' · rich detail omitted'}</div><div class="arch-inspector-section"><div class="arch-inspector-label">Symbols</div>${symbolDetail}${hasRichDetail&&node.omitted_symbols?`<div class="empty">+${node.omitted_symbols} more symbols omitted by the projection limit.</div>`:''}</div><div class="arch-inspector-section"><div class="arch-inspector-label">Relationships</div>${relationHtml||'<div class="empty">No relationship detail in the bounded hierarchy relation set.</div>'}${node.internal_count?`<div class="arch-relation calls"><b>↻ internal calls</b> <span>×${node.internal_count}</span></div>`:''}</div></div>`;
+    return;
+  }
+  const label=node.path||node.name;
+  inspector.innerHTML=`<div class="arch-inspector-pad"><button class="arch-clear" type="button" aria-label="Clear selected group" onclick="clearArchitectureSelection()">✕</button><div class="arch-inspector-title">${esc(label)}</div><div class="arch-inspector-meta">${node.default_file_count||0} source files · ${node.symbol_count||0} symbols${node.hidden_file_count?` · ${node.hidden_file_count} auxiliary hidden`:''}</div><button class="arch-inspector-action" type="button" data-arch-toggle="${esc(node.id)}">${isExpanded?'Collapse':'Expand one level'}</button><div class="arch-inspector-section"><div class="arch-inspector-label">Visible relationships</div>${relationHtml||'<div class="empty">No relationships terminate at this visible boundary.</div>'}</div></div>`;
+  inspector.querySelector('[data-arch-toggle]').addEventListener('click',()=>toggleArchitectureNode(node.id));
+}
+function selectArchitectureNode(id,toggleCompound=true){
+  const projection=lastState&&lastState.architecture;
+  const node=architectureHierarchyById(projection).get(id);
+  if(!node) return;
+  architectureSelectedId=id;
+  if(toggleCompound&&!String(id).startsWith('file:')){
+    if(architectureExpandedIds.has(id)) architectureExpandedIds.delete(id); else architectureExpandedIds.add(id);
+  }
+  if(lastState) renderArchitecture(lastState);
+}
+function toggleArchitectureNode(id){ selectArchitectureNode(id,true); }
+function showArchitectureOverview(){
+  architectureSelectedId=null;
+  architectureExpandedIds.clear();
+  architectureSearchText='';
+  architectureCanvasTransform=null;
+  architectureFitPending=true;
+  if(lastState) renderArchitecture(lastState);
+}
+function clearArchitectureSelection(){
+  architectureSelectedId=null;
+  if(lastState) renderArchitecture(lastState);
+}
+function fitArchitectureCanvas(){
+  const svgEl=document.getElementById('architectureCanvas');
+  if(!svgEl||!architectureZoom||!architectureCanvasBounds||typeof d3==='undefined') return;
+  const vw=svgEl.clientWidth||800, vh=svgEl.clientHeight||600, bounds=architectureCanvasBounds;
+  const scale=Math.max(.12,Math.min(1.25,(vw-48)/bounds.width,(vh-48)/bounds.height));
+  architectureCanvasTransform=d3.zoomIdentity.translate((vw-bounds.width*scale)/2,(vh-bounds.height*scale)/2).scale(scale);
+  d3.select(svgEl).call(architectureZoom.transform,architectureCanvasTransform);
+  architectureFitPending=false;
+}
+function renderArchitectureCanvas(projection){
+  const map=document.getElementById('architectureMap');
+  const count=document.getElementById('architectureCount');
+  const visible=architectureVisibleHierarchy(projection,architectureExpandedIds,architectureSearchText,architectureShowNoise);
+  const visibleIds=new Set(visible.nodes.map(node=>node.id));
+  for(const id of [...architectureExpandedIds]) if(!architectureHierarchyById(projection).has(id)) architectureExpandedIds.delete(id);
+  if(architectureSelectedId&&!visibleIds.has(architectureSelectedId)) architectureSelectedId=null;
+  const layout=architectureLayoutHierarchy(visible);
+  const relations=architectureRetargetRelations(projection,visible.expanded,visibleIds);
+  architectureCanvasBounds={width:layout.width,height:layout.height};
+  const edgeGeometry=relations.map(relation=>{
+    const from=layout.boxes.get(relation.from), to=layout.boxes.get(relation.to);
+    if(!from||!to) return null;
+    const p=architectureEdgeAnchors(from,to), mx=(p.x1+p.x2)/2+(relation.kind==='calls'?12:-12);
+    const focused=!architectureSelectedId||relation.from===architectureSelectedId||relation.to===architectureSelectedId;
+    const width=Math.min(5.5,1.5+Math.log2(1+(relation.count||1))*.65);
+    return {relation,mx,p,focused,width,path:`M${p.x1},${p.y1} C${mx},${p.y1} ${mx},${p.y2} ${p.x2},${p.y2}`};
+  }).filter(Boolean);
+  const halos=edgeGeometry.map(({path,focused,width})=>`<path class="arch-canvas-edge-halo${focused?'':' muted'}" d="${path}" stroke-width="${width+5}" stroke-opacity=".94"/>`).join('');
+  const edges=edgeGeometry.map(({relation,mx,p,focused,width,path})=>`<path class="arch-canvas-edge ${esc(relation.kind)}${focused?'':' muted'}" d="${path}" stroke-width="${width}" stroke-opacity=".88" marker-end="url(#arch-canvas-${esc(relation.kind)})"><title>${esc(relation.kind)} · ${relation.count||1}</title></path>${relation.count>1?`<text class="arch-canvas-edge-label" x="${mx}" y="${(p.y1+p.y2)/2-4}">×${relation.count}</text>`:''}`).join('');
+  const backgrounds=visible.nodes.filter(node=>node.hierarchy_kind!=='file').map(node=>{
+    const box=layout.boxes.get(node.id); if(!box) return '';
+    const selected=node.id===architectureSelectedId;
+    return `<rect class="arch-compound-boundary ${esc(node.hierarchy_kind)}${selected?' selected':''}" x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" rx="10"/>`;
+  }).join('');
+  const nodes=visible.nodes.map(node=>{
+    const box=layout.boxes.get(node.id); if(!box) return '';
+    const expanded=node.hierarchy_kind!=='file'&&visible.expanded.has(node.id);
+    const selected=node.id===architectureSelectedId, searchHit=visible.match_ids.has(node.id);
+    const classes=`arch-canvas-node ${node.hierarchy_kind==='file'?'arch-canvas-file':'arch-compound '+node.hierarchy_kind}${expanded?' expanded':''}${selected?' selected':''}${searchHit?' search-hit':''}`;
+    const label=architectureCanvasNodeLabel(node), meta=architectureCanvasNodeMeta(node,expanded);
+    const aria=node.hierarchy_kind==='file'?`Inspect ${node.path}`:`${expanded?'Collapse':'Expand'} ${node.path||node.name}`;
+    if(node.hierarchy_kind==='file') return `<g class="${classes}" transform="translate(${box.x},${box.y})" data-arch-id="${esc(node.id)}" data-parent-id="${esc(node.visible_parent_id||'')}" role="button" tabindex="0" aria-label="${esc(aria)}"><rect width="${box.w}" height="${box.h}" rx="7"/><rect class="arch-file-accent" width="4" height="${box.h}" rx="2"/><text class="arch-canvas-title" x="13" y="23">${esc(label)}</text><text class="arch-canvas-meta" x="13" y="42">${esc(meta)}${node.is_noisy?' · '+esc(node.noise):''}</text><title>${esc(node.path)}</title></g>`;
+    return `<g class="${classes}" transform="translate(${box.x},${box.y})" data-arch-id="${esc(node.id)}" data-parent-id="${esc(node.visible_parent_id||'')}" role="button" tabindex="0" aria-expanded="${expanded}" aria-label="${esc(aria)}"><rect width="${box.w}" height="${expanded?34:box.h}" rx="10"/><text class="arch-canvas-chevron" x="13" y="23">${expanded?'▾':'▸'}</text><text class="arch-canvas-title" x="31" y="23">${esc(label)}</text><text class="arch-canvas-meta" x="${expanded?box.w-12:13}" y="${expanded?23:48}" text-anchor="${expanded?'end':'start'}">${esc(meta)}</text><title>${esc(node.path||node.name)}</title></g>`;
+  }).join('');
+  const matchCount=visible.match_ids.size;
+  const omittedRich=(projection.omitted||{}).files?` · ${(projection.omitted||{}).files} rich details omitted`:'';
+  const omittedPaths=(projection.omitted||{}).hierarchy_files?` · ${(projection.omitted||{}).hierarchy_files} paths omitted by safety limit`:'';
+  count.textContent=(architectureSearchText.trim()?`${matchCount} search result${matchCount===1?'':'s'} · ${visible.nodes.length} visible nodes`:`${(projection.modules||[]).length} modules · ${(projection.summary||{}).indexed_files||0} indexed files · ${relations.length} visible relations`)+omittedRich+omittedPaths;
+  map.innerHTML=`<svg id="architectureCanvas" role="region" aria-label="Pan and zoom architecture hierarchy" tabindex="0"><title>Architecture hierarchy</title><desc>Modules and folders expand recursively. Drag to pan and use the wheel to zoom.</desc><defs><marker id="arch-canvas-imports" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#58a6ff"/></marker><marker id="arch-canvas-calls" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#d29922"/></marker></defs><g class="arch-canvas-root"><g class="arch-compound-backgrounds">${backgrounds}</g><g class="arch-canvas-edge-halos">${halos}</g><g class="arch-canvas-edges">${edges}</g><g class="arch-canvas-nodes">${nodes}</g></g></svg><div class="arch-canvas-hint">Drag to pan · wheel/pinch to zoom · Enter to expand</div>`;
+  map.querySelectorAll('.arch-canvas-node').forEach(element=>{
+    const activate=event=>{ event.stopPropagation(); selectArchitectureNode(element.dataset.archId,true); };
+    element.addEventListener('click',activate);
+    element.addEventListener('keydown',event=>{ if(event.key==='Enter'||event.key===' '){ event.preventDefault(); activate(event); } });
+  });
+  renderArchitectureBreadcrumbs(projection);
+  renderArchitectureInspector(projection,relations);
+  requestAnimationFrame(()=>{
+    const svgEl=document.getElementById('architectureCanvas'); if(!svgEl||typeof d3==='undefined') return;
+    const root=d3.select(svgEl).select('.arch-canvas-root');
+    architectureZoom=d3.zoom().scaleExtent([.12,3.5]).on('zoom',event=>{ architectureCanvasTransform=event.transform; root.attr('transform',event.transform); });
+    const svg=d3.select(svgEl); svg.call(architectureZoom).on('dblclick.zoom',null);
+    if(architectureCanvasTransform) svg.call(architectureZoom.transform,architectureCanvasTransform);
+    if(architectureFitPending||!architectureCanvasTransform) fitArchitectureCanvas();
+  });
+}
+function renderArchitecture(d){
+  const projection=d&&d.architecture;
+  const map=document.getElementById('architectureMap');
+  const count=document.getElementById('architectureCount');
+  const input=document.getElementById('architectureSearchInput');
+  const noise=document.getElementById('architectureNoiseToggle');
+  if(!map||!count) return;
+  if(input&&input.value!==architectureSearchText) input.value=architectureSearchText;
+  if(noise&&noise.checked!==architectureShowNoise) noise.checked=architectureShowNoise;
+  if(!projection||projection.version!==1){
+    count.textContent=''; map.innerHTML='<div class="arch-empty">Architecture projection unavailable for this daemon version.</div>';
+    renderArchitectureBreadcrumbs(null); renderArchitectureInspector(null,[]); return;
+  }
+  if(projection.status==='empty'||!(projection.modules||[]).length){
+    count.textContent='0 indexed files';
+    const emptyTitle=projection.status==='indexing'?'Indexing architecture…':projection.status==='error'?'Architecture index needs retry':projection.status==='ready'?'No source symbols found':'Nothing indexed yet';
+    map.innerHTML=`<div class="arch-empty"><div><b>${esc(emptyTitle)}</b><br>${esc(projection.message||'Project onboarding will build the architecture map automatically.')}</div></div>`;
+    renderArchitectureBreadcrumbs(projection); renderArchitectureInspector(projection,[]); return;
+  }
+  renderArchitectureCanvas(projection);
+}
+document.getElementById('architectureSearchInput').addEventListener('input',event=>{
+  architectureSearchText=event.target.value;
+  architectureSelectedId=null;
+  architectureFitPending=true;
+  if(lastState) renderArchitecture(lastState);
+});
+document.getElementById('architectureNoiseToggle').addEventListener('change',event=>{
+  architectureShowNoise=event.target.checked;
+  architectureSelectedId=null;
+  architectureFitPending=true;
+  if(lastState) renderArchitecture(lastState);
+});
+document.getElementById('architectureFitButton').addEventListener('click',fitArchitectureCanvas);
+// ---- view switching: Spec | Kanban | Frontier | Knowledge | Architecture | Focus (one task's lineage)
+function captureViewState(v){
+  if(v==='kanban'){
+    const root=document.getElementById('kanban');
+    viewUiState.kanban={scrollLeft:root.scrollLeft,scrollTop:root.scrollTop};
+  }
+}
 function setView(v){
   if(v==='focus' && !focusedId) return;     // Focus needs a target first (button stays hidden until then)
+  captureViewState(currentView);
   currentView=v;
   if(v!=='focus') localStorage.setItem('orchView',v);   // focus is never persisted
+  document.getElementById('spec').classList.toggle('show', v==='spec');
+  document.getElementById('kanban').classList.toggle('show', v==='kanban');
   document.getElementById('cloud').classList.toggle('show', v==='cloud');
+  document.getElementById('architecture').classList.toggle('show', v==='architecture');
   document.getElementById('cloudSearchWrap').classList.toggle('show', v==='cloud');
-  if(v!=='cloud'){
-    cloudSearchText='';
-    cloudSearchKeys=new Set();
-    cloudSearchResolvedText='';
-    cloudSearchPending=false;
-    cloudSearchError=false;
-    cloudSearchTrace=null;
-    cloudSearchContext=null;
-    if(cloudSearchTimer){ clearTimeout(cloudSearchTimer); cloudSearchTimer=null; }
-    const si=document.getElementById('cloudSearchInput'); if(si) si.value='';
-  } else if(cloudSearchText.trim()) {
-    scheduleCloudSearch();
-  }
-  document.getElementById('flow').classList.toggle('show', v!=='cloud');     // Frontier + Focus share the dagre pane
-  document.querySelectorAll('#viewToggle button').forEach(b=>b.classList.toggle('on', b.dataset.view===v));
+  document.getElementById('flow').classList.toggle('show', v==='frontier'||v==='focus');     // Frontier + Focus share the dagre pane
+  document.querySelectorAll('#viewToggle button').forEach(b=>{
+    const active=b.dataset.view===v;
+    b.classList.toggle('on', active);
+    b.setAttribute('aria-selected',String(active));
+  });
   if(v!=='cloud' && cloudSim) cloudSim.stop();
   if(v!=='cloud') disposeCloudThree(document.getElementById('cloudsvg'));
-  if(v!=='cloud') dagState[v].init=false;   // next render restores that view's saved pan/zoom, or first-fits
-  if(lastState){ if(v==='cloud') renderCloud(lastState); else if(v==='focus') renderFocus(lastState); else renderFrontier(lastState); }
+  if(v==='frontier'||v==='focus') dagState[v].init=false;   // next render restores that view's saved pan/zoom, or first-fits
+  if(lastState){ if(v==='spec') renderSpec(lastState); else if(v==='kanban') renderKanban(lastState); else if(v==='cloud') renderCloud(lastState); else if(v==='architecture') renderArchitecture(lastState); else if(v==='focus') renderFocus(lastState); else renderFrontier(lastState); }
   updateFocusBtn();
 }
 function focusNode(key){
+  if(currentView!=='focus') focusReturnView=currentView;
   focusedId=key; dagState.focus={init:false,tf:null};
   const fb=document.querySelector('#viewToggle button[data-view="focus"]'); if(fb) fb.style.display='';
   setView('focus');
 }
 function toggleFocus(key){
-  if(currentView==='focus' && focusedId===key){ setView('frontier'); }
+  if(currentView==='focus' && focusedId===key){ setView(focusReturnView); }
   else { focusNode(key); }
 }
 function updateFocusBtn(){
@@ -6790,7 +7872,9 @@ function renderCloud(d, opts={}){
     return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},.62)`;
   };
   const searchHighlight=n=>{
-    if(!q||!n||n.archive) return 0;
+    if(!n||n.archive) return 0;
+    if(n.id===selected) return 1;
+    if(!q) return 0;
     if(!trace) return (localSearch(n)||remoteMatch(n)) ? .95 : 0;
     if(traceFinal(n)||traceReranked(n)) return 1;
     if(finalNodeKeys.has(n.id)) return 1;
@@ -7005,7 +8089,8 @@ function buildLinks(d){
   for(const t of tasks) if(t.kind==='note'&&t.supersededBy) push(t.id,t.supersededBy,'supersede');
   return {tasks,byId,links};
 }
-const LIVE_STATUS=new Set(['ready','in_progress','failed','tested','not_ready']);
+// Blocked not_ready plans stay in Plan/Kanban; Frontier starts from actionable work.
+const LIVE_STATUS=new Set(['ready','in_progress','failed','tested']);
 // Frontier selection: live seeds + ALL 1-hop neighbors (either direction), then walk
 // UP the dependency ancestry — blocking deps always (transitively, to root), context
 // deps only when important (weight>=0.5 OR top-3 for that node), recursively, with
@@ -7263,7 +8348,10 @@ function hpNext(){
 
 window.addEventListener('resize', ()=>{
   if(!lastState) return;
-  if(currentView==='cloud'){ cloudSig=''; renderCloud(lastState); }
+  if(currentView==='spec') renderSpec(lastState);
+  else if(currentView==='kanban') renderKanban(lastState);
+  else if(currentView==='cloud'){ cloudSig=''; renderCloud(lastState); }
+  else if(currentView==='architecture') renderArchitecture(lastState);
   else { const v=currentView==='focus'?'focus':'frontier'; dagState[v]={init:false,tf:null}; if(v==='focus') renderFocus(lastState); else renderFrontier(lastState); }
 });
 // Activity feeds collapsed by default; remembered in localStorage
@@ -7275,9 +8363,13 @@ function toggleActivityPopup(){
 }
 function toggleGuidancePopup(){
   const p=document.getElementById('guidance'); p.classList.toggle('show');
+  const btn=document.getElementById('notifBtn'); if(btn) btn.setAttribute('aria-expanded',String(p.classList.contains('show')));
   if(p.classList.contains('show')) document.getElementById('settingsPopup').classList.remove('show');
 }
-function closeGuidancePopup(){ document.getElementById('guidance').classList.remove('show'); }
+function closeGuidancePopup(){
+  document.getElementById('guidance').classList.remove('show');
+  const btn=document.getElementById('notifBtn'); if(btn) btn.setAttribute('aria-expanded','false');
+}
 function toggleSettingsPopup(){
   const p=document.getElementById('settingsPopup'); p.classList.toggle('show');
   if(p.classList.contains('show')){
@@ -7292,7 +8384,7 @@ function toggleSettingsPopup(){
 async function checkSettingsConn(){
   const url=(document.getElementById('sp-url').value.trim()||BASE)+'/active-claim?session=ping';
   const dot=document.querySelector('#sp-conn .dot'), lbl=document.getElementById('sp-conn-label');
-  try{ await fetch(url,{signal:AbortSignal.timeout(1500)}); dot.className='dot'; lbl.textContent='Connected'; }
+  try{ await daemonFetch(url,{signal:AbortSignal.timeout(1500)}); dot.className='dot'; lbl.textContent='Connected'; }
   catch{ dot.className='dot err'; lbl.textContent='Unreachable'; }
 }
 async function loadAutomodeState(){
@@ -7540,7 +8632,7 @@ document.addEventListener('click', ev=>{ const p=document.getElementById('cronPo
 document.addEventListener('click', ev=>{ const p=document.getElementById('billingPopup'); if(!p.classList.contains('show')) return; if(p.contains(ev.target)||(ev.target.closest&&ev.target.closest('.hero'))) return; p.classList.remove('show'); });
 
 let _lastCronData=null;
-async function fetchCronData(){ try{ const d=await(await fetch(BASE+'/cron/usage')).json(); _lastCronData=d; return d; }catch{ return null; } }
+async function fetchCronData(){ try{ const d=await(await daemonFetch(BASE+'/cron/usage')).json(); _lastCronData=d; return d; }catch{ return null; } }
 // Agreement rate cache: how often the learned shadow model agrees with Sonnet's verdict.
 // Refreshed at most once per 30 s, in the background, exactly like refreshInfraHero.
 let agreementCache=null, _agreementPromoted=false, _agreementPromotionState=null, _agreementAt=0, _agreementBusy=false;
@@ -7628,16 +8720,27 @@ async function refreshAgreement(){
     }
   }catch{}finally{ _agreementBusy=false; }
 }
+function serverCronCost(entries){
+  let total=0;
+  for(const entry of entries||[]){
+    const tokens=(entry.input_tokens||0)+(entry.output_tokens||0)+(entry.cache_read_tokens||0);
+    if(tokens<=0) continue;
+    const raw=entry.cost_usd!=null?entry.cost_usd:(entry.cost&&entry.cost.usd);
+    const usd=Number(raw);
+    if(raw==null||!Number.isFinite(usd)||usd<0) return null;
+    total+=usd;
+  }
+  return total;
+}
 // Fetch cron totals periodically and update infra hero
 let _infraAt=0, _infraBusy=false;
 async function refreshInfraHero(){
   if(_infraBusy||Date.now()-_infraAt<30000) return;
   _infraBusy=true; _infraAt=Date.now();
-  const [d, oh]=await Promise.all([fetchCronData(), fetch(BASE+'/harness/overhead').then(r=>r.json()).catch(()=>null)]).finally(()=>{ _infraBusy=false; });
+  const [d, oh]=await Promise.all([fetchCronData(), daemonFetch(BASE+'/harness/overhead').then(r=>r.json()).catch(()=>null)]).finally(()=>{ _infraBusy=false; });
   const entries=(d&&d.entries)||[];
   const cronTotal=entries.reduce((s,e)=>(s+(e.input_tokens||0)+(e.output_tokens||0)+(e.cache_read_tokens||0)),0);
-  const rateForH=m=>{ if(m.includes('opus')) return [15,75,1.5]; if(m.includes('haiku')) return [0.8,4,0.08]; if(m.includes('fable')) return [3,15,0.3]; return [3,15,0.3]; };
-  const cronCost=entries.reduce((s,e)=>{ const [ri,ro,rc]=rateForH(e.model||''); return s+(e.input_tokens||0)*ri/1e6+(e.output_tokens||0)*ro/1e6+(e.cache_read_tokens||0)*rc/1e6; },0);
+  const cronCost=serverCronCost(entries);
   if(oh&&oh.overhead){
     const obc=oh.overhead.by_category||{};
     const ohTok=(oh.overhead.tokens||0)+(oh.system_reminder_est||0);
@@ -7650,7 +8753,7 @@ async function toggleBillingPopup(){
   const el=document.getElementById('billingBody'); el.innerHTML='<div class="empty" style="padding:20px 0">loading…</div>';
   let cf, cd, oh;
   let delta;
-  try{ [cf,cd,oh,delta]=await Promise.all([dfetch('/costflow').then(r=>r.json()), fetchCronData(), fetch(BASE+'/harness/overhead').then(r=>r.json()).catch(()=>null), dfetch('/graph/delta?since=0').then(r=>r.json()).catch(()=>null)]); }catch{ el.innerHTML='<div class="empty">fetch failed</div>'; return; }
+  try{ [cf,cd,oh,delta]=await Promise.all([dfetch('/costflow').then(r=>r.json()), fetchCronData(), daemonFetch(BASE+'/harness/overhead').then(r=>r.json()).catch(()=>null), dfetch('/graph/delta?since=0').then(r=>r.json()).catch(()=>null)]); }catch{ el.innerHTML='<div class="empty">fetch failed</div>'; return; }
 
   const t=cf.economy_totals||cf.totals||{};
   const usageTotals=cf.usage_totals||{};
@@ -7667,14 +8770,16 @@ async function toggleBillingPopup(){
   const cronCache=entries.reduce((s,e)=>s+(e.cache_read_tokens||0),0);
   const cronTotal=cronIn+cronOut+cronCache;
 
-  // Cost helpers
-  const cronRateFor=m=>{ if(m.includes('opus')) return [15,75,1.5]; if(m.includes('haiku')) return [0.8,4,0.08]; if(m.includes('fable')) return [3,15,0.3]; return [3,15,0.3]; };
-  const cronCost=entries.reduce((s,e)=>{ const [ri,ro,rc]=cronRateFor(e.model||''); return s+(e.input_tokens||0)*ri/1e6+(e.output_tokens||0)*ro/1e6+(e.cache_read_tokens||0)*rc/1e6; },0);
-  const fmtUSD=v=>v<0.01?'<$0.01':v<1?'$'+v.toFixed(2):'$'+Math.round(v).toLocaleString();
+  // Cost helpers. Provider prices stay server-owned; unpriced cron entries remain visibly unpriced.
+  const cronCost=serverCronCost(entries);
+  const fmtUSD=v=>v==null?'—':v<0.01?'<$0.01':v<1?'$'+v.toFixed(2):'$'+Math.round(v).toLocaleString();
   const fmtN=n=>n==null?'—':Number(n).toLocaleString();
 
-  const sessionCost=serverCost&&billingAvailable?Number(serverCost.usd||0):0;
-  const sessionCostLabel=serverCost&&billingAvailable?`${fmtUSD(sessionCost)}${serverCost.source==='estimated'?' ≈':''}`:'unreconciled';
+  const sessionCost=serverCost&&billingAvailable?Number(serverCost.usd||0):null;
+  const sessionEstimated=!!(serverCost&&(serverCost.estimated===true||serverCost.kind==='estimate'||serverCost.source==='estimated'));
+  const sessionCostLabel=serverCost&&billingAvailable?`${fmtUSD(sessionCost)}${sessionEstimated?' ≈':''}`:'unreconciled';
+  const totalCost=sessionCost!=null&&cronCost!=null?sessionCost+cronCost:null;
+  const totalCostLabel=totalCost!=null?fmtUSD(totalCost):(sessionCost!=null?fmtUSD(sessionCost)+' + unpriced cron':'unreconciled');
   const costByCause=cf.cost_by_cause||cf.cause_ledger||{};
   const causeColor={foreground:'#79c0ff',worker:'#3fb950',review:'#d29922',daemon:'#a371f7',auxiliary:'#8b949e',unknown:'#484f58'};
   const causeRows=(costByCause.buckets||[]).filter(b=>b&&((b.tokens||0)>0||(b.usd||0)>0)).map(b=>{
@@ -7724,13 +8829,27 @@ async function toggleBillingPopup(){
     `<div class="bpdiv"></div>`+
 
     `<div class="bptotal"><span title="Adapter-priced from pricing.json, daemon-summed per-slice cost.usd">Task sessions</span><span style="color:#d29922">${sessionCostLabel}</span></div>`+
-    `<div class="bptotal" style="padding-top:4px"><span style="color:#6e7681;font-size:11px">+ cron/gate API cost (extra, not in sessions)</span><span style="color:#8b949e;font-size:11px">${fmtUSD(cronCost)}</span></div>`+
-    `<div class="bptotal" style="border-top:1px solid #30363d;margin-top:6px;padding-top:8px;font-size:15px;font-weight:700"><span>Total est. <span style="font-size:10px;font-weight:400;color:#484f58">this project</span></span><span style="color:#d29922;font-size:18px">${fmtUSD(sessionCost+cronCost)}</span></div>`+
+    `<div class="bptotal" style="padding-top:4px"><span style="color:#6e7681;font-size:11px">+ cron/gate API cost (server-priced only)</span><span style="color:#8b949e;font-size:11px">${cronCost!=null?fmtUSD(cronCost):'unpriced'}</span></div>`+
+    `<div class="bptotal" style="border-top:1px solid #30363d;margin-top:6px;padding-top:8px;font-size:15px;font-weight:700"><span>Total est. <span style="font-size:10px;font-weight:400;color:#484f58">this project</span></span><span style="color:#d29922;font-size:18px">${totalCostLabel}</span></div>`+
     `<div class="bpdiv"></div>`+
     `<div class="bpsec"><h3>By Cause <span style="font-size:9px;color:#484f58;font-weight:400">(task sessions)</span></h3>`+
     (causeRows||`<div style="font-size:10px;color:#484f58">No task-session cause ledger available.</div>`)+
     `<div style="font-size:10px;color:#6e7681;margin-top:5px">Cause total: ${fmtUSD(causeTotal)} · unknown is unclassified provenance, not productive work.</div></div>`+
     (()=>{
+      const billedModels=Object.entries(bm).filter(([m,v])=>m!=='<synthetic>'&&((v.input_tokens||0)+(v.output_tokens||0)+(v.cache_read||0))>0).map(([m])=>m);
+      if(VIEWER_KIND!=='claude'){
+        const heading=VIEWER_KIND==='codex'?'Codex cost view':'Provider-neutral cost view';
+        const detail=VIEWER_KIND==='codex'
+          ? 'Anthropic subscription advice is hidden in Codex. The totals above still include every recorded provider.'
+          : 'Provider subscription advice is hidden. The totals above still include every recorded provider.';
+        return `<div style="margin-top:12px;padding:10px 12px;background:#161b22;border-radius:6px;border-left:3px solid #58a6ff"><div style="font-size:11px;color:#58a6ff;font-weight:700">${heading}</div><div style="margin-top:3px;font-size:10px;color:#6e7681">${detail}</div></div>`;
+      }
+      if(!billedModels.length){
+        return `<div style="margin-top:12px;padding:10px 12px;background:#161b22;border-radius:6px;border-left:3px solid #58a6ff"><div style="font-size:11px;color:#58a6ff;font-weight:700">Claude cost view</div><div style="margin-top:3px;font-size:10px;color:#6e7681">Claude subscription guidance is unavailable until model usage has been reconciled.</div></div>`;
+      }
+      if(billedModels.some(m=>!m.startsWith('claude-'))){
+        return `<div style="margin-top:12px;padding:10px 12px;background:#161b22;border-radius:6px;border-left:3px solid #58a6ff"><div style="font-size:11px;color:#58a6ff;font-weight:700">Claude cost view</div><div style="margin-top:3px;font-size:10px;color:#6e7681">Claude subscription advice is hidden because this ledger includes non-Claude models. The totals above remain mixed.</div></div>`;
+      }
       const tasks=(delta&&delta.tasks_created)||[];
       const oldest=tasks.reduce((min,tk)=>{ const at=Date.parse(tk.firstSeen||''); return(at&&at<min)?at:min; },Infinity);
       const weeks=oldest<Infinity?(Date.now()-oldest)/(7*24*60*60*1000):null;
@@ -7772,7 +8891,7 @@ async function toggleBillingPopup(){
       else if(opusPct>=20) adviceLine='Balanced mix — lean into Opus for complex reasoning tasks';
       else adviceLine='Flagship (Opus) is included — use it for reasoning-heavy tasks to get more value';
       let overflowLine='';
-      if(plan.includes('overflow')&&wTotal&&wTotal>0&&allQ&&weeks&&weeks>0){
+      if(plan.includes('overflow')&&wTotal&&wTotal>0&&allQ&&weeks&&weeks>0&&sessionCost!=null){
         const overflowFrac=Math.max(0,(wTotal-allQ)/wTotal);
         const overflowMo=sessionCost/weeks*4.33*overflowFrac;
         overflowLine=`<div style="margin-top:4px;font-size:11px;color:#ff7b72">Est. API overflow: ~${fmtUSD(overflowMo)}/mo</div>`;
@@ -7801,7 +8920,7 @@ async function toggleBillingPopup(){
         `<div style="margin-top:5px;font-size:9px;color:#484f58">Anthropic does not publish real-time quota limits. Budget % is estimated from observed usage (Max 20× ≈ 80M/wk all-models).</div>`+
         `</div>`;
     })()+
-    `<div style="margin-top:8px;font-size:10px;color:#6e7681">Task-session dollars are server-priced from /costflow. Cron/gate API cost remains an auxiliary estimate from logged model hints.</div>`+
+    `<div style="margin-top:8px;font-size:10px;color:#6e7681">Task-session dollars are server-priced from /costflow. Cron/gate cost is shown only when the server supplies priced entries; otherwise it stays unpriced.</div>`+
     `<div style="margin-top:6px;font-size:10px;color:#484f58">Data as of ${new Date().toLocaleTimeString()} · daemon re-reads transcripts every ~4s</div>`;
 }
 document.addEventListener('click', ev=>{
@@ -7816,7 +8935,7 @@ async function toggleCronPopup(){
   const p=document.getElementById('cronPopup'); p.classList.toggle('show');
   if(!p.classList.contains('show')) return;
   const el=document.getElementById('cronbody'); el.innerHTML='<div class="empty">loading…</div>';
-  let d; try{ d=await(await fetch(BASE+'/cron/usage')).json(); }catch{ el.innerHTML='<div class="empty">fetch failed</div>'; return; }
+  let d; try{ d=await(await daemonFetch(BASE+'/cron/usage')).json(); }catch{ el.innerHTML='<div class="empty">fetch failed</div>'; return; }
   const entries=d.entries||[], byTask=d.byTask||{};
   if(!entries.length){ el.innerHTML='<div class="empty">No data yet</div>'; return; }
   const fmtTs=ts=>{ if(!ts) return '—'; try{ return new Date(ts).toLocaleString(); }catch{ return ts; } };
@@ -7880,25 +8999,58 @@ setView(currentView);              // apply persisted view + toggle state on loa
   function teardownSSE(){
     if (_sseSource){ try{ _sseSource.close(); }catch(e){} _sseSource=null; }
   }
+  function handleSSEMessage(evt){
+    // Workspace-tagged SSE: if the daemon emits `changed:<ws>`, skip the refetch when the
+    // tagged workspace does NOT match our selected WS (the user is viewing a different repo).
+    // A bare 'changed' (legacy / no ws) always triggers a refetch — back-compat.
+    const data = evt && evt.data ? evt.data : '';
+    if (data.startsWith('changed:')) {
+      const evtWs = data.slice('changed:'.length);
+      // WS is the page-level selected workspace ('' means daemon default).
+      // If the tagged ws doesn't match our selected ws (accounting for '' meaning the daemon
+      // default which shows state.workspace), skip — this mutation is for a different repo.
+      if (evtWs !== WS && WS !== '') return;
+      if (WS === '' && evtWs !== '') return;
+    }
+    tick();
+  }
   function setupSSE(){
     teardownSSE();
+    // EventSource cannot attach an Authorization header. For authenticated dashboards, consume
+    // the same event stream with fetch so the bearer token never has to enter the request URL.
+    if (_TOKEN && window.ReadableStream) {
+      const controller = new AbortController();
+      _sseSource = { close(){ controller.abort(); } };
+      dfetch('/events', { headers:{ Accept:'text/event-stream' }, signal:controller.signal, cache:'no-store' })
+        .then(async (res) => {
+          if (!res.ok || !res.body) throw new Error('event stream unavailable');
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let pending = '';
+          while (true) {
+            const next = await reader.read();
+            if (next.done) break;
+            pending = (pending + decoder.decode(next.value, { stream:true })).replace(/\r\n/g,'\n');
+            let boundary;
+            while ((boundary = pending.indexOf('\n\n')) !== -1) {
+              const frame = pending.slice(0, boundary);
+              pending = pending.slice(boundary + 2);
+              const data = frame.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
+              if (data) handleSSEMessage({ data });
+            }
+          }
+          if (!controller.signal.aborted) throw new Error('event stream ended');
+        })
+        .catch(() => {
+          if (controller.signal.aborted) return;
+          teardownSSE();
+          scheduleHealthCheck(500);
+        });
+      return;
+    }
     try{
       _sseSource = new EventSource(BASE + '/events');
-      _sseSource.onmessage = (evt) => {
-        // Workspace-tagged SSE: if the daemon emits `changed:<ws>`, skip the refetch when the
-        // tagged workspace does NOT match our selected WS (the user is viewing a different repo).
-        // A bare 'changed' (legacy / no ws) always triggers a refetch — back-compat.
-        const data = evt && evt.data ? evt.data : '';
-        if (data.startsWith('changed:')) {
-          const evtWs = data.slice('changed:'.length);
-          // WS is the page-level selected workspace ('' means daemon default).
-          // If the tagged ws doesn't match our selected ws (accounting for '' meaning the daemon
-          // default which shows state.workspace), skip — this mutation is for a different repo.
-          if (evtWs !== WS && WS !== '') return;
-          if (WS === '' && evtWs !== '') return;
-        }
-        tick();
-      };
+      _sseSource.onmessage = handleSSEMessage;
       _sseSource.onerror   = () => {
         // SSE error → trigger a health check cycle; don't spam
         teardownSSE();
@@ -7958,7 +9110,7 @@ setView(currentView);              // apply persisted view + toggle state on loa
   async function runHealthCheck(){
     let data = null;
     try {
-      const res = await fetch(BASE + '/health', { cache: 'no-store' });
+      const res = await daemonFetch(BASE + '/health', { cache: 'no-store' });
       // Feature-detect: older daemons return 200 but without phase field
       const text = await res.text();
       try { data = JSON.parse(text); } catch(e){}
@@ -8015,9 +9167,12 @@ setView(currentView);              // apply persisted view + toggle state on loa
   // The original tick silently swallows errors.  We hook it to detect a 503
   // with phase:'loading' — the sibling /state route returns that during boot.
   const _origTick = tick;
-  window.tick = async function tick_resilient(){
+  let _tickInFlight=null;
+  let _tickQueued=false;
+  async function runResilientTick(){
     // P2b: gate on an EXPLICIT workspace before any /state fetch — no silent global fallback.
     if (!WS_RESOLVED) { try { await resolveExplicitWorkspace(); } catch {} if (!WS_RESOLVED) return; }
+    let stateBody;
     try {
       const res = await dfetch('/state', { cache: 'no-store' });
       if (res.status === 503){
@@ -8035,13 +9190,16 @@ setView(currentView);              // apply persisted view + toggle state on loa
         _backoff = Math.min(_backoff * 2, 5000);
         return;
       }
+      if (!res.ok) {
+        if (_phase !== 'offline') enterPhase('offline');
+        scheduleHealthCheck(_backoff);
+        _backoff = Math.min(_backoff * 2, 5000);
+        return;
+      }
       // Successful response — reset backoff, ensure we're in ready state
+      stateBody = await res.json();
       _backoff = 500;
       if (_phase !== 'ready') enterPhase('ready', {});
-      // Replay the original tick logic using the already-read body.
-      // We can't call _origTick (it re-fetches), so inline minimal re-invoke:
-      // fall through to _origTick but accept the duplicate fetch — at most one
-      // extra request per tick cycle, still correct.
     } catch(e){
       // Network error on /state poll
       if (_phase !== 'offline') enterPhase('offline');
@@ -8049,8 +9207,21 @@ setView(currentView);              // apply persisted view + toggle state on loa
       _backoff = Math.min(_backoff * 2, 5000);
       return;
     }
-    // If we got here, /state was OK — run the real tick for rendering
-    return _origTick();
+    // Render the response we already read; the original tick accepts prefetched state.
+    return _origTick(stateBody);
+  }
+  window.tick = function tick_resilient(){
+    if(_tickInFlight){
+      _tickQueued=true;
+      return _tickInFlight;
+    }
+    _tickInFlight=(async()=>{
+      do{
+        _tickQueued=false;
+        await runResilientTick();
+      }while(_tickQueued);
+    })().finally(()=>{ _tickInFlight=null; });
+    return _tickInFlight;
   };
 
   // ── Kick off ───────────────────────────────────────────────────────────────
@@ -8074,12 +9245,17 @@ tick(); setInterval(tick, 30000);   // safety poll
 // the gated learning flow.
 let onboardAutoStartInFlight = false;
 let onboardPollTimer = null;
+let onboardPollFailures = 0;
+let onboardDiscoveryInFlight = false;
+let onboardDiscoveryTimer = null;
 const ONBOARD_POLL_MS = 1200;
+const ONBOARD_POLL_MAX_MS = 10000;
 
 async function hasInjectedOnboardNotes() {
   try {
     const res = await dfetch('/search?q=ingest&k=5');
     const data = await res.json();
+    if (!res.ok) throw new Error(data && data.error || 'onboarding note search unavailable');
     // /search returns { results: [...] } or an array directly — handle both.
     const items = Array.isArray(data) ? data : (data.results || []);
     return items.some(n => n.kind === 'note' && typeof n.title === 'string' && n.title.startsWith('[ingest]'));
@@ -8088,31 +9264,49 @@ async function hasInjectedOnboardNotes() {
   }
 }
 
+function scheduleOnboardDiscoveryRetry(message) {
+  clearTimeout(onboardDiscoveryTimer);
+  const key = onboardStoreKey('discovery_failures');
+  const failures = Math.max(0, Number(localStorage.getItem(key)) || 0) + 1;
+  localStorage.setItem(key, String(failures));
+  const retryMs = Math.min(ONBOARD_POLL_MAX_MS,
+    ONBOARD_POLL_MS * Math.pow(2, Math.min(4, failures - 1)));
+  showOnboardLanding();
+  setOnboardStatus(message || 'Onboarding discovery is temporarily unavailable. Retrying...', true);
+  onboardDiscoveryTimer = setTimeout(() => {
+    onboardDiscoveryTimer = null;
+    return checkOnboardingState();
+  }, retryMs);
+}
+
+function clearOnboardDiscoveryRetry() {
+  clearTimeout(onboardDiscoveryTimer);
+  onboardDiscoveryTimer = null;
+  localStorage.removeItem(onboardStoreKey('discovery_failures'));
+}
+
 async function checkOnboardingState() {
+  if (onboardDiscoveryInFlight) return;
+  onboardDiscoveryInFlight = true;
+  try {
   const workspace = currentOnboardWorkspace();
   const storedOutDir = localStorage.getItem(onboardStoreKey('outdir')) || '';
-
-  if (workspace && !storedOutDir && localStorage.getItem(onboardCompletedKey()) === '1') {
-    completeOnboardLearning();
-    return;
-  }
-
-  const onboardNotesPresent = await hasInjectedOnboardNotes();
-  if (onboardNotesPresent === true) {
-    completeOnboardLearning();
-    return;
-  }
+  let storedQueueStatusUnavailable = false;
 
   if (workspace && !storedOutDir) {
     for (const candidateOutDir of candidateOnboardOutDirs(workspace)) {
       try {
         const r = await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(workspace) + '&outDir=' + encodeURIComponent(candidateOutDir));
         const st = await r.json();
+        if (r.status === 404) continue;
+        if (!r.ok || !st.ok) throw new Error(st.error || 'candidate onboarding status unavailable');
         if (st.ok && st.status && onboardStatusComplete(st.status)) {
+          clearOnboardDiscoveryRetry();
           completeOnboardLearning();
           return;
         }
         if (st.ok && st.status) {
+          clearOnboardDiscoveryRetry();
           const shouldResumeDrain = onboardStatusNeedsResume(st.status);
           showOnboardLanding();
           localStorage.setItem(onboardStoreKey('outdir'), candidateOutDir);
@@ -8123,12 +9317,13 @@ async function checkOnboardingState() {
             landing.dataset.draining = shouldResumeDrain ? '' : '1';
           }
           updateOnboardFromStatus(st.status);
-          if (shouldResumeDrain) ensureOnboardLearning(workspace);
+          if (shouldResumeDrain) await ensureOnboardLearning(workspace);
           else pollOnboardLearning();
           return;
         }
       } catch (e) {
-        // No existing default/legacy queue; continue to auto-start.
+        scheduleOnboardDiscoveryRetry('Onboarding queue discovery is temporarily unavailable. Retrying...');
+        return;
       }
     }
   }
@@ -8137,11 +9332,18 @@ async function checkOnboardingState() {
     try {
       const r = await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(workspace) + '&outDir=' + encodeURIComponent(storedOutDir));
       const st = await r.json();
+      if (r.status === 400 || r.status === 404) {
+        localStorage.removeItem(onboardStoreKey('outdir'));
+      } else if (!r.ok || !st.ok) {
+        throw new Error(st.error || 'status unavailable');
+      }
       if (st.ok && st.status && onboardStatusComplete(st.status)) {
+        clearOnboardDiscoveryRetry();
         completeOnboardLearning();
         return;
       }
       if (st.ok && st.status) {
+        clearOnboardDiscoveryRetry();
         const shouldResumeDrain = onboardStatusNeedsResume(st.status);
         showOnboardLanding();
         const landing = document.getElementById('onboard-landing');
@@ -8151,27 +9353,62 @@ async function checkOnboardingState() {
           landing.dataset.draining = shouldResumeDrain ? '' : '1';
         }
         updateOnboardFromStatus(st.status);
-        if (shouldResumeDrain) ensureOnboardLearning(workspace);
+        if (shouldResumeDrain) await ensureOnboardLearning(workspace);
         else pollOnboardLearning();
         return;
       }
     } catch (e) {
-      // Fall through to auto-start. The status endpoint may be
-      // unavailable before the queue has been created.
+      storedQueueStatusUnavailable = true;
     }
   }
 
+  // A stored queue means onboarding was already in progress. If its first reload probe is transiently
+  // unavailable, keep that queue authoritative and re-arm live polling instead of trusting old ingest
+  // notes or the browser completion latch and hiding unfinished final injection.
+  if (workspace && storedOutDir && storedQueueStatusUnavailable) {
+    showOnboardLanding();
+    const landing = document.getElementById('onboard-landing');
+    if (landing) {
+      landing.dataset.repo = workspace;
+      landing.dataset.outDir = storedOutDir;
+      landing.dataset.draining = '1';
+    }
+    setOnboardStatus('Onboarding status is temporarily unavailable. Retrying...', true);
+    pollOnboardLearning();
+    return;
+  }
+
+  // Queue state is authoritative over the browser's completion latch and previously injected
+  // notes. A force replacement deliberately leaves the old notes live until its new generation is
+  // ready, so checking notes/latch first would hide the replacement while it is pending.
+  if (workspace && !storedOutDir && localStorage.getItem(onboardCompletedKey()) === '1') {
+    clearOnboardDiscoveryRetry();
+    completeOnboardLearning();
+    return;
+  }
+
+  const onboardNotesPresent = await hasInjectedOnboardNotes();
+  if (onboardNotesPresent === true) {
+    clearOnboardDiscoveryRetry();
+    completeOnboardLearning();
+    return;
+  }
+
   if (onboardNotesPresent === null) {
+    scheduleOnboardDiscoveryRetry('Onboarding note discovery is temporarily unavailable. Retrying...');
     return;
   }
 
   showOnboardLanding();
   renderOnboardCloud({ total: 0, processed: 0, kept: 0, injectedKept: 0 });
-  if (workspace) ensureOnboardLearning(workspace);
+  if (workspace) await ensureOnboardLearning(workspace);
   else {
     setOnboardStage('mine');
     setOnboardStatus('Waiting for workspace path...', true);
     setTimeout(checkOnboardingState, 1000);
+  }
+  } finally {
+    onboardDiscoveryInFlight = false;
   }
 }
 
@@ -8249,7 +9486,14 @@ function setOnboardProgress(processed, total, kept=0, injected=0, inflight=0) {
 }
 
 function setOnboardInjectVisible(visible, busy) {
-  const btn = document.getElementById('onboardInjectBtn');
+  const btn = document.getElementById('onboardRetryInjectBtn');
+  if (!btn) return;
+  btn.style.display = visible ? '' : 'none';
+  btn.disabled = !!busy;
+}
+
+function setOnboardPrepareVisible(visible, busy) {
+  const btn = document.getElementById('onboardRetryPrepareBtn');
   if (!btn) return;
   btn.style.display = visible ? '' : 'none';
   btn.disabled = !!busy;
@@ -8303,8 +9547,10 @@ function renderOnboardCloud(status={}) {
 function completeOnboardLearning() {
   clearTimeout(onboardPollTimer);
   onboardPollTimer = null;
+  onboardPollFailures = 0;
   if (onboardCloudRenderState.raf) cancelAnimationFrame(onboardCloudRenderState.raf);
   onboardCloudRenderState.raf = null;
+  clearOnboardDiscoveryRetry();
   if (onboardCloudRenderState.sim) onboardCloudRenderState.sim.stop();
   disposeCloudThree(document.getElementById('onboardCloudSvg'));
   const cloud = document.querySelector('.ol-cloud');
@@ -8314,12 +9560,20 @@ function completeOnboardLearning() {
   localStorage.removeItem(onboardStoreKey('outdir'));
   document.body.classList.remove('onboarding-pending');
   setOnboardInjectVisible(false, false);
+  setOnboardPrepareVisible(false, false);
   setOnboardStatus('');
   if (typeof tick === 'function') tick();
 }
 
 function onboardStatusComplete(s) {
-  return !!(s && (onboardStatusDrained(s) || (s.done === true && (s.injected || (!s.autoInject && s.needsReview === false)))));
+  if (!s || s.error || s.preparing || s.injecting) return false;
+  if (['pending', 'running', 'backoff', 'failed', 'blocked'].includes(s.injectionState)) return false;
+  if (s.injectionState === 'not_needed') {
+    return s.done === true && Math.max(0, Number(s.kept) || 0) === 0
+      && (s.noCandidates === true || onboardStatusDrained(s));
+  }
+  if (s.autoInject === false) return s.done === true && onboardStatusDrained(s);
+  return s.done === true && s.injected === true && (!s.injectionState || s.injectionState === 'succeeded');
 }
 
 function onboardStatusDrained(s) {
@@ -8334,7 +9588,10 @@ function onboardStatusDrained(s) {
 }
 
 function onboardStatusNeedsResume(s) {
-  return !!(s && !onboardStatusComplete(s) && (s.done !== true || s.recovered || s.active === false || !s.injected));
+  if (!s || onboardStatusComplete(s)) return false;
+  if (s.preparationState === 'failed') return false;
+  if (['pending', 'running', 'backoff', 'failed'].includes(s.injectionState) || s.injecting || s.injectionError) return false;
+  return !!(s.done !== true || s.recovered || s.active === false || (s.autoInject !== false && !s.injected));
 }
 
 async function ensureOnboardLearning(repo) {
@@ -8345,18 +9602,20 @@ async function ensureOnboardLearning(repo) {
   try {
     onboardAutoStartInFlight = true;
     setOnboardInjectVisible(false, false);
+    setOnboardPrepareVisible(false, false);
 
     let outDir = storedOutDir;
     if (!outDir) {
       localStorage.removeItem(onboardCompletedKey());
       setOnboardStage('mine');
       setOnboardStatus('Mining candidates...');
-      const enq = await (await dfetch('/onboard/enqueue', {
+      const enqResponse = await dfetch('/onboard/enqueue', {
         method: 'POST',
         headers: {'content-type':'application/json'},
         body: JSON.stringify({repo})
-      })).json();
-      if (!enq.ok) throw new Error(enq.error || 'enqueue failed');
+      });
+      const enq = await enqResponse.json();
+      if (!enqResponse.ok || !enq.ok) throw new Error(enq.error || 'enqueue failed');
       outDir = enq.outDir;
       localStorage.setItem(onboardStoreKey('outdir'), outDir);
       setOnboardProgress(enq.total - enq.remaining, enq.total, 0, 0);
@@ -8368,17 +9627,20 @@ async function ensureOnboardLearning(repo) {
     landing.dataset.draining = '1';
     setOnboardStage('validate');
     setOnboardStatus(storedOutDir ? 'Resuming learning queue...' : 'Learning queued...');
-    const dr = await (await dfetch('/onboard/drain-queue', {
+    const drainResponse = await dfetch('/onboard/drain-queue', {
       method: 'POST',
       headers: {'content-type':'application/json'},
       body: JSON.stringify({repo, outDir, autoInject: true, liveInject: true})
-    })).json();
-    if (!dr.ok) throw new Error(dr.error || 'drain failed');
+    });
+    const dr = await drainResponse.json();
+    if (!drainResponse.ok || !dr.ok) throw new Error(dr.error || 'drain failed');
+    clearOnboardDiscoveryRetry();
     if (!updateOnboardFromStatus(dr.status || {})) pollOnboardLearning();
   } catch (e) {
     setOnboardStatus(String(e && e.message || e), true);
     const landing = document.getElementById('onboard-landing');
     if (landing) landing.dataset.draining = '';
+    scheduleOnboardDiscoveryRetry('Onboarding setup is temporarily unavailable. Retrying...');
   } finally {
     onboardAutoStartInFlight = false;
   }
@@ -8392,13 +9654,21 @@ async function pollOnboardLearning() {
   try {
     const st = await (await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(landing.dataset.repo) + '&outDir=' + encodeURIComponent(landing.dataset.outDir))).json();
     if (!st.ok) throw new Error(st.error || 'status unavailable');
+    onboardPollFailures = 0;
+    landing.dataset.draining = '1';
     if (updateOnboardFromStatus(st.status || {})) {
       return;
     }
     onboardPollTimer = setTimeout(pollOnboardLearning, ONBOARD_POLL_MS);
   } catch (e) {
     setOnboardStatus(String(e && e.message || e), true);
-    if (landing) landing.dataset.draining = '';
+    // Status HTTP, network, and JSON failures are observational only. The daemon still owns the
+    // durable queue, so keep the landing live and retry with a bounded exponential delay.
+    onboardPollFailures++;
+    if (landing) landing.dataset.draining = '1';
+    const retryMs = Math.min(ONBOARD_POLL_MAX_MS,
+      ONBOARD_POLL_MS * Math.pow(2, Math.min(4, Math.max(0, onboardPollFailures - 1))));
+    onboardPollTimer = setTimeout(pollOnboardLearning, retryMs);
   }
 }
 
@@ -8411,12 +9681,49 @@ function updateOnboardFromStatus(s) {
   const injected = typeof s.injectedKept === 'number' ? s.injectedKept : (s.injected ? kept : 0);
   const cloud = document.querySelector('.ol-cloud');
   const drained = onboardStatusDrained(s);
-  if (cloud) cloud.classList.toggle('is-live', !onboardStatusComplete(s) && !s.error);
+  const preparationFailure = s.preparationState === 'failed';
+  const injectionFailure = !!(s.injectionError || ['backoff', 'failed'].includes(s.injectionState));
+  if (cloud) cloud.classList.toggle('is-live', !onboardStatusComplete(s)
+    && (!s.error || injectionFailure || preparationFailure || s.retryablePending));
   setOnboardProgress(processed, total, kept, injected, inflight);
   renderOnboardCloud({ ...s, total, processed, visualProcessed, kept, inflight, injectedKept: injected });
+  if (preparationFailure) {
+    setOnboardStage('mine');
+    setOnboardInjectVisible(false, false);
+    setOnboardPrepareVisible(true, false);
+    setOnboardStatus(`${s.error || 'Project preparation failed.'} Retry preparation to continue.`, true);
+    return true;
+  }
+  setOnboardPrepareVisible(false, false);
+  if (injectionFailure) {
+    setOnboardStage('review');
+    const retryAt = Number(s.injectionRetryAt) || 0;
+    const waiting = s.injectionState === 'backoff' && retryAt > Date.now();
+    const seconds = waiting ? Math.max(1, Math.ceil((retryAt - Date.now()) / 1000)) : 0;
+    setOnboardStatus(
+      s.injectionRetryCapped
+        ? `${s.injectionError || s.error} Automatic retries are exhausted.`
+        : (waiting ? `${s.injectionError || s.error} Retrying automatically in ${seconds}s...` : `${s.injectionError || s.error} Retrying automatically...`),
+      true
+    );
+    setOnboardInjectVisible(true, false);
+    return s.injectionState !== 'backoff' || s.injectionRetryCapped === true;
+  }
+  setOnboardInjectVisible(false, false);
   if (s.error) {
+    if (s.retryablePending) {
+      setOnboardStage('validate');
+      setOnboardStatus(`${s.error} Retrying automatically...`, true);
+      return false;
+    }
     setOnboardStatus(s.error, true);
     return true;
+  }
+  if (s.preparing || s.preparationState === 'pending' || s.preparationState === 'running') {
+    setOnboardStage('mine');
+    const stage = s.preparationStage ? ` (${s.preparationStage})` : '';
+    setOnboardStatus(`Preparing project evidence${stage}...`);
+    return false;
   }
   if (!s.done && !drained) {
     setOnboardStage('validate');
@@ -8426,6 +9733,23 @@ function updateOnboardFromStatus(s) {
   }
   const landing = document.getElementById('onboard-landing');
   if (landing) landing.dataset.draining = '';
+  if (s.noCandidates === true) {
+    setOnboardStage('complete');
+    setOnboardStatus('No onboarding candidates were found; opening dashboard...');
+    setTimeout(completeOnboardLearning, 800);
+    return true;
+  }
+  if (s.noNotesToInject === true) {
+    setOnboardStage('complete');
+    setOnboardStatus('Learning complete; no reviewed notes were injected. Opening dashboard...');
+    setTimeout(completeOnboardLearning, 800);
+    return true;
+  }
+  if (s.injecting || s.injectionState === 'running') {
+    setOnboardStage('review');
+    setOnboardStatus('Final live injection is running...');
+    return false;
+  }
   if (s.injected) {
     setOnboardStage('complete');
     setOnboardStatus('Injected. Refreshing graph...');
@@ -8433,10 +9757,15 @@ function updateOnboardFromStatus(s) {
     return true;
   }
   if (drained) {
-    setOnboardStage('complete');
-    setOnboardStatus(injected > 0 ? `Learning complete; ${injected} reviewed notes were injected. Opening dashboard...` : 'Learning complete; no reviewed notes were injected. Opening dashboard...');
-    setTimeout(completeOnboardLearning, 1000);
-    return true;
+    if (s.autoInject === false) {
+      setOnboardStage('complete');
+      setOnboardStatus('Learning complete; automatic injection was disabled. Opening dashboard...');
+      setTimeout(completeOnboardLearning, 1000);
+      return true;
+    }
+    setOnboardStage('review');
+    setOnboardStatus('Learning complete; final live injection is pending...');
+    return false;
   }
   setOnboardStage('review');
   setOnboardStatus(s.autoInject ? 'Final live injection is still running...' : `Processed ${processed}/${total}`);
@@ -8460,6 +9789,55 @@ async function injectOnboardLearning() {
   } catch (e) {
     setOnboardStatus(String(e && e.message || e), true);
     setOnboardInjectVisible(true, false);
+  }
+}
+
+async function retryOnboardInjection() {
+  const landing = document.getElementById('onboard-landing');
+  if (!landing || !landing.dataset.repo || !landing.dataset.outDir) return;
+  try {
+    setOnboardInjectVisible(true, true);
+    setOnboardStatus('Rearming live injection...');
+    const r = await (await dfetch('/onboard/retry-inject', {
+      method: 'POST',
+      headers: {'content-type':'application/json'},
+      body: JSON.stringify({repo: landing.dataset.repo, outDir: landing.dataset.outDir})
+    })).json();
+    if (!r.ok) throw new Error(r.error || 'retry failed');
+    landing.dataset.draining = '1';
+    updateOnboardFromStatus(r.status || {});
+    pollOnboardLearning();
+  } catch (e) {
+    setOnboardStatus(String(e && e.message || e), true);
+    setOnboardInjectVisible(true, false);
+  }
+}
+
+async function retryOnboardPreparation() {
+  const landing = document.getElementById('onboard-landing');
+  if (!landing || !landing.dataset.repo || !landing.dataset.outDir) return;
+  try {
+    setOnboardPrepareVisible(true, true);
+    setOnboardStatus('Rearming project preparation...');
+    const enqueued = await (await dfetch('/onboard/enqueue', {
+      method: 'POST',
+      headers: {'content-type':'application/json'},
+      body: JSON.stringify({repo: landing.dataset.repo, outDir: landing.dataset.outDir, rearm: true})
+    })).json();
+    if (!enqueued.ok) throw new Error(enqueued.error || 'preparation rearm failed');
+    const drained = await (await dfetch('/onboard/drain-queue', {
+      method: 'POST',
+      headers: {'content-type':'application/json'},
+      body: JSON.stringify({repo: landing.dataset.repo, outDir: landing.dataset.outDir, autoInject: true, liveInject: true})
+    })).json();
+    if (!drained.ok) throw new Error(drained.error || 'preparation resume failed');
+    landing.dataset.draining = '1';
+    setOnboardPrepareVisible(false, false);
+    updateOnboardFromStatus(drained.status || {});
+    pollOnboardLearning();
+  } catch (e) {
+    setOnboardStatus(String(e && e.message || e), true);
+    setOnboardPrepareVisible(true, false);
   }
 }
 

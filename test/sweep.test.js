@@ -176,12 +176,18 @@ test('POST /sweep', { timeout: 60000 }, async (t) => {
       await req('POST', '/git/worktree', { workspace: WS, key: 'cursor/reap-swept', repo_path: WS });
       await claimTask({ workspace: WS, key: 'cursor/reap-swept', status: 'in_progress', agent_id: 'reap-swept-agent', session_id: 'reap-swept-sess' });
 
+      // Prime buildGraph's snapshot while only the claim owner is registered. Agent registry
+      // writes must invalidate that snapshot because summary.agents is derived from the registry,
+      // not the workspace overlay.
+      const beforeControl = (await graph()).summary.agents.running;
+
       // A second agent that holds NO swept claim — the control. It must stay running across the sweep.
       await req('POST', '/agent/start', { agent_id: 'reap-live-agent', session: 'reap-live-sess', agent_tool_spawn: true });
 
       assert.equal((await agentState('reap-swept-agent')).state, 'running', 'claim owner running before sweep');
       assert.equal((await agentState('reap-live-agent')).state, 'running', 'control agent running before sweep');
       const before = (await graph()).summary.agents.running;
+      assert.equal(before, beforeControl + 1, 'running count reflects newly registered control agent');
 
       // force:true + stale_minutes:0 releases the idle claim; the route must reap its owning agent.
       const swept = await req('POST', '/sweep', { workspace: WS, force: true, stale_minutes: 0 });

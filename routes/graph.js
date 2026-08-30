@@ -38,7 +38,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(b, u);
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace: POST /workspace first or pass { workspace }' }); return true; }
     const prevKnown = new Set(Object.keys(T.ov.timestamps || {}));
-    ctx.cache.agg.delete(T.ws); ctx.cache.aggAt.delete(T.ws);   // force the pull past the TTL cache
+    // Force both aggregation and graph-snapshot caches. Clearing only aggregation lets
+    // buildGraph return a pre-drop snapshot until fs.watch happens to fire, making explicit /sync
+    // timing-dependent under load (and causing immediate status writes to see an unknown task).
+    ctx.invalidateAggregate(T.ws);
     const g = buildGraph(T.ws);
     const adopted = g.tasks.filter((t) => t.kind !== 'note' && !prevKnown.has(t.id)).map((t) => t.id);
     // Idempotency for non-current workspaces: buildGraph only stamps timestamps when ws is the
@@ -121,7 +124,18 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(null, u);
     const chain = overlayStore.noteChain(T.ov, id).map((cid) => {
       const n = T.ov.note_nodes[cid];
-      return { key: 'note:' + cid, title: n.title, validFrom: n.validFrom || null, validTo: n.validTo || null, current: !n.validTo };
+      return {
+        key: 'note:' + cid,
+        title: n.title,
+        validFrom: n.validFrom || null,
+        validTo: n.validTo || null,
+        current: !n.validTo,
+        memory_lane: n.memory_lane || null,
+        source_role: n.source_role || 'unknown',
+        authority: n.authority || null,
+        confidence: typeof n.confidence === 'number' ? n.confidence : null,
+        episode: n.episode || null,
+      };
     });
     send(res, 200, { key: 'note:' + id, workspace: T.ws, chain }); return true;
   }

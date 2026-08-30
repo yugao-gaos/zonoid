@@ -14,7 +14,9 @@
 //   - recordTaskCost: per-task rollup accumulates cost_usd and degrades cost_source to 'estimated'
 'use strict';
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { execFileSync } = require('child_process');
 const usageAccounting = require('../lib/usage-accounting');
 const codex = require('../lib/adapters/codex');
 const claude = require('../lib/adapters/claude');
@@ -60,6 +62,7 @@ const models = pricing.models;
   ok('priceSlice: total = only the known model (unknown contributes 0)', near(slice.cost.usd, expectedCodex));
   ok('priceSlice: unknown model noted in unpriced_models, no crash', Array.isArray(slice.cost.unpriced_models) && slice.cost.unpriced_models.includes('totally-unknown-model-9000'));
   ok('priceSlice: unknown model row present with usd 0', slice.cost.by_model['totally-unknown-model-9000'].usd === 0);
+  ok('priceSlice: unknown model marks estimate incomplete', slice.cost.complete === false);
 }
 
 // --- 3) codex adapter normalizes BOTH usage shapes ---------------------------------------------
@@ -75,6 +78,34 @@ const models = pricing.models;
   ok('codex shape B: cache_read = input_token_details.cached_tokens', b.cache_read_input_tokens === 48);
   ok('codex shape B: input = 180 − 48', b.input_tokens === 132);
   ok('codex shape B: output = 96', b.output_tokens === 96);
+  const c = normalizeCodexUsage({
+    input_tokens: 1000,
+    output_tokens: 10,
+    input_token_details: { cached_tokens: 200, cache_write_tokens: 100 },
+  });
+  ok('codex shape B: cache writes are preserved', c.cache_creation_input_tokens === 100);
+  ok('codex shape B: uncached input excludes reads and writes', c.input_tokens === 700);
+}
+
+// --- 3b) GPT-5.6 Sol exact list-rate estimate -------------------------------------------------
+{
+  const rates = models['gpt-5.6-sol'];
+  ok('pricing: GPT-5.6 Sol exact published rates', rates.input === 4 && rates.cache_read === 0.4 && rates.output === 20 && rates.cache_write === 5);
+  const slice = {
+    usage: { by_model: {
+      'gpt-5.6-sol': {
+        input_tokens: 1e6,
+        output_tokens: 1e6,
+        cache_read_input_tokens: 1e6,
+        cache_creation_input_tokens: 1e6,
+      },
+    } },
+    cost: usageAccounting.emptyCost(),
+  };
+  usageAccounting.priceSlice(slice, models);
+  ok('pricing: GPT-5.6 Sol includes cache-write cost exactly', near(slice.cost.usd, 29.4));
+  ok('pricing: dollars are labeled estimates', slice.cost.estimated === true && slice.cost.kind === 'estimate');
+  ok('pricing: estimate caveat covers billing and long context', /not billed cost/i.test(slice.cost.caveat) && /272K/i.test(slice.cost.caveat));
 }
 
 // --- 4) codex.usage.normalizeReported on a hook-shaped reported_usage → priced slice -----------
@@ -148,6 +179,50 @@ const models = pricing.models;
 {
   const s = usageAccounting.emptySlice('codex', {});
   ok('emptySlice: has cost block', s.cost && s.cost.usd === 0 && s.cost.source === 'real' && typeof s.cost.by_model === 'object');
+}
+
+// --- 10) Codex reconcile is project-scoped and recognizes linked git worktrees ----------------
+{
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-project-reconcile-'));
+  const main = path.join(tmp, 'project');
+  const linked = path.join(tmp, 'project-linked');
+  const unrelated = path.join(tmp, 'unrelated');
+  const codexHome = path.join(tmp, 'codex-home');
+  const sessions = path.join(codexHome, 'sessions');
+  const previousHome = process.env.CODEX_HOME;
+  const git = (args, cwd) => execFileSync('git', args, { cwd, stdio: 'ignore' });
+  const writeRollout = (name, cwd, output) => {
+    fs.mkdirSync(sessions, { recursive: true });
+    fs.writeFileSync(path.join(sessions, `rollout-${name}.jsonl`), [
+      JSON.stringify({ type: 'session_meta', payload: { cwd, model: 'gpt-5.6-sol' } }),
+      JSON.stringify({ type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens: 10, cached_input_tokens: 0, output_tokens: output } } } }),
+    ].join('\n') + '\n');
+  };
+  try {
+    fs.mkdirSync(main);
+    git(['init', '-q'], main);
+    git(['config', 'user.email', 'test@example.com'], main);
+    git(['config', 'user.name', 'Test User'], main);
+    fs.writeFileSync(path.join(main, '.keep'), '');
+    git(['add', '.keep'], main);
+    git(['commit', '-qm', 'init'], main);
+    git(['worktree', 'add', '-q', '-b', 'linked-test', linked], main);
+    fs.mkdirSync(unrelated);
+    writeRollout('main', main, 1);
+    writeRollout('linked', linked, 2);
+    writeRollout('other', unrelated, 100);
+    process.env.CODEX_HOME = codexHome;
+
+    const report = codex.usage.reconcile(main);
+    const ids = report.sessions.map((session) => session.id).sort();
+    ok('reconcile: includes canonical project and linked worktree sessions', ids.join(',') === 'linked,main');
+    ok('reconcile: excludes unrelated workspace session usage', report.totals.output_tokens === 3);
+    ok('reconcile: retains detailed per-session usage and cost for cumulative merge', report.sessions.every((session) => session.usage && session.cost && session.cwd));
+  } finally {
+    if (previousHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = previousHome;
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 }
 
 console.log('-----');

@@ -72,16 +72,14 @@ const graph = (...tasks) => ({ tasks });
   ok('missing objective is not silently deleted', !o.guidance.find((g) => g.id === removed).resolved);
 }
 
-// Holds are task-local; dependent work remains naturally gated by origin non-completion, while
-// unrelated work has no hold. Resolution releases only the decision hold.
+// Guidance delivery is informational: it never creates a task execution hold, and touching an old
+// overlay clears legacy decision_holds left by the previous implementation.
 {
   const o = overlay.EMPTY();
-  const id = overlay.addGuidance(o, { question: 'Need input', severity: 'blocking', origin_task: 'origin' });
-  ok('origin receives decision hold', delivery.hasTaskHold(o, 'origin'));
-  ok('dependent receives no copied hold', !delivery.hasTaskHold(o, 'dependent'));
-  ok('unrelated task remains unheld', !delivery.hasTaskHold(o, 'unrelated'));
-  overlay.resolveGuidance(o, id, 'answer');
-  ok('resolution releases task-local hold', !delivery.hasTaskHold(o, 'origin'));
+  o.decision_holds.origin = { guidance_id: 'legacy', at: new Date(T0).toISOString() };
+  overlay.addGuidance(o, { question: 'Need input', severity: 'blocking', origin_task: 'origin' });
+  ok('origin receives no decision hold', !o.decision_holds.origin);
+  ok('legacy decision holds are cleared', Object.keys(o.decision_holds).length === 0);
 }
 
 // Workspace-wide resolution is idempotent: the first answer and timestamp cannot be overwritten.

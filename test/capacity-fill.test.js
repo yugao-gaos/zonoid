@@ -170,6 +170,16 @@ function ctxFor(g) { return { graph: g, pendingGuidance: [], batch: { remaining:
   ok('cleared: no wire field on the decision', d.wire == null);
 }
 
+// === Dashboard decisions are informational: legacy decision_holds do not suppress dispatch =====
+{
+  const o = makeOverlay(0);
+  o.decision_holds = { 's/q0': { guidance_id: 'legacy-guidance' } };
+  daemon.__setOverlayForTest(o);
+  const L = makeLoop();
+  const d = daemon.decideOne(L, ctxFor(makeGraph(0, 1)));
+  ok('decision guidance does not block a ready task', d.action === 'spawn' && d.tasks.length === 1 && d.tasks[0].key === 's/q0');
+}
+
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

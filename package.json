@@ -10,6 +10,7 @@
   "main": "daemon.js",
   "bin": {
     "zonoid": "./bin/backfill-merged.js",
+    "zonoid-dashboard": "./bin/dashboard.js",
     "zonoid-install": "./bin/install.js"
   },
   "files": [
@@ -20,6 +21,10 @@
     "bin/",
     "hooks/",
     "adapters/",
+    "packages/claude-dashboard-mcpb/",
+    "packages/dsh/",
+    "packages/opencode-plugin/",
+    "packages/vscode-dashboard/",
     "skills/",
     "public/",
     "scripts/",
@@ -38,6 +43,9 @@
     "node": ">=18"
   },
   "scripts": {
+    "build:claude-dashboard": "node packages/claude-dashboard-mcpb/build.js",
+    "bench:memory-lanes": "node bench/agent-memory/memory-lane-baseline/run.js",
+    "bench:memory-lane-eval": "node bench/agent-memory/memory-lane-baseline/evaluate.js",
     "start": "node daemon.js",
     "test": "node scripts/run-tests.js",
     "test:all": "node scripts/run-tests.js && npm run test:smoke",

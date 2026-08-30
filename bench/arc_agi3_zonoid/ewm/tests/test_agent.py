@@ -1487,6 +1487,24 @@ class ProbeSeedingTests(unittest.TestCase):
         self.assertEqual(recorded_actions, ["UP", "DOWN", "LEFT", "RIGHT"])
         self.assertTrue(ag._probed)
 
+    def test_probe_batch_suppresses_reflect_llm_between_probes(self):
+        env = ToyEnv(_grid("2...3"), budget=50)
+        llm = FakeLlm(['{"prediction_ok": true}'] * 8)
+        ag = EwmAgent(
+            env, llm, config=AgentConfig(game_id="toy", max_turns=10, min_probe_transitions=4)
+        )
+
+        ag._probe_batch(ag._observe())
+
+        self.assertEqual(len(ag.suite), 4)
+        self.assertEqual(llm.calls, 0)
+        self.assertEqual(ag.summary.reflect_calls, 0)
+        self.assertEqual(ag.summary.reflect_skipped, 4)
+        self.assertFalse(ag._probing)
+        ag._act_and_ingest(ag._observe(), ["UP"])
+        self.assertEqual(llm.calls, 1)
+        self.assertEqual(ag.summary.reflect_calls, 1)
+
     def test_probe_batch_budget_guard_skips_when_actions_low(self):
         # remaining_actions==1 -> probing keeps a reserve and records nothing.
         env = ToyEnv(_grid("2...3"), budget=1)

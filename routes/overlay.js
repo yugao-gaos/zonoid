@@ -10,6 +10,7 @@ const { noteEmbedText, codeNodeEmbedText, noteFieldTexts, taskEmbedText } = requ
 const newlyReady = require('../lib/newly-ready');
 const { requeueStandingHarness } = require('../lib/harness-task');
 const recallJournal = require('../lib/recall-outcome-journal');
+const outcomePolicyMemory = require('../lib/outcome-policy-memory');
 const retrievalWeights = require('../lib/search/retrieval-weights');
 const gitClaims = require('../lib/git-claims');
 const noteSourceCluster = require('../lib/note-source-cluster');
@@ -17,6 +18,36 @@ const { defaultSubconsciousStore } = require('../lib/subconscious');
 
 const POSITIVE_RECALL_OUTCOMES = new Set(['approve', 'tested']);
 const NEGATIVE_RECALL_OUTCOMES = new Set(['kickback', 'failed']);
+const MEMORY_LANES = new Set(['evidence', 'guidance']);
+const SOURCE_ROLES = new Set(['user', 'assistant', 'tool', 'artifact', 'system', 'unknown']);
+const AUTHORITIES = new Set(['directive', 'observation', 'inference']);
+const EPISODE_FIELDS = new Set(['session_id', 'transcript_ref', 'turn', 'span']);
+
+function validateNoteProvenance(note) {
+  if (note.memory_lane != null && !MEMORY_LANES.has(note.memory_lane)) return 'memory_lane must be evidence or guidance';
+  if (note.source_role != null && !SOURCE_ROLES.has(note.source_role)) return 'invalid source_role';
+  if (note.authority != null && !AUTHORITIES.has(note.authority)) return 'invalid authority';
+  if (note.confidence != null && (typeof note.confidence !== 'number' || !Number.isFinite(note.confidence) || note.confidence < 0 || note.confidence > 1)) {
+    return 'confidence must be a number from 0 to 1';
+  }
+  if (note.episode == null) return null;
+  if (!isPlainObject(note.episode)) return 'episode must be an object';
+  const extra = Object.keys(note.episode).filter((field) => !EPISODE_FIELDS.has(field));
+  if (extra.length) return `episode has unsupported field(s): ${extra.join(', ')}`;
+  if (note.episode.session_id != null && typeof note.episode.session_id !== 'string') return 'episode.session_id must be a string';
+  if (note.episode.transcript_ref != null && typeof note.episode.transcript_ref !== 'string') return 'episode.transcript_ref must be a string';
+  if (note.episode.turn != null && (!Number.isInteger(note.episode.turn) || note.episode.turn < 0)) return 'episode.turn must be a non-negative integer';
+  if (note.episode.span != null) {
+    const span = note.episode.span;
+    if (!isPlainObject(span)) return 'episode.span must be an object';
+    if (Object.keys(span).some((field) => field !== 'start' && field !== 'end')) return 'episode.span supports only start and end';
+    if (typeof span.start !== 'number' || !Number.isFinite(span.start) || span.start < 0
+      || typeof span.end !== 'number' || !Number.isFinite(span.end) || span.end < span.start) {
+      return 'episode.span must have non-negative numeric start and end with end >= start';
+    }
+  }
+  return null;
+}
 
 function recallOutcomeSignal(outcome) {
   if (POSITIVE_RECALL_OUTCOMES.has(outcome)) return true;
@@ -375,6 +406,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, sendOp, readBody, notifyChange, buildGraph, targetOverlay, nodeExistsInGraph,
     embed, knowledgeText, snapshotNative, now, suggestToks, scoreNodeAgainstTokens,
     SUGGEST_DUP_THRESHOLD, DIMS, seedBlockingDepContext } = ctx;
+  const publishCodeChange = (T, b) => {
+    if (!b || b.defer_publish !== true) notifyChange(T.ws);
+  };
   const graphHasKey = (ws, key) => {
     if (typeof nodeExistsInGraph !== 'function') return true;
     return nodeExistsInGraph(buildGraph(ws), key);
@@ -521,10 +555,28 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       send(res, 409, { ok: false, error: 'review required: task must be "tested" before "done" (require_review policy is on)' }); return true;
     }
     const cur = T.ov.status[b.key];
+    const lifecycleEvent = b.lifecycle_event ? String(b.lifecycle_event) : null;
+    const lifecycleEventOpts = () => ({
+      // Reviewer intent is judged against the status that existed BEFORE this request. This makes
+      // status=failed + review_kick_back one ordered transition without letting a late reviewer
+      // reopen a row that was already terminal when the request arrived.
+      task_status: cur,
+      agent_id: b.agent_id,
+      reason: b.review_reason || b.reason || b.note,
+      note: b.note,
+      now: now(),
+      force: !!b.force,
+    });
+    const lifecycleRefusal = (decision) => ({
+      event: decision.event,
+      code: decision.refusal && decision.refusal.code,
+      reason: decision.refusal && decision.refusal.reason,
+      retryable: !!(decision.refusal && decision.refusal.retryable),
+    });
     if (b.expected_status !== undefined && (cur || null) !== (b.expected_status || null)) {
       send(res, 409, { ok: false, error: 'stale write: status changed under you', current: cur || null, expected: b.expected_status || null }); return true;
     }
-    if (cur === 'canceled' && b.status !== 'canceled' && !b.force && !b.reopen) {
+    if (cur === 'canceled' && b.status !== 'canceled' && !b.force && !b.reopen && !lifecycleEvent) {
       send(res, 409, { ok: false, error: 'task is canceled (terminal): pass force/reopen to override', current: cur, attempted: b.status }); return true;
     }
     const resolveClaimSid = (allowDaemonFallback) => {
@@ -679,6 +731,18 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         send(res, causalEndpointError.status, { ok: false, key: b.key, error: causalEndpointError.error, field: causalEndpointError.field }); return true;
       }
     }
+    const readyBefore = newlyReady.isTerminalStatus(b.status)
+      ? newlyReady.readyKeys(buildGraph(T.ws))
+      : null;
+    // Pure preflight after validation but before claim finalization. A historical refusal leaves
+    // task, review, and claim state untouched; the accepted event is applied after finalization.
+    const lifecyclePreflight = lifecycleEvent
+      ? overlayStore.lifecycleMachine.evaluate(T.ov, b.key, lifecycleEvent, lifecycleEventOpts())
+      : null;
+    if (lifecyclePreflight && !lifecyclePreflight.ok) {
+      sendOp(res, b, 200, { ok: true, lifecycle_refused: [lifecycleRefusal(lifecyclePreflight)] });
+      return true;
+    }
     if (newlyReady.isTerminalStatus(b.status) && gitClaimMode.enabled) {
       const repo = ctx.resolveRepo ? ctx.resolveRepo(b.key, b.repo_path, T.ov, T.ws) : T.ws;
       if (gitClaims.shouldAcquire(repo, T.ov)) {
@@ -697,9 +761,24 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         }
       }
     }
-    const readyBefore = newlyReady.isTerminalStatus(b.status)
-      ? newlyReady.readyKeys(buildGraph(T.ws))
-      : null;
+    // Apply the accepted reviewer event while the pre-request status is still authoritative. Only
+    // after it lands do we write the paired task status and worker lifecycle event below.
+    const lifecycleDecisions = [];
+    if (lifecycleEvent) {
+      const decision = overlayStore.applyLifecycleEvent(T.ov, b.key, lifecycleEvent, lifecycleEventOpts());
+      lifecycleDecisions.push(decision);
+      if (!decision.ok) {
+        sendOp(res, b, 200, { ok: true, lifecycle_refused: [lifecycleRefusal(decision)] });
+        return true;
+      }
+      if (lifecycleEvent === 'review_kick_back') {
+        if (!T.ov.retryConfig) T.ov.retryConfig = {};
+        if (!T.ov.retryConfig[b.key]) T.ov.retryConfig[b.key] = {};
+        // One-shot provenance consumed by task recovery. It distinguishes a legitimate same-request
+        // kickback (one bounded retry) from unrelated pre-existing terminal failure debris.
+        T.ov.retryConfig[b.key].pendingKickBackRetry = true;
+      }
+    }
     if (b.status === 'canceled') { T.ov.cancel_requested[b.key] = now(); overlayStore.markForRejudge(T.ov, b.key); }
     else if ((b.force || b.reopen) && cur === 'canceled') delete T.ov.cancel_requested[b.key];
     overlayStore.setStatus(T.ov, b.key, b.status, b.note);
@@ -707,11 +786,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       applyCausalEdges(T, b.task_result, ensureTaskSnapshot);
     }
     // REVIEW LIFECYCLE: every transition goes through the guarded state machine, never a blind
-    // merge. The status event is applied first (it reflects what the WORKER just reported), then any
-    // explicit reviewer event. Crucially, a worker completing 'tested' no longer self-approves a
-    // review that was requested for it — the machine preserves the open request, which is what makes
-    // the attempt reviewable AFTER the diff exists instead of only before it.
-    const lifecycleDecisions = [];
+    // merge. A named reviewer event was applied above against the pre-request status; its paired
+    // worker status event now confirms the same outcome. Without a named reviewer event, this remains
+    // the ordinary completion path (including preserving requested review on status=tested).
     if (newlyReady.isTerminalStatus(b.status)) {
       const gitInfo = T.ov.git && T.ov.git[b.key];
       const statusEvent = overlayStore.lifecycleEventForStatus(b.status);
@@ -727,18 +804,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         }));
       }
     }
-    // Explicit reviewer transition (lib/mcp-core.js submit_verdict). Named event, so the same
-    // in-flight / already-merged / already-settled guards apply to a judge's write as to a sweep's.
-    if (b.lifecycle_event) {
-      lifecycleDecisions.push(overlayStore.applyLifecycleEvent(T.ov, b.key, String(b.lifecycle_event), {
-        task_status: newlyReady.isTerminalStatus(b.status) ? b.status : undefined,
-        agent_id: b.agent_id,
-        reason: b.review_reason || b.reason || b.note,
-        note: b.note,
-        now: now(),
-        force: !!b.force,
-      }));
-    }
+    // Explicit reviewer transitions were preflighted and applied above, before their paired status.
     // LEGACY RAW PATCH PATHS. Older callers hand-build a review patch (a `review` object, or the
     // fields inline on the body) instead of naming an event. They keep working, but the half of the
     // patch that MEANS a transition (review_state / review_verdict / merge_state) is routed through
@@ -876,6 +942,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // joining the task_key to its outcome. Readers take the latest row per task_key — this
     // supersedes any prior 'pending' row written at context-assembly time (/search?task_key=).
     // Best-effort: never block the status write on journal IO.
+    let outcomePolicyResult = null;
     if (['done', 'tested', 'failed', 'canceled'].includes(b.status) && b.key) {
       let latestRecall = null;
       let outcome = null;
@@ -891,6 +958,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       try {
         reinforceRecalledContextEdges(T.ws, b.key, latestRecall, outcome);
       } catch { /* retrieval-weight feedback must never block the status write */ }
+      try {
+        outcomePolicyResult = outcomePolicyMemory.deriveFromJournal({
+          overlay: T.ov,
+          workspace: T.ws,
+          taskKey: b.key,
+        });
+      } catch { /* optional policy derivation must never block the status write */ }
     }
     let followUpResults = null;
     let bucketCleanup = null;
@@ -971,6 +1045,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (bucketCleanup) statusResp.bucket_cleanup = bucketCleanup;
     if (harnessRequeued) statusResp.harness_requeued = true;
     if (lintWarning) statusResp.warning = lintWarning;
+    if (outcomePolicyResult && outcomePolicyResult.enabled) statusResp.outcome_policy = outcomePolicyResult;
     // Report any REFUSED lifecycle transition. The status write itself still succeeded — only the
     // review-lifecycle half was declined (already merged / already settled) — so this is a field on
     // a 200, not an error. Silence here is what let late writers look like they had landed.
@@ -1072,6 +1147,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (ctx.opReplay(res, b)) return true;
     const T = targetOverlay(b, u);
     if (!b.title || !b.summary) { send(res, 400, { ok: false, error: 'title and summary required' }); return true; }
+    const provenanceError = validateNoteProvenance(b);
+    if (provenanceError) { send(res, 400, { ok: false, error: provenanceError }); return true; }
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     // Validate wires_to targets BEFORE creating the note — reject unknown task keys (phantom-node guard).
     if (Array.isArray(b.wires_to) && b.wires_to.length) {
@@ -1234,19 +1311,23 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     // Contradiction band (judge-mediated supersession, GATED via ZONOID_CONTRADICTION_RESOLUTION=1;
     // default OFF). Below the 0.92 subsumption bar sit notes about the SAME subject that may be a
-    // contradiction/update OR merely complementary — cosine cannot tell them apart. So we only SEED a
-    // 'contradicts' CANDIDATE edge new->old and let the eager judge decide per edge-judge.md
-    // (supersede the older via a consolidate verdict, or keep both). Nothing is retired here without a
-    // judge verdict; the new note is NOT hidden. Best-effort: never blocks the note write.
-    if (b.vec && judge.contradictionResolutionEnabled()) {
+    // contradiction/update OR merely complementary — cosine cannot tell them apart. So we reuse the
+    // existing pending-dup dup-cluster path: admit the new note provisionally, enqueue the best
+    // contradiction candidate as a dup-cluster pair, and let the judge decide consolidate/distinct.
+    // Nothing is retired here without a judge verdict. Best-effort: never blocks the note write.
+    if (b.vec && judge.contradictionResolutionEnabled() && !b.supersedes && !b.force && !pendingDupMatch) {
       try {
         const cands = judge.findContradictionCandidates(id, b.vec, T.ov);
-        for (const { noteId, similarity } of cands) {
-          overlayStore.addEdge(T.ov, 'note:' + id, 'note:' + noteId, null, 'context',
-            Math.max(0, 1 - similarity),
-            { judged: false, by: 'subconscious', origin: 'contradiction-seed', relation: 'contradicts', score: similarity });
+        const best = cands.slice().sort((a, b) => (b.similarity - a.similarity) || (String(a.noteId).localeCompare(String(b.noteId))))[0];
+        if (best) {
+          pendingDupMatch = {
+            key: 'note:' + best.noteId,
+            title: (T.ov.note_nodes && T.ov.note_nodes[best.noteId] && T.ov.note_nodes[best.noteId].title) || best.noteId,
+            summary: (T.ov.note_nodes && T.ov.note_nodes[best.noteId] && String(T.ov.note_nodes[best.noteId].summary || '').slice(0, 200)) || '',
+            score: best.similarity,
+          };
+          overlayStore.markPendingDup(T.ov, 'note:' + id, pendingDupMatch.key, pendingDupMatch.score);
         }
-        if (cands.length) overlayStore.markEagerJudge(T.ov, 'note:' + id);
       } catch { /* contradiction seeding is best-effort — never block the note write */ }
     }
     T.save(); notifyChange(T.ws);
@@ -1279,6 +1360,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     const invalid = b.notes.findIndex((n) => !n || !n.title || !n.summary);
     if (invalid !== -1) { send(res, 400, { ok: false, error: `notes[${invalid}] missing title or summary` }); return true; }
+    const invalidProvenance = b.notes.findIndex((n) => validateNoteProvenance(n));
+    if (invalidProvenance !== -1) {
+      send(res, 400, { ok: false, error: `notes[${invalidProvenance}]: ${validateNoteProvenance(b.notes[invalidProvenance])}` }); return true;
+    }
 
     // Pooled embedding text per note — the SAME noteEmbedText the single-note path feeds to .vec, so
     // bulk-ingested notes are retrievable/dedupable identically. Field-level .vecs are intentionally
@@ -1390,7 +1475,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     // Exactly ONE epoch bump for the whole batch (same as notes/bulk).
     overlayStore.bumpEpoch(T.ov);
-    T.save(); notifyChange(T.ws);
+    T.save(); publishCodeChange(T, b);
     send(res, 200, { ok: true, created: created.length, keys: created, edges_added: edgesAdded, workspace: T.ws }); return true;
   }
 
@@ -1414,7 +1499,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     const { removed } = overlayStore.removeCodeNodesForFile(T.ov, file);
     if (removed.length) overlayStore.bumpEpoch(T.ov);
-    T.save(); notifyChange(T.ws);
+    T.save(); publishCodeChange(T, b);
     send(res, 200, { ok: true, file, deleted: removed.length, keys: removed, workspace: T.ws }); return true;
   }
 
@@ -1469,10 +1554,26 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       edgesReplaced = { removed: er.removed, added: er.added.length };
     }
     overlayStore.bumpEpoch(T.ov);
-    T.save(); notifyChange(T.ws);
+    T.save(); publishCodeChange(T, b);
     const resp = { ok: true, file, deleted: removed.length, created: created.length, keys: created, workspace: T.ws };
     if (edgesReplaced) resp.edges = edgesReplaced;
     send(res, 200, resp); return true;
+  }
+
+  // BOUNDED bulk code-edge ingest — full onboarding sends its resolved edge graph separately from
+  // symbol batches so neither request class can exceed daemon.js' global body cap. Additive + de-duped
+  // by edge signature, matching the legacy optional `edges` field on /overlay/code-nodes/bulk while
+  // allowing the client to split a large graph across safe requests.
+  if (p === '/overlay/code-edges/bulk' && m === 'POST') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    if (!Array.isArray(b.edges) || !b.edges.length) { send(res, 400, { ok: false, error: 'edges[] required (non-empty array)' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const er = overlayStore.addCodeEdges(T.ov, b.edges);
+    if (er.added.length) overlayStore.bumpEpoch(T.ov);
+    T.save(); publishCodeChange(T, b);
+    send(res, 200, { ok: true, created: er.added.length, edges_added: er.added.length, workspace: T.ws }); return true;
   }
 
   // PER-FILE code-EDGE invalidation — the edge analogue of the code-node routes above (DESIGN: code
@@ -1491,7 +1592,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!file) { send(res, 400, { ok: false, error: 'file required (repo-relative path)' }); return true; }
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     const { removed } = overlayStore.removeCodeEdgesForFile(T.ov, file);
-    T.save(); notifyChange(T.ws);
+    T.save(); publishCodeChange(T, b);
     send(res, 200, { ok: true, file, deleted: removed, workspace: T.ws }); return true;
   }
 
@@ -1504,7 +1605,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!Array.isArray(b.edges)) { send(res, 400, { ok: false, error: 'edges[] required (array; may be empty to just clear the file)' }); return true; }
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     const er = overlayStore.replaceCodeEdgesForFile(T.ov, file, b.edges);
-    T.save(); notifyChange(T.ws);
+    T.save(); publishCodeChange(T, b);
     send(res, 200, { ok: true, file, deleted: er.removed, created: er.added.length, workspace: T.ws }); return true;
   }
 

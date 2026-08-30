@@ -9,6 +9,7 @@
 //
 //   routes/overlay.js
 //     • POST /overlay/code-nodes/bulk     — optional `edges` fold into the code_edges layer
+//     • POST /overlay/code-edges/bulk     — bounded additive edge batches for full onboarding
 //     • POST /overlay/code-nodes/replace  — optional per-file `edges` replace alongside node replace
 //     • POST /overlay/code-edges/replace  — per-file edge replace route
 //     • DELETE /overlay/code-edges        — per-file edge remove route
@@ -39,11 +40,12 @@ const dummyVec = (seed) => Array.from({ length: DIMS }, (_, i) => ((i + seed) % 
 // Reusable stubbed route ctx (mirrors test/code-sync-unit.test.js).
 function makeCtx(overlay, ws, body) {
   let lastSent = null;
+  let notifyCount = 0;
   const ctx = {
     send(res, status, b) { lastSent = { status, body: b }; },
     sendOp(res, b, status, bb) { lastSent = { status, body: bb }; },
     readBody: async () => body,
-    notifyChange: () => {},
+    notifyChange: () => { notifyCount++; },
     buildGraph: () => ({ tasks: [] }),
     targetOverlay: () => ({ ov: overlay, ws, save: () => ov.save(ws, overlay) }),
     opReplay: () => false,
@@ -61,7 +63,7 @@ function makeCtx(overlay, ws, body) {
     cache: { agg: new Map(), aggAt: new Map() },
     git: { currentBranch: () => null },
   };
-  return { ctx, getLastSent: () => lastSent };
+  return { ctx, getLastSent: () => lastSent, getNotifyCount: () => notifyCount };
 }
 
 (async () => {
@@ -176,14 +178,34 @@ function makeCtx(overlay, ws, body) {
           { from_file: 'b.js', to_file: 'a.js', kind: 'imports' },
         ],
         workspace: TMP_WS,
+        defer_publish: true,
       };
-      const { ctx, getLastSent } = makeCtx(o, TMP_WS, body);
+      const { ctx, getLastSent, getNotifyCount } = makeCtx(o, TMP_WS, body);
       await overlayRoute(ctx)('/overlay/code-nodes/bulk', 'POST', { method: 'POST', headers: {} }, {}, { searchParams: { get: () => null } }, null);
       const r = getLastSent();
       ok('bulk with edges returns 200', r && r.status === 200);
       ok('bulk created 2 nodes', r.body.created === 2);
       ok('bulk reported edges_added: 2', r.body.edges_added === 2);
       ok('bulk wrote 2 code edges into overlay.code_edges', o.code_edges.length === 2);
+      ok('deferred full-index bulk persists nodes and edges without an intermediate publish', getNotifyCount() === 0);
+    }
+
+    // dedicated additive bulk route used by full onboarding's byte-bounded edge requests
+    {
+      const body = { edges: [
+        { from_file: 'bulk.js', to: 'code:a.js#foo', kind: 'calls', name: 'foo' },
+        { from_file: 'bulk.js', to_file: 'a.js', kind: 'imports' },
+      ], workspace: TMP_WS };
+      const { ctx, getLastSent } = makeCtx(o, TMP_WS, body);
+      await overlayRoute(ctx)('/overlay/code-edges/bulk', 'POST', { method: 'POST', headers: {} }, {}, { searchParams: { get: () => null } }, null);
+      const first = getLastSent();
+      ok('code-edges/bulk returns 200', first && first.status === 200);
+      ok('code-edges/bulk reports both added edges', first.body.created === 2 && first.body.edges_added === 2);
+      ok('code-edges/bulk persisted both edges', o.code_edges.filter((e) => e.from_file === 'bulk.js').length === 2);
+
+      const retry = makeCtx(o, TMP_WS, body);
+      await overlayRoute(retry.ctx)('/overlay/code-edges/bulk', 'POST', { method: 'POST', headers: {} }, {}, { searchParams: { get: () => null } }, null);
+      ok('code-edges/bulk retry is idempotent', retry.getLastSent().body.edges_added === 0 && o.code_edges.filter((e) => e.from_file === 'bulk.js').length === 2);
     }
 
     // replace a node-file's edges via the node replace route (edges fold)
@@ -262,6 +284,27 @@ function makeCtx(overlay, ws, body) {
     });
     ok('ingest.resolveCodeEdges yields a code edge for a cross-file call',
       resolved.codeEdges.some((e) => e.from_file === 'b.js' && e.to === 'code:a.js#foo'));
+
+    const payloads = [];
+    await ingest.ingestExtracted({
+      repo: null,
+      symbols: [
+        { name: 'foo', kind: 'function', file: 'a.js', signature: 'foo()', exported: true },
+        { name: 'caller', kind: 'function', file: 'b.js', signature: 'caller()' },
+      ],
+      edges: [{ from: 'b.js', to: 'foo', kind: 'calls' }],
+      stats: {},
+    }, {
+      daemonUrl: 'http://daemon.test',
+      workspace: '/ws',
+      enrichBody: false,
+      post: async (_url, payload) => {
+        payloads.push(payload);
+        return { created: Array.isArray(payload.nodes) ? payload.nodes.length : 0, edges_added: Array.isArray(payload.edges) ? payload.edges.length : 0 };
+      },
+    });
+    ok('full ingest marks every node and edge batch as deferred until watermark commit',
+      payloads.length >= 2 && payloads.every((payload) => payload.defer_publish === true));
   }
 
   // ================================================================================================
@@ -274,10 +317,10 @@ function makeCtx(overlay, ws, body) {
     const replaceEdgeCalls = [];
     const deleteEdgeCalls = [];
     const fakeDaemon = {
-      replaceFile: async ({ file, nodes }) => { replaceNodeCalls.push(file); return { created: (nodes || []).length }; },
-      deleteFile: async ({ file }) => { deleteNodeCalls.push(file); return { deleted: 2 }; },
-      replaceEdges: async ({ file, edges }) => { replaceEdgeCalls.push({ file, edges }); return { created: (edges || []).length }; },
-      deleteEdges: async ({ file }) => { deleteEdgeCalls.push(file); return { deleted: 3 }; },
+      replaceFile: async ({ file, nodes, deferPublish }) => { replaceNodeCalls.push({ file, deferPublish }); return { created: (nodes || []).length }; },
+      deleteFile: async ({ file, deferPublish }) => { deleteNodeCalls.push({ file, deferPublish }); return { deleted: 2 }; },
+      replaceEdges: async ({ file, edges, deferPublish }) => { replaceEdgeCalls.push({ file, edges, deferPublish }); return { created: (edges || []).length }; },
+      deleteEdges: async ({ file, deferPublish }) => { deleteEdgeCalls.push({ file, deferPublish }); return { deleted: 3 }; },
       setLastIndexedCommit: async () => ({}),
     };
     // resolveAll returns repo-wide resolved edges: changed.js calls a symbol in unchanged.js.
@@ -301,14 +344,17 @@ function makeCtx(overlay, ws, body) {
       }
     );
 
-    ok('sync replaced nodes for changed.js', replaceNodeCalls.includes('changed.js'));
-    ok('sync deleted nodes for gone.js', deleteNodeCalls.includes('gone.js'));
+    ok('sync replaced nodes for changed.js', replaceNodeCalls.some((c) => c.file === 'changed.js'));
+    ok('sync deleted nodes for gone.js', deleteNodeCalls.some((c) => c.file === 'gone.js'));
     ok('sync replaced EDGES for changed.js', replaceEdgeCalls.some((c) => c.file === 'changed.js'));
     ok('sync pushed ONLY changed.js outgoing edges (2: call + import)',
       (replaceEdgeCalls.find((c) => c.file === 'changed.js') || {}).edges.length === 2);
     ok('sync did NOT push unchanged.js edges (not a changed file)',
       !replaceEdgeCalls.some((c) => c.file === 'unchanged.js'));
-    ok('sync deleted EDGES for the deleted file gone.js', deleteEdgeCalls.includes('gone.js'));
+    ok('sync deleted EDGES for the deleted file gone.js', deleteEdgeCalls.some((c) => c.file === 'gone.js'));
+    ok('sync defers every intermediate node and edge mutation until the final watermark',
+      [...replaceNodeCalls, ...deleteNodeCalls, ...replaceEdgeCalls, ...deleteEdgeCalls]
+        .every((c) => c.deferPublish === true));
     ok('sync summary edges_replaced === 2', res.edges_replaced === 2);
     ok('sync summary edges_deleted === 3', res.edges_deleted === 3);
   }

@@ -259,9 +259,10 @@ activity.reset(); clearLog();
 // calls exercise the production predicates, not a stub that could drift from them.
 const overlayStore = require('../lib/overlay');
 function makeCtx(opts = {}) {
-  const { _status, _review, planner, ...config } = opts;
+  const { _status, _review, _frontier_liveness, planner, ...config } = opts;
   const ov = overlayStore.EMPTY();
   ov.config = config;
+  if (_frontier_liveness) ov.frontier_liveness = _frontier_liveness;
   if (_status) ov.status = { ..._status };
   if (planner) ov.planner = planner;
   for (const [key, patch] of Object.entries(_review || {})) overlayStore.setReviewLifecycle(ov, key, patch);
@@ -354,6 +355,7 @@ activity.reset(); clearLog();
   // Two tested tasks: one awaiting review, one already approved (must NOT count as pending).
   const h = makeCtx({
     automode: true,
+    _frontier_liveness: { status: 'stalled', reason: 'ready_work_requires_wiring', managed_loop_id: null },
     _status: { 'p/1': 'tested', 'p/2': 'tested' },
     _review: { 'p/1': { review_state: 'requested', merge_state: 'review_pending' } },
   });
@@ -364,6 +366,8 @@ activity.reset(); clearLog();
   ok('merges_today counts only merges that LANDED', r.body.merges_today === 1);
   ok('backoff_until is null when not throttled', r.body.backoff_until === null);
   ok('status echoes the autonomy flags', r.body.autonomy && r.body.autonomy.partial === true);
+  ok('status exposes the managed frontier stall reason', r.body.frontier_liveness
+    && r.body.frontier_liveness.reason === 'ready_work_requires_wiring');
   ok('status reports last_planner_run (null with no planner history)', 'last_planner_run' in r.body);
 
   const withPlanner = makeCtx({ planner: { lastPlanAt: Date.parse('2026-07-04T12:00:00Z') } });

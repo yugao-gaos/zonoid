@@ -211,6 +211,26 @@ test('failed planner child still stamps the cooldown (no hot-loop on a crashing 
   assert.equal(overlay.planner.lease, undefined);
 });
 
+test('detached planner failure reports a newly-created backoff to its runner listener', async () => {
+  const notices = [];
+  const { deps, governor } = makeFixture({
+    decisions: planDecision(),
+    drainResult: { exitCode: 1, stdout: '', stderr: '429 overloaded', timedOut: false, spawnError: null },
+  });
+  deps.detachChildren = true;
+  deps.onDetachedSettled = (outcome) => { notices.push(outcome); };
+  deps.recordOutcome = () => { governor.backoffUntil = Date.now() + 1000; };
+
+  const result = await headlessSpawn.runDueSpawns({}, deps);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(result.ran, 1);
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0].kind, 'planner');
+  assert.equal(notices[0].newBackoff, true);
+  assert.ok(notices[0].backoffUntil > notices[0].previousBackoffUntil);
+});
+
 // ---------------------------------------------------------------------------
 // Test 3: optimize mode — payload embedded, different-change instruction, no self_plan needed
 // ---------------------------------------------------------------------------

@@ -129,9 +129,10 @@ git apply /Users/imyu/Desktop/zonoid/patches/arc-agi3-local-cli.patch
 
 That patch adds a `zonoid-local-cli` config, a `local-cli` runtime that reads
 `ARC_AGENT_COMMAND`, and active Zonoid integration inside `BenchmarkingAgent`. The patched harness
-fetches compact task context and search evidence before model calls, appends it to the user turn, and
-writes best-effort `arc-agi-3` observation notes after parsed steps. The CLI command only receives the
-final prompt; it does not need direct localhost HTTP access.
+fetches compact task context and search evidence before each decide call, threads in the vision
+composite and executable world model, keeps decide and reflect as separate LLM calls, and writes
+best-effort `arc-agi-3` observation notes after reflect. The CLI command only receives the final
+prompt; it does not need direct localhost HTTP access.
 
 Zonoid context is exported through environment variables only when the checkout appears to contain a
 Zonoid integration point (`ZONOID`/`zonoid` tokens in Python files). The variables are:
@@ -168,8 +169,9 @@ the first Zonoid node for the run; the runner waits until the isolated daemon ad
 task key as `ZONOID_TASK_KEY`. The config passed to the ARC SDK includes task-scoped instructions for:
 
 - `/task/context` with `workspace` and `key` (the daemon route reads `key`, not `task_key`)
-- `/search` with `workspace`, `task_key`, `k`, and `gated=false`
-- optional note creation if the SDK exposes a write hook
+- `/search` with `workspace`, `task_key`, `k`, and `gated=false` before each decide call
+- a decide/reflect turn structure that uses the vision composite and executable world model
+- optional note creation after reflect if the SDK exposes a write hook
 
 The no-zonoid baseline receives no daemon URL, no workspace, and no KB instructions. In official
 benchmarking-repo mode, a full A/B requires the checkout to actually consume the Zonoid environment

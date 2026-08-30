@@ -242,6 +242,23 @@ curl localhost:8787/status?workspace=<path>
 # → planner_backoff: { cooldown_ms, no_action_streak, next_eligible_at, on_cooldown, … }
 ```
 
+### Frontier liveness and recovery
+
+Autonomous work is reconciled on boot and periodically while the daemon is running. When legitimate
+ready work exists, Zonoid repairs legacy partial auto configuration, keeps one deterministic managed
+loop for the workspace, ignores known-dead worker rows for dispatch capacity, and excludes internal
+drains or already-landed tasks from the user-work queue. `GET /status?workspace=<path>` exposes the
+result as `frontier_liveness`; a `stalled` value includes an actionable reason such as an unwired task
+or an exhausted safety budget.
+
+Launchers identify the listener through signed `/health` and `/version` responses. If the listener is
+an older Zonoid build and its advertised PID matches the runtime PID file, relaunch performs a bounded
+graceful handoff and waits for the current build to become ready. A listener without that ownership
+proof is never signalled. Unattended GitHub checkpoints similarly derive the account from each remote
+and scope `gh auth token --user <owner>` to that Git operation; they do not change the user's active
+`gh` account. Authenticate the repository owner once with `gh auth login` if status reports that the
+owner account is unavailable.
+
 ## Tuning (persisted, hot-reloadable)
 
 The drain/worker tuning knobs resolve **env > file > default**. The file is
@@ -313,6 +330,77 @@ node bin/install.js --windows-service
 http://localhost:8787/graph?workspace=<url-encoded absolute workspace path>
 ```
 
+Call `show_dashboard` from any MCP client. It returns a versioned `launch` descriptor with the
+inline MCP resource, the workspace-scoped HTTP URL, and capability-based presentation choices.
+Clients can select an MCP App, an embedded web surface, or the universal external-browser fallback
+without relying on client names or private APIs. The legacy `browser_url` and `deep_link` fields
+remain aliases of `launch.url`.
+
+The same contract is available from the command line:
+
+```sh
+zonoid-dashboard --workspace /path/to/repo --json
+zonoid-dashboard --workspace /path/to/repo --open
+```
+
+The default origin is `http://localhost:8787`. Set `ZONOID_DASHBOARD_ORIGIN` or pass `--origin`
+when the daemon is exposed through another HTTP(S) origin. Origins containing credentials, paths,
+query parameters, or fragments are rejected, and launch URLs never carry the daemon auth token.
+The daemon remains the dashboard data/API backend; the presentation path does not require CDP,
+private DOM injection, or a custom URL scheme.
+
+### Operational dashboard views
+
+Kanban Board is the first-visit operational view. Its observational v1 contract maps tasks into
+Queue, Ready, WIP, Review, and Done; it does not support drag-and-drop status changes. The board
+scope is the current Frontier plus explicit `kanban_pin` tasks and tasks with unresolved user
+gates. Internal drains, judge wrappers, and note/knowledge nodes are excluded. Done shows the 12
+most recently changed terminal tasks and keeps the complete, paginated terminal-task set under
+**History**.
+
+Dashboard state refreshes from the workspace SSE stream with a safety poll. Task selection and the
+inspector are shared across Kanban, Frontier Tasks, Force Cloud, and Focus View; Focus returns to
+the originating tab, and each view preserves its own filters and navigation state. Kanban cards are
+native keyboard-operable buttons, lanes have accessible labels, and narrow screens retain all five
+lanes through horizontal scrolling while the inspector overlays the board.
+
+VS Code and Cursor can also use the bundled editor panel. `zonoid init --harness cursor`
+installs it additively with the Cursor CLI; the equivalent VS Code command is:
+
+```sh
+code --install-extension /path/to/zonoid/packages/vscode-dashboard/zonoid-dashboard-0.1.0.vsix
+```
+
+Run **Zonoid: Open Dashboard** from the Command Palette for the embedded panel, or
+**Zonoid: Open Dashboard in Browser** for the external fallback. In remote workspaces the
+extension resolves the daemon URL with the editor's public `asExternalUri` API before either
+presentation, so the editor owns localhost forwarding and URL rewriting.
+
+Claude Desktop can install the bundled
+`packages/claude-dashboard-mcpb/zonoid-dashboard.mcpb` extension and render the existing MCP App.
+The extension is a small launcher, not a second dashboard: installation asks for the existing
+Zonoid checkout that contains `mcp-graph.js`. Rebuild the checked artifact deterministically with
+`npm run build:claude-dashboard`. Claude Code keeps its existing `.mcp.json` wiring and uses
+`show_dashboard` or `zonoid-dashboard --open`; it does not render Claude Desktop extensions.
+
+OpenCode gets a `dashboard_open` plugin tool and an additive project command at
+`.opencode/commands/dashboard.md`. Run `/dashboard` in the TUI to invoke it. OpenCode does not
+embed arbitrary dashboard HTML in the TUI, so the tool opens the validated, workspace-scoped URL
+in the system browser and still returns the complete launch descriptor if the opener fails.
+
+DeepSeek Harness gets the native Cordis bridge and stdio MCP profile bundle with:
+
+```sh
+npx @zonoid/cli init --harness dsh
+dsh --profile headless "task"
+```
+
+The installer uses DSH's public profile plugin command and keeps its managed bundle under
+`$DSH_HOME/zonoid/packages/dsh`. It preserves user Cordis patches, plugins, other MCP servers,
+dependencies, and bundle layers; repeated init calls are idempotent, and profile metadata is
+backed up before DSH changes it. The hermetic operator proof and optional pinned-host rerun are
+documented in [`docs/dsh-acceptance.md`](docs/dsh-acceptance.md).
+
 ## MCP tools
 
 56 tools, served identically over both transports (stdio and the daemon's `/mcp` endpoint). The
@@ -320,6 +408,15 @@ live registry is the `TOOLS` array in `lib/mcp-core.js`. (Tasks themselves are c
 Claude Code's native `TaskCreate`; these tools manage them once they exist.)
 
 ### Task lifecycle
+
+Routine Subconscious assignments treat documentation as part of implementation. Before a successful
+`subconscious_assignment complete`, the worker inspects relevant README, `docs/`, API/contract, and
+operator guidance, updates affected documents in the same attempt commit, and records the updated
+paths in its completion summary. When no documentation change is needed, the summary instead includes
+a credible `Documentation: not needed — <reason>` rationale. Same-node review checks that evidence
+against the attempt diff and kicks back undocumented behavior, contract, setup, or lifecycle changes.
+Legacy summary-only completions remain accepted; this responsibility does not change the
+`task_result` v1 schema.
 
 | Tool | Purpose |
 |---|---|
@@ -385,7 +482,7 @@ Claude Code's native `TaskCreate`; these tools manage them once they exist.)
 
 | Tool | Purpose |
 |---|---|
-| `show_dashboard` | Render the task-graph dashboard inline in the conversation (interactive, live-updating) |
+| `show_dashboard` | Render the live inline summary and return a client-neutral launch contract for the scoped full dashboard |
 
 ## Development
 

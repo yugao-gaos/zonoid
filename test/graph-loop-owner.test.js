@@ -185,6 +185,84 @@ test('conflicted tested task surfaces conflict resolution action', () => {
   assert.equal(decisions[0].task.key, 'codex/merge-conflict');
 });
 
+test('canceled task with stale conflict metadata does not block the frontier', () => {
+  const ws = registerWorkspace('canceled-merge-conflict');
+  const ov = readyOverlay(ws, []);
+  overlayStore.setSnapshot(ov, 'codex/canceled-conflict', {
+    subject: 'Canceled conflict',
+    description: 'Canceled conflict',
+    status: 'pending',
+    blockedBy: [],
+    owner: null,
+    metadata: {},
+  });
+  overlayStore.setStatus(ov, 'codex/canceled-conflict', 'canceled');
+  overlayStore.setReviewLifecycle(ov, 'codex/canceled-conflict', {
+    review_state: 'canceled',
+    review_verdict: 'APPROVE',
+    merge_state: 'conflict',
+  });
+  const loopId = managedGraphLoopId(ws);
+  const fresh = new Date().toISOString();
+  daemon.__setLoopsForTest([[
+    loopId,
+    {
+      id: loopId, active: true, iterations: 0, spent: 0, baseline: 0, real: false,
+      startedAt: fresh, session: null, lastProgress: fresh, workspace: ws, managed: 'graph',
+      config: { tokenBudget: 5000000, maxIterations: 6250, minPoll: 30, maxPoll: 300, estPerTick: 800, batch: 4, maxConcurrency: 6, judgeParallelCap: 6 },
+    },
+  ]]);
+
+  const decisions = daemon.decideAll();
+
+  assert.equal(decisions.length, 1);
+  assert.equal(decisions[0].action, 'stop');
+  assert.match(decisions[0].reason, /DAG drained/);
+});
+
+test('blocked integration and non-task lifecycle debris do not block self-planning', () => {
+  const ws = registerWorkspace('blocked-integration-debris');
+  const ov = readyOverlay(ws, []);
+  ov.config.self_plan = true;
+  overlayStore.setSnapshot(ov, 'codex/blocked-merge', {
+    subject: 'Blocked merge',
+    description: 'Blocked merge',
+    status: 'pending',
+    blockedBy: [],
+    owner: null,
+    metadata: {},
+  });
+  overlayStore.setStatus(ov, 'codex/blocked-merge', 'not_ready');
+  overlayStore.setBlocked(ov, 'codex/blocked-merge', 'unsafe stale integration');
+  overlayStore.setReviewLifecycle(ov, 'codex/blocked-merge', {
+    review_state: 'approved',
+    review_verdict: 'APPROVE',
+    merge_state: 'pending',
+  });
+  const noteId = overlayStore.addNoteNode(ov, { title: 'Historical note', summary: 'Not executable' });
+  overlayStore.setReviewLifecycle(ov, `note:${noteId}`, {
+    review_state: 'approved',
+    review_verdict: 'APPROVE',
+    merge_state: 'pending',
+  });
+  const loopId = managedGraphLoopId(ws);
+  const fresh = new Date().toISOString();
+  daemon.__setLoopsForTest([[
+    loopId,
+    {
+      id: loopId, active: true, iterations: 0, spent: 0, baseline: 0, real: false,
+      startedAt: fresh, session: null, lastProgress: fresh, workspace: ws, managed: 'graph',
+      config: { tokenBudget: 5000000, maxIterations: 6250, minPoll: 30, maxPoll: 300, estPerTick: 800, batch: 4, maxConcurrency: 6, judgeParallelCap: 6 },
+    },
+  ]]);
+
+  const decisions = daemon.decideAll();
+
+  assert.equal(decisions.length, 1);
+  assert.equal(decisions[0].action, 'plan');
+  assert.match(decisions[0].reason, /DAG drained/);
+});
+
 test('active managed graph loop is reused, while foreground session loop may coexist', () => {
   const ws = registerWorkspace('reuse-managed');
   readyOverlay(ws, [{ key: 'codex/reuse-ready', label: 'Reuse ready work' }]);
@@ -257,4 +335,31 @@ test('inactive restored managed graph loop is reactivated in place', () => {
   assert.equal(loops.get(loopId).iterations, 1);
   assert.equal(decisions.length, 1);
   assert.equal(decisions[0].loopId, loopId);
+});
+
+test('stale agent registry rows do not consume capacity needed by legitimate ready work', () => {
+  const ws = registerWorkspace('stale-agent-capacity');
+  const ov = overlayStore.EMPTY();
+  ov.assignee['codex/zombie'] = 'dead-agent';
+  daemon.__setAgentsForTest({
+    'dead-agent': { agent_id: 'dead-agent', state: 'dead', endedAt: '2026-06-20T00:00:00.000Z' },
+  });
+  const fresh = new Date().toISOString();
+  const loop = {
+    id: 'managed-test', active: true, iterations: 0, spent: 0, baseline: 0, real: false,
+    startedAt: fresh, lastProgress: fresh, session: null, workspace: ws, managed: 'graph',
+    config: { tokenBudget: 5000000, maxIterations: 6250, minPoll: 30, maxPoll: 300, estPerTick: 800, batch: 1, maxConcurrency: 1, judgeParallelCap: 1 },
+  };
+
+  const decision = daemon.decideOne(loop, {
+    ws, ov,
+    graph: { tasks: [
+      { id: 'codex/zombie', label: 'Zombie', status: 'in_progress', deps: [] },
+      { id: 'codex/ready', label: 'Ready', status: 'ready', deps: [] },
+    ] },
+    pendingGuidance: [], reviewPending: 0, batch: { remaining: 1 },
+  });
+
+  assert.equal(decision.action, 'spawn');
+  assert.deepEqual(decision.tasks, [{ key: 'codex/ready', label: 'Ready' }]);
 });

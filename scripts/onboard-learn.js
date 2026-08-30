@@ -5,15 +5,17 @@
  * validated, NON-OBVIOUS semantic KB by putting a bounded LLM judge in front of mined evidence.
  *
  * The static miners are recall-leaning and noisy (e.g. 137 doc "candidates" for this repo, most
- * of them restatements). This learner runs the dashboard-selected agentic CLI backend against
- * compact evidence snippets so it must:
+ * of them restatements). This learner runs the dashboard-selected LLM backend against compact
+ * evidence snippets so it must:
  *   1. VALIDATE or REFUTE each mined hypothesis against bounded evidence prepared by this script,
  *   2. KEEP only NON-OBVIOUS, load-bearing knowledge — a convention, an invariant, the gotcha
  *      behind a revert, a "why X not Y" — that a competent dev would NOT infer in 30s of reading,
  *   3. explicitly REJECT restatements of current code (a note that just narrates a function adds
  *      nothing), and MAY ADD a few high-value notes it discovered while reading that the miners
  *      missed.
- * It writes onboard-notes.json (validated) + onboard-learn-report.json (kept/rejected w/ reasons).
+ * The dashboard-selected backend validates the batch through either its agentic CLI invocation or
+ * its in-process API call. It writes onboard-notes.json (validated) + onboard-learn-report.json
+ * (kept/rejected w/ reasons).
  *
  * DRY-RUN BY DEFAULT and REVERSIBLE: the agent only WRITES A JSON FILE (read-only on the graph).
  * Injection into the live graph is a SEPARATE, explicit --confirm step that reuses the existing
@@ -35,6 +37,7 @@
  */
 
 const { execFileSync, spawn } = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
@@ -44,6 +47,25 @@ const SELF_REPO = path.resolve(__dirname, '..');
 const backendLib = require('../lib/llm-backend');
 const overlayStore = require('../lib/overlay');
 const { defaultOnboardOutDir } = require('../lib/onboard-paths');
+const { readToken } = require('../lib/mcp-core');
+const {
+  INJECTION_RECEIPT_FILE,
+  readOnboardStatus,
+  readOnboardQueue,
+  pidAlive,
+  liveOnboardInjectionLease,
+  mutateOnboardStatus,
+  reconcileOnboardPublication,
+  publishOnboardGeneration,
+  onboardNoteId,
+  confirmedInjectedNoteIds,
+  confirmInjectedNote,
+  onboardQueueGeneration,
+  validateOnboardQueue,
+  withFileLock,
+  writeOnboardNotesArtifact,
+  loadGenerationMatchedOnboardNotes,
+} = require('../lib/onboard-state');
 // Load secrets from a gitignored .env.local (then .env) at the repo root into process.env without
 // overriding the real environment. Individual backend providers decide which credentials matter.
 try { require('../lib/load-env').loadEnvFiles(SELF_REPO); } catch { /* optional */ }
@@ -57,9 +79,11 @@ const MCP_OFF = (() => {
   fs.writeFileSync(p, '{"mcpServers":{}}');
   return p;
 })();
-const DAEMON = process.env.ORCH_DAEMON || 'http://localhost:8787';
+const DAEMON = process.env.ORCH_DAEMON || `http://localhost:${Number(process.env.ORCH_PORT) || 8787}`;
 const PREFIX = '[ingest] '; // reuse the existing reversible prefix so injected nodes stay uniform
 const DEFAULT_TIMEOUT_MS = 600 * 1000;
+const API_LEARNER_MIN_TOKENS = 2048;
+const API_LEARNER_MAX_TOKENS = 32768;
 const QUEUE_LOCK_STALE_MS = 30 * 1000;
 const QUEUE_LOCK_WAIT_MS = 5000;
 const EXIT_TIMEOUT = 124;
@@ -201,8 +225,9 @@ function boundedCandidatesForPrompt(repoAbs, candidates) {
 }
 
 // ---- the agent's instruction: validate hypotheses, keep only non-obvious notes -------------
-function buildPrompt(repoAbs, candidates, outFile, maxKeep) {
+function buildPrompt(repoAbs, candidates, outFile, maxKeep, opts = {}) {
   const bounded = boundedCandidatesForPrompt(repoAbs, candidates);
+  const apiResponse = opts.responseMode === 'api';
   return `You are ONBOARDING onto an unfamiliar codebase at ${repoAbs}. Your job is to build a
 small, HIGH-VALUE knowledge base of NON-OBVIOUS facts about THIS project — the kind of thing a
 new engineer only learns after weeks, or by getting burned.
@@ -210,8 +235,9 @@ new engineer only learns after weeks, or by getting burned.
 This is a BOUNDED learner pass. Do NOT inspect the repo. Do NOT run shell commands. Do NOT use
 git, grep, cat, ls, file reads, web access, or any tool to gather more evidence. The bounded
 evidence below is the entire record you may judge from. If the evidence does not prove a
-candidate, REJECT it as "unverifiable". The only filesystem action you may perform is creating or
-overwriting the required JSON output file.
+candidate, REJECT it as "unverifiable". ${apiResponse
+    ? 'Do not perform any filesystem action; return the required JSON object directly in your response.'
+    : 'The only filesystem action you may perform is creating or overwriting the required JSON output file.'}
 
 Below are ${candidates.length} CANDIDATE hypotheses auto-mined from this repo's git history, docs,
 and module structure. They are NOISY — many are restatements of what the code obviously does, or
@@ -238,7 +264,7 @@ reject the listed candidates.
 
 Keep AT MOST ${maxKeep} notes total. Quality over coverage — a KB of restatements is a failure.
 
-When done, write a JSON file to ${outFile} with EXACTLY this shape (no prose around it):
+When done, ${apiResponse ? 'return a JSON object directly in your response' : `write a JSON file to ${outFile}`} with EXACTLY this shape (no prose around it):
 {
   "kept": [
     { "title": "<=80 char imperative/declarative", "summary": "1-3 sentences, the load-bearing fact + WHY it matters", "evidence": "file:line or commit sha you verified against", "kind": "convention|invariant|gotcha|decision", "source": "<candidate index or 'discovered'>" }
@@ -247,7 +273,9 @@ When done, write a JSON file to ${outFile} with EXACTLY this shape (no prose aro
     { "candidate": "<short id/title>", "reason": "restatement | stale | unverifiable | generic" }
   ]
 }
-Create or overwrite that JSON file. Do not create any other files. Do not touch the orchestrator graph.
+${apiResponse
+    ? 'Return only that JSON object. Do not create files. Do not touch the orchestrator graph.'
+    : 'Create or overwrite that JSON file. Do not create any other files. Do not touch the orchestrator graph.'}
 
 === BOUNDED CANDIDATES ===
 ${bounded.map((c) => JSON.stringify(c)).join('\n')}
@@ -366,76 +394,37 @@ function capCandidates(cands, max) {
 // inflight/completed: sparse start-index maps used so several drain children can reserve
 // non-overlapping slices and merge them in cursor order.
 function readQueue(queueFilePath) {
-  return loadJSON(queueFilePath, null);
+  return readOnboardQueue(path.dirname(queueFilePath));
 }
 
 function queueFilePath(outDir) {
   return path.join(outDir, 'onboard-queue.json');
 }
 
-function sleepSync(ms) {
-  const buf = new SharedArrayBuffer(4);
-  Atomics.wait(new Int32Array(buf), 0, 0, ms);
-}
-
-function isPidAlive(pid) {
-  const n = Number(pid);
-  if (!Number.isInteger(n) || n <= 0) return false;
-  try {
-    process.kill(n, 0);
-    return true;
-  } catch (err) {
-    return !!(err && err.code === 'EPERM');
-  }
-}
-
-function withQueueLock(qf, fn) {
-  const lock = `${qf}.lock`;
-  fs.mkdirSync(path.dirname(qf), { recursive: true });
-  const deadline = Date.now() + QUEUE_LOCK_WAIT_MS;
-  let fd = null;
-  while (fd == null) {
-    try {
-      fd = fs.openSync(lock, 'wx');
-      fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, at: Date.now() }));
-    } catch (err) {
-      if (!err || err.code !== 'EEXIST') throw err;
-      try {
-        const st = fs.statSync(lock);
-        if (Date.now() - st.mtimeMs > QUEUE_LOCK_STALE_MS) {
-          fs.unlinkSync(lock);
-          continue;
-        }
-      } catch { /* lock disappeared; retry */ }
-      if (Date.now() >= deadline) throw new Error(`timed out waiting for queue lock ${lock}`);
-      sleepSync(50);
-    }
-  }
-  try {
-    return fn();
-  } finally {
-    try { fs.closeSync(fd); } catch { /* ignore */ }
-    try { fs.unlinkSync(lock); } catch { /* ignore */ }
-  }
+function withQueueLock(qf, fn, opts = {}) {
+  return withFileLock(qf, fn, {
+    waitMs: QUEUE_LOCK_WAIT_MS,
+    staleMs: QUEUE_LOCK_STALE_MS,
+    ...opts,
+  });
 }
 
 function normalizeQueue(queue) {
-  if (!queue || typeof queue !== 'object') return null;
-  queue.total = Number(queue.total) || 0;
-  queue.cursor = Math.max(0, Number(queue.cursor) || 0);
-  if (!Array.isArray(queue.kept)) queue.kept = [];
-  if (!Array.isArray(queue.rejected)) queue.rejected = [];
-  if (!Array.isArray(queue.pending)) queue.pending = [];
-  if (!queue.inflight || typeof queue.inflight !== 'object' || Array.isArray(queue.inflight)) queue.inflight = {};
-  if (!queue.completed || typeof queue.completed !== 'object' || Array.isArray(queue.completed)) queue.completed = {};
+  if (!validateOnboardQueue(queue, { allowLegacy: true }).ok) return null;
+  if (queue.inflight === undefined) queue.inflight = {};
+  if (queue.completed === undefined) queue.completed = {};
   return queue;
+}
+
+function queueGeneration(queue) {
+  return onboardQueueGeneration(queue);
 }
 
 function cleanupExpiredInflight(queue, nowMs = Date.now()) {
   normalizeQueue(queue);
   for (const [start, entry] of Object.entries(queue.inflight || {})) {
     const expired = entry && entry.expiresAt && Number(entry.expiresAt) <= nowMs;
-    const deadOwner = entry && entry.pid && !isPidAlive(entry.pid);
+    const deadOwner = entry && entry.pid && !pidAlive(entry.pid);
     if (!entry || expired || deadOwner) delete queue.inflight[start];
   }
 }
@@ -470,13 +459,22 @@ function coveredIntervalAt(queue, index) {
 }
 
 function reserveQueueBatch(qf, batchSize, maxCandidates, nowMs = Date.now(), reservationTtlMs = DEFAULT_TIMEOUT_MS * 2) {
+  const batchLimit = Number(batchSize);
+  const candidateLimit = maxCandidates === Infinity ? Infinity : Number(maxCandidates);
+  const reservationNow = Number(nowMs);
+  if (!Number.isFinite(batchLimit) || Math.floor(batchLimit) <= 0
+      || (candidateLimit !== Infinity && (!Number.isFinite(candidateLimit) || Math.floor(candidateLimit) <= 0))
+      || !Number.isFinite(reservationNow) || reservationNow < 0) {
+    return { status: 'invalid_batch_size' };
+  }
   return withQueueLock(qf, () => {
     const queue = normalizeQueue(readQueue(qf));
     if (!queue) return { status: 'missing_queue' };
-    cleanupExpiredInflight(queue, nowMs);
+    cleanupExpiredInflight(queue, reservationNow);
     flushCompleted(queue);
     if (queue.cursor >= queue.total) {
       writeJSONAtomic(qf, queue);
+      writeOnboardNotesArtifact(path.dirname(qf), queue, queueGeneration(queue));
       return { status: 'already_drained', total: queue.total, kept: queue.kept.length };
     }
 
@@ -491,12 +489,21 @@ function reserveQueueBatch(qf, batchSize, maxCandidates, nowMs = Date.now(), res
       return { status: 'all_slices_inflight', total: queue.total, kept: queue.kept.length };
     }
 
-    const count = Math.min(batchSize, maxCandidates, queue.total - start);
+    const count = Math.min(Math.floor(batchLimit), candidateLimit === Infinity ? Infinity : Math.floor(candidateLimit), queue.total - start);
+    if (!Number.isInteger(count) || count <= 0) return { status: 'invalid_batch_size' };
+    const generation = queueGeneration(queue);
+    const reservationId = crypto.randomBytes(12).toString('hex');
+    const requestedTtl = Number(reservationTtlMs);
+    const leaseMs = Number.isFinite(requestedTtl) && requestedTtl > 0
+      ? Math.max(1000, requestedTtl)
+      : DEFAULT_TIMEOUT_MS;
     queue.inflight[String(start)] = {
       count,
+      generation,
+      reservationId,
       pid: process.pid,
-      startedAt: nowMs,
-      expiresAt: nowMs + Math.max(1000, Number(reservationTtlMs) || DEFAULT_TIMEOUT_MS),
+      startedAt: reservationNow,
+      expiresAt: reservationNow + leaseMs,
     };
     writeJSONAtomic(qf, queue);
     return {
@@ -504,6 +511,8 @@ function reserveQueueBatch(qf, batchSize, maxCandidates, nowMs = Date.now(), res
       total: queue.total,
       start,
       count,
+      generation,
+      reservationId,
       batch: queue.pending.slice(start, start + count),
     };
   });
@@ -513,18 +522,35 @@ function completeQueueBatch(qf, reservation, result, repoAbs, outDir, model) {
   return withQueueLock(qf, () => {
     const queue = normalizeQueue(readQueue(qf));
     if (!queue) throw new Error(`No queue file at ${qf}`);
-    cleanupExpiredInflight(queue);
+    if (!reservation || reservation.generation !== queueGeneration(queue)) {
+      return { ...queue, stale: true, staleReason: 'generation_replaced' };
+    }
     const key = String(reservation.start);
+    const inflight = queue.inflight[key];
+    if (!inflight || inflight.generation !== reservation.generation
+        || inflight.reservationId !== reservation.reservationId) {
+      return { ...queue, stale: true, staleReason: 'reservation_replaced' };
+    }
+    if (!Array.isArray(result && result.kept) || !Array.isArray(result && result.rejected)
+        || result.kept.length + result.rejected.length !== reservation.count) {
+      delete queue.inflight[key];
+      writeJSONAtomic(qf, queue);
+      throw new Error('learner batch did not classify every reserved onboarding candidate');
+    }
     delete queue.inflight[key];
+    // Do not expire sibling reservations here. Expiry only makes a slice available to a future
+    // reserve call; an exact still-current token remains allowed to finish until it is replaced.
     queue.completed[key] = {
       count: reservation.count,
+      generation: reservation.generation,
+      reservationId: reservation.reservationId,
+      completedAt: Date.now(),
       kept: Array.isArray(result.kept) ? result.kept : [],
       rejected: Array.isArray(result.rejected) ? result.rejected : [],
     };
     flushCompleted(queue);
     writeJSONAtomic(qf, queue);
-    const notesFile = path.join(outDir, 'onboard-notes.json');
-    writeJSONAtomic(notesFile, { kept: queue.kept, rejected: queue.rejected });
+    writeOnboardNotesArtifact(outDir, queue, queueGeneration(queue));
     if (queue.cursor >= queue.total) {
       fs.writeFileSync(path.join(outDir, 'onboard-learn-report.json'),
         JSON.stringify({ repo: repoAbs, candidates: queue.total, kept: queue.kept.length, rejected: queue.rejected.length, model, queue_mode: true }, null, 2) + '\n');
@@ -534,15 +560,24 @@ function completeQueueBatch(qf, reservation, result, repoAbs, outDir, model) {
 }
 
 function failQueueBatch(qf, reservation) {
-  if (!reservation || reservation.status !== 'reserved') return;
+  if (!reservation || reservation.status !== 'reserved') return { stale: true, staleReason: 'invalid_reservation' };
   try {
-    withQueueLock(qf, () => {
+    return withQueueLock(qf, () => {
       const queue = normalizeQueue(readQueue(qf));
-      if (!queue) return;
+      if (!queue) return { stale: true, staleReason: 'missing_queue' };
+      if (reservation.generation !== queueGeneration(queue)) {
+        return { stale: true, staleReason: 'generation_replaced' };
+      }
+      const inflight = queue.inflight[String(reservation.start)];
+      if (!inflight || inflight.generation !== reservation.generation
+          || inflight.reservationId !== reservation.reservationId) {
+        return { stale: true, staleReason: 'reservation_replaced' };
+      }
       delete queue.inflight[String(reservation.start)];
       writeJSONAtomic(qf, queue);
+      return { stale: false };
     });
-  } catch { /* best-effort; stale reservations expire */ }
+  } catch { return { stale: true, staleReason: 'lock_failed' }; }
 }
 
 function resolveLearnerBackend(repoAbs, requestedModel, deps = {}) {
@@ -552,8 +587,14 @@ function resolveLearnerBackend(repoAbs, requestedModel, deps = {}) {
   const active = backends.getActiveBackend(overlay);
   const provider = active && active.provider;
   if (!provider) throw new Error('no active LLM backend provider is registered');
+  if (provider.kind === 'api') {
+    if (typeof provider.callApi !== 'function') {
+      throw new Error(`${provider.displayName || provider.id} does not implement the learner API call contract`);
+    }
+    return { ...active, provider, model: requestedModel || active.model || undefined };
+  }
   if (provider.kind !== 'agentic-cli') {
-    throw new Error(`learner requires an agentic CLI backend; active backend "${provider.id}" is ${provider.kind}`);
+    throw new Error(`learner does not support active backend "${provider.id}" of kind ${provider.kind}`);
   }
   if (typeof provider.isAvailable === 'function' && !provider.isAvailable()) {
     throw new Error(`${provider.displayName || provider.id} CLI is not available`);
@@ -562,6 +603,62 @@ function resolveLearnerBackend(repoAbs, requestedModel, deps = {}) {
     throw new Error(`${provider.displayName || provider.id} is not authenticated for headless use`);
   }
   return { ...active, provider, model: requestedModel || active.model || undefined };
+}
+
+function buildLearnerApiRequest(repoAbs, candidates, outFile, active, maxKeep, timeoutMs) {
+  const prompt = buildPrompt(repoAbs, candidates, outFile, maxKeep, { responseMode: 'api' });
+  const maxTokens = Math.max(API_LEARNER_MIN_TOKENS, Math.min(
+    API_LEARNER_MAX_TOKENS,
+    (candidates.length * 256) + (maxKeep * 256),
+  ));
+  return {
+    messages: [
+      { role: 'system', content: 'Classify every onboarding candidate and return only the requested JSON object.' },
+      { role: 'user', content: prompt },
+    ],
+    model: active.model,
+    key: active.config && active.config.key,
+    maxTokens,
+    responseFormat: { type: 'json_object' },
+    timeoutMs,
+  };
+}
+
+function parseLearnerApiResult(text, candidateCount) {
+  let parsed;
+  try {
+    parsed = JSON.parse(String(text || '').replace(/^\uFEFF/, '').trim());
+  } catch (err) {
+    throw new Error(`learner API returned invalid JSON: ${err && err.message ? err.message : err}`);
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)
+      || !Array.isArray(parsed.kept) || !Array.isArray(parsed.rejected)) {
+    throw new Error('learner API response must contain kept[] and rejected[] arrays');
+  }
+  if (parsed.kept.length + parsed.rejected.length !== candidateCount) {
+    throw new Error(`learner API classified ${parsed.kept.length + parsed.rejected.length}/${candidateCount} candidates`);
+  }
+  return parsed;
+}
+
+async function runApiLearner(repoAbs, candidates, outFile, active, maxKeep, timeoutMs) {
+  const provider = active.provider;
+  const effectiveModel = active.model || provider.defaultModel || '(provider default)';
+  console.error(`[learn] running API validation (provider=${provider.id}, model=${effectiveModel}, ${candidates.length} candidates)…`);
+  const t0 = Date.now();
+  try {
+    const response = await provider.callApi(buildLearnerApiRequest(
+      repoAbs, candidates, outFile, active, maxKeep, timeoutMs,
+    ));
+    const result = parseLearnerApiResult(response && response.text, candidates.length);
+    writeJSONAtomic(outFile, result);
+    console.error(`[learn] API validation finished in ${Math.round((Date.now() - t0) / 1000)}s`);
+    return 0;
+  } catch (err) {
+    const message = err && err.message ? err.message : String(err);
+    console.error(`[learn] API validation FAILED (provider=${provider.id}, model=${effectiveModel}): ${message}`);
+    return /timed?\s*out/i.test(message) ? EXIT_TIMEOUT : 1;
+  }
 }
 
 function buildLearnerInvocation(repoAbs, candidates, outFile, model, maxKeep, deps = {}) {
@@ -656,11 +753,20 @@ function runLearnerProcess(invocation, repoAbs, timeoutMs) {
   });
 }
 
-async function runLearner(repoAbs, candidates, outFile, model, maxKeep, timeoutMs = DEFAULT_TIMEOUT_MS) {
+async function runLearner(repoAbs, candidates, outFile, model, maxKeep, timeoutMs = DEFAULT_TIMEOUT_MS, deps = {}) {
   let active;
+  try {
+    active = resolveLearnerBackend(repoAbs, model, deps);
+  } catch (err) {
+    console.error(`[learn] FATAL: ${err && err.message ? err.message : err}`);
+    return 1;
+  }
+  if (active.provider.kind === 'api') {
+    return runApiLearner(repoAbs, candidates, outFile, active, maxKeep, timeoutMs);
+  }
   let invocation;
   try {
-    ({ active, invocation } = buildLearnerInvocation(repoAbs, candidates, outFile, model, maxKeep));
+    ({ invocation } = buildLearnerInvocation(repoAbs, candidates, outFile, model, maxKeep, deps));
   } catch (err) {
     console.error(`[learn] FATAL: ${err && err.message ? err.message : err}`);
     return 1;
@@ -694,9 +800,12 @@ function request(method, urlPath, body) {
   return new Promise((resolve, reject) => {
     const u = new URL(urlPath, DAEMON);
     const payload = body ? Buffer.from(JSON.stringify(body)) : null;
+    const headers = payload ? { 'content-type': 'application/json', 'content-length': payload.length } : {};
+    const token = readToken();
+    if (token) headers.authorization = `Bearer ${token}`;
     const req = http.request(u, {
       method,
-      headers: payload ? { 'content-type': 'application/json', 'content-length': payload.length } : {},
+      headers,
     }, (res) => {
       let data = '';
       res.on('data', (c) => (data += c));
@@ -716,12 +825,40 @@ function request(method, urlPath, body) {
 // `workspace` (--workspace): target overlay workspace for the notes. Defaults to the daemon's LIVE
 // workspace (back-compat). For a FOREIGN repo's KB, pass an isolated workspace (e.g. the repo path)
 // so its notes never land in — and can't pollute — the live graph (note nodes have no delete API).
-async function inject(notesFile, confirm, workspace) {
-  return injectOnboardNotes(notesFile, confirm, workspace, request);
+async function inject(notesFile, confirm, workspace, expectedGeneration, expectedOwner) {
+  return injectOnboardNotes(notesFile, confirm, workspace, request, { expectedGeneration, expectedOwner });
 }
 
-async function injectOnboardNotes(notesFile, confirm, workspace, httpRequest = request) {
-  const data = loadJSON(notesFile, null);
+function assertCurrentInjectionGeneration(outDir, expectedGeneration, expectedOwner) {
+  if (!expectedGeneration) return;
+  const queue = readOnboardQueue(outDir);
+  const validated = validateOnboardQueue(queue, { expectedGeneration, allowLegacy: true });
+  const current = queueGeneration(queue);
+  const status = readOnboardStatus(outDir);
+  const replacement = status.preparationGeneration && status.preparationGeneration !== expectedGeneration
+    ? status.preparationGeneration
+    : null;
+  const ownerReplaced = expectedOwner && (status.injectionGeneration !== expectedGeneration
+    || status.injectionOwner !== expectedOwner);
+  const canceled = expectedOwner && status.injectionCancelRequestedOwner === expectedOwner;
+  if (!validated.ok || replacement || ownerReplaced || canceled) {
+    const err = new Error(`stale onboarding generation ${expectedGeneration}; current generation is ${replacement || current || 'missing'}`);
+    err.code = canceled ? 'CANCELED_ONBOARDING_INJECTION' : 'STALE_ONBOARDING_GENERATION';
+    throw err;
+  }
+}
+
+async function injectOnboardNotes(notesFile, confirm, workspace, httpRequest = request, options = {}) {
+  const outDir = path.dirname(notesFile);
+  const expectedGeneration = options.expectedGeneration || null;
+  const expectedOwner = options.expectedOwner || null;
+  const matched = expectedGeneration
+    ? loadGenerationMatchedOnboardNotes(outDir, expectedGeneration)
+    : null;
+  const data = matched && matched.ok ? matched.artifact : loadJSON(notesFile, null);
+  if (matched && !matched.ok) {
+    throw new Error(`onboarding notes artifact is not current (${matched.reason})`);
+  }
   if (!data || !Array.isArray(data.kept)) {
     console.error(`No validated notes at ${notesFile}. Run the learn pass first.`); process.exit(1);
   }
@@ -738,52 +875,100 @@ async function injectOnboardNotes(notesFile, confirm, workspace, httpRequest = r
     return;
   }
   console.log('=== onboard-learn --inject CONFIRMED ===');
-  const structureResult = await injectDocumentStructure(path.dirname(notesFile), workspace, httpRequest);
-  const existing = new Set();
+  assertCurrentInjectionGeneration(outDir, expectedGeneration, expectedOwner);
+  const assertCurrent = () => assertCurrentInjectionGeneration(outDir, expectedGeneration, expectedOwner);
+  const structureResult = await injectDocumentStructure(outDir, workspace, httpRequest, assertCurrent);
+  const existing = new Map();
   try {
+    assertCurrent();
     const statePath = workspace ? `/state?workspace=${encodeURIComponent(workspace)}` : '/state';
     const state = await httpRequest('GET', statePath);
-    for (const t of state.tasks || []) if (typeof t.label === 'string' && t.label.startsWith(PREFIX)) existing.add(t.label);
-  } catch (e) { console.error(`WARN: could not read /state for idempotency (${e.message}); proceeding without skip-set.`); }
-  let created = 0, skipped = 0, evidenceEdges = 0;
-  for (const n of kept) {
-    const title = PREFIX + n.title;
-    if (existing.has(title)) { skipped++; continue; }
-    const noteResp = await httpRequest('POST', '/overlay/note', {
-      title, summary: n.summary,
-      knowledge: [`evidence:${n.evidence || '?'}`, `kind:${n.kind}`, `origin:onboard-learn`]
-        .concat((Array.isArray(n.evidence_refs) ? n.evidence_refs : []).map((ref) => `evidence_ref:${ref}`)),
-      created_by: 'onboard-learn',
-      ...(workspace ? { workspace } : {}),
-    });
-    const noteKey = noteResp && (noteResp.key || (noteResp.id ? `note:${noteResp.id}` : null));
-    if (noteKey) {
-      for (const ref of evidenceRefsForNote(n, [], structure)) {
-        await httpRequest('POST', '/overlay/edge', {
-          from: ref,
-          to: noteKey,
-          kind: 'context',
-          weight: 1.0,
-          ...(workspace ? { workspace } : {}),
-        });
-        evidenceEdges++;
-      }
+    assertCurrent();
+    for (const t of state.tasks || []) {
+      if (typeof t.label !== 'string' || !t.label.startsWith(PREFIX) || t.validTo) continue;
+      const matches = existing.get(t.label) || [];
+      matches.push(t);
+      existing.set(t.label, matches);
     }
-    created++;
+  } catch (e) {
+    // Confirmed generation-scoped injection must fail closed: without current graph state a retry
+    // cannot distinguish a note persisted by an earlier partial attempt from a note not yet created.
+    if (expectedGeneration) throw new Error(`could not read /state for idempotent injection: ${e.message}`);
+    console.error(`WARN: could not read /state for idempotency (${e.message}); proceeding without skip-set.`);
+  }
+  const confirmedNoteIds = expectedGeneration
+    ? confirmedInjectedNoteIds(outDir, expectedGeneration)
+    : new Set();
+  let created = 0, skipped = 0, evidenceEdges = 0;
+  for (const [index, n] of kept.entries()) {
+    assertCurrent();
+    const noteId = onboardNoteId(n, index);
+    if (expectedGeneration && confirmedNoteIds.has(noteId)) {
+      skipped++;
+      continue;
+    }
+    const title = PREFIX + n.title;
+    const titleMatches = existing.get(title) || [];
+    const exact = titleMatches.find((t) => String(t.summary || '') === String(n.summary || ''));
+    let noteKey = exact && (exact.key || exact.id);
+    if (noteKey && !String(noteKey).startsWith('note:')) noteKey = `note:${noteKey}`;
+    if (!exact) {
+      let supersedes = titleMatches.length && (titleMatches[0].key || titleMatches[0].id);
+      if (supersedes && !String(supersedes).startsWith('note:')) supersedes = `note:${supersedes}`;
+      const noteResp = await httpRequest('POST', '/overlay/note', {
+        title, summary: n.summary,
+        knowledge: [`evidence:${n.evidence || '?'}`, `kind:${n.kind}`, `origin:onboard-learn`]
+          .concat((Array.isArray(n.evidence_refs) ? n.evidence_refs : []).map((ref) => `evidence_ref:${ref}`)),
+        created_by: 'onboard-learn',
+        ...(supersedes ? { supersedes } : {}),
+        ...(workspace ? { workspace } : {}),
+      });
+      assertCurrent();
+      noteKey = noteResp && (noteResp.key || noteResp.id);
+      if (noteKey && !String(noteKey).startsWith('note:')) noteKey = `note:${noteKey}`;
+      if (!noteKey) throw new Error(`overlay note '${title}' did not return a durable key`);
+      existing.set(title, [{ id: noteKey, label: title, summary: n.summary }]);
+      created++;
+    } else {
+      if (!noteKey) throw new Error(`existing overlay note '${title}' has no durable key`);
+      skipped++;
+    }
+    for (const ref of evidenceRefsForNote(n, [], structure)) {
+      assertCurrent();
+      await httpRequest('POST', '/overlay/edge', {
+        from: ref,
+        to: noteKey,
+        kind: 'context',
+        weight: 1.0,
+        ...(workspace ? { workspace } : {}),
+      });
+      assertCurrent();
+      evidenceEdges++;
+    }
+    // A note is not durably complete until every evidence edge has been upserted. If an edge write
+    // fails, no receipt advances; the next pass finds the exact note key and repairs all edges.
+    if (expectedGeneration) {
+      confirmInjectedNote(outDir, expectedGeneration, n, index);
+      confirmedNoteIds.add(noteId);
+    }
   }
   console.log(`document structure nodes upserted: ${structureResult.nodes}, provenance edges upserted: ${structureResult.edges}`);
   console.log(`notes created: ${created}, skipped (already present): ${skipped}, evidence edges: ${evidenceEdges}`);
   console.log(`Reversible: every injected node is titled '${PREFIX}…' — filter/remove like other ingest nodes.`);
-  return { created, skipped, evidenceEdges, structure: structureResult };
+  const confirmed = expectedGeneration
+    ? kept.reduce((count, note, index) => count + (confirmedNoteIds.has(onboardNoteId(note, index)) ? 1 : 0), 0)
+    : created + skipped;
+  return { created, skipped, confirmed, evidenceEdges, structure: structureResult };
 }
 
-async function injectDocumentStructure(inDir, workspace, httpRequest = request) {
+async function injectDocumentStructure(inDir, workspace, httpRequest = request, assertCurrent = () => {}) {
   const structure = loadJSON(path.join(inDir, 'doc-structure.json'), { nodes: [], edges: [] });
   const nodes = Array.isArray(structure.nodes) ? structure.nodes : [];
   const edges = Array.isArray(structure.edges) ? structure.edges : [];
   let upserted = 0;
   let wired = 0;
   for (const n of nodes) {
+    assertCurrent();
     await httpRequest('POST', '/overlay/knowledge-node', {
       ...n,
       ...(workspace ? { workspace } : {}),
@@ -791,6 +976,7 @@ async function injectDocumentStructure(inDir, workspace, httpRequest = request) 
     upserted++;
   }
   for (const e of edges) {
+    assertCurrent();
     await httpRequest('POST', '/overlay/edge', {
       from: e.from,
       to: e.to,
@@ -804,18 +990,100 @@ async function injectDocumentStructure(inDir, workspace, httpRequest = request) 
 }
 
 // ---- --enqueue: assemble all candidates and write queue file (no LLM) ----------------------
-function enqueue(inDir, outDir) {
+function enqueue(inDir, outDir, repoAbs) {
   let candidates = gatherCandidates(inDir);
-  if (!candidates.length) {
-    console.error(`No mined candidates in ${inDir}. Run scripts/onboard-mine-*.js --repo <abs> first.`);
-    process.exit(1);
-  }
-  // Sort by priority (config > asset > doc > git > struct). No cap at enqueue time.
-  candidates = sortByPriority(candidates);
   fs.mkdirSync(outDir, { recursive: true });
-  const queue = { total: candidates.length, cursor: 0, kept: [], rejected: [], pending: candidates };
-  writeJSONAtomic(queueFilePath(outDir), queue);
-  console.error(`[learn] enqueue: ${candidates.length} candidates written to ${queueFilePath(outDir)}`);
+  const staging = fs.existsSync(path.join(outDir, '.onboard-preparation.json'));
+  if (!staging) {
+    // A command restarted after a hard exit has no in-memory operation id to carry forward. Settle
+    // its durable journal before allocating a fresh generation, so the restarted invocation returns
+    // the exact recovered operation. Callers that already possess a requested generation use
+    // publishOnboardGeneration directly and are deduplicated by generation + payload digest.
+    const recovered = reconcileOnboardPublication(outDir);
+    if (!recovered.ok) throw new Error(`could not reconcile onboarding publication: ${recovered.error}`);
+    if (recovered.hadIntent && recovered.settled === 'committed') {
+      const recoveredQueue = readOnboardQueue(outDir);
+      if (!validateOnboardQueue(recoveredQueue, { expectedGeneration: recovered.generation }).ok) {
+        throw new Error('recovered onboarding publication has no matching queue');
+      }
+      console.error(`[learn] enqueue: recovered ${recoveredQueue.total} candidates in ${queueFilePath(outDir)}`);
+      return;
+    }
+  }
+  // Sort by priority (config > asset > doc > git > struct). No cap at enqueue time. Every direct
+  // enqueue is a replacement generation, even when the mined candidates are byte-identical.
+  candidates = sortByPriority(candidates);
+  const generation = `onboard-${crypto.randomBytes(12).toString('hex')}`;
+  const queue = {
+    generation,
+    total: candidates.length,
+    cursor: 0,
+    kept: [],
+    rejected: [],
+    pending: candidates,
+  };
+  let publishedQueue = queue;
+  if (!staging) {
+    const replaced = publishOnboardGeneration({
+      outDir,
+      queue,
+      files: {
+        [INJECTION_RECEIPT_FILE]: null,
+        'onboard-notes.json': queue.total === 0
+          ? { generation, kept: queue.kept, rejected: queue.rejected }
+          : null,
+      },
+      statusMutator: (status) => {
+        if (liveOnboardInjectionLease(status).live) return undefined;
+        return {
+          ...status,
+          ...(repoAbs ? { repo: repoAbs } : {}),
+          outDir,
+          preparationState: 'ready',
+          preparationGeneration: null,
+          preparationForce: false,
+          queueGeneration: generation,
+          total: queue.total,
+          injected: false,
+          injectedGeneration: null,
+          injectedAt: null,
+          injectedKept: 0,
+          injectionGeneration: generation,
+          injectionState: queue.total > 0 ? 'pending' : 'not_needed',
+          injectionOwner: null,
+          injectionPid: null,
+          injectionProcessIdentity: null,
+          injectionLeaseExpiresAt: null,
+          injectionCancelRequestedOwner: null,
+          injectionCancelRequestedAt: null,
+          injectionAttempts: 0,
+          injectionRetryAt: null,
+          injectionRetryCapped: false,
+          injectionError: null,
+          injectionFailedAt: null,
+          injecting: false,
+          error: null,
+          lastError: null,
+        };
+      },
+    });
+    if (!replaced.applied) throw new Error('cannot replace onboarding queue while injection is running');
+    publishedQueue = readOnboardQueue(outDir) || queue;
+  } else {
+    // A preparation staging directory is private to one miner attempt. Its final queue/status pair
+    // is committed later by publishPreparedQueue in the real output directory.
+    withQueueLock(queueFilePath(outDir), () => {
+      writeJSONAtomic(queueFilePath(outDir), queue);
+      try { fs.rmSync(path.join(outDir, INJECTION_RECEIPT_FILE), { force: true }); } catch { /* staging artifact */ }
+      if (queue.total === 0) writeOnboardNotesArtifact(outDir, queue, generation);
+      else try { fs.rmSync(path.join(outDir, 'onboard-notes.json'), { force: true }); } catch { /* staging artifact */ }
+    });
+  }
+  if (!publishedQueue.total) {
+    console.error(`[learn] enqueue: no mined candidates in ${inDir}; wrote a completed empty queue.`);
+    return;
+  }
+  console.error(`[learn] enqueue: ${publishedQueue.total} candidates written to ${queueFilePath(outDir)}`);
   console.error(`[learn] Run --drain --batch 50 (repeat) until --queue-status shows done:true, then --inject --confirm.`);
 }
 
@@ -861,6 +1129,10 @@ async function drain(repoAbs, outDir, model, maxKeep, batchSize, maxCandidates, 
 
   // Merge results back into queue and advance the contiguous cursor when possible.
   const queue = completeQueueBatch(qf, reservation, enrichedResult, repoAbs, outDir, model);
+  if (queue.stale) {
+    console.error(`[learn] stale ${reservation.generation} completion ignored (${queue.staleReason}).`);
+    return;
+  }
   const notesFile = path.join(outDir, 'onboard-notes.json');
   if (queue.cursor >= queue.total) {
     console.error(`[learn] DRAIN COMPLETE: ${queue.total} candidates -> kept ${queue.kept.length}, rejected ${queue.rejected.length}. Wrote ${notesFile}`);
@@ -883,7 +1155,7 @@ function previewKeptNotes(queue, limit = 64) {
 function queueStatus(outDir) {
   const qf = queueFilePath(outDir);
   const queue = readQueue(qf);
-  if (!queue) {
+  if (!validateOnboardQueue(queue, { allowLegacy: true }).ok) {
     console.error(`[learn] No queue file at ${qf}. Run --enqueue first.`);
     process.exit(1);
   }
@@ -908,11 +1180,20 @@ async function main() {
   const outDir = inDir; // output always co-located with input
   const notesFile = path.join(inDir, 'onboard-notes.json');
 
-  if (has('inject')) { await inject(notesFile, has('confirm'), arg('workspace', repoAbs)); return; }
+  if (!has('enqueue')) {
+    const reconciled = reconcileOnboardPublication(outDir);
+    if (!reconciled.ok) throw new Error(`could not reconcile onboarding publication: ${reconciled.error}`);
+  }
+
+  if (has('inject')) {
+    const expectedGeneration = arg('generation', queueGeneration(readOnboardQueue(outDir)));
+    await inject(notesFile, has('confirm'), arg('workspace', repoAbs), expectedGeneration, arg('owner', null));
+    return;
+  }
 
   if (has('queue-status')) { queueStatus(outDir); return; }
 
-  if (has('enqueue')) { enqueue(inDir, outDir); return; }
+  if (has('enqueue')) { enqueue(inDir, outDir, repoAbs); return; }
 
   if (has('drain')) {
     const batchSize = Math.max(1, parseInt(arg('batch', '50'), 10) || 50);
@@ -972,12 +1253,17 @@ module.exports = {
   evidenceRefsForNote,
   resolveLearnerBackend,
   buildLearnerInvocation,
+  buildLearnerApiRequest,
+  parseLearnerApiResult,
+  runLearner,
   buildPrompt,
   boundedCandidatesForPrompt,
   buildLearnerProcessEnv,
   reserveQueueBatch,
   completeQueueBatch,
   failQueueBatch,
+  withQueueLock,
   flushCompleted,
+  queueGeneration,
   EXIT_TIMEOUT,
 };

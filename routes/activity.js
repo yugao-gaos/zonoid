@@ -86,21 +86,19 @@ function startOfDayMs(now = new Date()) {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 }
 
-/**
- * Count TESTED tasks still waiting on same-node review. Reads straight off the overlay the request
- * already resolved — findReviewVerdictCandidates re-walks the graph, which is exactly the cost a
- * "lightweight status" endpoint must not pay. The PREDICATE is still the drain's own
- * (`_reviewVerdictPending`), so this count cannot drift from what the drain will actually pick up.
- */
-function reviewsPending(ov) {
-  if (!ov || !ov.status) return 0;
-  const overlayStore = require('../lib/overlay');
-  let n = 0;
-  for (const [key, status] of Object.entries(ov.status)) {
-    if (status !== 'tested') continue;
-    if (headlessDrain._reviewVerdictPending(overlayStore.reviewLifecycleFor(ov, key, status))) n++;
+/** Count tasks the review drain can actually pick up, including native judging-masked attempts. */
+function reviewsPending(ctx, ws, ov) {
+  if (!ov) return 0;
+  try {
+    if (ws && typeof ctx.buildGraph === 'function') {
+      return headlessDrain.findReviewVerdictCandidates(ws, { overlay: ov, graph: ctx.buildGraph(ws) }).length;
+    }
+    const overlayStore = require('../lib/overlay');
+    return Object.entries(ov.status || {}).filter(([key, status]) => status === 'tested'
+      && headlessDrain._reviewVerdictPending(overlayStore.reviewLifecycleFor(ov, key, status))).length;
+  } catch {
+    return 0;
   }
-  return n;
 }
 
 /** Count in-flight activity rows grouped by kind — the "per kind" view of what is running. */
@@ -158,6 +156,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       ok: true,
       workspace: ws,
       autonomy: autonomyView(ov),
+      frontier_liveness: ov && ov.frontier_liveness ? ov.frontier_liveness : null,
       workers_running: activity.running({ workspace: ws, kinds: activity.KIND.WORKER }).length,
       drains_running: gov ? gov.concurrent_running : null,
       // Full governor view: concurrency slots, iteration/token budgets, and backoff — the
@@ -177,7 +176,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       log_path: typeof daemonLog.logPath === 'function' ? daemonLog.logPath() : null,
       // Internal-lane counts (decision/work/learning/user_gate) when workspace-scoped.
       lanes: lanesSummary(ctx, ws, ov),
-      reviews_pending: reviewsPending(ov),
+      reviews_pending: reviewsPending(ctx, ws, ov),
       // "When does it stop?" — the two ceilings that answer it, both workspace-scoped:
       //   daily_budget  — persisted per-workspace-per-day token ceiling; `exceeded` ⇒ every
       //                   headless surface is paused until the local day rolls over.
@@ -206,6 +205,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     ok: true,
     workspace: ws,
     autonomy: autonomyView(ov),
+    frontier_liveness: ov && ov.frontier_liveness ? ov.frontier_liveness : null,
     governor: governorView(),
     ...snap,
   });

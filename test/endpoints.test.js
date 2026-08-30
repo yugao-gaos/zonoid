@@ -118,6 +118,13 @@ test('untested daemon endpoints', async () => {
     assert.ok(await waitForPing(), 'sandboxed daemon came up');
     assert.equal((await post('/workspace', { path: WS })).body.ok, true, 'workspace pinned');
 
+    let stateResponse = await get('/state?include_archived=1');
+    const dashboardTask = stateResponse.body.tasks.find((task) => task.id === KEY_A);
+    assert.ok(dashboardTask, '/state keeps the task visible');
+    assert.equal(Object.hasOwn(dashboardTask, 'vecs'), false, '/state omits server-only task vectors');
+    assert.equal(Object.hasOwn(dashboardTask, 'vecsMeta'), false, '/state omits server-only task vector metadata');
+    assert.equal(dashboardTask.label, 'gate probe task', '/state preserves dashboard task fields');
+
     // ════ 1. GET /active-claim — what the orch-gate hooks trust ════════════
     // No claim yet -> locked.
     let r = await get(`/active-claim?session=${SID_A}`);
@@ -374,6 +381,9 @@ test('untested daemon endpoints', async () => {
     // The write is readable back via /task/detail (state actually landed).
     r = await get(`/task/detail?key=${encodeURIComponent(KEY_A)}`);
     assert.equal(r.body.measurement.baseline.value, 42, 'measurement persisted on the task detail');
+    for (const field of ['vec', 'vecMeta', 'vecs', 'vecsMeta']) {
+      assert.equal(Object.hasOwn(r.body.task, field), false, `/task/detail omits server-only embedding field ${field}`);
+    }
 
     r = await post('/task/measure', {});
     assert.equal(r.status, 400, 'missing key -> 400');
@@ -412,6 +422,13 @@ test('untested daemon endpoints', async () => {
     r = await get(`/peek?workspace=${encodeURIComponent(WS)}`);
     const notes = r.body.tasks.filter((t) => t.kind === 'note');
     assert.equal(notes.length, 1, 'exactly one note node exists after the duplicate');
+    stateResponse = await get('/state?include_archived=1');
+    const dashboardNote = stateResponse.body.tasks.find((task) => task.id === n1.body.key);
+    assert.equal(Object.hasOwn(dashboardNote, 'vec'), false, '/state omits server-only note vectors');
+    assert.equal(Object.hasOwn(dashboardNote, 'vecMeta'), false, '/state omits server-only note vector metadata');
+    assert.equal(Object.hasOwn(dashboardNote, 'vecs'), false, '/state omits server-only note field vectors');
+    assert.equal(Object.hasOwn(dashboardNote, 'vecsMeta'), false, '/state omits server-only note field vector metadata');
+    assert.equal(dashboardNote.summary, nBody.summary, '/state preserves the note summary');
   } finally {
     try { child.kill(); } catch { /* already gone */ }
     for (const d of [SANDBOX, WS, REPO, NOT_A_REPO, PROJECTS_DIR, TASKS_A, TASKS_B]) {

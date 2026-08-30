@@ -59,8 +59,9 @@ index ca15412..b9db6b6 100644
 +                "action normally."
 +            )
 +        # Zonoid is offered as a tool, not wired in by the harness: the agent decides
-+        # whether and how to use it, following the protocol injected here. This keeps the
-+        # benchmark a test of generalization, not a hand-built memory feature.
++        # whether and how to use the REPL-style decide/reflect loop, vision, the world model,
++        # and the KB protocol injected here. This keeps the benchmark a test of generalization,
++        # not a hand-built memory feature.
 +        if self._zonoid_active():
 +            instructions = os.environ.get("ZONOID_TASK_INSTRUCTIONS", "").strip()
 +            if instructions:

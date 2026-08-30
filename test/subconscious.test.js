@@ -873,6 +873,8 @@ test('subconscious assignment prepare records same-node review request without v
   assert.equal(res.body.assignment.progressive_disclosure_context.kind, 'subconscious_progressive_disclosure_context');
   assert.equal(res.body.assignment.progressive_disclosure_context.layer1.task.key, 'codex/impl');
   assert.match(res.body.assignment.progressive_disclosure_context.layer1.next_action, /subconscious_assignment\.accept/);
+  assert.match(res.body.assignment.progressive_disclosure_context.layer1.next_action, /update affected documentation/);
+  assert(res.body.assignment.progressive_disclosure_context.layer1.must_know_constraints.some((item) => /no-change rationale/.test(item)));
   assert.deepEqual(
     res.body.assignment.progressive_disclosure_context.layer2.dependency_summaries.map((item) => [item.key, item.via, item.priority]),
     [['codex/parent', 'blocking', 1], ['note:ctx', 'context', 2]]

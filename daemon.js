@@ -49,6 +49,7 @@ const judge = require('./lib/judge');
 const delta = require('./lib/delta');
 const followups = require('./lib/followups');
 const verdicts = require('./lib/verdicts');
+const taskRecovery = require('./lib/task-recovery');
 const { gateTask, contentTokens, classifyNoteType, noteText } = require('./lib/context-gate');
 const usageAccounting = require('./lib/usage-accounting');
 const { runUsageReconcile } = require('./lib/usage-reconcile');
@@ -65,13 +66,20 @@ const headlessSpawn = require('./lib/headless-spawn');
 const { createHeadlessDrainRunner } = require('./lib/headless-drain-runner');
 const tuning = require('./lib/tuning');
 const registry = require('./lib/workspace-registry');
+const onboardInitTransaction = require('./lib/onboard-init-transaction');
 const repoTarget = require('./lib/repo-target');
 const requestIdentity = require('./lib/request-identity');
 const runtimePaths = require('./lib/runtime-paths');
-const { ensureManagedGraphLoop } = require('./lib/loop-autostart');
+const {
+  ensureManagedGraphLoop,
+  isEligibleIntegrationTask,
+  isLegitimateReadyTask,
+  taskAlreadySettled,
+} = require('./lib/loop-autostart');
 const { sweepStaleWakeups, sweepOrphanProcesses } = require('./lib/schedule-wakeup');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
+const BIND_HOST = String(process.env.ORCH_BIND_HOST || '127.0.0.1').trim() || '127.0.0.1';
 const PUBLIC = path.join(__dirname, 'public');
 const MAX_ROUTES = 50;
 const BASE = require.main === module
@@ -91,36 +99,47 @@ function authed(req, u) {
 }
 
 // --- caches: avoid re-reading native task files / transcripts on every request ---
-// TTL bounds staleness; fs.watch on the task dir invalidates the aggregate cache instantly
-// when native tasks change (reactive + cheap, fixing the per-call read cost).
-const cache = { agg: new Map(), aggAt: new Map(), usage: new Map(), usageAt: new Map() };
-const AGG_TTL = 1500, USAGE_TTL = 4000;
+// A short TTL plus fs.watch keeps the task aggregate fresh; transcript usage is keyed to the
+// source file identity below so append-only rollouts invalidate without arbitrary rescans.
+const cache = { agg: new Map(), aggAt: new Map(), usage: new Map(), usageStamp: new Map() };
+const AGG_TTL = 1500;
 
-// Response cache for the expensive read endpoints (/state, /costflow): dashboards + heartbeats
-// poll both, and every call rebuilds the whole graph (buildGraph) / recomputes SCC+flow. A short
-// TTL bounds the recompute cost; EVERY overlay mutation invalidates immediately — notifyChange()
-// is the choke point all mutation routes already call — so status/claim flows never read stale
-// state. The harness task watch below covers native task-file writes that bypass the daemon.
+// Response cache for expensive read endpoints: dashboards + heartbeats poll both, and every call
+// rebuilds the whole graph (buildGraph) / recomputes SCC+flow. The default short TTL bounds state
+// staleness. Ordinary entries invalidate immediately through
+// notifyChange and the source watches below, so status/claim flows never read stale state. A route
+// may explicitly opt an expensive response into bounded-stale caching; those entries survive broad
+// graph churn and rely on their caller-supplied safety TTL instead.
 // buildGraph carries side effects (timestamp stamping, unwired-quarantine stamp, autowire of
 // newly-seen tasks); caching delays those by at most RESP_TTL, which is acceptable.
 // Dependency-free: a Map of { key -> { ts, payload } }, keyed per workspace + query params.
-// A hit additionally requires the workspace's overlay FILE mtime to be unchanged, so overlay
-// writes from OTHER processes (scripts/tests calling overlayStore.save directly — invisible to
-// notifyChange) also invalidate immediately. One stat per request: trivial next to a rebuild.
+// An ordinary hit additionally requires the workspace's overlay FILE mtime to be unchanged, so
+// writes from OTHER processes (invisible to notifyChange) invalidate immediately. Bounded-stale
+// entries deliberately skip that check until their safety TTL. One stat per ordinary request is
+// trivial next to a rebuild.
 const RESP_TTL = 3000;
 const respCache = new Map();
 function overlayStamp(ws) {
   try { return fs.statSync(overlayStore.fileFor(ws)).mtimeMs; } catch { return 0; }
 }
-function respCacheGet(ws, key) {
+function respCacheGet(ws, key, maxAgeMs = RESP_TTL, options = {}) {
   const hit = respCache.get(key);
-  return (hit && Date.now() - hit.ts < RESP_TTL && hit.stamp === overlayStamp(ws)) ? hit.payload : undefined;
+  const ttl = Number.isFinite(Number(maxAgeMs)) ? Math.max(0, Number(maxAgeMs)) : RESP_TTL;
+  const boundedStale = !!(options && options.boundedStale === true && hit && hit.boundedStale === true);
+  return (hit && Date.now() - hit.ts < ttl && (boundedStale || hit.stamp === overlayStamp(ws)))
+    ? hit.payload
+    : undefined;
 }
-function respCachePut(ws, key, payload) {
+function respCachePut(ws, key, payload, options = {}) {
   // Stamp AFTER the build: buildGraph itself may have saved the overlay (timestamp stamping,
   // autowire) and the payload already reflects that state — stamping post-build lets it hit.
-  respCache.set(key, { ts: Date.now(), payload, stamp: overlayStamp(ws) });
+  respCache.set(key, { ts: Date.now(), payload, stamp: overlayStamp(ws), boundedStale: !!(options && options.boundedStale === true) });
   return payload;
+}
+function invalidateRespCache() {
+  for (const [key, hit] of respCache) {
+    if (!hit.boundedStale) respCache.delete(key);
+  }
 }
 
 // --- per-workspace overlay cache (P3: the ONLY overlay store — no global default) ------------
@@ -134,8 +153,8 @@ function respCachePut(ws, key, payload) {
 // lookup that finds the file mtime CHANGED reloads + recaches — so an out-of-band write (another
 // process / a test calling overlayStore.save directly) is picked up on the next lookup. This is the
 // SAME staleness guard already used by respCache. After the daemon's own write through a cached
-// overlay, callers should call refreshOverlayStamp(ws) so the just-saved content isn't needlessly
-// reloaded next lookup (write-coalescing); targetOverlay's save() does this. A missed refresh only
+// overlay, daemon-local callers persist through saveCachedOverlay() so the just-saved content isn't
+// needlessly reloaded next lookup (write-coalescing); targetOverlay's save() does this. A missed refresh only
 // costs a redundant reload of identical content — never incorrect.
 const overlayCache = new Map();   // ws -> { ov, stamp }
 // Test-only fallback holder. Production code NEVER reads these — every route/sweep resolves an
@@ -191,6 +210,7 @@ function aggregateCached(ws) {
 function invalidateAggregate(ws) {
   cache.agg.delete(ws);
   cache.aggAt.delete(ws);
+  snapCache.delete(ws);
 }
 
 // (P3) The Phase-1 workspace-fallback observability seam (warnWorkspaceFallback) has been REMOVED:
@@ -283,15 +303,28 @@ function snapshotNative(ov, key, nativeStatus, ws) {
   });
 }
 function usageCached(p) {
-  const now = Date.now();
-  if (cache.usage.has(p) && now - (cache.usageAt.get(p) || 0) < USAGE_TTL) return cache.usage.get(p);
+  // Transcript rollouts are append-only and can be hundreds of MB. Cache immutable history until
+  // its actual file identity changes; a short wall-clock TTL made every unrelated graph mutation
+  // synchronously reread and JSON-parse the same historical rollouts during /state projection.
+  let stamp = null;
+  try {
+    const st = fs.statSync(p);
+    stamp = `${st.dev}:${st.ino}:${st.size}:${st.mtimeMs}`;
+  } catch { /* parseTranscriptUsage returns the existing read error shape */ }
+  if (cache.usage.has(p) && cache.usageStamp.get(p) === stamp) return cache.usage.get(p);
   const v = usageAccounting.parseTranscriptUsage(p);
-  cache.usage.set(p, v); cache.usageAt.set(p, now);
+  if (stamp !== null && !(v && v.error)) {
+    cache.usage.set(p, v); cache.usageStamp.set(p, stamp);
+  } else {
+    // Missing/unreadable transcripts remain retryable; only successful source-stamped parses are
+    // durable cache entries.
+    cache.usage.delete(p); cache.usageStamp.delete(p);
+  }
   return v;
 }
-claudeHarness.tasks.watch(() => { cache.agg.clear(); cache.aggAt.clear(); respCache.clear(); }); // Claude native task dir
+claudeHarness.tasks.watch(() => { cache.agg.clear(); cache.aggAt.clear(); snapCache.clear(); invalidateRespCache(); }); // Claude native task dir
 // filedrop.watch below covers designated-folder stubs
-filedrop.watch(() => { cache.agg.clear(); cache.aggAt.clear(); respCache.clear(); });      // designated-folder stub drops surface without /sync
+filedrop.watch(() => { cache.agg.clear(); cache.aggAt.clear(); snapCache.clear(); invalidateRespCache(); }); // designated-folder stub drops surface without /sync
 
 const ACTION_STATUSES = ['in_progress', 'tested', 'done', 'failed', 'canceled'];
 const ALL_STATUSES = ['not_ready', 'ready', ...ACTION_STATUSES];
@@ -325,28 +358,35 @@ const WORKSPACES_FILE = path.join(BASE, 'workspaces.json');
 function migrateBlindEdges(workspace, overlay) {
   if (!workspace || !overlay) return 0;
   const tagged = judge.tagBlindEdges(overlay);
-  if (tagged > 0) { try { overlayStore.save(workspace, overlay); } catch { /* best effort */ } }
+  if (tagged > 0) { try { saveCachedOverlay(workspace, overlay); } catch { /* best effort */ } }
   return tagged;
 }
 
-// The REAL set of workspaces the daemon knows about — the registry persisted by setWorkspace
+// The REAL, currently mounted set of workspaces the daemon knows about — the registry persisted by setWorkspace
 // (every bind / POST /workspace appends to workspaces.json). This is the authoritative enumeration
 // the maintenance sweeps + loop tick iterate over, REPLACING reliance on the single daemon-global
 // state.workspace pointer (Phase 2b of deprecating the global default). We UNION in any active-loop
 // workspaces defensively (a loop pinned to a ws that somehow never hit setWorkspace still gets
 // swept) — but the registry, not state.workspace, is the source of truth. Pure read; best-effort
-// (a missing/garbage registry yields the active-loop set alone, never throws).
+// (a missing/garbage registry yields the active-loop set alone, never throws). Registry history is
+// not pruned: absent/broken/file paths simply stay inactive until the same path is a directory again.
 function registeredWorkspaces() {
   const set = new Set();
+  let registeredRepos = [];
+  const addActive = (p) => {
+    const activeRoot = registry.activeRepoRoot(p, { registeredRepos });
+    if (activeRoot) set.add(activeRoot);
+  };
   try {
     // v2 registry: flatten every member repo across all named workspaces into a flat list of repo
     // PATHS. This MUST stay a Set<repoPath> — ≈10 sweep/claim callers iterate repo paths (never
     // workspace NAMES); leaking names would break every maintenance sweep + the gate claim scan.
     // loadRegistry lazily migrates a legacy v1 flat array in place; allRepos de-dupes.
-    for (const p of registry.allRepos(registry.loadRegistry(WORKSPACES_FILE))) { if (p) set.add(p); }
+    registeredRepos = registry.allRepos(registry.loadRegistry(WORKSPACES_FILE));
+    for (const p of registeredRepos) addActive(p);
   } catch { /* no registry yet / unreadable — fall through to active-loop set */ }
   // Defensive union: a loop pinned to a workspace that isn't (yet) in the registry still needs sweeping.
-  for (const L of loops.values()) { if (L.active && L.workspace) set.add(L.workspace); }
+  for (const L of loops.values()) { if (L.active && L.workspace) addActive(L.workspace); }
   return set;
 }
 
@@ -389,9 +429,13 @@ const STALE_MINUTES_DEFAULT = (() => {
 // hooks/restart-daemon.sh asserts. null when the source dir isn't a git checkout.
 let GIT_HEAD = null;
 try { GIT_HEAD = require('child_process').execFileSync('git', ['-C', __dirname, 'rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 3000, windowsHide: true }).trim(); } catch { /* not a checkout */ }
+let PACKAGE_VERSION = null;
+try { PACKAGE_VERSION = require('./package.json').version || null; } catch { /* incomplete install */ }
+const DAEMON_BUILD_ID = GIT_HEAD ? `git:${GIT_HEAD}` : PACKAGE_VERSION ? `package:${PACKAGE_VERSION}` : null;
 // Capability flags, bumped per change — cheap self-description so a restart script can verify the
 // new code is actually serving (beyond the git head).
-const FEATURES = { perRequestWorkspaceWrites: true, perRequestWorkspaceReads: true, gatedSearch: true };
+const FEATURES = { perRequestWorkspaceWrites: true, perRequestWorkspaceReads: true, gatedSearch: true, versionHandoff: true };
+const DAEMON_HEALTH_SIGNATURE = 'zonoid-orchestrator-health-v1';
 
 // MCP tool-usage counters (persisted; see lib/analytics.js). Recorded via POST /analytics/tool-call
 // beacons fired by mcp-core's tools/call dispatch on BOTH transports; flushed debounced.
@@ -409,7 +453,7 @@ const graphAutoflush = createGraphAutoflush();
 // refetches that don't affect their selected workspace. Bare call (no ws) emits the legacy
 // `data: changed\n\n` payload and always triggers a refetch on all clients (back-compat).
 function notifyChange(ws) {
-  respCache.clear();
+  invalidateRespCache();
   const payload = ws ? `data: changed:${ws}\n\n` : 'data: changed\n\n';
   for (const r of sseClients) { try { r.write(payload); } catch { sseClients.delete(r); } }
   const graphRepo = ws && typeof ws === 'object' ? (ws.graph_repo || ws.workspace) : ws;
@@ -471,7 +515,35 @@ function restoreLoops() {
 // Yields to the event loop between phases so /health (whitelisted through the 503 gate) can
 // report live progress while the synchronous per-phase loads run.
 const yieldLoop = () => new Promise((r) => setImmediate(r));
+function reportOnboardRuntimeIgnoreError(error, repo) {
+  process.stderr.write(
+    `orchestrator: onboarding runtime ignore unavailable for ${repo}: ${error && error.message ? error.message : error}\n`
+  );
+}
 async function loadState() {
+  // Resolve every write-ahead onboarding intent before the registry is enumerated or non-health
+  // routes become available. A crash between status and registry therefore cannot strand a queue
+  // outside registeredWorkspaces(), and a crash after registry commit cannot expose a project whose
+  // durable onboarding intent is missing.
+  const recoveredOnboardInits = onboardInitTransaction.reconcilePending(WORKSPACES_FILE, {
+    onRuntimeIgnoreError: reportOnboardRuntimeIgnoreError,
+  });
+  if (recoveredOnboardInits.length) {
+    process.stdout.write(`orchestrator: reconciled ${recoveredOnboardInits.length} onboarding init transaction(s)\n`);
+  }
+  const recoveredOnboardPublications = headlessDrain.reconcileRegisteredOnboardPublications({
+    workspace: __dirname,
+    registeredWorkspaces: Array.from(registeredWorkspaces()),
+  });
+  const settledOnboardPublications = recoveredOnboardPublications.filter((entry) => entry.ok !== false);
+  const failedOnboardPublications = recoveredOnboardPublications.filter((entry) => entry.ok === false);
+  if (settledOnboardPublications.length) {
+    process.stdout.write(`orchestrator: reconciled ${settledOnboardPublications.length} onboarding publication transaction(s)\n`);
+  }
+  for (const entry of failedOnboardPublications) {
+    process.stderr.write(`orchestrator: onboarding publication reconciliation failed for ${entry.outDir}: ${entry.error}\n`);
+  }
+
   // Phase 1: workspace registry warm-up. P3 removed the daemon-global default pointer, so there is
   // NO single workspace to restore on boot. Instead we lazily warm every REGISTERED workspace's
   // overlay into the per-workspace cache (and run the one-time blind-edge migration on each), so the
@@ -480,7 +552,9 @@ async function loadState() {
   advanceBoot('workspace');
   await yieldLoop();
   for (const ws of registeredWorkspaces()) {
+    onboardInitTransaction.retryRegisteredRuntimeIgnore(ws, { onError: reportOnboardRuntimeIgnoreError });
     try {
+      if (!registry.isActiveRepoPath(ws)) continue;
       // Sync an already-configured submodule before opening overlay/graph state. Ordinary .graph
       // directories are a no-op, and this never creates remotes or converts legacy repositories.
       await graphLifecycle.sync(ws, { latest: true });
@@ -512,10 +586,11 @@ async function loadState() {
     const followups = require('./lib/followups');
     for (const ws of registeredWorkspaces()) {
       try {
+        if (!registry.isActiveRepoPath(ws)) continue;
         const ov = overlayFor(ws);
         const ack = followups.acknowledgeDaemonRestartOnBoot(ov, { bootedAt: BOOTED_AT });
         if (ack) {
-          overlayStore.save(ws, ov); refreshOverlayStamp(ws);
+          saveCachedOverlay(ws, ov);
           notifyChange(ws);
           process.stdout.write(`orchestrator: acknowledged restart bucket ${ack.key} (${ws})\n`);
         }
@@ -525,7 +600,25 @@ async function loadState() {
   process.stdout.write(`orchestrator boot complete (phase:ready)\n`);
 }
 function saveLoops() { try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(LOOPS_FILE, JSON.stringify(Object.fromEntries(loops))); } catch { /* best effort */ } }
-function saveAgents() { try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(AGENTS_FILE, JSON.stringify(state.agents)); } catch { /* best effort */ } }
+
+function createDaemonHeadlessSpawnExecutor() {
+  return headlessSpawn.createSpawnExecutor({
+    loops,
+    decide: (o) => { const r = decideAll(o); saveLoops(); return r; },
+    // The spawn pump wakes alongside maintenance work. Keep its config reads and lease/backoff
+    // writes on the daemon-authoritative overlay so an idle wake cannot replay the full graph and
+    // an executor-local save cannot invalidate the cache stamp it just wrote.
+    overlayLoad: overlayFor,
+    overlaySave: saveCachedOverlay,
+  });
+}
+function saveAgents() {
+  try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(AGENTS_FILE, JSON.stringify(state.agents)); } catch { /* best effort */ }
+  // Agent counts and local_in_progress live in buildGraph's cached summary even though the agent
+  // registry is stored outside the workspace overlay. Any agent transition must therefore bust
+  // graph/response caches or /state can pair a current agents[] array with stale summary counts.
+  try { snapCache.clear(); invalidateRespCache(); } catch { /* caches may not be initialized during boot */ }
+}
 
 // touchAgent: register or heartbeat-stamp an agent in the global registry. Idempotent with
 // /agent/start (SubagentStart hook) — safe to call from both paths. Unknown agents get
@@ -607,14 +700,21 @@ function targetOverlay(b, u) {
     ...fields,
     ws,
     ov,
-    save: () => { overlayStore.save(ws, ov); refreshOverlayStamp(ws, ov); invalidateAggregate(ws); },
+    save: () => { saveCachedOverlay(ws, ov); invalidateAggregate(ws); },
   };
+}
+
+// Single daemon-local persistence seam: every cached-overlay save must re-stamp the exact object it
+// wrote. Callers layer notification and aggregate invalidation on top without changing those semantics.
+function saveCachedOverlay(ws, ov, options) {
+  if (!ws || !ov) return;
+  overlayStore.save(ws, ov, options);
+  refreshOverlayStamp(ws, ov);
 }
 
 function saveDispatchOverlay(ws, ov) {
   if (!ws || !ov) return;
-  overlayStore.save(ws, ov);
-  refreshOverlayStamp(ws, ov);
+  saveCachedOverlay(ws, ov);
   notifyChange(ws);
 }
 
@@ -918,6 +1018,24 @@ function localInProgressCount(tasks, ov, agents = state.agents, nowMs = Date.now
   }
   return count;
 }
+
+// Capacity accounting is deliberately more conservative than the dashboard's LOCAL-WIP badge:
+// unassigned/inherited in_progress rows may represent real external work and still consume a slot.
+// The one row we can safely ignore is a claim explicitly owned by a KNOWN non-live agent, unless
+// its registered attempt worktree has recent commit evidence. This prevents zombie registry rows
+// from pinning dispatch at maxConcurrency without treating unknown remote work as dead.
+function dispatchInProgressCount(tasks, ov, agents = state.agents, nowMs = Date.now(), bootMs = BOOT_MS) {
+  const mins = ov.config.stale_minutes ?? 10;
+  let count = 0;
+  for (const t of tasks || []) {
+    if (!t || t.kind === 'note' || t.status !== 'in_progress') continue;
+    const agentId = (ov.assignee && ov.assignee[t.id]) || t.agent_id;
+    const agent = agentId ? agents[agentId] : null;
+    if (!agent) { count++; continue; }
+    if (vouchedLive(agent, mins, nowMs, bootMs) || worktreeVouchesLive(ov, t.id, mins, nowMs)) count++;
+  }
+  return count;
+}
 // Sweep abandoned claims: release every staleClaimKeys() orphan back to ready. Authoritative
 // liveness — survives restart (overlay is persisted) and needs no stop hook. Returns true if any.
 // Parameterized on (ws, ov) — REQUIRED (no global default): the sweep operates on the given
@@ -951,7 +1069,7 @@ function sweepStaleClaims(ws, ov) {
     }
   }
   if (agentsDirty) saveAgents();
-  if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
+  if (dirty) saveDispatchOverlay(ws, ov);
   return dirty;
 }
 
@@ -969,39 +1087,26 @@ function sweepStaleNativeClaims(ws, ov, tasks) {
     }
   }
   if (agentsDirty) saveAgents();
-  if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
+  if (dirty) saveDispatchOverlay(ws, ov);
   return dirty;
 }
-// Optional auto-retry for failed tasks. Disabled by default: a failure may represent a hard
-// external blocker, and silently requeueing it creates stale ready loops.
+// Reconcile terminal operational debris. Landed/superseded outcomes are normalized immediately;
+// failures receive one bounded autonomous retry before they enter the durable user-gate inbox.
+// Explicit blocked flags are never cleared here.
 function sweepFailedTasks(ws, ov) {
-  if (!(ov.config && ov.config.auto_retry_failed === true)) return false;
-  let dirty = false;
   const g = buildGraph(ws);
-  for (const t of g.tasks) {
-    if (t.status !== 'failed') continue;
-    if (!ov.retryConfig) ov.retryConfig = {};
-    if (!ov.retryConfig[t.id]) ov.retryConfig[t.id] = {};
-    const retryCount = (ov.retryConfig[t.id].retryCount || 0) + 1;
-    ov.retryConfig[t.id].retryCount = retryCount;
-    const prevAgent = ov.assignee && ov.assignee[t.id];
-    ov.notes[t.id] = `auto-requeued after failure (attempt ${retryCount})${prevAgent ? ` — prior agent: '${prevAgent}'` : ''}. Review previous summary before re-attempting.`.slice(0, 280);
-    // Clear the review verdict alongside the status: the task is going back into the ready pipeline,
-    // so the 'rejected'/'blocked' record describes work that is about to be replaced. Leaving it made
-    // a pending task render as rejected and kept it out of the next review. Refused (and left alone)
-    // when the attempt already merged — that record is history worth keeping.
-    overlayStore.applyLifecycleEvent(ov, t.id, 'retry_requeue', { task_status: t.status });
-    // Flip status back to pending so the task re-enters the ready pipeline
-    delete ov.status[t.id];
-    if (ov.snapshots && ov.snapshots[t.id]) {
-      overlayStore.setSnapshot(ov, t.id, { ...ov.snapshots[t.id], status: 'pending' });
-    }
-    try { writeTaskStatus(ws, t.id, 'pending'); } catch { /* best effort */ }
-    console.log(`[retry] task ${t.id} attempt ${retryCount} (prev agent: ${prevAgent || '?'})`);
-    dirty = true;
+  const result = taskRecovery.reconcile(ov, g.tasks, {
+    writeTaskStatus: (key, status) => {
+      try { writeTaskStatus(ws, key, status); } catch { /* best effort */ }
+    },
+  });
+  if (!result.changed) return false;
+  for (const action of result.actions) {
+    console.log(`[reconcile] task ${action.task_key}: ${action.action}`);
   }
-  if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
-  return dirty;
+  cache.agg.delete(ws); cache.aggAt.delete(ws);
+  saveDispatchOverlay(ws, ov);
+  return true;
 }
 // staleVerdictKeys (pure): which 'tested'/'ready' tasks are stale verdict-pending hand-offs — owner
 // not live AND lastChanged past stale_minutes. These are SURFACED as guidance, NEVER auto-resolved
@@ -1032,6 +1137,14 @@ function hasPendingStaleVerdictReview(ov, key) {
       || (g.action && g.action.kind === 'stale-verdict' && (g.action.task_key === key || g.action.verdictKey === key))));
 }
 
+function hasSettledStaleVerdictReview(ov, key) {
+  const review = (ov.reviews && ov.reviews[key]) || {};
+  const gitInfo = (ov.git && ov.git[key]) || {};
+  return overlayStore.lifecycleMachine.isReviewSettled(review.review_state)
+    || review.merge_state === 'merged'
+    || !!gitInfo.merged;
+}
+
 // Route stale verdict-pending hand-offs into same-node review. Do not mutate status/assignee or write
 // native pending: a stale tested/ready handoff is evidence for the judge drain, not a user dashboard
 // decision.
@@ -1040,10 +1153,9 @@ function sweepStaleVerdicts(ws, ov) {
   if (!stale.length) return false;
   let dirty = false;
   for (const { key, status, agentId } of stale) {
-    if (hasPendingStaleVerdictReview(ov, key)) continue;
-    // Through the guarded machine, so a stale APPROVED-awaiting-merge task cannot have its landed
-    // verdict reset to 'requested' (hasPendingStaleVerdictReview only sees still-open reviews, so it
-    // waves settled ones straight through — that reset was a real lost-verdict path).
+    if (hasSettledStaleVerdictReview(ov, key) || hasPendingStaleVerdictReview(ov, key)) continue;
+    // Only genuinely unreviewed stale handoffs reach the guarded transition. Open and settled
+    // lifecycles were handled above, so they neither reopen nor churn the same refusal log.
     const decision = overlayStore.applyLifecycleEvent(ov, key, 'review_request', {
       task_status: status,
       review_requested_by: 'stale-verdict-sweep',
@@ -1057,7 +1169,7 @@ function sweepStaleVerdicts(ws, ov) {
     console.log(`[self-heal] task ${key} (was ${status}) routed to same-node review — owner gone`);
     dirty = true;
   }
-  if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
+  if (dirty) saveDispatchOverlay(ws, ov);
   return dirty;
 }
 
@@ -1103,7 +1215,7 @@ function sweepStaleGuidance(ws, ov) {
     console.log(`[self-heal] guidance ${g.id} ${reason} — auto-resolved`);
     dirty = true;
   }
-  if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
+  if (dirty) saveDispatchOverlay(ws, ov);
   return dirty;
 }
 
@@ -1311,7 +1423,7 @@ function applyOptimize(prob, base, L, ws, ov) {
   });
   if (d.decision === 'iterate') {
     overlayStore.setOptimize(ov, P.id, { decision: 'iterate', verdicts: prob.verdicts.length });
-    overlayStore.save(ws, ov); notifyChange(ws);
+    saveDispatchOverlay(ws, ov);
     return { ...base, action: 'optimize', problem: P.id, label: P.label, metric: P.metric.metric,
       reason: d.reason, prior_verdict: last, next_poll_seconds: L.config.minPoll };
   }
@@ -1325,19 +1437,19 @@ function applyOptimize(prob, base, L, ws, ov) {
     });
     overlayStore.setOptimize(ov, P.id, { closed: true, decision: 'stuck' });
     L.active = false;
-    overlayStore.save(ws, ov); notifyChange(ws);
+    saveDispatchOverlay(ws, ov);
     return { ...base, action: 'await_user', reason: `optimize stuck on ${P.id}: ${d.reason}` };
   }
   // converged | budget — stop iterating THIS problem; let the normal drained logic decide next.
   overlayStore.setOptimize(ov, P.id, { closed: true, decision: d.decision });
-  overlayStore.save(ws, ov); notifyChange(ws);
+  saveDispatchOverlay(ws, ov);
   return null; // fall through to drained→plan/stop
 }
 
 function pendingReviewOrIntegrationAction(g, ov) {
   if (!g || !Array.isArray(g.tasks) || !ov) return null;
   for (const t of g.tasks) {
-    if (!t || t.status !== 'tested') continue;
+    if (!isEligibleIntegrationTask(t, ov)) continue;
     const lifecycle = overlayStore.reviewLifecycleFor(ov, t.id, t.status);
     if (!lifecycle) continue;
     const item = {
@@ -1421,13 +1533,17 @@ function decideOne(L, ctx) {
   // reports the flag; the loop-driving dispatcher judges (suggest_links + add_dependency, or
   // mark_root for a true root). Wiring/mark_root clears ov.unwired → spawnable next tick.
   const isUnwired = (t) => !!(ov.unwired && ov.unwired[t.id]);
-  const isExplicitlyBlocked = (t) => !!(ov.blocked && ov.blocked[t.id]) || decisionDelivery.hasTaskHold(ov, t.id);
+  const isExplicitlyBlocked = (t) => !!(ov.blocked && ov.blocked[t.id]);
   // Blocked tasks are excluded from the spawn pool entirely. The block is sticky (overlay flag,
   // not derived from deps) and cleared only by unblock_task — never by dep re-derivation.
-  let ready = readyAll.filter((t) => !isUnwired(t) && !isExplicitlyBlocked(t) && !isStandingHarnessTask(ov, t.id));
-  const wire = readyAll.filter(isUnwired).map((t) => ({ key: t.id, label: t.label }));
+  let ready = readyAll.filter((t) => isLegitimateReadyTask(t, ov));
+  const wire = readyAll.filter((t) => isUnwired(t) && !isExplicitlyBlocked(t)
+    && !isStandingHarnessTask(ov, t.id) && !taskAlreadySettled(ov, t.id, t.status))
+    .map((t) => ({ key: t.id, label: t.label }));
   const withWire = (dec) => (wire.length ? { ...dec, wire } : dec);
-  const running = g.tasks.filter((t) => t.status === 'in_progress').length;
+  // Known dead-agent claims do not consume capacity; unknown/inherited WIP remains conservative.
+  // Zombie rows stay visible for the claim reaper without pinning an autonomous frontier at cap.
+  const running = dispatchInProgressCount(g.tasks, ov);
   const ghostWait = g.tasks.filter((t) => t.status === 'not_ready' && t.deps.some((d) => d.startsWith('ghost:'))).length;
 
   // CAPACITY-FILL: spare concurrency this loop may use this tick. Tasks spawned by /next-action are
@@ -1459,7 +1575,7 @@ function decideOne(L, ctx) {
       });
       // Auto-block so it doesn't re-fire guidance every tick before the user responds.
       overlayStore.setBlocked(ov, t.id, 'cost_gate: awaiting user approval');
-      overlayStore.save(ws, ov); notifyChange(ws);
+      saveDispatchOverlay(ws, ov);
     }
     // Re-derive ready after auto-blocking; keep guidance-pending tasks out of the spawn pool.
     const nowBlocked = (t) => !!(ov.blocked && ov.blocked[t.id]);
@@ -1523,8 +1639,7 @@ function loopDecisionContext(ws, batch = null) {
   decisionDelivery.reconcileStale(ov, Date.now(), graph);
   decisionDelivery.syncTaskHolds(ov);
   if (ws && before !== JSON.stringify([ov.guidance, ov.decision_holds])) {
-    overlayStore.save(ws, ov);
-    notifyChange(ws);
+    saveDispatchOverlay(ws, ov);
   }
   const pend = overlayStore.userAttentionGuidance(ov);
   return {
@@ -1545,7 +1660,10 @@ function ensureManagedGraphLoops(ctxByWs = null) {
       if (ctxByWs) ctxByWs.set(ws, c);
     }
     const r = ensureManagedGraphLoop({ ctx: { loops, newLoop, now }, workspace: ws, graph: c.graph, overlay: c.ov });
-    if (r.created) dirty = true;
+    if (r.overlayChanged) {
+      saveDispatchOverlay(ws, c.ov);
+    }
+    if (r.changed) dirty = true;
   }
   if (dirty) { saveLoops(); notifyChange(); }
   return dirty;
@@ -1567,6 +1685,21 @@ function ensureManagedGraphLoops(ctxByWs = null) {
 // @param {object} [opts]
 //   @param {Function} [opts.loopFilter]     — (L) => boolean; loops returning falsy are not ticked.
 //   @param {Set}      [opts.skipWorkspaces] — workspaces whose loops are not ticked.
+function loopProgressTime(loop) {
+  const value = loop && (loop.lastProgress || loop.startedAt);
+  const parsed = typeof value === 'number' ? value : Date.parse(value || '');
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function compareLoopPriority(a, b) {
+  const managedOrder = (a && a.managed ? 1 : 0) - (b && b.managed ? 1 : 0);
+  if (managedOrder) return managedOrder;
+  if (a && b && a.managed && b.managed) {
+    return loopProgressTime(a) - loopProgressTime(b);
+  }
+  return 0;
+}
+
 function decideAll(opts = {}) {
   sweepStaleLoops();   // central liveness sweep (same pass): demote dead/exhausted/stalled loops first
   // Sweep across the REAL set of registered workspaces (workspaces.json), not the single daemon-
@@ -1592,7 +1725,10 @@ function decideAll(opts = {}) {
     .filter((L) => L.active)
     .filter((L) => !(skipWorkspaces && L.workspace && skipWorkspaces.has(L.workspace)))
     .filter((L) => !loopFilter || !!loopFilter(L))
-    .sort((a, b) => (a.managed ? 1 : 0) - (b.managed ? 1 : 0));
+    // Foreground loops retain priority. Managed loops then rotate by the oldest progress stamp:
+    // whenever one consumes the shared spawn batch, decideOne advances lastProgress and it yields
+    // the next tick to a workspace that has waited longer.
+    .sort(compareLoopPriority);
   // ONE spawn pool shared across ALL loops this tick (regardless of workspace) — the daemon-wide
   // concurrency bound is about total spawned workers, not per-workspace.
   const batch = { remaining: active.reduce((m, L) => Math.max(m, L.config.batch || 0), 0) };
@@ -1631,7 +1767,7 @@ function decideAll(opts = {}) {
       const before = JSON.stringify([ctx.ov.guidance, ctx.ov.decision_holds]);
       const nudges = decisionDelivery.takeDueNudges(ctx.ov, L.session, liveDecisionSessions, ctx.graph, ctx.ws);
       if (nudges.length) entry.decision_nudges = nudges;
-      if (before !== JSON.stringify([ctx.ov.guidance, ctx.ov.decision_holds])) overlayStore.save(ctx.ws, ctx.ov);
+      if (before !== JSON.stringify([ctx.ov.guidance, ctx.ov.decision_holds])) saveCachedOverlay(ctx.ws, ctx.ov);
     }
     if (ctx.reviewPending > 0) {
       const pend = overlayStore.pendingGuidance(ctx.ov);
@@ -2090,7 +2226,7 @@ function sweepFiledropStubs(ws) {
   const ov = overlayFor(ws);
   const result = filedropGc.sweepWorkspaceStubs(ws, ov, { dryRun: false });
   if (result.adopted.length || result.removed.length) {
-    overlayStore.save(ws, ov); refreshOverlayStamp(ws);
+    saveCachedOverlay(ws, ov);
     cache.agg.delete(ws); cache.aggAt.delete(ws);
   }
   return result;
@@ -2153,6 +2289,14 @@ function makeResolver() {
     return [...local, ...edges];
   }
 
+  // A canceled task with one explicit supersede successor remains historical, while dependency
+  // checks transparently follow the replacement. This keeps native blockedBy references stable and
+  // prevents every dependent from becoming stranded on the retired task.
+  function dependencyEffective(ws, key, seen = new Set()) {
+    const { overlay } = loadWs(ws);
+    return taskRecovery.dependencyStatus(overlay, key, (candidate) => effective(ws, candidate, seen));
+  }
+
   function effective(ws, key, seen = new Set()) {
     const id = `${ws}|${key}`;
     if (memo[id]) return memo[id];
@@ -2168,7 +2312,7 @@ function makeResolver() {
     if (base !== 'pending') return (memo[id] = base);
     seen.add(id);
     const { unverifiedIncident } = loadWs(ws);
-    const ready = depRefs(ws, key).filter((d) => d.kind !== 'context').every((d) => depSatisfied(effective(d.ws, d.key, seen))); // context edges never block; a dep is satisfied by terminal-success (done OR tested)
+    const ready = depRefs(ws, key).filter((d) => d.kind !== 'context').every((d) => depSatisfied(dependencyEffective(d.ws, d.key, seen))); // context edges never block; superseded deps follow their explicit replacement
     seen.delete(id);
     if (!ready) return (memo[id] = 'not_ready');
     // JUDGING→READY gate (task D / P6 STRICT): blocking deps are satisfied, but if this task still
@@ -2192,7 +2336,15 @@ function makeResolver() {
   }
 
   function label(ws, key) { const { tasks } = loadWs(ws); return tasks[key] ? tasks[key].label : key; }
-  return { loadWs, depRefs, effective, exists, explicitStatus, label };
+  return { loadWs, depRefs, effective, dependencyEffective, exists, explicitStatus, label };
+}
+
+function effectiveTaskStatuses(ws, keys, resolver = makeResolver()) {
+  resolver.loadWs(ws);
+  return Object.fromEntries(keys.map((key) => [
+    key,
+    resolver.exists(ws, key) ? resolver.effective(ws, key) : null,
+  ]));
 }
 
 function readinessDetail(R, ws, key, opts = {}) {
@@ -2203,7 +2355,9 @@ function readinessDetail(R, ws, key, opts = {}) {
   const blocking = R.depRefs(ws, key).filter((d) => d.kind !== 'context');
   for (const d of blocking) {
     if (!R.exists(d.ws, d.key)) return { kind: 'missing_dependency', label: 'missing dep', dependency: d.key, workspace: d.ws };
-    const depStatus = R.effective(d.ws, d.key);
+    const depStatus = typeof R.dependencyEffective === 'function'
+      ? R.dependencyEffective(d.ws, d.key)
+      : R.effective(d.ws, d.key);
     if (depStatus === 'canceled') return { kind: 'canceled_dependency', label: 'canceled dep', dependency: d.key, workspace: d.ws };
     if (depStatus === 'failed') return { kind: 'failed_dependency', label: 'failed dep', dependency: d.key, workspace: d.ws };
     if (!depSatisfied(depStatus)) return { kind: 'waiting_dependency', label: 'waiting deps', dependency: d.key, dependency_status: depStatus, workspace: d.ws };
@@ -2433,7 +2587,7 @@ function commitGraphProjectionEffects(ws, ovWs, effects) {
     effects.edgesDirty = true;
   }
   if (effects.tsDirty || effects.edgesDirty || effects.adoptDirty || effects.repairDirty) {
-    overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange(ws);
+    saveCachedOverlay(ws, ovWs, { deferred: true }); notifyChange(ws);
   }
   // INGEST-AT-BIRTH (BUILD1): native tasks adopted THIS build pass through the unified ingestNode funnel
   // (embed → setTaskVec → autowire → markEagerJudge) so they carry a vec + candidate edges + an eager mark
@@ -2449,7 +2603,7 @@ function commitGraphProjectionEffects(ws, ovWs, effects) {
           // vestigial judgingSince anchor here purely to keep the overlay tidy (the gate no longer reads
           // it; readiness is derived solely from unverifiedEdgesForNode).
           if (r.seeded === 0) { overlayStore.clearJudgingSince(ovWs, n.key); }
-          if (r.vec || r.seeded === 0) { overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange(ws); }
+          if (r.vec || r.seeded === 0) { saveCachedOverlay(ws, ovWs, { deferred: true }); notifyChange(ws); }
         } catch { /* best-effort birth ingest */ }
       }
     })();
@@ -2524,7 +2678,7 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
 	    const readiness = readinessDetail(R, ws, t.key, {
 	      status: _status,
 	      judging: _judging,
-	      blocked: (ovWs.blocked && ovWs.blocked[t.key]) || (ovWs.decision_holds && ovWs.decision_holds[t.key]) || null,
+	      blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null,
 	      note: ovWs.notes[t.key] || '',
 	    });
 	    if (!ovWs.readinessRepairs) ovWs.readinessRepairs = {};
@@ -2544,7 +2698,7 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
     // `provisional` stays false (P6 strict gate — see judgingState above; timedOut is pinned false,
     // so origin's `_js.judging && _js.timedOut` is equivalent — we keep the explicit literal).
     const reviewLifecycle = overlayStore.reviewLifecycleFor(ovWs, t.key, _status);
-    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, readiness, judging: _judging, provisional: false, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: taskVecNode.vecs, vecsMeta: taskVecNode.vecsMeta, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, ...reviewLifecycle, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || (ovWs.decision_holds && ovWs.decision_holds[t.key]) || null };
+    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, readiness, judging: _judging, provisional: false, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: taskVecNode.vecs, vecsMeta: taskVecNode.vecsMeta, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, ...reviewLifecycle, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
   });
   // KEPT context edges → context_deps for overlay-only graph nodes. The structBoost reranker
   // (/search) and BFS path tier read each node's context_deps as graph adjacency. Mirror the task-side
@@ -2580,7 +2734,13 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
       // from the local overlay.pendingDup map (round-trips via save's LOCAL_FIELDS) — NOT a note_node field.
       pending_dup: pendingDup,
       dup_match: dupMatch,
-      category: n.category || null, tags: Array.isArray(n.tags) ? n.tags : [] });
+      category: n.category || null, tags: Array.isArray(n.tags) ? n.tags : [],
+      created_by: n.created_by || null,
+      memory_lane: n.memory_lane || null,
+      source_role: n.source_role || 'unknown',
+      authority: n.authority || null,
+      confidence: typeof n.confidence === 'number' ? n.confidence : null,
+      episode: n.episode || null });
   }
   // Append typed knowledge nodes for source/provenance structure. They are graph/search nodes only:
   // no native status lifecycle, no assignee/session/todo semantics.
@@ -2776,7 +2936,7 @@ function readTranscript(p, maxLines = 200) {
 
 function send(res, code, body, type = 'application/json') {
   if (res.headersSent) return false;
-  res.writeHead(code, { 'Content-Type': type, 'Access-Control-Allow-Origin': '*', 'Connection': 'close' });
+  res.writeHead(code, { 'Content-Type': type, 'Access-Control-Allow-Origin': '*', 'Connection': 'close', 'X-Zonoid-Health-Signature': DAEMON_HEALTH_SIGNATURE });
   res.end(type === 'application/json' ? JSON.stringify(body) : body);
   return true;
 }
@@ -2862,6 +3022,7 @@ const uiRoute = require('./routes/ui');
 const usageRoute = require('./routes/usage');
 const subconsciousRoute = require('./routes/subconscious');
 const activityRoute = require('./routes/activity');
+const documentationRoute = require('./routes/documentation');
 
 // ctx: live access to daemon state + helpers. State fields use getters so reassignment
 // (state = {...} at /reset) is always visible. P3: there is no daemon-global workspace/overlay.
@@ -2892,11 +3053,9 @@ const ctx = {
     // basename(p) — a single-repo workspace, preserving today's behavior — unless an explicit
     // bind.workspace names a group. registry.addRepo migrates any legacy v1 array, is atomic, and
     // is idempotent (re-adding the same repo is a no-op).
-    try {
-      fs.mkdirSync(BASE, { recursive: true });
-      const workspace = (opts && opts.workspace) || path.basename(p);
-      registry.addRepo(WORKSPACES_FILE, { workspace, repo: p });
-    } catch { /* best effort */ }
+    fs.mkdirSync(BASE, { recursive: true });
+    const workspace = (opts && opts.workspace) || path.basename(p);
+    registry.addRepo(WORKSPACES_FILE, { workspace, repo: p });
     const harnessName = opts.harness || (sessionId && state.sessions[sessionId] && state.sessions[sessionId].harness) || 'claude';
     try {
       runUsageReconcile(ctx, { harness: harnessName, workspace: p, session: sessionId || opts.session_id || null });
@@ -2922,14 +3081,16 @@ const ctx = {
   //   - repoRoot(startDir)             : walk up to the containing repo dir (.graph preferred), excludes worktrees.
   loadRegistry: () => registry.loadRegistry(WORKSPACES_FILE),
   repoToWorkspace: registry.repoToWorkspace,
+  registrationRepoRoot: registry.registrationRepoRoot,
+  onboardRuntimeIgnoreError: reportOnboardRuntimeIgnoreError,
   workspaceForRepo: (repoPath) => registry.repoToWorkspace(registry.loadRegistry(WORKSPACES_FILE)).get(repoPath) || null,
   repoRoot: registry.repoRoot,
-  send, sendOp, readBody, notifyChange, graphAutoflush, buildGraph, readGraphSnapshot, targetOverlay, overlayFor, resolveRepo, resolveRepoTarget, nodeExistsInGraph, registeredWorkspaces,
+  send, sendOp, readBody, notifyChange, graphAutoflush, buildGraph, effectiveTaskStatuses, readGraphSnapshot, targetOverlay, overlayFor, invalidateAggregate, resolveRepo, resolveRepoTarget, nodeExistsInGraph, registeredWorkspaces,
   validateMetricSpec, validateBenchmark,
   overlayStore, harness: claudeHarness, harnessRegistry, filedrop, writeTaskStatus, readNativeTask, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
   cache, loops, saveLoops, saveAgents,
   get bootState() { return bootState; },
-  GIT_HEAD, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL, WORKSPACES_FILE, STALE_MINUTES_DEFAULT,
+  GIT_HEAD, DAEMON_BUILD_ID, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL, WORKSPACES_FILE, STALE_MINUTES_DEFAULT,
   daemonLog,
   sseClients, agentsArr,
   taskTranscript, usageCached, harnessTranscriptForTask,
@@ -2956,7 +3117,7 @@ const routeModules = [
   mcpRoute(ctx), stateRoute(ctx), metaRoute(ctx), graphRoute(ctx), taskRoute(ctx), overlayRoute(ctx),
   gitRoute(ctx), judgeRoute(ctx), labelRoute(ctx), configRoute(ctx), analyticsRoute(ctx), onboardRoute(ctx),
   sessionRoute(ctx), execRoute(ctx), classifyRoute(ctx), usageRoute(ctx), subconsciousRoute(ctx),
-  activityRoute(ctx), uiRoute(ctx),
+  activityRoute(ctx), documentationRoute(ctx), uiRoute(ctx),
 ];
 
 function superviseCodexWakeDeliveryForRegisteredWorkspaces() {
@@ -2983,8 +3144,19 @@ const handler = async (req, res) => {
       return res.end(JSON.stringify({ ok: false, phase: bootState.phase, step: bootState.step, progress: bootState.progress }));
     }
 
-    // Auth gate: when a token is configured, all mutating routes require it.
-    // Public reads of the CURRENT workspace + the dashboard stay open; any ?workspace= read is gated too.
+    // Browser dashboards opened from a file/preview origin preflight the Authorization header.
+    // /mcp keeps its protocol-specific CORS response in routes/mcp.js.
+    if (m === 'OPTIONS' && p !== '/mcp') {
+      res.writeHead(204, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'authorization, content-type, x-orch-token',
+      });
+      return res.end();
+    }
+
+    // Auth gate: loopback mode preserves the existing selective read gate; LAN mode is default-deny
+    // except for health checks and the data-free dashboard shell.
     const mutatingRequest = !['GET', 'HEAD', 'OPTIONS'].includes(m);
     const sensitiveRead = p === '/peek'
       || p === '/active-claim'
@@ -3005,7 +3177,11 @@ const handler = async (req, res) => {
       || p.startsWith('/guidance')
       || p.startsWith('/git/');
     const protectedPath = p === '/mcp' || mutatingRequest || sensitiveRead;
-    if ((protectedPath || u.searchParams.has('graph_repo') || u.searchParams.has('workspace')) && m !== 'OPTIONS' && !authed(req, u)) return send(res, 401, { error: 'unauthorized: bearer token required' });
+    const publicDashboard = (p === '/' || p === '/graph') && (m === 'GET' || m === 'HEAD');
+    const scopedRead = !publicDashboard && (u.searchParams.has('graph_repo') || u.searchParams.has('workspace'));
+    const publicLanRead = publicDashboard || (m === 'GET' && (p === '/health' || p === '/version' || p === '/ping'));
+    const lanProtected = BIND_HOST === '0.0.0.0' && !publicLanRead;
+    if ((lanProtected || protectedPath || scopedRead) && m !== 'OPTIONS' && !authed(req, u)) return send(res, 401, { error: 'unauthorized: bearer token required' });
 
     // Route modules handle all extracted endpoint groups.
     for (const route of routeModules) { if (await route(p, m, req, res, u, null)) return; }
@@ -3026,7 +3202,7 @@ function isPrimaryCheckout(root) {
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
 module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleSnapshotClaimKeys, releaseSnapshotClaim, staleNativeClaimKeys, releaseNativeClaim, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings, worktreeVouchesLive, depSatisfied, vouchedLive, STALE_MINUTES_DEFAULT,
-  isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, graphAutoflush, RESP_TTL, sseClients, nodeExistsInGraph,
+  isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, graphAutoflush, RESP_TTL, sseClients, nodeExistsInGraph, dispatchInProgressCount,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
   // __clearOverlayCacheForTest clears BOTH overlay-derived caches. Tests mutate their overlay
   // in memory only (via __setOverlayForTest), so the overlay FILE mtime never advances — and
@@ -3035,13 +3211,29 @@ module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestR
   // the mutated overlay while buildGraph() kept serving the stale graph built from its pre-mutation
   // state, so readiness assertions silently read first-build values. Any cache keyed on
   // overlayStamp must be cleared here.
-  decideOne, decideAll, ensureManagedGraphLoops, buildGraph, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __readinessDetailForTest: readinessDetail, __clearOverlayCacheForTest: () => { overlayCache.clear(); snapCache.clear(); }, __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
+  decideOne, decideAll, ensureManagedGraphLoops, buildGraph, effectiveTaskStatuses, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __readinessDetailForTest: readinessDetail, __compareLoopPriorityForTest: compareLoopPriority, __createHeadlessSpawnExecutorForTest: createDaemonHeadlessSpawnExecutor, __usageCachedForTest: usageCached, __clearUsageCacheForTest: () => { cache.usage.clear(); cache.usageStamp.clear(); }, __invalidateRespCacheForTest: invalidateRespCache, __clearRespCacheForTest: () => respCache.clear(), __clearOverlayCacheForTest: () => { overlayCache.clear(); snapCache.clear(); }, __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
 
 if (require.main === module) {
   // Log unhandled promise rejections instead of crashing (Node's default is to exit the process).
   process.on('unhandledRejection', (err) => {
     process.stderr.write(`unhandledRejection: ${(err && err.stack) || err}\n`);
   });
+
+  const supportedBindHosts = new Set(['127.0.0.1', '0.0.0.0']);
+  if (!supportedBindHosts.has(BIND_HOST)) {
+    process.stderr.write(
+      `Unsupported ORCH_BIND_HOST=${JSON.stringify(BIND_HOST)}. ` +
+      'Use 127.0.0.1 (default) or 0.0.0.0 (authenticated LAN access).\n'
+    );
+    process.exit(1);
+  }
+  if (BIND_HOST === '0.0.0.0' && !TOKEN) {
+    process.stderr.write(
+      'Refusing ORCH_BIND_HOST=0.0.0.0 without ORCH_TOKEN or a runtime token file; ' +
+      'LAN access must be authenticated.\n'
+    );
+    process.exit(1);
+  }
 
   const server = http.createServer(handler);
 
@@ -3053,6 +3245,7 @@ if (require.main === module) {
   function writeDaemonPort(port) {
     for (const ws of registeredWorkspaces()) {
       try {
+        if (!registry.isActiveRepoPath(ws)) continue;
         const graphDir = path.join(ws, '.graph');
         fs.mkdirSync(graphDir, { recursive: true });
         fs.writeFileSync(path.join(graphDir, 'daemon.port'), String(port));
@@ -3129,7 +3322,8 @@ if (require.main === module) {
       if (err.code === 'EADDRINUSE') {
         if (port === PORT_BASE) {
           // Check if the existing process is already a zonoid daemon.
-          const pingReq = http.get(`http://127.0.0.1:${port}/ping`, (res) => {
+          const probeHost = BIND_HOST === '0.0.0.0' ? '127.0.0.1' : BIND_HOST;
+          const pingReq = http.get({ hostname: probeHost, port, path: '/ping' }, (res) => {
             let body = '';
             res.on('data', (chunk) => { body += chunk; });
             res.on('end', () => {
@@ -3172,8 +3366,11 @@ if (require.main === module) {
         throw err;
       }
     });
-    server.listen(port, '127.0.0.1', () => {
-      process.stdout.write(`orchestrator daemon on http://127.0.0.1:${port}\n`);
+    server.listen(port, BIND_HOST, () => {
+      process.stdout.write(`orchestrator daemon on http://${BIND_HOST}:${port}\n`);
+      if (BIND_HOST === '0.0.0.0') {
+        process.stdout.write(`orchestrator LAN dashboard enabled on TCP ${port} (bearer token required)\n`);
+      }
       // One-line boot tuning summary: the effective knobs a post-mortem reader needs first —
       // where state lives, where the log tees to, and the drain governor's budget/backoff.
       try {
@@ -3197,11 +3394,13 @@ if (require.main === module) {
 
       // Also bind IPv6 loopback so `localhost` resolves on every OS — Windows resolves it to ::1
       // first, which an IPv4-only bind misses. Best-effort + loopback-only (no 0.0.0.0 exposure).
-      try {
-        server6 = http.createServer(handler);
-        server6.on('error', (e) => { if (e.code !== 'EADDRINUSE') process.stderr.write(`IPv6 loopback listener skipped: ${e.message}\n`); });
-        server6.listen(port, '::1');
-      } catch (e) { process.stderr.write(`IPv6 loopback listener skipped: ${e.message}\n`); }
+      if (BIND_HOST === '127.0.0.1') {
+        try {
+          server6 = http.createServer(handler);
+          server6.on('error', (e) => { if (e.code !== 'EADDRINUSE') process.stderr.write(`IPv6 loopback listener skipped: ${e.message}\n`); });
+          server6.listen(port, '::1');
+        } catch (e) { process.stderr.write(`IPv6 loopback listener skipped: ${e.message}\n`); }
+      }
 
       // BIND-EARLY: the port is now held; load state asynchronously so /health (whitelisted
       // through the 503 gate) reports boot progress while everything else gets an honest 503.
@@ -3241,7 +3440,33 @@ if (require.main === module) {
     });
   }
 
-  const headlessDrainRunner = createHeadlessDrainRunner({ headlessDrain, getState: () => state });
+  const maintenanceDrainExecutor = {
+    _governor: headlessDrain._governor,
+    runDueDrains: (currentState) => {
+      const workspace = (currentState && currentState.workspace) || __dirname;
+      const overlay = overlayFor(workspace);
+      const overlaySave = (ws, value) => {
+        saveCachedOverlay(ws, value);
+      };
+      return headlessDrain.runDueDrains(currentState, undefined, {
+        // The daemon's per-workspace cache is authoritative and mtime-coherent with out-of-process
+        // writers. Reuse it across judge/review/code lifecycle discovery; saves re-stamp that same
+        // cache entry so the next pump does not replay a 500MB graph it just wrote itself.
+        overlay,
+        overlayLoad: overlayFor,
+        overlaySave,
+        // Native tasks may carry a completed review lifecycle while readiness is temporarily masked
+        // by context judging. Give review discovery the canonical graph so it can distinguish that
+        // valid attempt from terminal/blocked lifecycle debris.
+        reviewVerdictDeps: { buildGraph },
+      });
+    },
+  };
+  const headlessDrainRunner = createHeadlessDrainRunner({
+    headlessDrain: maintenanceDrainExecutor,
+    getState: () => ({ ...state, registeredWorkspaces: Array.from(registeredWorkspaces()) }),
+    lane: 'maintenance',
+  });
   requestHeadlessDrainWake = headlessDrainRunner.requestWake;
 
   // Headless SPAWN executor (full-autonomy path): when a managed graph loop decides action:'spawn'
@@ -3254,11 +3479,12 @@ if (require.main === module) {
   // instance) and the SAME headless-drain governor — see lib/headless-spawn.js.
   // decide mirrors the /next-action route exactly (decideAll() then saveLoops()), but FORWARDS the
   // executor's scoping opts so loops on session-driven workspaces are never ticked or leased here.
-  const headlessSpawnExecutor = headlessSpawn.createSpawnExecutor({
-    loops,
-    decide: (o) => { const r = decideAll(o); saveLoops(); return r; },
+  const headlessSpawnExecutor = createDaemonHeadlessSpawnExecutor();
+  const headlessSpawnRunner = createHeadlessDrainRunner({
+    headlessDrain: headlessSpawnExecutor,
+    getState: () => state,
+    lane: 'frontier',
   });
-  const headlessSpawnRunner = createHeadlessDrainRunner({ headlessDrain: headlessSpawnExecutor, getState: () => state });
   requestHeadlessSpawnWake = headlessSpawnRunner.requestWake;
 
   tryListen(PORT_BASE, MAX_PORT_ATTEMPTS);
@@ -3267,6 +3493,15 @@ if (require.main === module) {
   // bound to a closed conversation is otherwise never re-evaluated). decideAll already sweeps on each
   // heartbeat; this catches the un-driven case. Cheap; unref'd so it never holds the process open.
   setInterval(() => { try { sweepStaleLoops(); ensureManagedGraphLoops(); } catch { /* best effort */ } }, 60000).unref();
+  // Retry advisory Git exclusion independently of onboarding publication settlement. A repo may
+  // become writable or acquire valid Git metadata after init; failure never affects daemon health.
+  setInterval(() => {
+    for (const ws of registeredWorkspaces()) {
+      onboardInitTransaction.retryRegisteredRuntimeIgnore(ws, {
+        onError: reportOnboardRuntimeIgnoreError,
+      });
+    }
+  }, 300000).unref();
 
   // Periodic claim sweep: release orphaned in_progress claims when no route (buildGraph) is being
   // called — catches the case after a Claude app restart where the user hasn't issued any command
@@ -3306,7 +3541,7 @@ if (require.main === module) {
         nativeTaskSigs.set(ws, sig);
         if (prev === undefined || prev === sig) continue;
         invalidateAggregate(ws);
-        respCache.clear();
+        invalidateRespCache();
         buildGraph(ws);
       }
     } catch { /* best effort */ }

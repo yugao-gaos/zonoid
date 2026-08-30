@@ -4,10 +4,12 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const http = require('http');
 const runtimePaths = require('../../../lib/runtime-paths');
 const graphLifecycle = require('../../../lib/graph-lifecycle');
+const mcpCore = require('../../../lib/mcp-core');
+const daemonHandoff = require('../../../lib/daemon-handoff');
 
 const REPO_URL = 'https://github.com/yugao-gaos/zonoid';
 const SKILLS_DIR = path.join(os.homedir(), '.claude', 'skills');
@@ -51,11 +53,12 @@ function section(title) { console.log(`\n── ${title} ───────�
 // Windows too) and keep the JSON/TOML config values free of backslash-escaping
 // noise. Same convention as bin/install.js `fwd`.
 const fwdSlash = (p) => String(p).replace(/\\/g, '/');
-function dashboardUrl(cwd = process.cwd(), port = ORCH_PORT) {
-  return `http://localhost:${port}/graph?workspace=${encodeURIComponent(path.resolve(cwd))}`;
+function dashboardUrl(cwd = process.cwd(), port = ORCH_PORT, viewer = null) {
+  const host = viewer ? `&viewer=${encodeURIComponent(String(viewer).toLowerCase())}` : '';
+  return `http://localhost:${port}/graph?workspace=${encodeURIComponent(path.resolve(cwd))}${host}`;
 }
 function renderClaudeInstructions(content, cwd = process.cwd(), port = ORCH_PORT) {
-  const url = dashboardUrl(cwd, port);
+  const url = dashboardUrl(cwd, port, 'claude');
   return String(content)
     .replace(/http:\/\/localhost:\d+\/graph\?workspace=[^\s`)>\]]+/g, url)
     .replace(/http:\/\/localhost:\d+\/graph(?!\?workspace=)/g, url);
@@ -389,6 +392,190 @@ function writeOpencodeMcp(cwd) {
   ok(`${had ? 'Merged' : 'Written'} OpenCode MCP config: ${dest}`);
 }
 
+const DSH_PROFILE_FILES = ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml'];
+
+function dshHomePath(env = process.env) {
+  return path.resolve(env.DSH_HOME || path.join(os.homedir(), '.dsh'));
+}
+
+function dshManagedBundleDir(home = dshHomePath()) {
+  return path.join(home, 'zonoid', 'packages', 'dsh');
+}
+
+function dshProfileDir(profile = 'headless', home = dshHomePath()) {
+  return path.join(home, 'profiles', profile);
+}
+
+function dshBundleSpec(bundleDir) {
+  return `link:${fwdSlash(path.resolve(bundleDir))}`;
+}
+
+function renderInstalledDshPatch(source, mcpEntry) {
+  const marker = "!!js process.env.ZONOID_DSH_MCP_ENTRY || process.env.ZONOID_ROOT + '/mcp-graph.js'";
+  if (!source.includes(marker)) throw new Error('DSH Cordis patch is missing its MCP entry marker');
+  return source.replace(marker, JSON.stringify(fwdSlash(path.resolve(mcpEntry))));
+}
+
+function dshDirectorySnapshot(root) {
+  const rows = [];
+  const walk = (dir, prefix = '') => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const full = path.join(dir, entry.name);
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) walk(full, relative);
+      else if (entry.isSymbolicLink()) rows.push([relative, 'link', fs.readlinkSync(full)]);
+      else rows.push([relative, 'file', fs.readFileSync(full).toString('base64')]);
+    }
+  };
+  walk(root);
+  return JSON.stringify(rows);
+}
+
+// Materialize an installer-owned bundle under DSH_HOME. The checked-in patch stays portable for
+// manual `--patch` use; this copy pins the stdio entry to the current Zonoid install so ordinary
+// `dsh --profile headless` launches need no ambient ZONOID_ROOT variable. Replacement is atomic,
+// and the previous managed copy is retained as `<bundle>.zonoid.bak` when content changes.
+function materializeDshBundle(options = {}) {
+  const installDir = path.resolve(options.installDir || INSTALL_DIR);
+  const home = path.resolve(options.dshHome || dshHomePath());
+  const sourceDir = path.join(installDir, 'packages', 'dsh');
+  const dest = path.resolve(options.bundleDir || dshManagedBundleDir(home));
+  if (!fs.existsSync(path.join(sourceDir, 'index.mjs'))) {
+    throw new Error(`DSH bundle source missing at ${sourceDir}`);
+  }
+
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  const stage = path.join(path.dirname(dest), `.dsh.tmp-${process.pid}-${Date.now()}`);
+  try {
+    fs.cpSync(sourceDir, stage, { recursive: true });
+    const packagePath = path.join(stage, 'package.json');
+    const manifest = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+    manifest.dsh = { bundle: { patch: './zonoid.cordis.patch.yml' } };
+    fs.writeFileSync(packagePath, `${JSON.stringify(manifest, null, 2)}\n`);
+    const patchPath = path.join(stage, 'zonoid.cordis.patch.yml');
+    const rendered = renderInstalledDshPatch(
+      fs.readFileSync(patchPath, 'utf8'),
+      path.join(installDir, 'mcp-graph.js'),
+    );
+    fs.writeFileSync(patchPath, rendered);
+  } catch (error) {
+    fs.rmSync(stage, { recursive: true, force: true });
+    throw error;
+  }
+
+  if (fs.existsSync(dest) && dshDirectorySnapshot(dest) === dshDirectorySnapshot(stage)) {
+    fs.rmSync(stage, { recursive: true, force: true });
+    return { path: dest, installed: false, current: true, backup: null };
+  }
+
+  const backup = `${dest}.zonoid.bak`;
+  const had = fs.existsSync(dest);
+  if (had) {
+    fs.rmSync(backup, { recursive: true, force: true });
+    fs.renameSync(dest, backup);
+  }
+  try {
+    fs.renameSync(stage, dest);
+  } catch (error) {
+    if (had && !fs.existsSync(dest) && fs.existsSync(backup)) fs.renameSync(backup, dest);
+    fs.rmSync(stage, { recursive: true, force: true });
+    throw error;
+  }
+  return { path: dest, installed: true, current: false, backup: had ? backup : null };
+}
+
+function canonicalExistingPath(value) {
+  const resolved = path.resolve(value);
+  try { return fs.realpathSync(resolved); } catch { return resolved; }
+}
+
+function dshProfileHasBundle(profileDir, bundleDir) {
+  let manifest;
+  try { manifest = JSON.parse(fs.readFileSync(path.join(profileDir, 'package.json'), 'utf8')); }
+  catch { return false; }
+  const dependency = (manifest.dependencies && manifest.dependencies['@zonoid/dsh'])
+    || (manifest.devDependencies && manifest.devDependencies['@zonoid/dsh']);
+  if (typeof dependency !== 'string' || !dependency.startsWith('link:')) return false;
+  const targetText = dependency.slice('link:'.length);
+  const target = path.isAbsolute(targetText) ? targetText : path.resolve(profileDir, targetText);
+  const bundles = manifest.dsh && manifest.dsh.profile && manifest.dsh.profile.bundles;
+  return canonicalExistingPath(target) === canonicalExistingPath(bundleDir)
+    && Array.isArray(bundles) && bundles.includes('@zonoid/dsh');
+}
+
+function captureDshProfile(profileDir) {
+  const existed = fs.existsSync(profileDir);
+  const files = new Map();
+  for (const name of DSH_PROFILE_FILES) {
+    const file = path.join(profileDir, name);
+    files.set(name, fs.existsSync(file) ? fs.readFileSync(file) : null);
+  }
+  return { existed, files };
+}
+
+function backupDshProfile(profileDir, captured) {
+  if (!captured.existed) return;
+  for (const [name, content] of captured.files) {
+    if (content == null) continue;
+    fs.writeFileSync(path.join(profileDir, `${name}.zonoid.bak`), content);
+  }
+}
+
+function restoreDshProfile(profileDir, captured) {
+  if (!captured.existed) {
+    fs.rmSync(profileDir, { recursive: true, force: true });
+    return;
+  }
+  for (const [name, content] of captured.files) {
+    const file = path.join(profileDir, name);
+    if (content == null) fs.rmSync(file, { force: true });
+    else fs.writeFileSync(file, content);
+  }
+}
+
+// Use DSH's public plugin manager rather than rewriting a user's profile or Cordis patch. The
+// plugin command performs an additive dependency/bundle merge; we back up its metadata inputs and
+// restore them on any non-zero or unverifiable result. User cordis.patch.yml, other dependencies,
+// other bundle layers, and MCP rows are never opened by this installer.
+function installDshProfile(options = {}) {
+  const home = path.resolve(options.dshHome || dshHomePath());
+  const profile = options.profile || 'headless';
+  const profileDir = dshProfileDir(profile, home);
+  const bundle = materializeDshBundle({
+    installDir: options.installDir || INSTALL_DIR,
+    dshHome: home,
+    bundleDir: options.bundleDir,
+  });
+  if (dshProfileHasBundle(profileDir, bundle.path)) {
+    ok(`DSH profile '${profile}' already includes the Zonoid bundle`);
+    return { ok: true, installed: false, current: true, profile, profileDir, bundleDir: bundle.path };
+  }
+
+  const captured = captureDshProfile(profileDir);
+  backupDshProfile(profileDir, captured);
+  const command = options.command || 'dsh';
+  const args = ['plugin', '--profile', profile, 'add', dshBundleSpec(bundle.path)];
+  let result;
+  try {
+    result = (options.spawnSyncFn || spawnSync)(command, args, {
+      cwd: options.cwd || INSTALL_DIR,
+      env: { ...process.env, DSH_HOME: home },
+      encoding: 'utf8',
+      windowsHide: true,
+    });
+  } catch (error) {
+    restoreDshProfile(profileDir, captured);
+    throw error;
+  }
+  if (!result || result.status !== 0 || !dshProfileHasBundle(profileDir, bundle.path)) {
+    restoreDshProfile(profileDir, captured);
+    const detail = result && (result.stderr || result.stdout || result.error && result.error.message);
+    throw new Error(`DSH profile install failed${detail ? `: ${String(detail).trim()}` : ''}`);
+  }
+  ok(`DSH profile '${profile}' now includes the Zonoid Cordis/MCP bundle`);
+  return { ok: true, installed: true, current: false, profile, profileDir, bundleDir: bundle.path };
+}
+
 function checkClaude(cwd) {
   const dest = path.join(cwd, 'CLAUDE.md');
   const src  = path.join(INSTALL_DIR, 'CLAUDE.md');
@@ -533,30 +720,67 @@ function installOpencodeRepoSkills(cwd) {
   return installRepoSkill(cwd, 'zonoid-orchestrator', 'opencode');
 }
 
-function checkDaemon() {
-  return new Promise((resolve) => {
-    const req = http.request(
-      { hostname: 'localhost', port: 8787, path: '/ping', method: 'GET' },
-      (res) => {
-        res.resume();
-        if (res.statusCode === 200) ok('Daemon is running (localhost:8787)');
-        else warn(`Daemon responded with ${res.statusCode}`);
-        resolve();
-      }
-    );
-    req.on('error', () => {
-      fix('Daemon not running — starting it...');
-      spawnSync('node', [path.join(INSTALL_DIR, 'daemon.js')], { detached: true, stdio: 'ignore', windowsHide: true });
-      ok('Daemon started.');
-      resolve();
-    });
-    req.setTimeout(1500, () => { req.destroy(); warn('Daemon ping timed out'); resolve(); });
-    req.end();
-  });
+function daemonReport(deps, kind, message) {
+  if (deps && deps.quiet === true) return;
+  if (kind === 'ok') ok(message);
+  else if (kind === 'warn') warn(message);
+  else fix(message);
 }
 
-function registerWorkspace(cwd, workspace) {
+async function checkDaemon(deps = {}) {
+  const port = deps.port || ORCH_PORT;
+  const result = await daemonHandoff.ensureCurrentDaemon({
+    port,
+    daemonPath: deps.daemonPath || path.join(INSTALL_DIR, 'daemon.js'),
+    env: deps.env,
+    expectedIdentity: deps.expectedIdentity,
+    healthTimeoutMs: deps.healthTimeoutMs,
+    startupTimeoutMs: deps.startupTimeoutMs,
+    handoffTimeoutMs: deps.handoffTimeoutMs,
+    pollMs: deps.pollMs,
+    childCleanupGraceMs: deps.childCleanupGraceMs,
+    pidFile: deps.pidFile,
+    lockFile: deps.lockFile,
+    probe: deps.probe,
+    signalProcess: deps.signalProcess,
+    gracefulSignal: deps.gracefulSignal,
+    isProcessAlive: deps.isProcessAlive,
+    spawnDaemon: deps.spawnDaemon,
+    acquireLock: deps.acquireLock,
+    sleep: deps.sleep,
+    now: deps.now,
+  });
+  if (result.ok) {
+    const verb = result.action === 'replaced' ? 'replaced stale owner and is ready'
+      : result.action === 'started' ? 'started and is ready'
+        : result.action === 'joined' ? 'is ready after concurrent handoff'
+          : 'is running';
+    daemonReport(deps, 'ok', `Daemon ${verb} (localhost:${port})`);
+    return true;
+  }
+  daemonReport(deps, 'warn', `Daemon handoff failed (${result.reason || 'unknown'}; localhost:${port})`);
+  return false;
+}
+
+function daemonJsonHeaders(body, deps = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(body),
+  };
+  const token = Object.prototype.hasOwnProperty.call(deps, 'token') ? deps.token : mcpCore.readToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+function registerWorkspace(cwd, workspace, deps = {}) {
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return false;
+      settled = true;
+      resolve(value);
+      return true;
+    };
     // Resolve cwd -> its containing repo root (nearest ancestor with .graph/.git); fall back to the
     // cwd itself when no marker is found so the daemon still gets a path to register.
     let repoPath = cwd;
@@ -568,15 +792,130 @@ function registerWorkspace(cwd, workspace) {
     if (workspace) payload.workspace = workspace;
     const body = JSON.stringify(payload);
     const req = http.request(
-      { hostname: 'localhost', port: 8787, path: '/workspace', method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },
-      (res) => { res.resume(); ok(`Workspace registered (${res.statusCode})`); resolve(); }
+      { hostname: 'localhost', port: deps.port || ORCH_PORT, path: '/workspace', method: 'POST',
+        headers: daemonJsonHeaders(body, deps) },
+      (res) => {
+        let raw = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => { raw += chunk; });
+        res.on('end', () => {
+          let parsed = null;
+          try { parsed = raw ? JSON.parse(raw) : {}; } catch { /* handled below */ }
+          const accepted = res.statusCode >= 200 && res.statusCode < 300
+            && parsed && parsed.ok === true;
+          if (accepted) {
+            if (finish(repoPath)) daemonReport(deps, 'ok', `Workspace registered (${res.statusCode})`);
+          } else {
+            const detail = parsed && parsed.error ? `: ${parsed.error}` : '';
+            if (finish(null)) {
+              daemonReport(deps, 'warn', `Could not register workspace (daemon returned ${res.statusCode}${detail})`);
+            }
+          }
+        });
+      }
     );
-    req.on('error', () => { warn('Could not register workspace (daemon may still be starting)'); resolve(); });
-    req.setTimeout(3000, () => { req.destroy(); resolve(); });
+    req.on('error', () => {
+      if (finish(null)) daemonReport(deps, 'warn', 'Could not register workspace (daemon may still be starting)');
+    });
+    req.setTimeout(deps.registrationTimeoutMs || 3000, () => {
+      if (finish(null)) daemonReport(deps, 'warn', 'Could not register workspace (request timed out)');
+      req.destroy(new Error('daemon workspace registration timed out'));
+    });
     req.write(body);
     req.end();
   });
+}
+
+function postDaemonJson(route, payload, timeoutMs = 120000, deps = {}) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify(payload);
+    const req = http.request(
+      { hostname: 'localhost', port: deps.port || ORCH_PORT, path: route, method: 'POST',
+        headers: daemonJsonHeaders(body, deps) },
+      (res) => {
+        let raw = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => { raw += chunk; });
+        res.on('end', () => {
+          let parsed = null;
+          try { parsed = raw ? JSON.parse(raw) : {}; } catch { /* handled below */ }
+          if (res.statusCode < 200 || res.statusCode >= 300 || !parsed) {
+            reject(new Error((parsed && parsed.error) || `daemon returned ${res.statusCode}`));
+            return;
+          }
+          resolve(parsed);
+        });
+      }
+    );
+    req.on('error', reject);
+    req.setTimeout(timeoutMs, () => req.destroy(new Error('daemon onboarding request timed out')));
+    req.write(body);
+    req.end();
+  });
+}
+
+async function startWorkspaceOnboarding(repoPath, deps = {}) {
+  const post = deps.post || ((route, payload) => postDaemonJson(
+    route,
+    payload,
+    deps.onboardingTimeoutMs || deps.timeoutMs || 120000,
+    deps
+  ));
+  try {
+    const enqueued = await post('/onboard/enqueue', { repo: repoPath });
+    if (!enqueued || !enqueued.ok || !enqueued.outDir) {
+      throw new Error((enqueued && enqueued.error) || 'onboarding enqueue failed');
+    }
+    const drained = await post('/onboard/drain-queue', {
+      repo: repoPath,
+      outDir: enqueued.outDir,
+      autoInject: true,
+      liveInject: true,
+    });
+    if (!drained || !drained.ok) {
+      throw new Error((drained && drained.error) || 'onboarding drain queue failed');
+    }
+    daemonReport(deps, 'ok', enqueued.reused ? 'Project onboarding resumed in background.' : 'Project onboarding queued in background.');
+    return { ok: true, outDir: enqueued.outDir, reused: !!enqueued.reused };
+  } catch (err) {
+    daemonReport(deps, 'warn', `Could not start project onboarding: ${err && err.message ? err.message : err}`);
+    return { ok: false, error: String(err && err.message ? err.message : err) };
+  }
+}
+
+async function startWorkspaceInitialization(cwd, workspace, deps = {}) {
+  let repoPath = cwd;
+  try {
+    const { registrationRepoRoot } = require(path.join(INSTALL_DIR, 'lib', 'workspace-registry.js'));
+    repoPath = registrationRepoRoot(cwd) || cwd;
+  } catch { /* older installs fall back to the requested cwd */ }
+  const post = deps.post || ((route, payload) => postDaemonJson(
+    route,
+    payload,
+    deps.transactionTimeoutMs || deps.onboardingTimeoutMs || deps.registrationTimeoutMs || deps.timeoutMs || 120000,
+    deps
+  ));
+  try {
+    const payload = { repo: repoPath };
+    if (workspace) payload.workspace_id = workspace;
+    const accepted = await post('/onboard/init', payload);
+    if (!accepted || accepted.ok !== true || accepted.accepted !== true
+        || accepted.registered !== true || !accepted.graph_repo || !accepted.outDir) {
+      throw new Error((accepted && accepted.error) || 'daemon did not accept the workspace onboarding transaction');
+    }
+    daemonReport(deps, 'ok', accepted.reused
+      ? 'Workspace registration and project onboarding resumed.'
+      : 'Workspace registration and project onboarding queued.');
+    return {
+      ok: true,
+      repo: accepted.graph_repo,
+      outDir: accepted.outDir,
+      reused: !!accepted.reused,
+    };
+  } catch (err) {
+    daemonReport(deps, 'warn', `Could not initialize workspace onboarding: ${err && err.message ? err.message : err}`);
+    return { ok: false, error: String(err && err.message ? err.message : err) };
+  }
 }
 
 // ── main ────────────────────────────────────────────────────────────────────
@@ -610,6 +949,7 @@ async function checkGitIdentity() {
 }
 
 const ORCH_PORT = process.env.ORCH_PORT || '8787';
+const ORCH_BIND_HOST = process.env.ORCH_BIND_HOST || '';
 const PLIST_LABEL = 'com.zonoid.daemon';
 const PLIST_PATH  = path.join(os.homedir(), 'Library', 'LaunchAgents', `${PLIST_LABEL}.plist`);
 const SYSTEMD_UNIT = 'zonoid-daemon.service';
@@ -618,6 +958,9 @@ const SYSTEMD_PATH = path.join(os.homedir(), '.config', 'systemd', 'user', SYSTE
 function installLaunchdService() {
   const nodeBin = process.execPath;
   const daemonJs = path.join(INSTALL_DIR, 'daemon.js');
+  const bindEnvironment = ORCH_BIND_HOST
+    ? `    <key>ORCH_BIND_HOST</key>\n    <string>${ORCH_BIND_HOST}</string>\n`
+    : '';
 
   const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -634,7 +977,7 @@ function installLaunchdService() {
   <dict>
     <key>ORCH_PORT</key>
     <string>${ORCH_PORT}</string>
-    <key>ZONOID_DATA</key>
+${bindEnvironment}    <key>ZONOID_DATA</key>
     <string>${ZONOID_DATA_DIR}</string>
   </dict>
   <key>RunAtLoad</key>
@@ -662,6 +1005,7 @@ function installLaunchdService() {
 function installSystemdService() {
   const nodeBin = process.execPath;
   const daemonJs = path.join(INSTALL_DIR, 'daemon.js');
+  const bindEnvironment = ORCH_BIND_HOST ? `Environment=ORCH_BIND_HOST=${ORCH_BIND_HOST}\n` : '';
 
   const unit = `[Unit]
 Description=Zonoid orchestrator daemon
@@ -671,7 +1015,7 @@ After=network.target
 Type=simple
 ExecStart=${nodeBin} ${daemonJs}
 Environment=ORCH_PORT=${ORCH_PORT}
-Environment=ZONOID_DATA=${ZONOID_DATA_DIR}
+${bindEnvironment}Environment=ZONOID_DATA=${ZONOID_DATA_DIR}
 Restart=always
 RestartSec=5
 StandardOutput=append:/tmp/zonoid-daemon.log
@@ -706,7 +1050,7 @@ function installService() {
   else warn(`User service install not supported on ${process.platform}`);
 }
 
-const VALID_HARNESSES = new Set(['claude', 'cursor', 'codex', 'opencode']);
+const VALID_HARNESSES = new Set(['claude', 'cursor', 'codex', 'dsh', 'opencode']);
 
 // ── Graph auto-commit hook ──────────────────────────────────────────────────
 
@@ -1253,6 +1597,95 @@ function checkCursorHooks(cwd) {
   log('Trust the workspace in Cursor so project hooks run.');
 }
 
+const DASHBOARD_EXTENSION_ID = 'zonoid.zonoid-dashboard';
+
+function dashboardExtensionVsixPath() {
+  return path.join(INSTALL_DIR, 'packages', 'vscode-dashboard', 'zonoid-dashboard-0.1.0.vsix');
+}
+
+function dashboardExtensionInstallDirs(editor, version, homeDir = os.homedir()) {
+  const folder = `${DASHBOARD_EXTENSION_ID}-${version}`;
+  const roots = editor === 'cursor'
+    ? ['.cursor/extensions', '.cursor-server/extensions']
+    : ['.vscode/extensions', '.vscode-server/extensions', '.vscode-server-insiders/extensions'];
+  return roots.map((root) => path.join(homeDir, root, folder));
+}
+
+// Install through the editor's documented CLI so the extension lands in the
+// correct local or remote extension host. The helper is editor-neutral: Cursor
+// init calls it with "cursor", and VS Code users can use the same path with
+// "code". Missing editor CLIs are non-fatal because the MCP/hooks wiring is
+// still useful and the exact manual command is printed.
+function installDashboardExtension(editor = 'cursor', options = {}) {
+  const spawnImpl = options.spawnImpl || spawnSync;
+  const vsixPath = options.vsixPath || dashboardExtensionVsixPath();
+  if (!fs.existsSync(vsixPath)) {
+    warn(`Dashboard extension package missing at ${vsixPath}`);
+    return { ok: false, reason: 'vsix_missing', editor, vsixPath };
+  }
+
+  const version = JSON.parse(fs.readFileSync(path.join(INSTALL_DIR, 'packages', 'vscode-dashboard', 'package.json'), 'utf8')).version;
+  const installDirs = dashboardExtensionInstallDirs(editor, version, options.homeDir);
+  if (installDirs.some((dir) => fs.existsSync(dir))) {
+    ok(`${editor} dashboard extension already installed (${DASHBOARD_EXTENSION_ID}@${version})`);
+    return { ok: true, installed: false, current: true, editor, vsixPath };
+  }
+  const expected = `${DASHBOARD_EXTENSION_ID}@${version}`.toLowerCase();
+  const list = spawnImpl(editor, ['--list-extensions', '--show-versions'], {
+    encoding: 'utf8', windowsHide: true,
+  });
+  if (list.error || list.status == null) {
+    warn(`${editor} CLI unavailable — install the dashboard panel manually:`);
+    log(`${editor} --install-extension "${vsixPath}"`);
+    return { ok: false, reason: 'cli_unavailable', editor, vsixPath };
+  }
+  const installed = String(list.stdout || '').split(/\r?\n/).map((line) => line.trim().toLowerCase());
+  if (installed.includes(expected)) {
+    ok(`${editor} dashboard extension already installed (${DASHBOARD_EXTENSION_ID}@${version})`);
+    return { ok: true, installed: false, current: true, editor, vsixPath };
+  }
+
+  fix(`Installing Zonoid dashboard extension in ${editor}...`);
+  const result = spawnImpl(editor, ['--install-extension', vsixPath, '--force'], {
+    encoding: 'utf8', windowsHide: true,
+  });
+  if (result.error || result.status !== 0) {
+    warn(`${editor} dashboard extension install failed — retry manually:`);
+    log(`${editor} --install-extension "${vsixPath}"`);
+    return { ok: false, reason: 'install_failed', editor, vsixPath, status: result.status };
+  }
+  ok(`Installed Zonoid dashboard extension in ${editor}`);
+  return { ok: true, installed: true, current: false, editor, vsixPath };
+}
+
+function claudeDashboardMcpbPath() {
+  return path.join(INSTALL_DIR, 'packages', 'claude-dashboard-mcpb', 'zonoid-dashboard.mcpb');
+}
+
+function checkClaudeDashboardPackage() {
+  const packageDir = path.dirname(claudeDashboardMcpbPath());
+  try {
+    const builder = require(path.join(packageDir, 'build.js'));
+    builder.validateSource(packageDir);
+    if (!fs.existsSync(claudeDashboardMcpbPath())) {
+      warn('Claude Desktop dashboard extension source is valid, but the .mcpb artifact is missing; run npm run build:claude-dashboard');
+      return { ok: false, reason: 'artifact_missing', path: claudeDashboardMcpbPath() };
+    }
+    const expected = builder.createZip(builder.PACKAGE_FILES.map((name) => ({
+      name,
+      body: fs.readFileSync(path.join(packageDir, name)),
+    })));
+    if (!fs.readFileSync(claudeDashboardMcpbPath()).equals(expected)) {
+      throw new Error('checked .mcpb artifact is stale; run npm run build:claude-dashboard');
+    }
+    ok(`Claude Desktop dashboard extension ready: ${claudeDashboardMcpbPath()}`);
+    return { ok: true, path: claudeDashboardMcpbPath() };
+  } catch (error) {
+    warn(`Claude Desktop dashboard extension is invalid: ${error.message}`);
+    return { ok: false, reason: 'invalid_package', path: claudeDashboardMcpbPath() };
+  }
+}
+
 // opencode rewrites "@opencode-ai/plugin": "latest" to a "@local" tag that
 // fails to resolve (NpmInstallFailedError), which makes opencode SILENTLY SKIP
 // the plugin entirely — so the write-gate, task_create, and classify injection
@@ -1274,6 +1707,36 @@ function opencodePluginDepVersion() {
     if (m) return `~${m[1]}.${m[2]}.0`;
   }
   return '^1.15.0'; // fallback: never 'latest' (opencode's @local rewrite breaks it)
+}
+
+const OPENCODE_DASHBOARD_COMMAND_MARKER = '<!-- zonoid-managed-dashboard-command -->';
+
+function installOpencodeDashboardCommand(cwd) {
+  const source = path.join(INSTALL_DIR, 'packages', 'opencode-plugin', 'commands', 'dashboard.md');
+  const dest = path.join(cwd, '.opencode', 'commands', 'dashboard.md');
+  if (!fs.existsSync(source)) {
+    warn(`OpenCode /dashboard command source missing at ${source}`);
+    return { ok: false, reason: 'source_missing', path: dest };
+  }
+
+  const desired = fs.readFileSync(source, 'utf8');
+  const existed = fs.existsSync(dest);
+  if (existed) {
+    const existing = fs.readFileSync(dest, 'utf8');
+    if (existing === desired) {
+      ok('.opencode/commands/dashboard.md already installed');
+      return { ok: true, installed: false, current: true, path: dest };
+    }
+    if (!existing.includes(OPENCODE_DASHBOARD_COMMAND_MARKER)) {
+      warn('.opencode/commands/dashboard.md is user-owned — leaving it untouched');
+      return { ok: false, reason: 'user_owned', path: dest };
+    }
+  }
+
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, desired);
+  ok(`${existed ? 'Updated' : 'Installed'} OpenCode /dashboard command`);
+  return { ok: true, installed: true, current: false, path: dest };
 }
 
 function checkOpencodePlugin(cwd) {
@@ -1527,16 +1990,18 @@ function checkClaudeWiring(cwd) {
 // only touches that harness's own files, so wiring a 2nd harness over a 1st
 // does not disturb the 1st (Codex → ~/.codex/config.toml; OpenCode →
 // <cwd>/opencode.json; claude/cursor → MERGE into <cwd>/.mcp.json preserving
-// sibling servers).
+// sibling servers; DSH → its public profile plugin manager without reading user patches).
 function wireHarness(harness, cwd) {
   if (harness === 'claude') {
     // INVARIANT 4: delegate .mcp.json + settings.json to bin/install.js
     checkClaudeWiring(cwd);
     // CLAUDE.md merge is kept here (bin/install.js doesn't own CLAUDE.md)
     checkClaude(cwd);
+    checkClaudeDashboardPackage();
   } else if (harness === 'cursor') {
     checkCursorHooks(cwd);
     checkMcp(cwd, 'cursor');
+    installDashboardExtension('cursor');
     warn('Cursor init uses native .cursor/hooks.json — do not also wire adapters/cursor/settings.sample.json (double execution)');
   } else if (harness === 'codex') {
     checkCodexHooks();
@@ -1544,8 +2009,12 @@ function wireHarness(harness, cwd) {
     writeCodexMcp();
     installCodexRepoSkills(cwd);
     warn('Codex init skips Claude settings.json / CLAUDE.md — wire hooks via ~/.codex/hooks.json');
+  } else if (harness === 'dsh') {
+    installDshProfile();
+    warn("DSH init adds Zonoid to the 'headless' profile; user patches, plugins, and MCP servers stay untouched");
   } else if (harness === 'opencode') {
     checkOpencodePlugin(cwd);
+    installOpencodeDashboardCommand(cwd);
     writeOpencodeMcp(cwd);
     installOpencodeRepoSkills(cwd);
     warn('OpenCode init skips Claude hooks — restart OpenCode after native opencode.json MCP wiring');
@@ -1553,7 +2022,7 @@ function wireHarness(harness, cwd) {
 }
 
 function printNextSteps(harness, cwd = process.cwd()) {
-  const dash = dashboardUrl(cwd);
+  const dash = dashboardUrl(cwd, ORCH_PORT, harness);
   if (harness === 'codex') {
     console.log('  Next steps (codex):');
     console.log('    1. Open /hooks in Codex CLI and trust the Zonoid hook definitions');
@@ -1573,24 +2042,31 @@ function printNextSteps(harness, cwd = process.cwd()) {
     console.log('    5. Heartbeat: MCP ScheduleWakeup(delaySeconds, reason, prompt) — monitor stdout with');
     console.log('       the returned tail command (notify_pattern ORCH_SCHEDULED_TASK) and re-inject the prompt');
     console.log('    6. orchestrator-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
+  } else if (harness === 'dsh') {
+    console.log('  Next steps (dsh):');
+    console.log('    1. Run DSH with the installed headless profile: dsh --profile headless "task"');
+    console.log('    2. The profile bundle starts the Zonoid MCP server over stdio with ORCH_CLIENT=dsh');
+    console.log(`    3. Open the dashboard: ${dash}`);
+    console.log('    4. Re-run init safely after either Zonoid or DSH updates; profile metadata is backed up before changes');
   } else if (harness === 'opencode') {
     console.log('  Next steps (opencode):');
     console.log('    1. Restart OpenCode in this directory after opencode.json MCP wiring');
-    console.log(`    2. Open the dashboard: ${dash}`);
+    console.log(`    2. Run /dashboard (or use dashboard_open); external fallback: ${dash}`);
     console.log('    3. Mint tasks with the task_create tool (file-drop stub + /sync), then start_task before editing');
     console.log('    4. Heartbeat: schedule_wakeup(delaySeconds, reason, prompt) — monitor ORCH_SCHEDULED_TASK on the session .fire file');
     console.log('    5. Repo skill installed at .opencode/skills/zonoid-orchestrator for task-mint workflow');
     console.log('    6. orchestrator-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
   } else {
     console.log('  Next steps (claude):');
-    console.log('    1. Restart Claude Code in this directory');
-    console.log(`    2. Open the dashboard: ${dash}`);
-    console.log('    3. Ask Claude to start working — it will create tasks automatically');
+    console.log(`    1. Claude Desktop: install ${claudeDashboardMcpbPath()} for the interactive MCP App`);
+    console.log('    2. Claude Code: restart in this directory; it cannot render the Desktop MCP App');
+    console.log(`    3. Claude Code fallback: call show_dashboard or run zonoid-dashboard --open (${dash})`);
+    console.log('    4. Ask Claude to start working — it will create tasks automatically');
     console.log('');
     console.log('  Tip: if Claude says "no task claimed", that\'s the gate working —');
     console.log('  Claude will create a task automatically before editing.');
   }
-  console.log('    Repo learning: run `npx @zonoid/cli onboard` to mine, validate, and review KB notes');
+  console.log('    Repo learning starts automatically in the background; open the dashboard to monitor it.');
 }
 
 async function init(opts = {}) {
@@ -1601,13 +2077,35 @@ async function init(opts = {}) {
     : [opts.harness || 'claude'];
   for (const h of harnesses) {
     if (!VALID_HARNESSES.has(h)) {
-      console.error(`Unknown --harness "${h}" — use claude|cursor|codex|opencode`);
+      console.error(`Unknown --harness "${h}" — use claude|cursor|codex|dsh|opencode`);
       process.exit(1);
     }
   }
   console.log(`\nZonoid init — workspace: ${cwd}`);
   console.log(`Install dir:  ${INSTALL_DIR}`);
   console.log(`Harness:      ${harnesses.join(', ')}\n`);
+
+  // Treat daemon readiness, workspace registration, and durable onboarding enqueue as the
+  // transaction boundary for init. Until all three are accepted, do not migrate runtime state,
+  // install skills/services, or write any project config/hooks. The preflight is quiet so a failed
+  // init never prints a success marker for work that will not be completed.
+  const daemonDeps = { ...(opts.daemonDeps || {}), quiet: true };
+  const daemonReady = await checkDaemon(daemonDeps);
+  if (!daemonReady) {
+    const port = daemonDeps.port || ORCH_PORT;
+    throw new Error(
+      `Initialization aborted: no verified Zonoid daemon is ready on localhost:${port}. ` +
+      'Workspace registration and project onboarding were not attempted.'
+    );
+  }
+  const initialization = await startWorkspaceInitialization(cwd, opts.workspace, daemonDeps);
+  if (!initialization.ok) {
+    throw new Error(`Initialization aborted: workspace registration and project onboarding were not durably accepted: ${initialization.error}`);
+  }
+
+  section('0. Daemon preflight');
+  ok(`Daemon verified (localhost:${daemonDeps.port || ORCH_PORT})`);
+  ok('Workspace registration and project onboarding accepted.');
 
   const runtimeMigration = runtimePaths.migrateLegacyRuntime();
   ZONOID_DATA_DIR = runtimeMigration.dataDir;
@@ -1647,8 +2145,7 @@ async function init(opts = {}) {
 
   section('5. Daemon');
   if (opts.service) installService();
-  await checkDaemon();
-  await registerWorkspace(cwd, opts.workspace);
+  ok(`Daemon is ready (localhost:${daemonDeps.port || ORCH_PORT})`);
 
   section('6. Graph auto-commit hook');
   checkGraphAutocommitHook(cwd, { enable: opts.enableGraphAutocommit });
@@ -1722,7 +2219,7 @@ if (require.main === module) {
     onboard(parseOnboardArgs(process.argv));
   } else {
     console.log('Usage:');
-    console.log('  npx @zonoid/cli init [--harness claude|cursor|codex|opencode] [--service] [--graph-autocommit] [--workspace <name>]');
+    console.log('  npx @zonoid/cli init [--harness claude|cursor|codex|dsh|opencode] [--service] [--graph-autocommit] [--workspace <name>]');
     console.log('  npx @zonoid/cli onboard [--repo <path>] [--force] [--skip-learn] [--model opus] [--max-keep 20]');
     console.log('  npx @zonoid/cli graph init [--remote GRAPH_REPO_URL] [--create-remote] [--private|--public] [--yes] [--dry-run]');
     console.log('  npx @zonoid/cli graph sync [--latest=false]');
@@ -1734,7 +2231,7 @@ if (require.main === module) {
     console.log('  init      Wire daemon, hooks/plugins, MCP, skills, and dashboard for this workspace.');
     console.log('  onboard   Mine + validate repo KB and stop at a human review gate before injection.');
     console.log('');
-    console.log('  --harness  claude (default) | cursor | codex | opencode — adapter wiring.');
+    console.log('  --harness  claude (default) | cursor | codex | dsh | opencode — adapter wiring.');
     console.log('             Accepts a comma-separated list and/or repeats, e.g.');
     console.log('             --harness claude,codex  → wires BOTH in one run (coexistence).');
     console.log('  --service  Install user-level launchd (macOS) or systemd (Linux) service');
@@ -1765,6 +2262,22 @@ if (require.main === module) {
     installCodexRepoSkills,
     installOpencodeRepoSkills,
     opencodePluginDepVersion,
+    DASHBOARD_EXTENSION_ID,
+    dashboardExtensionVsixPath,
+    dashboardExtensionInstallDirs,
+    installDashboardExtension,
+    claudeDashboardMcpbPath,
+    checkClaudeDashboardPackage,
+    installOpencodeDashboardCommand,
+    dshHomePath,
+    dshManagedBundleDir,
+    dshProfileDir,
+    dshBundleSpec,
+    renderInstalledDshPatch,
+    materializeDshBundle,
+    dshProfileHasBundle,
+    installDshProfile,
+    wireHarness,
     // CDX-2: Claude+Codex coexistence — MCP store split + multi-harness init
     writeMcp,
     writeCodexMcp,
@@ -1782,6 +2295,12 @@ if (require.main === module) {
     prePushTestHookScript,
     checkPrePushTestHook,
     parseOnboardArgs,
+    init,
+    checkDaemon,
+    registerWorkspace,
+    postDaemonJson,
+    startWorkspaceOnboarding,
+    startWorkspaceInitialization,
     dashboardUrl,
     renderClaudeInstructions,
     parseGraphArgs,

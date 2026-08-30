@@ -131,6 +131,17 @@ function cleanEnv(base) {
   return env;
 }
 
+function seedOnSandbox(minimalSourceDir, sandboxDir) {
+  fs.mkdirSync(sandboxDir, { recursive: true });
+  if (!fs.existsSync(minimalSourceDir)) return;
+  for (const f of fs.readdirSync(minimalSourceDir)) {
+    const src = path.join(minimalSourceDir, f);
+    if (fs.statSync(src).isFile()) {
+      fs.copyFileSync(src, path.join(sandboxDir, f));
+    }
+  }
+}
+
 const MODEL = arg('model', 'sonnet');
 const SCENARIO_NAME = arg('scenario', 'task-transcript');
 const TRIAL = parseInt(arg('trial', '0'), 10);
@@ -343,15 +354,7 @@ async function main() {
       if (path.resolve(full) !== thisSpecAbs) fs.rmSync(full, { force: true });
     }
   } catch { /* specsDir may not exist */ }
-  fs.mkdirSync(path.join(onWt, 'bench', 'sandbox'), { recursive: true });
-  if (fs.existsSync(minimalSourceDir)) {
-    for (const f of fs.readdirSync(minimalSourceDir)) {
-      const src = path.join(minimalSourceDir, f);
-      if (fs.statSync(src).isFile()) {
-        fs.copyFileSync(src, path.join(onWt, 'bench', 'sandbox', f));
-      }
-    }
-  }
+  seedOnSandbox(minimalSourceDir, path.join(onWt, 'bench', 'sandbox'));
 
   // ON prompt: mandatory search_knowledge before coding (proven best mode for task-transcript).
   const ON_PREAMBLE =
@@ -443,4 +446,8 @@ async function main() {
   console.log('[economy] appended to ' + resultsFile);
 }
 
-main().catch((e) => { console.error(e && e.message ? e.message : e); process.exit(1); });
+if (require.main === module) {
+  main().catch((e) => { console.error(e && e.message ? e.message : e); process.exit(1); });
+}
+
+module.exports = { seedOnSandbox };

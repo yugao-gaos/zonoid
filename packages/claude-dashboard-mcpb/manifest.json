@@ -1,0 +1,50 @@
+{
+  "manifest_version": "0.3",
+  "name": "zonoid-dashboard",
+  "display_name": "Zonoid Task Dashboard",
+  "version": "0.1.0",
+  "description": "Open the workspace-scoped Zonoid task graph as an interactive MCP App in Claude Desktop.",
+  "long_description": "This small adapter launches the MCP server from an existing Zonoid checkout. Choose that checkout when installing the extension. The daemon, task data, and dashboard UI remain in the checkout and are not duplicated in this bundle.",
+  "author": {
+    "name": "Zonoid"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yugao-gaos/zonoid.git"
+  },
+  "license": "Apache-2.0",
+  "tools": [
+    {
+      "name": "show_dashboard",
+      "description": "Render the inline task summary and expose the full dashboard launch descriptor."
+    }
+  ],
+  "tools_generated": true,
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=18"
+    }
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"],
+      "env": {
+        "ZONOID_INSTALL_DIR": "${user_config.zonoid_install_dir}",
+        "ORCH_CLIENT": "claude"
+      }
+    }
+  },
+  "user_config": {
+    "zonoid_install_dir": {
+      "type": "directory",
+      "title": "Zonoid install directory",
+      "description": "Existing Zonoid checkout containing mcp-graph.js, daemon.js, and package.json.",
+      "required": true,
+      "default": "${HOME}/.claude/orchestrator"
+    }
+  }
+}

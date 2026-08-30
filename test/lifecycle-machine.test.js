@@ -132,8 +132,8 @@ for (const status of ['in_progress', 'ready']) {
 {
   const o = ov.EMPTY();
   o.status[K] = 'failed';
-  ov.applyLifecycleEvent(o, K, 'review_kick_back', { task_status: 'failed', agent_id: 'judge', reason: 'no tests', now: NOW });
-  ok('M6: kick_back marks the attempt rejected/blocked', o.reviews[K].review_state === 'rejected' && o.reviews[K].merge_state === 'blocked');
+  ov.applyLifecycleEvent(o, K, 'status_failed', { task_status: 'failed', agent_id: 'worker', reason: 'no tests', now: NOW });
+  ok('M6: failed completion marks the attempt rejected/blocked', o.reviews[K].review_state === 'rejected' && o.reviews[K].merge_state === 'blocked');
   const d = ov.applyLifecycleEvent(o, K, 'retry_requeue', { task_status: 'failed' });
   ok('M6: requeue is accepted', d.ok === true);
   ok('M6: requeue clears the stale verdict so the retry is judged fresh',
@@ -166,14 +166,27 @@ for (const status of ['in_progress', 'ready']) {
     ov.lifecycleEventForStatus('in_progress') === null && ov.lifecycleEventForStatus('ready') === null && ov.lifecycleEventForStatus(null) === null);
 }
 
-// --- 'done' keeps the pre-existing pending-review carve-out ---------------------------------------
+// --- explicit done closes stale pending review state -----------------------------------------------
 {
   const o = ov.EMPTY();
   ov.applyLifecycleEvent(o, K, 'review_request', { review_requested_by: 'dispatcher', now: NOW });
   ov.applyLifecycleEvent(o, K, 'status_done', { task_status: 'done', agent_id: 'worker-a' });
   const r = ov.reviewLifecycleFor(o, K, 'done');
-  ok('done with an open request stays pending (unchanged contract)', r.review_state === 'pending' && r.review_verdict === null && r.merge_state === 'review_pending');
+  ok('done closes an older pending request', r.review_state === 'landed' && r.review_verdict === 'APPROVE' && r.merge_state === 'closed');
   ok('done preserves request provenance', r.review_requested_by === 'dispatcher' && r.review_requested_at === NOW);
+}
+
+// --- stale projected status cannot authorize review on an explicit terminal task ------------------
+{
+  for (const status of ['done', 'failed', 'canceled']) {
+    const o = ov.EMPTY();
+    o.status[K] = status;
+    ov.setReviewLifecycle(o, K, { review_state: 'requested', merge_state: 'review_pending' });
+    const before = JSON.stringify(o.reviews[K]);
+    const d = ov.applyLifecycleEvent(o, K, 'review_approve', { task_status: 'tested', agent_id: 'judge' });
+    ok(`${status} refuses historical review approval`, d.ok === false && d.refusal.code === 'already_terminal');
+    ok(`${status} review refusal writes nothing`, JSON.stringify(o.reviews[K]) === before);
+  }
 }
 
 // --- raw-patch bridge: legacy hand-built patches map to the SAME guarded events -------------------

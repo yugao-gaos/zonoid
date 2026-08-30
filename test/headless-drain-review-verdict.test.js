@@ -61,7 +61,9 @@ function freshModuleWithMockedSpawn(stub) {
       return makeFakeChild();
     }
     calls.push({ bin, args, opts });
-    return stub ? stub(bin, args, opts) : makeFakeChild();
+    return stub ? stub(bin, args, opts) : makeFakeChild({
+      stdout: '{"verdict":"APPROVE","reason":"mock reviewer approved"}',
+    });
   };
   const hd = freshModule();
   return { hd, calls, restore: () => { child_process.spawn = orig; } };
@@ -144,13 +146,36 @@ function pendingReviewOverlay(key, config = {}) {
   return { o, overlayStore };
 }
 
+function makePendingLearnerWorkspace() {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-rv-priority-'));
+  const queueDir = path.join(workspace, '.graph', 'onboard');
+  fs.mkdirSync(queueDir, { recursive: true });
+  fs.writeFileSync(path.join(queueDir, 'onboard-queue.json'), JSON.stringify({
+    total: 2,
+    cursor: 0,
+    kept: [],
+    rejected: [],
+    pending: [{ title: 'candidate-a' }, { title: 'candidate-b' }],
+  }));
+  return workspace;
+}
+
 /** runDueDrains options wiring one review-verdict overlay + idle everything else. */
 function reviewRunOptions(o, overlayStore, backend) {
   return {
     ...idleJudgeDeps(),
     ...idleLabelDeps(),
     ...backend.deps,
-    reviewVerdictDeps: { overlay: o, overlayStore, overlaySave: () => {} },
+    reviewVerdictDeps: {
+      overlay: o,
+      overlayStore,
+      overlaySave: () => {},
+      call: async (method, route) => {
+        if (method === 'GET' && route.startsWith('/task/detail')) return { task: { label: 'Mock task' } };
+        if (method === 'GET' && route.startsWith('/attempt/diff')) return { stat: '1 file changed', diff: '+mock change' };
+        return { ok: true, lifecycle_refused: [] };
+      },
+    },
     reviewMergeDeps: { overlay: overlayStore.EMPTY(), overlayStore },
   };
 }
@@ -206,6 +231,37 @@ test('findReviewVerdictCandidates skips approved, landed, conflicted, and non-te
   assert.deepEqual(candidates, []);
 });
 
+test('findReviewVerdictCandidates accepts a native reviewed attempt hidden by judging readiness', () => {
+  const hd = freshModule();
+  const { o, overlayStore } = pendingReviewOverlay('t/native');
+  delete o.status['t/native'];
+  o.git['t/native'] = {
+    branch: 'orch/attempt/t-native',
+    worktree: '/worktrees/t-native',
+    head: 'abc123',
+  };
+  const graph = {
+    tasks: [{
+      id: 't/native',
+      status: 'not_ready',
+      kind: 'task',
+      deps: [],
+      readiness: { kind: 'judging_hold' },
+      git: { target: { target_repo: '/repo/from-native-task' } },
+    }],
+  };
+
+  assert.deepEqual(
+    hd.findReviewVerdictCandidates('/irrelevant', { overlay: o, overlayStore, graph }),
+    [{
+      key: 't/native',
+      repo_path: '/repo/from-native-task',
+      attempt_branch: 'orch/attempt/t-native',
+      attempt_worktree: '/worktrees/t-native',
+    }]
+  );
+});
+
 // ---------------------------------------------------------------------------
 // Lease exclusivity
 // ---------------------------------------------------------------------------
@@ -255,23 +311,28 @@ test('claimReviewVerdictWork honors maxCandidates', () => {
 // Reviewer prompt shape
 // ---------------------------------------------------------------------------
 
-test('buildReviewVerdictPrompt carries diff endpoints, rubric, verdict bodies, and the never-merge rule', () => {
+test('buildReviewVerdictPrompt embeds bounded inputs and requires one JSON verdict', () => {
   const hd = freshModule();
-  const { prompt } = hd.buildReviewVerdictPrompt({ key: 'feat/x 1', workspace: '/ws root', repoPath: '/repo/x' });
-  assert.match(prompt, /\/task\/detail\?key=feat%2Fx%201/, 'must fetch task detail (encoded key)');
-  assert.match(prompt, /\/attempt\/diff\?key=feat%2Fx%201/, 'must fetch the attempt diff');
-  assert.match(prompt, /repo_path=%2Frepo%2Fx/, 'must forward the task repo to the diff route');
+  const { prompt } = hd.buildReviewVerdictPrompt({
+    key: 'feat/x 1',
+    detail: { task: { label: 'Feature X', summary: 'worker summary' } },
+    diff: { stat: '1 file changed', diff: '+safe change' },
+  });
+  assert.match(prompt, /Feature X/, 'task context is embedded by the daemon');
+  assert.match(prompt, /worker summary/, 'worker summary is embedded');
+  assert.match(prompt, /\+safe change/, 'attempt diff is embedded');
   assert.match(prompt, /correctness/, 'rubric: correctness');
   assert.match(prompt, /scope discipline/, 'rubric: scope discipline');
   assert.match(prompt, /dead\/redundant code/, 'rubric: dead/redundant code');
   assert.match(prompt, /test presence\/quality/, 'rubric: tests');
   assert.match(prompt, /style/, 'rubric: style');
-  assert.match(prompt, /POST(ing)? JSON to .*\/overlay\/status/, 'verdict goes through the submit_verdict HTTP path');
-  assert.match(prompt, /"review_verdict":"APPROVE"/, 'APPROVE body present');
-  assert.match(prompt, /"merge_state":"pending"/, 'APPROVE records pending merge (review-merge drain lands it)');
-  assert.match(prompt, /"review_verdict":"KICK_BACK"/, 'KICK_BACK body present');
-  assert.match(prompt, /"status":"failed"/, 'KICK_BACK fails the implementation task');
-  assert.match(prompt, /NEVER merge/, 'reviewer must never merge');
+  assert.match(prompt, /documentation impact/, 'rubric: documentation impact');
+  assert.match(prompt, /credible rationale/, 'rubric: no-change rationale evidence');
+  assert.match(prompt, /Kick back undocumented changes/, 'rubric: documentation failures block approval');
+  assert.match(prompt, /"verdict":"APPROVE"/, 'APPROVE output shape present');
+  assert.match(prompt, /"verdict":"KICK_BACK"/, 'KICK_BACK output shape present');
+  assert.match(prompt, /daemon validates and applies/, 'the child never mutates lifecycle state');
+  assert.match(prompt, /NEVER post, merge/, 'reviewer must never post or merge');
 });
 
 // ---------------------------------------------------------------------------
@@ -306,12 +367,154 @@ test('review-verdict drain runs under automode and spawns the cli reviewer', asy
     assert.equal(calls[0].bin, backend.bin, 'spawn is driven by the provider invocation');
     const prompt = calls[0].args[calls[0].args.indexOf('-p') + 1];
     assert.match(prompt, /t\/auto/, 'prompt targets the candidate task');
-    assert.match(prompt, /\/attempt\/diff/, 'prompt fetches the attempt diff');
-    assert.match(prompt, /NEVER merge/, 'prompt forbids merging');
+    assert.match(prompt, /\+mock change/, 'prompt carries the daemon-fetched attempt diff');
+    assert.match(prompt, /NEVER post, merge/, 'prompt forbids posting or merging');
     assert.ok(calls[0].args.includes('--backend-id'), 'provider-owned argv, not a hardcoded claude path');
-    assert.ok(o.reviewVerdictLease && o.reviewVerdictLease['t/auto'], 'candidate was leased before spawning');
+    assert.equal(o.reviewVerdictLease && o.reviewVerdictLease['t/auto'], undefined, 'an applied verdict clears its completed review lease');
   } finally {
     restore();
+  }
+});
+
+test('cli reviewer JSON is validated and applied by the daemon-owned verdict call', async () => {
+  const backend = mockBackendDeps();
+  const { hd, restore } = freshModuleWithMockedSpawn(() => makeFakeChild({
+    stdout: '{"verdict":"APPROVE","reason":"focused diff and tests are sound"}',
+  }));
+  const verdictCalls = [];
+  try {
+    const { o, overlayStore } = pendingReviewOverlay('t/daemon-submit', { automode: true });
+    const options = reviewRunOptions(o, overlayStore, backend);
+    options.reviewVerdictDeps.call = async (method, route, body) => {
+      verdictCalls.push({ method, route, body });
+      if (method === 'GET' && route.startsWith('/task/detail')) return { task: { label: 'Reviewed task' } };
+      if (method === 'GET' && route.startsWith('/attempt/diff')) return { stat: '1 file changed', diff: '+safe change' };
+      return { ok: true, lifecycle_refused: [] };
+    };
+
+    const result = await hd.runDueDrains({ workspace: os.tmpdir() }, noopHttp(), options);
+    const submitted = verdictCalls.find((call) => call.method === 'POST' && call.route === '/overlay/status');
+    assert.ok(submitted, 'daemon applies the parsed verdict itself');
+    assert.equal(submitted.body.lifecycle_event, 'review_approve');
+    assert.equal(submitted.body.review_reason, 'focused diff and tests are sound');
+    assert.equal(result.drains.find((d) => d.drain === hd.REVIEW_VERDICT_DRAIN_KEY).verdict, 'APPROVE');
+    assert.equal(o.reviews['t/daemon-submit'].review_state, 'approved', 'the shared tick overlay cannot later resurrect the review');
+  } finally {
+    restore();
+  }
+});
+
+test('cli reviewer resolves a persisted graph target and can kick back an empty attempt diff', async () => {
+  const backend = mockBackendDeps();
+  const { hd, restore } = freshModuleWithMockedSpawn(() => makeFakeChild({
+    stdout: '{"verdict":"KICK_BACK","reason":"attempt branch matches its base"}',
+  }));
+  const verdictCalls = [];
+  try {
+    const { o, overlayStore } = pendingReviewOverlay('t/empty-diff', { automode: true });
+    const options = reviewRunOptions(o, overlayStore, backend);
+    options.reviewVerdictDeps.call = async (method, route, body) => {
+      verdictCalls.push({ method, route, body });
+      if (method === 'GET' && route.startsWith('/task/detail')) {
+        return { task: { label: 'No-op attempt', git: { target: { target_repo: '/repo/from-detail' } } } };
+      }
+      if (method === 'GET' && route.startsWith('/attempt/diff')) return { stat: '', diff: '' };
+      return { ok: true, lifecycle_refused: [] };
+    };
+
+    const result = await hd.runDueDrains({ workspace: os.tmpdir() }, noopHttp(), options);
+    const diffCall = verdictCalls.find((call) => call.method === 'GET' && call.route.startsWith('/attempt/diff'));
+    const submitted = verdictCalls.find((call) => call.method === 'POST');
+    assert.match(diffCall.route, /target_repo=%2Frepo%2Ffrom-detail/, 'the persisted task target scopes the diff read');
+    assert.equal(submitted.body.lifecycle_event, 'review_kick_back');
+    assert.equal(result.drains.find((d) => d.drain === hd.REVIEW_VERDICT_DRAIN_KEY).verdict, 'KICK_BACK');
+    assert.equal(o.status['t/empty-diff'], 'failed');
+    assert.equal(o.reviews['t/empty-diff'].review_state, 'rejected', 'a later cached-overlay save preserves the applied kick-back');
+    assert.equal(o.retryConfig['t/empty-diff'].pendingKickBackRetry, true, 'cached overlay preserves the one-shot retry provenance');
+  } finally {
+    restore();
+  }
+});
+
+test('cli reviewer exit zero without a verdict fails into bounded backoff without posting', async () => {
+  const backend = mockBackendDeps();
+  const { hd, restore } = freshModuleWithMockedSpawn(() => makeFakeChild({
+    stdout: 'review was inconclusive',
+  }));
+  const verdictCalls = [];
+  try {
+    const { o, overlayStore } = pendingReviewOverlay('t/no-verdict', { automode: true });
+    const options = reviewRunOptions(o, overlayStore, backend);
+    options.reviewVerdictDeps.call = async (method, route, body) => {
+      verdictCalls.push({ method, route, body });
+      if (method === 'GET' && route.startsWith('/task/detail')) return { task: { label: 'Inconclusive task' } };
+      if (method === 'GET' && route.startsWith('/attempt/diff')) return { stat: '1 file changed', diff: '+uncertain change' };
+      return { ok: true, lifecycle_refused: [] };
+    };
+
+    const before = Date.now();
+    const result = await hd.runDueDrains({ workspace: os.tmpdir() }, noopHttp(), options);
+    const review = result.drains.find((d) => d.drain === hd.REVIEW_VERDICT_DRAIN_KEY);
+    assert.equal(review.exitCode, 1, 'a clean child exit is not success without a verdict');
+    assert.equal(verdictCalls.some((call) => call.method === 'POST'), false, 'inconclusive output cannot mutate lifecycle state');
+    assert.ok(hd._governor.backoffUntil > before, 'the failure creates bounded provider backoff');
+  } finally {
+    restore();
+  }
+});
+
+test('daemon lifecycle refusal makes the cli review drain fail instead of reporting false success', async () => {
+  const backend = mockBackendDeps();
+  const { hd, restore } = freshModuleWithMockedSpawn(() => makeFakeChild({
+    stdout: '{"verdict":"APPROVE","reason":"looks sound"}',
+  }));
+  try {
+    const { o, overlayStore } = pendingReviewOverlay('t/refused', { automode: true });
+    const options = reviewRunOptions(o, overlayStore, backend);
+    options.reviewVerdictDeps.call = async (method, route) => {
+      if (method === 'GET' && route.startsWith('/task/detail')) return { task: { label: 'Already settled task' } };
+      if (method === 'GET' && route.startsWith('/attempt/diff')) return { stat: '1 file changed', diff: '+late change' };
+      return {
+        ok: true,
+        lifecycle_refused: [{ event: 'review_approve', code: 'already_merged', reason: 'Attempt already merged.' }],
+      };
+    };
+
+    const result = await hd.runDueDrains({ workspace: os.tmpdir() }, noopHttp(), options);
+    const review = result.drains.find((d) => d.drain === hd.REVIEW_VERDICT_DRAIN_KEY);
+    assert.equal(review.exitCode, 1, 'a refused lifecycle transition is a failed drain');
+    assert.equal(review.verdict, undefined, 'a refused verdict is not reported as applied');
+  } finally {
+    restore();
+  }
+});
+
+test('pending task review runs before a failing learner can create global backoff', async () => {
+  const backend = mockBackendDeps();
+  const workspace = makePendingLearnerWorkspace();
+  const { hd, calls, restore } = freshModuleWithMockedSpawn((_bin, args) => {
+    const learner = Array.isArray(args) && args.some((arg) => String(arg).includes('onboard-learn.js'));
+    return makeFakeChild(learner
+      ? { code: 1, stderr: 'structural learner failure' }
+      : { code: 0, stdout: '{"verdict":"APPROVE","reason":"priority review passed"}' });
+  });
+  try {
+    const { o, overlayStore } = pendingReviewOverlay('t/priority', { automode: true });
+    const result = await hd.runDueDrains(
+      { workspace },
+      noopHttp(),
+      reviewRunOptions(o, overlayStore, backend)
+    );
+    const reviewIndex = calls.findIndex((call) => call.bin === backend.bin);
+    const learnerIndex = calls.findIndex((call) => call.args.some((arg) => String(arg).includes('onboard-learn.js')));
+
+    assert.ok(reviewIndex >= 0, 'pending task review must launch despite unrelated learner failure');
+    assert.ok(learnerIndex >= 0, 'learner remains eligible after the priority review');
+    assert.ok(reviewIndex < learnerIndex, 'review claims the provider before deferrable onboarding work');
+    assert.equal(result.drains.some((d) => d.drain === hd.REVIEW_VERDICT_DRAIN_KEY), true);
+  } finally {
+    restore();
+    fs.rmSync(workspace, { recursive: true, force: true });
   }
 });
 
@@ -364,6 +567,213 @@ test('review-verdict drain routes an api backend through the api-review-worker c
   }
 });
 
+test('api review success refreshes the shared tick overlay before an unrelated same-tick save', async () => {
+  const backend = mockBackendDeps({ id: 'mock-api-sync', kind: 'api' });
+  const overlayStore = require('../lib/overlay');
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-rv-api-sync-'));
+  const reviewKey = 't/api-sync';
+  const unrelatedKey = 'note:unrelated-judge';
+  const clone = (value) => JSON.parse(JSON.stringify(value));
+  let authoritative = null;
+  let unrelatedSave = null;
+  const { hd, restore } = freshModuleWithMockedSpawn((_bin, args) => {
+    const script = String(args && args[0] || '');
+    if (script.includes('api-review-worker.js')) {
+      overlayStore.applyLifecycleEvent(authoritative, reviewKey, 'review_kick_back', {
+        task_status: 'tested', agent_id: 'api-reviewer', reason: 'API review failed',
+        now: '2026-08-29T12:00:00.000Z',
+      });
+      authoritative.retryConfig[reviewKey] = { pendingKickBackRetry: true };
+      overlayStore.setStatus(authoritative, reviewKey, 'failed', 'API review failed');
+      overlayStore.setSummary(authoritative, reviewKey, 'KICK_BACK: API review failed');
+      authoritative.assignee[reviewKey] = 'api-reviewer';
+      return makeFakeChild({ stdout: `review verdict: KICK_BACK task=${reviewKey}` });
+    }
+    if (script.includes('api-judge-worker.js')) {
+      return makeFakeChild({ stdout: '{"judged":1,"kept":1,"pruned":0}' });
+    }
+    return makeFakeChild();
+  });
+  try {
+    const { o } = pendingReviewOverlay(reviewKey, {
+      automode: true,
+      backend: { provider: backend.id },
+    });
+    o.eagerJudge[unrelatedKey] = { at: Date.now() };
+    authoritative = clone(o);
+    const save = (_workspace, value) => {
+      authoritative = clone(value);
+      if (value.eagerJudgeLease && value.eagerJudgeLease[unrelatedKey]) unrelatedSave = clone(value);
+    };
+    const result = await hd.runDueDrains({ workspace }, noopHttp(), {
+      ...idleLabelDeps(),
+      ...backend.deps,
+      reviewVerdictDeps: {
+        overlay: o,
+        overlayStore,
+        overlayLoad: () => clone(authoritative),
+        overlaySave: save,
+      },
+      judgeDeps: {
+        overlay: o,
+        overlayStore,
+        overlaySave: save,
+        judgeLib: {
+          eagerJudgeNodes: () => [unrelatedKey],
+          judgeQueueDepth: () => 0,
+          buildQueue: () => [],
+        },
+        acquireEagerJudgeLease: (value, key, owner, ttlMs) => {
+          if (!value.eagerJudgeLease) value.eagerJudgeLease = {};
+          value.eagerJudgeLease[key] = { owner, leaseExpiry: Date.now() + ttlMs };
+          return true;
+        },
+      },
+      reviewMergeDeps: { overlay: o, overlayStore },
+    });
+
+    assert.equal(result.drains.some((item) => item.drain === hd.REVIEW_VERDICT_DRAIN_KEY), true);
+    assert.equal(result.drains.some((item) => item.drain === hd.JUDGE_DRAIN_KEY), true);
+    assert.ok(unrelatedSave, 'the unrelated judge claim performs a later same-tick overlay save');
+    for (const value of [o, unrelatedSave, authoritative]) {
+      assert.equal(value.status[reviewKey], 'failed');
+      assert.equal(value.reviews[reviewKey].review_state, 'rejected');
+      assert.equal(value.reviews[reviewKey].review_verdict, 'KICK_BACK');
+      assert.equal(value.reviews[reviewKey].merge_state, 'blocked');
+      assert.equal(value.reviews[reviewKey].reviewed_at, '2026-08-29T12:00:00.000Z', 'verdict is copied, not re-applied');
+      assert.equal(value.retryConfig[reviewKey].pendingKickBackRetry, true);
+    }
+  } finally {
+    restore();
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test('api review refresh preserves Needs You recovery state through an unrelated same-tick save', async () => {
+  const backend = mockBackendDeps({ id: 'mock-api-recovery-sync', kind: 'api' });
+  const overlayStore = require('../lib/overlay');
+  const taskRecovery = require('../lib/task-recovery');
+  const judge = require('../lib/judge');
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-rv-api-recovery-sync-'));
+  const reviewKey = 't/api-recovery-sync';
+  const unrelatedTask = 't/unrelated';
+  const unrelatedJudge = 'note:unrelated-judge';
+  const clone = (value) => JSON.parse(JSON.stringify(value));
+  let authoritative = null;
+  let unrelatedSave = null;
+  const { hd, restore } = freshModuleWithMockedSpawn((_bin, args) => {
+    const script = String(args && args[0] || '');
+    if (script.includes('api-review-worker.js')) {
+      overlayStore.applyLifecycleEvent(authoritative, reviewKey, 'review_kick_back', {
+        task_status: 'tested', agent_id: 'api-reviewer', reason: 'Second API review failed',
+        now: '2026-08-29T13:00:00.000Z',
+      });
+      authoritative.retryConfig[reviewKey].pendingKickBackRetry = true;
+      authoritative.git[reviewKey] = { branch: 'orch/attempt/recovery-sync', head: 'authoritative-head' };
+      authoritative.blocked[reviewKey] = { reason: 'retry budget exhausted' };
+      overlayStore.setStatus(authoritative, reviewKey, 'failed', 'Second API review failed');
+      overlayStore.setSummary(authoritative, reviewKey, 'KICK_BACK: Second API review failed');
+      taskRecovery.reconcile(authoritative, [
+        { id: reviewKey, label: 'API recovery sync', status: 'failed', deps: [] },
+        { id: 't/dependent', label: 'Dependent', status: 'not_ready', deps: [reviewKey] },
+      ], { now: '2026-08-29T13:00:01.000Z' });
+      return makeFakeChild({ stdout: `review verdict: KICK_BACK task=${reviewKey}` });
+    }
+    if (script.includes('api-judge-worker.js')) {
+      return makeFakeChild({ stdout: '{"judged":1,"kept":1,"pruned":0}' });
+    }
+    return makeFakeChild();
+  });
+  try {
+    const { o } = pendingReviewOverlay(reviewKey, {
+      automode: true,
+      backend: { provider: backend.id },
+    });
+    o.retryConfig[reviewKey] = { retryCount: 1 };
+    o.git[unrelatedTask] = { branch: 'orch/attempt/unrelated', head: 'keep-head' };
+    o.blocked[unrelatedTask] = { reason: 'keep-blocked' };
+    o.judgedTaskDecisions[`decision:merge:${unrelatedTask}`] = true;
+    o.reviewVerdictLease = {
+      [unrelatedTask]: { owner: 'other-runner', leaseExpiry: Date.now() + 60000 },
+    };
+    const unrelatedGuidanceId = overlayStore.addGuidance(o, {
+      question: 'Unrelated recovery question',
+      context: 'Must survive task-scoped synchronization.',
+      trigger: 'repeated_failure',
+      severity: 'blocking',
+      origin_task: unrelatedTask,
+      action: { kind: 'task-recovery', task_key: unrelatedTask, recommended: 'retry' },
+    });
+    o.eagerJudge[unrelatedJudge] = { at: Date.now() };
+    authoritative = clone(o);
+    const save = (_workspace, value) => {
+      authoritative = clone(value);
+      if (value.eagerJudgeLease && value.eagerJudgeLease[unrelatedJudge]) unrelatedSave = clone(value);
+    };
+    const result = await hd.runDueDrains({ workspace }, noopHttp(), {
+      ...idleLabelDeps(),
+      ...backend.deps,
+      reviewVerdictDeps: {
+        overlay: o,
+        overlayStore,
+        overlayLoad: () => clone(authoritative),
+        overlaySave: save,
+      },
+      judgeDeps: {
+        overlay: o,
+        overlayStore,
+        overlaySave: save,
+        judgeLib: {
+          eagerJudgeNodes: () => [unrelatedJudge],
+          judgeQueueDepth: () => 0,
+          buildQueue: () => [],
+        },
+        acquireEagerJudgeLease: (value, key, owner, ttlMs) => {
+          if (!value.eagerJudgeLease) value.eagerJudgeLease = {};
+          value.eagerJudgeLease[key] = { owner, leaseExpiry: Date.now() + ttlMs };
+          return true;
+        },
+      },
+      reviewMergeDeps: { overlay: o, overlayStore },
+    });
+
+    assert.equal(result.drains.some((item) => item.drain === hd.REVIEW_VERDICT_DRAIN_KEY), true);
+    assert.equal(result.drains.some((item) => item.drain === hd.JUDGE_DRAIN_KEY), true);
+    assert.ok(unrelatedSave, 'the unrelated judge claim performs a later same-tick overlay save');
+    for (const value of [o, unrelatedSave, authoritative]) {
+      assert.equal(value.status[reviewKey], 'failed');
+      assert.equal(value.retryConfig[reviewKey].retryCount, 1);
+      assert.equal(value.retryConfig[reviewKey].pendingKickBackRetry, undefined, 'recovery consumed the retry marker');
+      assert.equal(value.git[reviewKey].head, 'authoritative-head');
+      assert.deepEqual(value.blocked[reviewKey], { reason: 'retry budget exhausted' });
+      const recoveryGuidance = value.guidance.filter((item) => !item.resolved
+        && item.action && item.action.kind === 'task-recovery'
+        && item.action.task_key === reviewKey);
+      assert.equal(recoveryGuidance.length, 1, 'Needs You has exactly one recovery decision');
+      assert.deepEqual(value.guidance.map((item) => item.id), [unrelatedGuidanceId, recoveryGuidance[0].id],
+        'selective refresh preserves unrelated guidance order');
+      assert.equal(value.guidance.filter((item) => item.id === unrelatedGuidanceId).length, 1,
+        'unrelated guidance survives selective refresh');
+      for (const action of ['review', 'merge', 'kick_back']) {
+        assert.equal(value.judgedTaskDecisions[`decision:${action}:${reviewKey}`], true);
+      }
+      assert.equal(value.judgedTaskDecisions[`decision:merge:${unrelatedTask}`], true,
+        'unrelated settled decisions survive selective refresh');
+      assert.deepEqual(value.git[unrelatedTask], { branch: 'orch/attempt/unrelated', head: 'keep-head' });
+      assert.deepEqual(value.blocked[unrelatedTask], { reason: 'keep-blocked' });
+      assert.equal(value.reviewVerdictLease[unrelatedTask].owner, 'other-runner');
+      assert.deepEqual(
+        judge.buildQueue(value).filter((item) => item.kind === 'task-decision' && item.task_key === reviewKey),
+        [],
+        'settled rejected lifecycle work cannot be offered again'
+      );
+    }
+  } finally {
+    restore();
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // api-review-worker pure helpers
 // ---------------------------------------------------------------------------
@@ -381,13 +791,36 @@ test('api-review-worker parseVerdict prefers JSON verdicts and never invents one
 
 test('api-review-worker verdict bodies mirror the submit_verdict HTTP path', () => {
   const worker = require('../scripts/api-review-worker');
-  const approve = worker.verdictStatusBody({ verdict: 'APPROVE', reason: 'ok', key: 't/1', workspace: '/ws' });
+  const approve = worker.verdictStatusBody({ verdict: 'APPROVE', reason: 'ok', key: 't/1', workspace: '/ws', opId: 'approve-op' });
   assert.equal(approve.status, 'tested');
-  assert.equal(approve.review.review_state, 'approved');
-  assert.equal(approve.review.review_verdict, 'APPROVE');
-  assert.equal(approve.review.merge_state, 'pending', 'APPROVE leaves the merge to the review-merge drain');
-  const kick = worker.verdictStatusBody({ verdict: 'KICK_BACK', reason: 'missing tests', key: 't/1', workspace: '/ws' });
+  assert.equal(approve.lifecycle_event, 'review_approve');
+  assert.equal(approve.review_reason, 'ok');
+  assert.equal(approve.op_id, 'approve-op');
+  assert.equal(approve.review, undefined, 'API worker uses the guarded named lifecycle event, not a raw review patch');
+  const kick = worker.verdictStatusBody({ verdict: 'KICK_BACK', reason: 'missing tests', key: 't/1', workspace: '/ws', opId: 'kick-op' });
   assert.equal(kick.status, 'failed', 'KICK_BACK fails the implementation task for rework');
-  assert.equal(kick.review.review_state, 'rejected');
-  assert.equal(kick.review.merge_state, 'blocked');
+  assert.equal(kick.lifecycle_event, 'review_kick_back');
+  assert.equal(kick.review_reason, 'missing tests');
+  assert.equal(kick.op_id, 'kick-op');
+  assert.equal(kick.review, undefined);
+});
+
+test('api-review-worker rejects lifecycle failures carried by HTTP 2xx responses', () => {
+  const worker = require('../scripts/api-review-worker');
+  assert.equal(worker.verdictApplyError({ status: 200, body: { ok: true } }, 'review_approve'), null);
+  assert.match(
+    worker.verdictApplyError({ status: 200, body: { ok: false, error: 'write refused' } }, 'review_approve'),
+    /write refused/
+  );
+  assert.match(worker.verdictApplyError({
+    status: 200,
+    body: {
+      ok: true,
+      lifecycle_refused: [{ event: 'review_approve', code: 'already_terminal', reason: 'task is done' }],
+    },
+  }, 'review_approve'), /task is done/);
+  assert.match(worker.verdictApplyError({
+    status: 200,
+    body: { ok: true, lifecycle: { ok: false, refusal: { code: 'already_reviewed' } } },
+  }, 'review_approve'), /already_reviewed/);
 });

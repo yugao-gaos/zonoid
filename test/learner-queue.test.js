@@ -14,6 +14,7 @@ const { spawnSync } = require('child_process');
 const LEARN = path.resolve(__dirname, '../scripts/onboard-learn.js');
 const NODE = process.execPath;
 const learner = require('../scripts/onboard-learn');
+const onboardState = require('../lib/onboard-state');
 const backend = require('../lib/llm-backend');
 const overlayStore = require('../lib/overlay');
 
@@ -198,15 +199,15 @@ function readJSON(p) {
     { title: 'Note A', summary: 'summary A', evidence: 'lib/a.js:10', kind: 'invariant', source: '0' },
     { title: 'Note B', summary: 'summary B', evidence: 'lib/b.js:5', kind: 'gotcha', source: '1' },
   ];
-  const rejectedNotes = [
-    { candidate: 'Git 1', reason: 'restatement' },
-  ];
+  const rejectedNotes = Array.from({ length: 10 }, (_, i) => ({
+    candidate: `Rejected ${i + 1}`, reason: 'restatement',
+  }));
   const queue = {
     total: 12,
     cursor: 12, // already drained
     kept: keptNotes,
     rejected: rejectedNotes,
-    pending: [], // drained, pending irrelevant
+    pending: Array.from({ length: 12 }, (_, i) => ({ title: `Candidate ${i + 1}` })),
   };
   fs.writeFileSync(path.join(dir, 'onboard-queue.json'), JSON.stringify(queue, null, 2));
 
@@ -219,6 +220,12 @@ function readJSON(p) {
   // The queue file should be unchanged (cursor still 12).
   const qAfter = readJSON(path.join(dir, 'onboard-queue.json'));
   ok('drain does not advance cursor past total', qAfter && qAfter.cursor === 12);
+
+  const recoveredNotes = readJSON(path.join(dir, 'onboard-notes.json'));
+  ok('already-drained queue reconstructs a missing final notes artifact', recoveredNotes
+    && recoveredNotes.generation === learner.queueGeneration(qAfter)
+    && JSON.stringify(recoveredNotes.kept) === JSON.stringify(keptNotes)
+    && JSON.stringify(recoveredNotes.rejected) === JSON.stringify(rejectedNotes));
 
   const statusRun = run(['--repo', repo, '--in', dir, '--queue-status']);
   let status = null;
@@ -318,6 +325,374 @@ function readJSON(p) {
   ok('enqueue re-run resets cursor to 0', q2 && q2.cursor === 0);
   ok('enqueue re-run produces same total', q1 && q2 && q1.total === q2.total);
   ok('enqueue re-run resets kept to []', q2 && q2.kept.length === 0);
+  ok('enqueue re-run always allocates a fresh explicit generation', q1 && q2
+    && typeof q1.generation === 'string' && typeof q2.generation === 'string'
+    && q1.generation !== q2.generation);
+}
+
+// ---- TEST 7: direct re-enqueue resets generation-scoped injection state ---
+{
+  const repo = fakeRepo(tmpDir());
+  const dir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  writeFakeMined(dir);
+  run(['--repo', repo, '--in', dir, '--enqueue']);
+  const qf = path.join(dir, 'onboard-queue.json');
+  const first = readJSON(qf);
+  const priorNote = { title: 'Prior', summary: 'already injected', kind: 'decision' };
+  fs.writeFileSync(qf, JSON.stringify({
+    ...first, cursor: first.total, kept: [priorNote], rejected: [],
+  }, null, 2));
+  fs.writeFileSync(path.join(dir, 'onboard-notes.json'), JSON.stringify({
+    generation: first.generation, kept: [priorNote], rejected: [],
+  }));
+  fs.writeFileSync(path.join(dir, onboardState.INJECTION_RECEIPT_FILE), JSON.stringify({
+    generation: first.generation, confirmed: [onboardState.onboardNoteId(priorNote, 0)],
+  }));
+  fs.writeFileSync(path.join(dir, 'onboard-drain-status.json'), JSON.stringify({
+    repo, outDir: dir, autoInject: true, queueGeneration: first.generation,
+    injectionGeneration: first.generation, injectionState: 'succeeded',
+    injected: true, injectedGeneration: first.generation, injectedKept: 1,
+  }));
+
+  const rerun = run(['--repo', repo, '--in', dir, '--enqueue']);
+  const second = readJSON(qf);
+  const status = readJSON(path.join(dir, 'onboard-drain-status.json'));
+  const due = require('../lib/headless-drain').findPendingLearnerQueues(repo);
+  ok('direct re-enqueue succeeds after a prior injected generation', rerun.status === 0);
+  ok('direct re-enqueue fences an identical prior generation', second && second.generation !== first.generation);
+  ok('direct re-enqueue clears stale receipt and final notes artifacts',
+    !fs.existsSync(path.join(dir, onboardState.INJECTION_RECEIPT_FILE))
+      && !fs.existsSync(path.join(dir, 'onboard-notes.json')));
+  ok('direct re-enqueue resets the injection watermark to pending current generation', status
+    && status.queueGeneration === second.generation && status.injectionGeneration === second.generation
+    && status.injectionState === 'pending' && status.injected === false && status.injectedKept === 0);
+  ok('headless discovery schedules the directly re-enqueued generation', due.length === 1
+    && due[0].generation === second.generation && due[0].remaining === second.total);
+
+  const beforeQueue = fs.readFileSync(qf);
+  fs.writeFileSync(path.join(dir, 'onboard-drain-status.json'), JSON.stringify({
+    ...status, injectionState: 'running', injecting: true,
+    injectionOwner: 'live-owner', injectionPid: process.pid,
+    injectionLeaseExpiresAt: Date.now() + 60000,
+  }));
+  const blocked = run(['--repo', repo, '--in', dir, '--enqueue']);
+  ok('direct re-enqueue refuses to replace a live injection owner', blocked.status !== 0
+    && /injection is running/.test(blocked.stderr));
+  ok('rejected live-owner replacement leaves queue bytes unchanged',
+    fs.readFileSync(qf).equals(beforeQueue));
+}
+
+// ---- TEST 7b: queue/status publication survives every durable hard-exit boundary ----
+{
+  const boundaries = [
+    'journal',
+    'onboard-queue.json_temp',
+    'onboard-queue.json',
+    'onboard-drain-status.json_temp',
+    'before_journal_cleanup',
+  ];
+  for (const boundary of boundaries) {
+    const repo = fakeRepo(tmpDir());
+    const dir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+    writeFakeMined(dir);
+    const initial = run(['--repo', repo, '--in', dir, '--enqueue']);
+    const oldQueue = readJSON(path.join(dir, 'onboard-queue.json'));
+    fs.writeFileSync(path.join(dir, onboardState.INJECTION_RECEIPT_FILE), JSON.stringify({
+      generation: oldQueue.generation, confirmed: ['stale'],
+    }));
+    fs.writeFileSync(path.join(dir, 'onboard-notes.json'), JSON.stringify({
+      generation: oldQueue.generation, kept: [{ title: 'stale' }], rejected: [],
+    }));
+
+    const crashed = run(['--repo', repo, '--in', dir, '--enqueue'], {
+      ZONOID_TEST_ONBOARD_PUBLICATION_CRASH_AFTER: boundary,
+    });
+    const queueAfterCrash = readJSON(path.join(dir, 'onboard-queue.json'));
+    const retried = run(['--repo', repo, '--in', dir, '--enqueue'], {
+      ZONOID_TEST_ONBOARD_PUBLICATION_CRASH_AFTER: '',
+    });
+    const queue = readJSON(path.join(dir, 'onboard-queue.json'));
+    const status = readJSON(path.join(dir, 'onboard-drain-status.json'));
+    const leftovers = fs.readdirSync(dir).filter((name) => name === onboardState.PUBLICATION_INTENT_FILE
+      || /\.publish-[a-f0-9]{32}\.tmp$/.test(name)
+      || /^onboard-publication-intent\.json\..*\.tmp$/.test(name));
+    ok(`publication hard exit ${boundary}: child exits at deterministic boundary`, initial.status === 0 && crashed.status === 87);
+    ok(`publication hard exit ${boundary}: retry converges to one queue/status generation`, retried.status === 0
+      && queue && status && status.queueGeneration === queue.generation
+      && status.injectionGeneration === queue.generation && status.preparationState === 'ready');
+    ok(`publication hard exit ${boundary}: committed retry clears stale generation artifacts`,
+      !fs.existsSync(path.join(dir, onboardState.INJECTION_RECEIPT_FILE))
+        && !fs.existsSync(path.join(dir, 'onboard-notes.json')) && leftovers.length === 0);
+    if (['onboard-queue.json', 'onboard-drain-status.json_temp', 'before_journal_cleanup'].includes(boundary)) {
+      ok(`publication hard exit ${boundary}: retry does not allocate a duplicate replacement`,
+        queueAfterCrash && queueAfterCrash.generation === queue.generation);
+    }
+  }
+}
+
+// ---- TEST 7c: a newer accepted preparation fences an abandoned older publication intent ----
+{
+  const repo = fakeRepo(tmpDir());
+  const dir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  writeFakeMined(dir);
+  run(['--repo', repo, '--in', dir, '--enqueue']);
+  const oldQueue = readJSON(path.join(dir, 'onboard-queue.json'));
+  const crashed = run(['--repo', repo, '--in', dir, '--enqueue'], {
+    ZONOID_TEST_ONBOARD_PUBLICATION_CRASH_AFTER: 'journal',
+  });
+  const newerGeneration = 'generation-newer-preparation';
+  fs.writeFileSync(path.join(dir, 'onboard-drain-status.json'), JSON.stringify({
+    repo, outDir: dir, preparationState: 'pending', preparationGeneration: newerGeneration,
+    preparationOwner: null, queueGeneration: null, injectionGeneration: newerGeneration,
+  }, null, 2));
+  const reconciled = onboardState.reconcileOnboardPublication(dir);
+  const finalQueue = readJSON(path.join(dir, 'onboard-queue.json'));
+  const finalStatus = readJSON(path.join(dir, 'onboard-drain-status.json'));
+  ok('newer preparation CAS abandons an older journal instead of resurrecting it', crashed.status === 87
+    && reconciled.settled === 'abandoned' && finalQueue.generation === oldQueue.generation
+    && finalStatus.preparationGeneration === newerGeneration
+    && !fs.existsSync(path.join(dir, onboardState.PUBLICATION_INTENT_FILE)));
+}
+
+// ---- TEST 7d: one-shot publication faults repair synchronously or preserve the exact old pair ----
+{
+  const dir = tmpDir();
+  const oldGeneration = 'generation-publication-old';
+  const oldQueue = {
+    generation: oldGeneration, total: 1, cursor: 0, kept: [], rejected: [],
+    pending: [{ title: 'old', summary: 'old', kind: 'gotcha' }],
+  };
+  const oldStatus = {
+    preparationState: 'ready', queueGeneration: oldGeneration,
+    injectionGeneration: oldGeneration, injectionState: 'pending',
+  };
+  fs.writeFileSync(path.join(dir, 'onboard-queue.json'), JSON.stringify(oldQueue, null, 2));
+  fs.writeFileSync(path.join(dir, 'onboard-drain-status.json'), JSON.stringify(oldStatus, null, 2));
+
+  const beforeJournal = {
+    generation: 'generation-publication-before-journal', total: 1, cursor: 0, kept: [], rejected: [],
+    pending: [{ title: 'before', summary: 'before', kind: 'gotcha' }],
+  };
+  let beforeError = null;
+  try {
+    onboardState.publishOnboardGeneration({
+      outDir: dir, queue: beforeJournal, files: { 'onboard-notes.json': null },
+      statusMutator: (status) => ({ ...status, preparationState: 'ready',
+        queueGeneration: beforeJournal.generation, injectionGeneration: beforeJournal.generation }),
+    }, { onBoundary(name) { if (name === 'journal_temp') throw new Error('one-shot journal temp failure'); } });
+  } catch (err) { beforeError = err; }
+  ok('publication journal-temp failure reports failure with the exact old queue/status pair', beforeError
+    && readJSON(path.join(dir, 'onboard-queue.json')).generation === oldGeneration
+    && readJSON(path.join(dir, 'onboard-drain-status.json')).queueGeneration === oldGeneration);
+  ok('publication journal-temp failure removes its abandoned temp',
+    !fs.readdirSync(dir).some((name) => /onboard-publication-intent.*\.tmp$/.test(name)));
+
+  const repairBoundaries = ['journal', 'onboard-queue.json_temp', 'onboard-queue.json',
+    'onboard-drain-status.json_temp', 'before_journal_cleanup', 'journal_cleanup'];
+  for (const [index, boundary] of repairBoundaries.entries()) {
+    const generation = `generation-publication-repair-${index}`;
+    const queue = {
+      generation, total: 1, cursor: 0, kept: [], rejected: [],
+      pending: [{ title: generation, summary: generation, kind: 'gotcha' }],
+    };
+    const result = onboardState.publishOnboardGeneration({
+      outDir: dir, queue, files: {
+        [onboardState.INJECTION_RECEIPT_FILE]: null,
+        'onboard-notes.json': null,
+      },
+      statusMutator: (status) => ({ ...status, preparationState: 'ready',
+        queueGeneration: generation, injectionGeneration: generation, injectionState: 'pending' }),
+    }, { onBoundary(name) { if (name === boundary) throw new Error(`one-shot ${boundary} failure`); } });
+    const committedQueue = readJSON(path.join(dir, 'onboard-queue.json'));
+    const committedStatus = readJSON(path.join(dir, 'onboard-drain-status.json'));
+    ok(`publication one-shot ${boundary}: caller receives truthful committed success`, result.applied === true
+      && committedQueue.generation === generation && committedStatus.queueGeneration === generation
+      && committedStatus.injectionGeneration === generation);
+    ok(`publication one-shot ${boundary}: no journal or owned temp remains`,
+      !fs.existsSync(path.join(dir, onboardState.PUBLICATION_INTENT_FILE))
+        && !fs.readdirSync(dir).some((name) => /\.publish-[a-f0-9]{32}\.tmp$/.test(name)));
+  }
+
+  const persistentGeneration = 'generation-publication-persistent-status';
+  const persistentQueue = {
+    generation: persistentGeneration, total: 1, cursor: 0, kept: [], rejected: [],
+    pending: [{ title: 'persistent', summary: 'persistent', kind: 'gotcha' }],
+  };
+  const statusPath = path.join(dir, 'onboard-drain-status.json');
+  const realRename = fs.renameSync;
+  let pendingResult;
+  try {
+    fs.renameSync = (from, to) => {
+      if (to === statusPath && /\.publish-[a-f0-9]{32}\.tmp$/.test(from)) {
+        throw Object.assign(new Error('persistent status rename failure'), { code: 'EIO' });
+      }
+      return realRename(from, to);
+    };
+    pendingResult = onboardState.publishOnboardGeneration({
+      outDir: dir, queue: persistentQueue, files: { 'onboard-notes.json': null },
+      statusMutator: (status) => ({ ...status, preparationState: 'ready',
+        queueGeneration: persistentGeneration, injectionGeneration: persistentGeneration }),
+    });
+  } finally {
+    fs.renameSync = realRename;
+  }
+  const pendingStatus = readJSON(statusPath);
+  const pendingQueue = readJSON(path.join(dir, 'onboard-queue.json'));
+  ok('persistent status rename failure acknowledges the durable queue intent without false failure',
+    pendingResult.applied === true && pendingResult.reconciliationPending === true
+      && pendingQueue.generation === persistentGeneration
+      && pendingStatus.queueGeneration !== persistentGeneration
+      && fs.existsSync(path.join(dir, onboardState.PUBLICATION_INTENT_FILE)));
+  const restarted = onboardState.reconcileOnboardPublication(dir);
+  ok('restart reconciliation completes a persistently failed status rename exactly once',
+    restarted.settled === 'committed'
+      && readJSON(statusPath).queueGeneration === persistentGeneration
+      && !fs.existsSync(path.join(dir, onboardState.PUBLICATION_INTENT_FILE)));
+}
+
+// ---- TEST 7e: committed cleanup is independent from publication operation identity ----
+{
+  const dir = tmpDir();
+  const intentPath = path.join(dir, onboardState.PUBLICATION_INTENT_FILE);
+  const queueFor = (generation) => ({
+    generation, total: 1, cursor: 0, kept: [], rejected: [],
+    pending: [{ title: generation, summary: generation, kind: 'gotcha' }],
+  });
+  const filesFor = () => ({ 'onboard-notes.json': null });
+  const publish = (generation, statusMutator) => onboardState.publishOnboardGeneration({
+    outDir: dir,
+    queue: queueFor(generation),
+    files: filesFor(),
+    statusMutator: statusMutator || ((status) => ({
+      ...status,
+      preparationState: 'ready',
+      queueGeneration: generation,
+      injectionGeneration: generation,
+      injectionState: 'pending',
+    })),
+  });
+
+  const realUnlink = fs.unlinkSync;
+  let first;
+  let second;
+  try {
+    fs.unlinkSync = (file, ...args) => {
+      if (path.resolve(file) === path.resolve(intentPath)) {
+        throw Object.assign(new Error('persistent publication cleanup failure'), { code: 'EIO' });
+      }
+      return realUnlink(file, ...args);
+    };
+    first = publish('generation-cleanup-one');
+    second = publish('generation-cleanup-two');
+  } finally {
+    fs.unlinkSync = realUnlink;
+  }
+  const secondQueue = readJSON(path.join(dir, 'onboard-queue.json'));
+  const secondStatus = readJSON(path.join(dir, 'onboard-drain-status.json'));
+  ok('cleanup-pending gen1 does not swallow an explicitly requested gen2',
+    first.applied === true && first.reconciliationPending === true
+      && second.applied === true && second.generation === 'generation-cleanup-two'
+      && secondQueue.generation === 'generation-cleanup-two'
+      && secondStatus.queueGeneration === 'generation-cleanup-two');
+  ok('gen2 owns the surviving cleanup journal after replacing cleanup-pending gen1',
+    readJSON(intentPath).generation === 'generation-cleanup-two');
+
+  let retryMutatorCalls = 0;
+  const retried = publish('generation-cleanup-two', () => {
+    retryMutatorCalls++;
+    throw new Error('same-operation recovery must not allocate another publication');
+  });
+  ok('same generation and payload retry returns only its exact recovered operation',
+    retried.applied === true && retried.recovered === true
+      && retried.generation === 'generation-cleanup-two' && retryMutatorCalls === 0);
+  ok('successful same-operation retry settles the cleanup journal and owned temps',
+    !fs.existsSync(intentPath)
+      && !fs.readdirSync(dir).some((name) => /\.publish-[a-f0-9]{32}\.tmp$/.test(name)));
+}
+
+// ---- TEST 7f: invalid journals fail closed, reprepare, and never poison later publication ----
+{
+  const dir = tmpDir();
+  const intentPath = path.join(dir, onboardState.PUBLICATION_INTENT_FILE);
+  const tempId = 'a'.repeat(32);
+  fs.writeFileSync(path.join(dir, 'onboard-queue.json'), JSON.stringify({
+    generation: 'generation-untrusted-partial', total: 1, cursor: 0, kept: [], rejected: [],
+    pending: [{ title: 'untrusted', summary: 'untrusted', kind: 'gotcha' }],
+  }));
+  fs.writeFileSync(path.join(dir, 'onboard-drain-status.json'), JSON.stringify({
+    preparationState: 'running', preparationGeneration: 'generation-reprepare',
+    preparationOwner: 'dead-owner', preparationPid: 999999, preparationLeaseExpiresAt: Date.now() - 1,
+    queueGeneration: 'generation-before-partial', injectionGeneration: 'generation-before-partial',
+  }));
+  fs.writeFileSync(intentPath, '{');
+  fs.writeFileSync(path.join(dir, `onboard-queue.json.publish-${tempId}.tmp`), '{}');
+
+  const quarantined = onboardState.reconcileOnboardPublication(dir);
+  const failedStatus = readJSON(path.join(dir, 'onboard-drain-status.json'));
+  ok('malformed publication journal is quarantined without rolling its partial queue forward',
+    quarantined.ok === true && quarantined.settled === 'invalid_quarantined'
+      && quarantined.reprepare === true && !fs.existsSync(intentPath)
+      && !fs.existsSync(path.join(dir, 'onboard-queue.json'))
+      && failedStatus.queueGeneration === null && failedStatus.injectionGeneration === null);
+  ok('invalid prepared publication releases its owner into restart-safe reprepare state',
+    failedStatus.preparationState === 'pending'
+      && failedStatus.preparationGeneration === 'generation-reprepare'
+      && failedStatus.preparationOwner === null && failedStatus.preparationPid === null);
+  ok('invalid publication cleanup reaps owned temps and retains quarantined evidence only',
+    !fs.existsSync(path.join(dir, `onboard-queue.json.publish-${tempId}.tmp`))
+      && fs.readdirSync(dir).some((name) => name.startsWith(`${onboardState.PUBLICATION_INTENT_FILE}.invalid-`)));
+
+  const replacementGeneration = 'generation-after-invalid';
+  const replacementQueue = {
+    generation: replacementGeneration, total: 1, cursor: 0, kept: [], rejected: [],
+    pending: [{ title: 'replacement', summary: 'replacement', kind: 'gotcha' }],
+  };
+  const replacement = onboardState.publishOnboardGeneration({
+    outDir: dir, queue: replacementQueue, files: { 'onboard-notes.json': null },
+    statusMutator: (status) => ({
+      ...status, preparationState: 'ready', preparationGeneration: null,
+      queueGeneration: replacementGeneration, injectionGeneration: replacementGeneration,
+    }),
+  });
+  ok('quarantined malformed journal cannot block a later valid publication',
+    replacement.applied === true
+      && readJSON(path.join(dir, 'onboard-queue.json')).generation === replacementGeneration
+      && readJSON(path.join(dir, 'onboard-drain-status.json')).queueGeneration === replacementGeneration);
+
+  const safeQueueBytes = fs.readFileSync(path.join(dir, 'onboard-queue.json'));
+  const safeStatusBytes = fs.readFileSync(path.join(dir, 'onboard-drain-status.json'));
+  fs.writeFileSync(intentPath, JSON.stringify({ version: 1 }));
+  const shallow = onboardState.reconcileOnboardPublication(dir);
+  ok('shallow invalid journal preserves an already coherent committed queue and status',
+    shallow.settled === 'invalid_quarantined'
+      && fs.readFileSync(path.join(dir, 'onboard-queue.json')).equals(safeQueueBytes)
+      && fs.readFileSync(path.join(dir, 'onboard-drain-status.json')).equals(safeStatusBytes));
+}
+
+// ---- TEST 7g: a tampered hard-exit journal cannot block the direct command restart ----
+{
+  const repo = fakeRepo(tmpDir());
+  const dir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  writeFakeMined(dir);
+  const initial = run(['--repo', repo, '--in', dir, '--enqueue']);
+  const before = readJSON(path.join(dir, 'onboard-queue.json'));
+  const crashed = run(['--repo', repo, '--in', dir, '--enqueue'], {
+    ZONOID_TEST_ONBOARD_PUBLICATION_CRASH_AFTER: 'journal',
+  });
+  const intentPath = path.join(dir, onboardState.PUBLICATION_INTENT_FILE);
+  const tampered = readJSON(intentPath);
+  tampered.desiredStatus.queueGeneration = 'generation-tampered';
+  fs.writeFileSync(intentPath, JSON.stringify(tampered, null, 2));
+  const restarted = run(['--repo', repo, '--in', dir, '--enqueue']);
+  const after = readJSON(path.join(dir, 'onboard-queue.json'));
+  const status = readJSON(path.join(dir, 'onboard-drain-status.json'));
+  ok('tampered hard-exit journal is quarantined and direct enqueue restart succeeds',
+    initial.status === 0 && crashed.status === 87 && restarted.status === 0
+      && after.generation !== before.generation && status.queueGeneration === after.generation
+      && status.queueGeneration !== 'generation-tampered' && !fs.existsSync(intentPath));
+  ok('tampered journal restart leaves only quarantined evidence, not publication temps',
+    fs.readdirSync(dir).some((name) => name.startsWith(`${onboardState.PUBLICATION_INTENT_FILE}.invalid-`))
+      && !fs.readdirSync(dir).some((name) => /\.publish-[a-f0-9]{32}\.tmp$/.test(name)));
 }
 
 // ---- TEST 7: queue reservations allow parallel non-overlapping batches ----
@@ -343,18 +718,321 @@ function readJSON(p) {
 
   learner.completeQueueBatch(qf, r2, {
     kept: [{ title: 'Later', summary: 'later', evidence: 'x', kind: 'gotcha' }],
-    rejected: [],
+    rejected: [{ candidate: 'Later rejected', reason: 'restatement' }],
   }, dir, dir, 'opus');
   q = readJSON(qf);
   ok('out-of-order completion does not advance past gap', q && q.cursor === 0);
+  ok('completed sparse slice retains its generation and reservation identity', q && q.completed['2']
+    && q.completed['2'].generation === r2.generation
+    && q.completed['2'].reservationId === r2.reservationId
+    && Number.isFinite(q.completed['2'].completedAt));
 
   learner.completeQueueBatch(qf, r1, {
     kept: [{ title: 'First', summary: 'first', evidence: 'x', kind: 'gotcha' }],
-    rejected: [],
+    rejected: [{ candidate: 'First rejected', reason: 'restatement' }],
   }, dir, dir, 'opus');
   q = readJSON(qf);
   ok('cursor advances through contiguous completed slices', q && q.cursor === 4);
   ok('kept results merge in cursor order', q && q.kept[0].title === 'First' && q.kept[1].title === 'Later');
+}
+
+// ---- TEST 10: impossible partial queues and empty batches fail closed ------
+{
+  const candidate = { title: 'Candidate', summary: 's', kind: 'gotcha' };
+  const partialWithoutCoverage = {
+    generation: 'generation-no-coverage', total: 2, cursor: 0,
+    kept: [], rejected: [], pending: [candidate],
+  };
+  ok('partial queue requires exact candidate coverage',
+    onboardState.validateOnboardQueue(partialWithoutCoverage).reason === 'invalid_pending_coverage');
+  ok('partial queue candidate coverage cannot contain empty slots',
+    onboardState.validateOnboardQueue({
+      ...partialWithoutCoverage, total: 1, pending: [null],
+    }).reason === 'invalid_pending_candidate');
+
+  const ownerless = {
+    generation: 'generation-ownerless', total: 1, cursor: 0,
+    kept: [], rejected: [], pending: [candidate],
+    inflight: { 0: { count: 1, generation: 'generation-ownerless', reservationId: 'token' } },
+  };
+  ok('ownerless reservation is rejected',
+    onboardState.validateOnboardQueue(ownerless).reason === 'invalid_inflight_owner');
+  const invalidLease = {
+    ...ownerless,
+    generation: 'generation-invalid-lease',
+    inflight: { 0: {
+      count: 1, generation: 'generation-invalid-lease', reservationId: 'token', pid: process.pid,
+      startedAt: 1000, expiresAt: 1000,
+    } },
+  };
+  ok('reservation requires a finite advancing lease',
+    onboardState.validateOnboardQueue(invalidLease).reason === 'invalid_inflight_lease');
+  const overlapping = {
+    generation: 'generation-overlap', total: 3, cursor: 0,
+    kept: [], rejected: [], pending: [candidate, candidate, candidate],
+    inflight: { 0: {
+      count: 2, generation: 'generation-overlap', reservationId: 'token', pid: process.pid,
+      startedAt: 1000, expiresAt: 2000,
+    } },
+    completed: { 1: {
+      count: 1, kept: [], rejected: [{ reason: 'duplicate slice' }],
+      generation: 'generation-overlap', reservationId: 'completed-token', completedAt: 1500,
+    } },
+  };
+  ok('inflight and completed ranges cannot overlap',
+    onboardState.validateOnboardQueue(overlapping).reason === 'overlapping_queue_ranges');
+  ok('completed slice identity is either legacy-absent or complete and generation-matched',
+    onboardState.validateOnboardQueue({
+      generation: 'generation-completed-owner', total: 2, cursor: 0,
+      kept: [], rejected: [], pending: [candidate, candidate],
+      completed: { 0: {
+        count: 1, kept: [candidate], rejected: [], generation: 'generation-completed-owner',
+      } },
+    }).reason === 'invalid_completed_owner');
+  const explicitOwnerlessCompleted = {
+    generation: 'generation-explicit-ownerless', total: 2, cursor: 0,
+    kept: [], rejected: [], pending: [candidate, candidate],
+    completed: { 0: { count: 1, kept: [candidate], rejected: [] } },
+  };
+  ok('explicit-generation completed slices require the full reservation identity',
+    onboardState.validateOnboardQueue(explicitOwnerlessCompleted, { allowLegacy: true }).reason
+      === 'invalid_completed_owner');
+  ok('safe legacy completed slice without reservation identity remains readable',
+    onboardState.validateOnboardQueue({
+      total: 2, cursor: 0, kept: [], rejected: [], pending: [candidate, candidate],
+      completed: { 0: { count: 1, kept: [candidate], rejected: [] } },
+    }, { allowLegacy: true }).ok === true);
+  ok('legacy compatibility requires an explicit opt-in',
+    onboardState.validateOnboardQueue({
+      total: 2, cursor: 0, kept: [], rejected: [], pending: [candidate, candidate],
+    }).reason === 'legacy_queue_requires_opt_in');
+  ok('current explicit generations require exact contiguous outcomes',
+    onboardState.validateOnboardQueue({
+      generation: 'generation-missing-outcome', total: 2, cursor: 1,
+      kept: [], rejected: [], pending: [candidate, candidate],
+    }).reason === 'outcome_cursor_mismatch');
+  ok('expected generation fencing takes precedence over replacement queue internals',
+    onboardState.validateOnboardQueue(ownerless, { expectedGeneration: 'generation-previous' }).reason
+      === 'generation_replaced');
+
+  const dir = tmpDir();
+  const qf = path.join(dir, 'onboard-queue.json');
+  fs.writeFileSync(qf, JSON.stringify(ownerless, null, 2));
+  const impossibleBytes = fs.readFileSync(qf);
+  const impossible = learner.reserveQueueBatch(qf, 1, Infinity, 1000, 10000);
+  ok('ownerless full coverage cannot become permanent all_slices_inflight',
+    impossible.status === 'missing_queue' && fs.readFileSync(qf).equals(impossibleBytes));
+
+  fs.writeFileSync(qf, JSON.stringify(explicitOwnerlessCompleted, null, 2));
+  const staleCompletedBytes = fs.readFileSync(qf);
+  const staleCompleted = learner.reserveQueueBatch(qf, 1, Infinity, 1000, 10000);
+  ok('ownerless explicit completed results never flush into the contiguous cursor',
+    staleCompleted.status === 'missing_queue'
+      && fs.readFileSync(qf).equals(staleCompletedBytes));
+
+  const valid = {
+    generation: 'generation-valid-batch', total: 1, cursor: 0,
+    kept: [], rejected: [], pending: [candidate],
+  };
+  fs.writeFileSync(qf, JSON.stringify(valid, null, 2));
+  const validBytes = fs.readFileSync(qf);
+  const emptyBatch = learner.reserveQueueBatch(qf, 0, Infinity, 1000, 10000);
+  const emptyCap = learner.reserveQueueBatch(qf, 1, 0, 1000, 10000);
+  ok('zero batch and zero cap never create empty reservations',
+    emptyBatch.status === 'invalid_batch_size' && emptyCap.status === 'invalid_batch_size'
+      && fs.readFileSync(qf).equals(validBytes));
+
+  fs.writeFileSync(qf, JSON.stringify({
+    ...valid,
+    inflight: { 0: {
+      count: 1, generation: valid.generation, reservationId: 'expired-live-owner', pid: process.pid,
+      startedAt: 1000, expiresAt: 2000,
+    } },
+  }, null, 2));
+  const expired = learner.reserveQueueBatch(qf, 1, Infinity, 2001, 10000);
+  ok('expired live-owner slice is reclaimed instead of returning permanent all_slices_inflight',
+    expired.status === 'reserved' && expired.start === 0 && expired.reservationId !== 'expired-live-owner');
+}
+
+// ---- TEST 11: queue lock reclaim/release never unlinks a replacement -------
+{
+  const dir = tmpDir();
+  const qf = path.join(dir, 'onboard-queue.json');
+  const lock = `${qf}.lock`;
+  fs.writeFileSync(lock, '');
+  fs.utimesSync(lock, new Date(0), new Date(0));
+  const replacementBytes = JSON.stringify({ pid: process.pid, owner: 'replacement-live', at: Date.now() });
+  let incumbentFd = null;
+  let replaced = false;
+  const swappingFs = new Proxy(fs, { get(target, key) {
+    if (key === 'openSync') return (file, flags, ...args) => {
+      const opened = target.openSync(file, flags, ...args);
+      if (file === lock && flags === 'r') incumbentFd = opened;
+      return opened;
+    };
+    if (key === 'readFileSync') return (file, ...args) => {
+      const value = target.readFileSync(file, ...args);
+      if (!replaced && file === incumbentFd) {
+        replaced = true;
+        target.unlinkSync(lock);
+        target.writeFileSync(lock, replacementBytes);
+      }
+      return value;
+    };
+    return target[key];
+  } });
+  let timedOut = false;
+  try {
+    learner.withQueueLock(qf, () => {}, { fsImpl: swappingFs, staleMs: 60000, waitMs: 35 });
+  } catch (err) { timedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('stale reclaim stable-snapshot check preserves a replacement live lock', replaced && timedOut
+    && fs.readFileSync(lock, 'utf8') === replacementBytes);
+  fs.unlinkSync(lock);
+
+  const releaseReplacement = JSON.stringify({ pid: process.pid, owner: 'release-replacement', at: Date.now() });
+  learner.withQueueLock(qf, () => {
+    const held = path.join(lock, 'held');
+    const own = fs.readdirSync(held).map((name) => path.join(held, name))[0];
+    fs.unlinkSync(own);
+    fs.rmdirSync(held);
+    fs.mkdirSync(held);
+    fs.writeFileSync(path.join(held, 'owner-00000000000000000000000000000000.json'), releaseReplacement);
+  });
+  ok('old queue lock owner release preserves a replacement token',
+    fs.readFileSync(path.join(lock, 'held', 'owner-00000000000000000000000000000000.json'), 'utf8') === releaseReplacement);
+  fs.rmSync(lock, { recursive: true, force: true });
+
+  fs.writeFileSync(lock, JSON.stringify({ pid: 2147483647, owner: 'dead-owner', at: Date.now() }));
+  let reclaimed = false;
+  learner.withQueueLock(qf, () => { reclaimed = true; }, { waitMs: 100 });
+  ok('well-formed dead queue lock owner is safely reclaimed', reclaimed && !fs.existsSync(lock));
+
+  const legacyLiveBytes = JSON.stringify({ pid: process.pid, owner: 'legacy-live-owner', at: 1 });
+  fs.writeFileSync(lock, legacyLiveBytes);
+  fs.utimesSync(lock, new Date(0), new Date(0));
+  let legacyLiveTimedOut = false;
+  try { learner.withQueueLock(qf, () => {}, { staleMs: 1, waitMs: 35 }); }
+  catch (err) { legacyLiveTimedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('aged legacy file locks retain a well-formed live owner',
+    legacyLiveTimedOut && fs.readFileSync(lock, 'utf8') === legacyLiveBytes);
+  fs.unlinkSync(lock);
+
+  const currentIncarnation = onboardState.processIncarnation(process.pid);
+  let publishedOwner = null;
+  learner.withQueueLock(qf, () => {
+    const ownerDir = path.join(lock, 'held');
+    const ownerPath = path.join(ownerDir, fs.readdirSync(ownerDir)[0]);
+    publishedOwner = JSON.parse(fs.readFileSync(ownerPath, 'utf8'));
+  });
+  ok('new queue lock owners persist their exact process incarnation',
+    publishedOwner && Object.prototype.hasOwnProperty.call(publishedOwner, 'processIncarnation')
+      && publishedOwner.processIncarnation === currentIncarnation);
+
+  const stateModule = require.resolve('../lib/onboard-state');
+  const crashedOwner = spawnSync(NODE, ['-e', [
+    "const {withFileLock}=require(process.argv[1]);",
+    "withFileLock(process.argv[2],()=>process.exit(86));",
+  ].join(''), stateModule, qf], { encoding: 'utf8', windowsHide: true });
+  ok('hard-exited queue lock owner leaves a new incarnation-bearing record',
+    crashedOwner.status === 86 && fs.existsSync(lock)
+      && Object.prototype.hasOwnProperty.call(JSON.parse(fs.readFileSync(
+        path.join(lock, 'held', fs.readdirSync(path.join(lock, 'held'))[0]), 'utf8'
+      )), 'processIncarnation'));
+  let restartedOwnerReclaimed = false;
+  learner.withQueueLock(qf, () => { restartedOwnerReclaimed = true; }, { waitMs: 100 });
+  ok('a restarted process reclaims the dead prior incarnation lock',
+    restartedOwnerReclaimed && !fs.existsSync(lock));
+
+  const held = path.join(lock, 'held');
+  const liveOwnerFile = path.join(held, 'owner-11111111111111111111111111111111.json');
+  fs.mkdirSync(held, { recursive: true });
+  fs.writeFileSync(liveOwnerFile, JSON.stringify({
+    pid: process.pid, processIncarnation: currentIncarnation, owner: 'live-owner', at: Date.now(),
+  }));
+  let liveTimedOut = false;
+  try { learner.withQueueLock(qf, () => {}, { staleMs: 60000, waitMs: 35 }); }
+  catch (err) { liveTimedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('an exact live queue lock incarnation remains authoritative', liveTimedOut && fs.existsSync(liveOwnerFile));
+  fs.rmSync(lock, { recursive: true, force: true });
+
+  const reusedOwnerFile = path.join(held, 'owner-12121212121212121212121212121212.json');
+  fs.mkdirSync(held, { recursive: true });
+  fs.writeFileSync(reusedOwnerFile, JSON.stringify({
+    pid: process.pid, processIncarnation: 'test:older-process-incarnation',
+    owner: 'reused-pid-owner', at: Date.now(),
+  }));
+  let reusedPidReclaimed = false;
+  learner.withQueueLock(qf, () => { reusedPidReclaimed = true; }, { staleMs: 60000, waitMs: 100 });
+  ok('a queue lock held by a reused PID incarnation is recovered immediately',
+    reusedPidReclaimed && !fs.existsSync(lock));
+
+  const deadOwnerFile = path.join(held, 'owner-22222222222222222222222222222222.json');
+  fs.mkdirSync(held, { recursive: true });
+  fs.writeFileSync(deadOwnerFile, JSON.stringify({ pid: 2147483647, owner: 'dead-owner', at: Date.now() }));
+  let deadDirectoryReclaimed = false;
+  learner.withQueueLock(qf, () => { deadDirectoryReclaimed = true; }, { staleMs: 60000, waitMs: 100 });
+  ok('dead directory owner is reclaimed without leaving lock artifacts',
+    deadDirectoryReclaimed && !fs.existsSync(lock));
+
+  const malformedOwnerFile = path.join(held, 'owner-33333333333333333333333333333333.json');
+  fs.mkdirSync(held, { recursive: true });
+  fs.writeFileSync(malformedOwnerFile, '{"pid":');
+  let malformedTimedOut = false;
+  try { learner.withQueueLock(qf, () => {}, { staleMs: 60000, waitMs: 35 }); }
+  catch (err) { malformedTimedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('fresh malformed directory owner is protected during owner-record publication',
+    malformedTimedOut && fs.existsSync(malformedOwnerFile));
+  fs.utimesSync(malformedOwnerFile, new Date(0), new Date(0));
+  let malformedReclaimed = false;
+  learner.withQueueLock(qf, () => { malformedReclaimed = true; }, { staleMs: 1, waitMs: 100 });
+  ok('stale malformed directory owner is recoverable', malformedReclaimed && !fs.existsSync(lock));
+
+  const staleOwnerFile = path.join(held, 'owner-44444444444444444444444444444444.json');
+  const replacementOwnerFile = path.join(held, 'owner-55555555555555555555555555555555.json');
+  const replacementOwnerBytes = JSON.stringify({ pid: process.pid, owner: 'replacement-owner', at: Date.now() });
+  fs.mkdirSync(held, { recursive: true });
+  fs.writeFileSync(staleOwnerFile, JSON.stringify({ pid: 2147483647, owner: 'stale-owner', at: 1 }));
+  let swappedAfterExactUnlink = false;
+  const recoverySwapFs = new Proxy(fs, { get(target, key) {
+    if (key === 'unlinkSync') return (file, ...args) => {
+      const result = target.unlinkSync(file, ...args);
+      if (!swappedAfterExactUnlink && file === staleOwnerFile) {
+        swappedAfterExactUnlink = true;
+        target.rmdirSync(held);
+        target.mkdirSync(held);
+        target.writeFileSync(replacementOwnerFile, replacementOwnerBytes);
+      }
+      return result;
+    };
+    return target[key];
+  } });
+  let recoverySwapTimedOut = false;
+  try {
+    learner.withQueueLock(qf, () => {}, { fsImpl: recoverySwapFs, staleMs: 60000, waitMs: 35 });
+  } catch (err) { recoverySwapTimedOut = /timed out waiting/.test(String(err && err.message)); }
+  ok('stale recovery cannot remove a replacement created after exact-owner unlink',
+    swappedAfterExactUnlink && recoverySwapTimedOut
+      && fs.readFileSync(replacementOwnerFile, 'utf8') === replacementOwnerBytes);
+  fs.rmSync(lock, { recursive: true, force: true });
+
+  fs.mkdirSync(lock);
+  let removedRootAtHandoff = false;
+  const rootHandoffFs = new Proxy(fs, { get(target, key) {
+    if (key === 'mkdirSync') return (dirPath, ...args) => {
+      if (!removedRootAtHandoff && dirPath === held) {
+        removedRootAtHandoff = true;
+        target.rmdirSync(lock);
+      }
+      return target.mkdirSync(dirPath, ...args);
+    };
+    return target[key];
+  } });
+  let acquiredAfterRootHandoff = false;
+  learner.withQueueLock(qf, () => { acquiredAfterRootHandoff = true; }, {
+    fsImpl: rootHandoffFs, staleMs: 60000, waitMs: 100,
+  });
+  ok('contender retries when the empty root disappears before held creation',
+    removedRootAtHandoff && acquiredAfterRootHandoff && !fs.existsSync(lock));
 }
 
 // ---- TEST 8: failed reservation becomes retryable -------------------------
@@ -386,7 +1064,17 @@ function readJSON(p) {
     rejected: [],
     pending: Array.from({ length: 3 }, (_, i) => ({ title: `Cand ${i}`, summary: 's', kind: 'gotcha' })),
     inflight: {
-      0: { count: 2, pid: 99999999, startedAt: 1000, expiresAt: 11000 },
+      0: {
+        count: 2,
+        generation: learner.queueGeneration({
+          total: 3,
+          pending: Array.from({ length: 3 }, (_, i) => ({ title: `Cand ${i}`, summary: 's', kind: 'gotcha' })),
+        }),
+        reservationId: 'dead-owner-reservation',
+        pid: 99999999,
+        startedAt: 1000,
+        expiresAt: 11000,
+      },
     },
   }, null, 2));
 
@@ -394,6 +1082,55 @@ function readJSON(p) {
   const q = readJSON(qf);
   ok('dead inflight owner is retried from same start', retry.status === 'reserved' && retry.start === 0);
   ok('dead inflight owner is replaced by current reservation', q && q.inflight && q.inflight['0'] && q.inflight['0'].pid === process.pid);
+}
+
+// ---- TEST 10: an old child cannot complete into a replacement generation ---
+{
+  const dir = tmpDir();
+  const qf = path.join(dir, 'onboard-queue.json');
+  const pending = [{ title: 'Old', summary: 'old', kind: 'gotcha' }];
+  fs.writeFileSync(qf, JSON.stringify({
+    generation: 'generation-old', total: 1, cursor: 0,
+    kept: [], rejected: [], pending,
+  }, null, 2));
+
+  const old = learner.reserveQueueBatch(qf, 1, Infinity, 1000, 10000);
+  fs.writeFileSync(qf, JSON.stringify({
+    generation: 'generation-new', total: 1, cursor: 0,
+    kept: [], rejected: [], pending: [{ title: 'New', summary: 'new', kind: 'gotcha' }],
+  }, null, 2));
+
+  const completion = learner.completeQueueBatch(qf, old, {
+    kept: [{ title: 'Stale result', summary: 'must not land', kind: 'gotcha' }],
+    rejected: [],
+  }, dir, dir, 'opus');
+  const q = readJSON(qf);
+  ok('reservation carries the claimed queue generation', old.generation === 'generation-old');
+  ok('old child completion is reported stale', completion && completion.stale === true);
+  ok('old child cannot advance or mutate replacement queue', q && q.generation === 'generation-new'
+    && q.cursor === 0 && q.kept.length === 0 && q.pending[0].title === 'New');
+  ok('stale completion cannot publish old-generation notes', !fs.existsSync(path.join(dir, 'onboard-notes.json')));
+}
+
+// ---- TEST 11: an old failure cannot release a new reservation --------------
+{
+  const dir = tmpDir();
+  const qf = path.join(dir, 'onboard-queue.json');
+  const base = (generation) => ({
+    generation, total: 1, cursor: 0, kept: [], rejected: [],
+    pending: [{ title: generation, summary: generation, kind: 'gotcha' }],
+  });
+  fs.writeFileSync(qf, JSON.stringify(base('generation-old'), null, 2));
+  const old = learner.reserveQueueBatch(qf, 1, Infinity, 1000, 10000);
+
+  fs.writeFileSync(qf, JSON.stringify(base('generation-new'), null, 2));
+  const current = learner.reserveQueueBatch(qf, 1, Infinity, 1001, 10000);
+  const failed = learner.failQueueBatch(qf, old);
+  const q = readJSON(qf);
+  ok('old failure is reported stale after replacement', failed && failed.stale === true);
+  ok('old failure leaves the new generation reservation intact', q && q.inflight['0']
+    && q.inflight['0'].generation === current.generation
+    && q.inflight['0'].reservationId === current.reservationId);
 }
 
 // ---- summary ---------------------------------------------------------------

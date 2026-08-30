@@ -46,6 +46,7 @@ function ok(label, cond) {
 
 ok('default harness is claude', parseInitArgs(['node', 'zonoid', 'init']).harness === 'claude');
 ok('cursor harness parsed', parseInitArgs(['node', 'zonoid', 'init', '--harness', 'cursor']).harness === 'cursor');
+ok('dsh harness parsed', parseInitArgs(['node', 'zonoid', 'init', '--harness', 'dsh']).harness === 'dsh');
 ok('opencode harness parsed', parseInitArgs(['node', 'zonoid', 'init', '--harness', 'opencode']).harness === 'opencode');
 ok('--service flag parsed', parseInitArgs(['node', 'zonoid', 'init', '--service', '--harness', 'codex']).service === true);
 ok('invalid harness not in VALID_HARNESSES', !VALID_HARNESSES.has('invalid'));
@@ -64,7 +65,7 @@ ok('dashboardUrl pins and URL-encodes workspace path',
     clientRepo,
     '8788'
   );
-  const expected = `http://localhost:8788/graph?workspace=${encodeURIComponent(path.resolve(clientRepo))}`;
+  const expected = `http://localhost:8788/graph?workspace=${encodeURIComponent(path.resolve(clientRepo))}&viewer=claude`;
   ok('renderClaudeInstructions rewrites generic dashboard URL', rendered.includes(`A ${expected}`));
   ok('renderClaudeInstructions rewrites existing pinned dashboard URL', rendered.includes(`B ${expected}`));
 }

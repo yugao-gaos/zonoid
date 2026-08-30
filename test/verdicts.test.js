@@ -100,20 +100,20 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
     { id: 'followup/restart-abcd', status: 'not_ready', deps: [] },
   ], ghosts: [] };
   const sh = vd.sweepStaleHolds(o, `${S}/14`, graph);
-  ok('hold referencing the completed task queues a judge repair (sibling shorthand)', sh.flagged.includes(`${S}/11`) && o.status[`${S}/11`] === 'not_ready' && o.readinessRepairs[`${S}/11`]);
-  ok('judge repair records why', o.readinessRepairs[`${S}/11`].reason.startsWith(`hold referenced ${S}/14`));
-  ok('unreferenced stale hold queues once all deps are done', sh.flagged.includes(`${S}/20`) && o.status[`${S}/20`] === 'not_ready' && o.readinessRepairs[`${S}/20`]);
-  ok('unreferenced repair records all-deps-done reason', /all blocking deps are done/.test(o.readinessRepairs[`${S}/20`].reason));
+  ok('hold referencing the completed task is released automatically (sibling shorthand)', sh.released.includes(`${S}/11`) && o.status[`${S}/11`] === undefined);
+  ok('automatic release records why', o.notes[`${S}/11`].startsWith(`auto-released: hold referenced ${S}/14`));
+  ok('independently justified hold stays closed and enters the user inbox', sh.flagged.includes(`${S}/20`) && o.status[`${S}/20`] === 'not_ready');
+  ok('user hold guidance preserves the independent reason', o.guidance.some((g) => !g.resolved && g.action && g.action.kind === 'user-hold' && g.action.task_key === `${S}/20` && /design sign-off/.test(g.context)));
   ok('hold with an open blocking dep is untouched', o.status[`${S}/30`] === 'not_ready' && !sh.released.includes(`${S}/30`));
-  ok('cross-session "/14" shorthand still queues only because all deps are done', o.status['othersess/3'] === 'not_ready' && /all blocking deps are done/.test(o.readinessRepairs['othersess/3'].reason));
+  ok('cross-session "/14" shorthand is not treated as mechanical evidence', o.status['othersess/3'] === 'not_ready' && o.guidance.some((g) => g.action && g.action.kind === 'user-hold' && g.action.task_key === 'othersess/3'));
   ok('followup/ holds are skipped entirely', o.status['followup/restart-abcd'] === 'not_ready' && !sh.flagged.includes('followup/restart-abcd') && !o.guidance.some((x) => x.action && x.action.task_key === 'followup/restart-abcd'));
   const sh2 = vd.sweepStaleHolds(o, `${S}/2`, { tasks: graph.tasks.map((t) => t.id === `${S}/2` ? { ...t, status: 'done' } : t), ghosts: [] });
-  ok('second sweep keeps stale holds in the judge repair lane', sh2.flagged.includes(`${S}/20`) && o.readinessRepairs[`${S}/20`]);
+  ok('second sweep deduplicates user hold guidance', sh2.flagged.includes(`${S}/20`) && o.guidance.filter((g) => !g.resolved && g.action && g.action.kind === 'user-hold' && g.action.task_key === `${S}/20`).length === 1);
   // Full-key reference also auto-releases.
   const o2 = ov.EMPTY();
   ov.setStatus(o2, 'a/1', 'not_ready', `held pending ${S}/14 verdict`);
   const sh3 = vd.sweepStaleHolds(o2, `${S}/14`, { tasks: [{ id: 'a/1', status: 'not_ready', deps: [] }], ghosts: [] });
-  ok('full-key reference queues judge repair across sessions', sh3.flagged.includes('a/1') && o2.status['a/1'] === 'not_ready' && o2.readinessRepairs['a/1']);
+  ok('full-key reference auto-releases across sessions', sh3.released.includes('a/1') && o2.status['a/1'] === undefined);
 }
 
 // --- resolveStaleHold --------------------------------------------------------------------------

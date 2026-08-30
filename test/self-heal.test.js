@@ -161,6 +161,47 @@ const FRESH = 60000;        // 1m ago — within the window
   ok('second sweep is idempotent (already-reviewed keys skipped)', sweepStaleVerdicts(ws, overlay) === false);
 }
 
+// Settled review records are historical outcomes, not abandoned handoffs. Skip them before the
+// guarded transition so the periodic sweep neither reopens them nor logs the same refusal forever.
+{
+  const overlay = ov.EMPTY();
+  overlay.config.stale_minutes = 0;
+  const staleAt = new Date(Date.now() - 1000).toISOString();
+  overlay.status['s/settled-approved'] = 'tested';
+  overlay.timestamps['s/settled-approved'] = { firstSeen: staleAt, lastChanged: staleAt, lastStatus: 'tested' };
+  overlay.reviews['s/settled-approved'] = {
+    review_state: 'approved', review_verdict: 'APPROVE', merge_state: 'pending',
+  };
+  overlay.status['s/settled-merged'] = 'ready';
+  overlay.timestamps['s/settled-merged'] = { firstSeen: staleAt, lastChanged: staleAt, lastStatus: 'ready' };
+  overlay.reviews['s/settled-merged'] = {
+    review_state: 'landed', review_verdict: 'APPROVE', merge_state: 'merged',
+  };
+  overlay.status['s/unreviewed'] = 'tested';
+  overlay.timestamps['s/unreviewed'] = { firstSeen: staleAt, lastChanged: staleAt, lastStatus: 'tested' };
+  __setAgentsForTest({});
+
+  const ws = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-self-heal-settled-')));
+  const logs = [];
+  const originalLog = console.log;
+  let dirty;
+  try {
+    console.log = (...args) => logs.push(args.join(' '));
+    dirty = sweepStaleVerdicts(ws, overlay);
+  } finally {
+    console.log = originalLog;
+  }
+  ok('settled-review sweep still routes a genuinely unreviewed stale verdict', dirty === true
+    && overlay.reviews['s/unreviewed'].review_state === 'requested');
+  ok('settled approved review is preserved', overlay.reviews['s/settled-approved'].review_state === 'approved'
+    && overlay.reviews['s/settled-approved'].merge_state === 'pending');
+  ok('settled merged review is preserved', overlay.reviews['s/settled-merged'].review_state === 'landed'
+    && overlay.reviews['s/settled-merged'].merge_state === 'merged');
+  ok('settled reviews produce no repeated refusal log', !logs.some((line) => line.includes('settled-approved')
+    || line.includes('settled-merged') || line.includes('NOT re-requested')));
+  ok('settled-review sweep is clean after pending work is routed', sweepStaleVerdicts(ws, overlay) === false);
+}
+
 // --- explicit stale_minutes=0 honors any past timestamp as stale ------------------------------
 {
   const overlay = ov.EMPTY();

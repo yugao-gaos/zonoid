@@ -925,6 +925,10 @@ class EwmAgent:
         # ``expect_mismatch`` and routes to REPAIR before any reactive fallback. Cleared on adopt.
         self._partial_repaired = False
         self._probed = False           # probe batch runs at most once (fresh-game seeding)
+        # Keep initial seeding actions back-to-back. A reflective LLM call between probes can outlive
+        # the live ARC server's post-RESET start window and invalidate the session before the next
+        # action; reflection resumes as soon as the probe batch ends.
+        self._probing = False
         self._modelability_poor = False  # once set, the loop stays reactive (never re-plans a program)
         # The `note:` key of the KB program ORIENT adopted this game (None when the active program was
         # synthesized, not recalled). Threaded into `write_program_revision(supersedes=...)` so an
@@ -1787,17 +1791,21 @@ class EwmAgent:
         for a in valid:
             if a not in distinct:
                 distinct.append(a)
-        for action in distinct:
-            if len(self.suite) >= self.config.min_probe_transitions:
-                break
-            cur = self._observe()
-            if cur.get("done") or self._out_of_budget(cur):
-                break
-            remaining = cur.get("remaining_actions")
-            # Keep at least one action in reserve for real play after probing.
-            if isinstance(remaining, (int, float)) and remaining <= 1:
-                break
-            self._act_and_ingest(cur, [action])
+        self._probing = True
+        try:
+            for action in distinct:
+                if len(self.suite) >= self.config.min_probe_transitions:
+                    break
+                cur = self._observe()
+                if cur.get("done") or self._out_of_budget(cur):
+                    break
+                remaining = cur.get("remaining_actions")
+                # Keep at least one action in reserve for real play after probing.
+                if isinstance(remaining, (int, float)) and remaining <= 1:
+                    break
+                self._act_and_ingest(cur, [action])
+        finally:
+            self._probing = False
 
     def _act_and_ingest(self, before: dict[str, Any], batch: list[Any]) -> dict[str, Any]:
         """Apply a small batch (no ``expect``) and ingest the result (records + reflects)."""
@@ -2645,7 +2653,10 @@ class EwmAgent:
         # MODEL-TRUSTED FAST PATH: while the model is trusted, SKIP the reflect LLM call — reflection
         # becomes log-only (the suite still appended the transition above). Any expect-mismatch has
         # already dropped trust via _refresh_model_trust, so this only skips when the model held.
-        if self.config.fast_path and self._model_trusted:
+        if self._probing:
+            self.summary.reflect_skipped += 1
+            reflect_text = ""
+        elif self.config.fast_path and self._model_trusted:
             self.summary.reflect_skipped += 1
             reflect_text = ""
         else:
