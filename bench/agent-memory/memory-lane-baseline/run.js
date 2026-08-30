@@ -78,7 +78,9 @@ async function retrieve(ctx, workspace, query, k = K, memoryLanes = false, taskK
   url.searchParams.set('q', query);
   url.searchParams.set('k', String(k));
   url.searchParams.set('rerank', '0');
-  if (memoryLanes) url.searchParams.set('memory_lanes', '1');
+  // Keep the historical `current` arm as an explicit legacy control now that
+  // production retrieval defaults to lane-aware output.
+  url.searchParams.set('memory_lanes', memoryLanes ? '1' : '0');
   if (taskKey) url.searchParams.set('task_key', taskKey);
   const result = await compileSearchContext(ctx, {
     req: { socket: { remoteAddress: '127.0.0.1' } },
