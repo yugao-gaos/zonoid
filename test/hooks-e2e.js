@@ -91,12 +91,14 @@ const fs = require('fs');
 const args = process.argv.slice(2);
 const input = fs.readFileSync(0, 'utf8');
 if (args.includes('-Rs')) { process.stdout.write(JSON.stringify(input)); process.exit(0); }
-if (args.includes('-n')) {
+if (args.some((arg) => /^-[A-Za-z]*n[A-Za-z]*$/.test(arg))) {
   const values = {};
   for (let i = 0; i < args.length - 1; i++) {
     if (args[i] === '--arg') { values[args[i + 1]] = args[i + 2] || ''; i += 2; }
   }
-  process.stdout.write(JSON.stringify({ task_key: values.task_key, session_id: values.session_id, agent_id: values.agent_id }));
+  const body = { task_key: values.task_key, session_id: values.session_id, agent_id: values.agent_id };
+  if (values.workspace) body.workspace = values.workspace;
+  process.stdout.write(JSON.stringify(body));
   process.exit(0);
 }
 const filter = args.filter((a) => a !== '-r').join(' ');
@@ -119,8 +121,13 @@ else if (filter.includes('.tool_response | collect')) {
     for (const key of ['structuredContent', 'result', 'content', 'text']) collect(value[key], depth + 1);
   }
   collect(json.tool_response);
-  out = !objects.some((item) => item.isError === true || item.ok === false || item.error != null) &&
-    objects.some((item) => item.ok === true) ? 'true' : 'false';
+  if (filter.includes('execution_permit')) {
+    const hit = objects.find((item) => item.execution_permit && typeof item.execution_permit.workspace === 'string' && item.execution_permit.workspace.trim());
+    out = hit ? hit.execution_permit.workspace.trim() : '';
+  } else {
+    out = !objects.some((item) => item.isError === true || item.ok === false || item.error != null) &&
+      objects.some((item) => item.ok === true) ? 'true' : 'false';
+  }
 }
 else if (filter.includes('[.ready')) out = Array.isArray(json.ready) ? json.ready.map((x) => x && x.label).filter(Boolean).join(', ') : '';
 process.stdout.write(String(out));
@@ -278,11 +285,11 @@ function mkOff(sid) { fs.mkdirSync(SESS, { recursive: true }); fs.writeFileSync(
           session_id: `e2e-cdx-accept-${before}`,
           tool_name: toolName,
           tool_input: { action: 'accept', task_key: `e2e/${before}`, agent_id: 'e2e-worker', graph_repo: '/workspace/e2e-codex' },
-          tool_response: { isError: false, content: [{ type: 'text', text: '{"ok":true}' }] },
+          tool_response: { isError: false, content: [{ type: 'text', text: '{"ok":true,"execution_permit":{"workspace":"/graph/e2e"}}' }] },
         }, stub.env);
         const hits = curlHits(stub.logPath);
         const last = hits[hits.length - 1] || '';
-        check(`post-start accepts successful ${toolName}`, r.code === 0 && hits.length === before + 1 && last.includes('/overlay/claim-session'), `code=${r.code} hits=${hits.length} last=${last}`);
+        check(`post-start accepts successful ${toolName}`, r.code === 0 && hits.length === before + 1 && last.includes('/overlay/claim-session') && last.includes('/graph/e2e') && !last.includes('/workspace/e2e-codex'), `code=${r.code} hits=${hits.length} last=${last}`);
       }
       { const before = curlHits(stub.logPath).length;
         const r = runScript(startScript, {

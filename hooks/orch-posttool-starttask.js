@@ -41,6 +41,15 @@ function successfulAssignmentAccept(input) {
   return !failed && results.some((item) => item.ok === true);
 }
 
+function responseWorkspace(input) {
+  const results = collectResultObjects(input.tool_response);
+  for (const item of results) {
+    const workspace = item.execution_permit && item.execution_permit.workspace;
+    if (typeof workspace === 'string' && workspace.trim()) return workspace.trim();
+  }
+  return '';
+}
+
 (async () => {
   const input = await k.readInput();
   const isLegacyStart = START_TASK_TOOLS.has(input.tool_name || '');
@@ -48,17 +57,13 @@ function successfulAssignmentAccept(input) {
   const sid = input.session_id || '';
   const taskKey = (input.tool_input && input.tool_input.task_key) || '';
   const agentId = (input.tool_input && input.tool_input.agent_id) || '';
-  const graphRepo = (input.tool_input && (input.tool_input.graph_repo || input.tool_input.workspace)) || '';
   if (!sid || !taskKey || !agentId) k.allow();
-  const body = {
-    task_key: taskKey,
-    session_id: sid,
-    agent_id: agentId,
-  };
-  if (graphRepo) {
-    body.graph_repo = graphRepo;
-    body.workspace = graphRepo;
-  }
+  const workspace = isLegacyStart
+    ? ((input.tool_input && (input.tool_input.graph_repo || input.tool_input.workspace)) || '')
+    : responseWorkspace(input);
+  if (!isLegacyStart && !workspace) k.allow();
+  const body = { task_key: taskKey, session_id: sid, agent_id: agentId };
+  if (workspace) body.workspace = workspace;
   await k.post('/overlay/claim-session', body, 1000);
   process.exit(0);
 })().catch(() => process.exit(0));
