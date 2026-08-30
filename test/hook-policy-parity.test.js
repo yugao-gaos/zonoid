@@ -151,6 +151,12 @@ expectExit('shell bash gate denies /tmp write', SHELL_BASH, tmpBash, blocked, 2)
 expectExit('Cursor shell relay denies /tmp write', CURSOR_BASH, tmpBash, blocked, 2);
 expectCodexDeny('Codex bash relay denies /tmp write', CODEX_BASH, tmpBash, blocked);
 
+const touchBash = bashInput('/usr/bin/touch /Users/x/outside-touch.txt');
+expectExit('direct Node bash gate denies shell touch', DIRECT_BASH, touchBash, blocked, 2);
+expectExit('shell bash gate denies shell touch', SHELL_BASH, touchBash, blocked, 2);
+expectExit('Cursor shell relay denies shell touch', CURSOR_BASH, touchBash, blocked, 2);
+expectCodexDeny('Codex bash relay denies shell touch', CODEX_BASH, touchBash, blocked);
+
 const mintWrite = writeInput('/Users/x/.claude/orchestrator/tasks/ws/codex/t1.json');
 expectExit('direct Node write gate allows file-drop mint path', DIRECT_WRITE, mintWrite, blocked, 0);
 expectExit('shell write gate allows file-drop mint path', SHELL_WRITE, mintWrite, blocked, 0);
@@ -168,6 +174,12 @@ expectExit('direct Node write gate allows claimed worktree path', DIRECT_WRITE, 
 expectExit('shell write gate allows claimed worktree path', SHELL_WRITE, insideClaim, claimedConfig(), 0);
 expectExit('Cursor write relay allows claimed worktree path', CURSOR_WRITE, insideClaim, claimedConfig(), 0);
 expectCodexAllow('Codex write relay allows claimed worktree path', CODEX_WRITE, insideClaim, claimedConfig());
+
+const insideTouch = bashInput(`touch ${WT}/inside-touch.txt`);
+expectExit('direct Node bash gate allows claimed shell touch', DIRECT_BASH, insideTouch, claimedConfig(), 0);
+expectExit('shell bash gate allows claimed shell touch', SHELL_BASH, insideTouch, claimedConfig(), 0);
+expectExit('Cursor shell relay allows claimed shell touch', CURSOR_BASH, insideTouch, claimedConfig(), 0);
+expectCodexAllow('Codex bash relay allows claimed shell touch', CODEX_BASH, insideTouch, claimedConfig());
 
 const outsideClaim = writeInput('/Users/x/other/main.js');
 expectExit('direct Node write gate denies claimed out-of-worktree path', DIRECT_WRITE, outsideClaim, claimedConfig(), 2);

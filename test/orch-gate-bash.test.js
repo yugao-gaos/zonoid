@@ -296,6 +296,12 @@ function runMainBlocked(cmd, extra) {
   ok('pathlib touch → write detected → exit 2 for unclaimed subagent', r.status === 2);
 }
 
+// 25b. shell touch creates a file
+{
+  const r = runBlocked('touch /Users/x/proj/touch.js');
+  ok('shell touch → write detected → exit 2 for unclaimed subagent', r.status === 2);
+}
+
 // ── Bypass regression tests for allowed and denied extracted targets ─────────
 
 // 26. Both source and dest in /tmp still require a claim
@@ -535,6 +541,35 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
     makeMultiClaimConfig(),
   );
   ok('claimed session: pathlib write_text inside worktree → exit 0', r.status === 0);
+}
+
+// 46b. Claimed session: shell touch outside every worktree → denied
+{
+  const r = runWithConfig(
+    mkInput('touch /Users/x/outside-touch.txt'),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: shell touch outside worktree → exit 2', r.status === 2);
+  ok('claimed session: shell touch message names outside path', r.stderr.includes('/Users/x/outside-touch.txt'));
+}
+
+// 46c. Claimed session: shell touch inside a worktree → allowed
+{
+  const r = runWithConfig(
+    mkInput(`touch ${WT_A}/inside-touch.txt`),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: shell touch inside worktree → exit 0', r.status === 0);
+}
+
+// 46d. Claimed session: every shell touch target must stay inside a permitted worktree
+{
+  const r = runWithConfig(
+    mkInput(`touch ${WT_A}/inside-touch.txt /Users/x/outside-touch.txt`),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: shell touch mixed targets → exit 2', r.status === 2);
+  ok('claimed session: shell touch mixed target message names outside path', r.stderr.includes('/Users/x/outside-touch.txt'));
 }
 
 // 47. Claimed session: open(..., "w") outside every worktree → denied

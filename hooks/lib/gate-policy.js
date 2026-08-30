@@ -444,7 +444,7 @@ function hasBashWritePattern(cmd) {
     /(>>?)\s*\/(?!dev\/null)/.test(cmdRedir) ||
     hasShellCommand(cmdNoComment, new Set(['tee'])) ||
     /open\s*\(.*['"]([wWaA]|[wWaA]b)['"]|\.write(_text|_bytes)?\s*\(|\.touch\s*\(/.test(cmd) ||
-    hasShellCommand(cmdNoComment, new Set(['cp', 'mv', 'rsync', 'install'])) ||
+    hasShellCommand(cmdNoComment, new Set(['cp', 'mv', 'rsync', 'install', 'touch'])) ||
     hasGitMutatorCommand(cmdNoComment) ||
     /\bdd\b.*\bof=/.test(cmd) ||
     (hasShellCommand(cmdNoComment, new Set(['sed'])) && /(^|\s)-i(\s|[A-Za-z0-9._-])/.test(cmdNoComment)) ||
@@ -472,6 +472,32 @@ function collectCommandDestTargets(cmdNoComment, names) {
       positional.push(tok);
     }
     if (positional.length) targets.push(positional[positional.length - 1]);
+  }
+  return targets;
+}
+
+function collectTouchTargets(cmdNoComment) {
+  const toks = tokenizeShellCommand(cmdNoComment);
+  const targets = [];
+  const optionsWithValue = new Set(['-A', '-d', '--date', '-r', '--reference', '-t', '--time']);
+  for (const idx of shellCommandIndices(toks)) {
+    if (commandName(toks[idx]) !== 'touch') continue;
+    let options = true;
+    for (let j = idx + 1; j < toks.length; j++) {
+      const raw = toks[j];
+      if (isCommandBoundary(raw)) break;
+      const tok = cleanToken(raw);
+      if (options && tok === '--') {
+        options = false;
+        continue;
+      }
+      if (options && optionsWithValue.has(tok)) {
+        j++;
+        continue;
+      }
+      if (options && tok.startsWith('-')) continue;
+      targets.push(tok);
+    }
   }
   return targets;
 }
@@ -563,6 +589,7 @@ function bashWriteTargets(cmd, cwd = '') {
   const targets = [];
   targets.push(...collectRedirectTargets(cmdNoComment));
   targets.push(...collectCommandDestTargets(cmdNoComment, new Set(['cp', 'mv', 'rsync', 'install'])));
+  targets.push(...collectTouchTargets(cmdNoComment));
   targets.push(...collectGitMutatorTargets(cmdNoComment, cwd));
   targets.push(...collectTeeTargets(cmdNoComment));
   targets.push(...collectSedTargets(cmdNoComment));
