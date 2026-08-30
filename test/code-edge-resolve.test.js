@@ -44,12 +44,13 @@ const edges = [
 
 // ── buildSymbolIndex ──────────────────────────────────────────────────────────────────────────────
 {
-  const { byName, exportsByFile } = buildSymbolIndex(symbols);
+  const { byName, exportsByFile, symbolKeys } = buildSymbolIndex(symbols);
   ok('index: byName has both dup defs', (byName.get('dup') || []).length === 2);
   ok('index: byName helperFn -> helper.js', (byName.get('helperFn') || [])[0].file === 'helper.js');
   ok('index: exportsByFile util.js lists only exported add (not dup)',
     JSON.stringify(exportsByFile.get('util.js')) === JSON.stringify(['add']));
   ok('index: exportsByFile has no entry for sideeffect.js (no exports)', !exportsByFile.has('sideeffect.js'));
+  ok('index: symbolKeys contains canonical source nodes', symbolKeys.has(codeNodeKey('main.js', 'main')));
 }
 
 // ── resolveCodeEdges ────────────────────────────────────────────────────────────────────────────
@@ -82,6 +83,34 @@ ok('stats.total === codeEdges.length', stats.total === codeEdges.length);
 // All resolved symbol endpoints are valid code:<file>#<name> keys.
 ok('every symbol-targeted edge has a code:<file>#<name> `to`',
   codeEdges.filter((e) => e.to).every((e) => /^code:[^#]*#.+$/.test(e.to)));
+
+// Caller-aware calls: the same file+callee pair remains distinct for separate caller symbols, while
+// a repeated raw edge from one caller is de-duplicated. Legacy source-less calls remain accepted.
+{
+  const callerSymbols = [
+    { name: 'alpha', kind: 'function', file: 'caller.js' },
+    { name: 'beta', kind: 'method', file: 'caller.js' },
+    { name: 'target', kind: 'function', file: 'target.js' },
+  ];
+  const callerEdges = [
+    { from: 'caller.js', caller: 'alpha', to: 'target', kind: 'calls' },
+    { from: 'caller.js', caller: 'alpha', to: 'target', kind: 'calls' },
+    { from: 'caller.js', caller: 'beta', to: 'target', kind: 'calls' },
+    { from: 'caller.js', caller: 'missing', to: 'target', kind: 'calls' },
+    { from: 'caller.js', to: 'target', kind: 'calls' },
+  ];
+  const resolved = resolveCodeEdges({ symbols: callerSymbols, edges: callerEdges }).codeEdges;
+  ok('caller signature keeps two callers plus one legacy fallback', resolved.length === 3);
+  ok('resolver canonicalizes both known caller symbols',
+    resolved.some((e) => e.from === codeNodeKey('caller.js', 'alpha')) &&
+    resolved.some((e) => e.from === codeNodeKey('caller.js', 'beta')));
+  ok('legacy source-less call remains valid without canonical `from`',
+    resolved.some((e) => e.from_file === 'caller.js' && !e.from && e.to === codeNodeKey('target.js', 'target')));
+  ok('unknown caller falls back without creating a dangling canonical source',
+    !resolved.some((e) => e.from === codeNodeKey('caller.js', 'missing')));
+  const reversed = resolveCodeEdges({ symbols: [...callerSymbols].reverse(), edges: [...callerEdges].reverse() }).codeEdges;
+  ok('caller-aware resolution is deterministic across input order', JSON.stringify(resolved) === JSON.stringify(reversed));
+}
 
 // ── DETERMINISM: shuffled input -> identical output ───────────────────────────────────────────────
 {

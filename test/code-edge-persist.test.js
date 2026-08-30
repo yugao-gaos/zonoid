@@ -75,15 +75,22 @@ function makeCtx(overlay, ws, body) {
   {
     const o = ov.EMPTY();
     const r1 = ov.addCodeEdges(o, [
-      { from_file: 'a.js', to: 'code:b.js#foo', kind: 'calls', name: 'foo', junk: 'dropme' },
-      { from_file: 'a.js', to: 'code:b.js#foo', kind: 'calls', name: 'foo' }, // dup -> skipped
+      { from_file: 'a.js', from: 'code:a.js#one', to: 'code:b.js#foo', kind: 'calls', name: 'foo', junk: 'dropme' },
+      { from_file: 'a.js', from: 'code:a.js#one', to: 'code:b.js#foo', kind: 'calls', name: 'foo' }, // dup -> skipped
+      { from_file: 'a.js', from: 'code:a.js#two', to: 'code:b.js#foo', kind: 'calls', name: 'foo' },
+      { from_file: 'a.js', to: 'code:b.js#foo', kind: 'calls', name: 'foo' }, // legacy file fallback
       { from_file: 'a.js', to_file: 'c.js', kind: 'imports' },
       { from_file: '', to: 'code:x#y', kind: 'calls' }, // invalid (no from_file) -> dropped
     ]);
-    ok('addCodeEdges added 2 (de-duped + dropped invalid)', r1.added.length === 2);
+    ok('addCodeEdges added 4 (caller-aware de-dupe + legacy + dropped invalid)', r1.added.length === 4);
     ok('addCodeEdges normalized away unknown fields', o.code_edges.every((e) => !('junk' in e)));
+    ok('addCodeEdges keeps separate caller sources plus source-less fallback',
+      o.code_edges.filter((e) => e.kind === 'calls').length === 3 &&
+      o.code_edges.some((e) => e.from === 'code:a.js#one') &&
+      o.code_edges.some((e) => e.from === 'code:a.js#two') &&
+      o.code_edges.some((e) => e.kind === 'calls' && !e.from));
     ok('addCodeEdges kept the file-level import (to_file)', o.code_edges.some((e) => e.to_file === 'c.js' && !e.to));
-    ok('overlay.code_edges has exactly 2', o.code_edges.length === 2);
+    ok('overlay.code_edges has exactly 4', o.code_edges.length === 4);
   }
 
   // replace per-file
@@ -131,16 +138,18 @@ function makeCtx(overlay, ws, body) {
     graphStore.forWorkspace(TMP_WS);
     const o = ov.load(TMP_WS);
     ov.addCodeEdges(o, [
-      { from_file: 'm.js', to: 'code:lib.js#foo', kind: 'calls', name: 'foo' },
+      { from_file: 'm.js', from: 'code:m.js#caller', to: 'code:lib.js#foo', kind: 'calls', name: 'foo' },
+      { from_file: 'm.js', from: 'code:m.js#other', to: 'code:lib.js#foo', kind: 'calls', name: 'foo' },
       { from_file: 'm.js', to_file: 'lib.js', kind: 'imports' },
       { from_file: 'n.js', to: 'code:lib.js#bar', kind: 'calls', name: 'bar' },
     ]);
     ov.save(TMP_WS, o);
 
     const reloaded = ov.load(TMP_WS);
-    ok('after reload: 3 code edges survived', (reloaded.code_edges || []).length === 3);
-    ok('after reload: m.js call edge present',
-      reloaded.code_edges.some((e) => e.from_file === 'm.js' && e.to === 'code:lib.js#foo' && e.name === 'foo'));
+    ok('after reload: 4 code edges survived', (reloaded.code_edges || []).length === 4);
+    ok('after reload: both m.js caller edges remain distinct',
+      reloaded.code_edges.some((e) => e.from_file === 'm.js' && e.from === 'code:m.js#caller' && e.to === 'code:lib.js#foo' && e.name === 'foo') &&
+      reloaded.code_edges.some((e) => e.from_file === 'm.js' && e.from === 'code:m.js#other' && e.to === 'code:lib.js#foo' && e.name === 'foo'));
     ok('after reload: m.js file-level import edge present',
       reloaded.code_edges.some((e) => e.from_file === 'm.js' && e.to_file === 'lib.js' && e.kind === 'imports'));
     ok('after reload: synthetic codeedge: container node did NOT leak into graph.nodes',
@@ -174,7 +183,7 @@ function makeCtx(overlay, ws, body) {
           { name: 'bar', kind: 'function', file: 'b.js', signature: 'bar()', exported: true },
         ],
         edges: [
-          { from_file: 'b.js', to: 'code:a.js#foo', kind: 'calls', name: 'foo' },
+          { from_file: 'b.js', from: 'code:b.js#bar', to: 'code:a.js#foo', kind: 'calls', name: 'foo' },
           { from_file: 'b.js', to_file: 'a.js', kind: 'imports' },
         ],
         workspace: TMP_WS,
@@ -187,6 +196,7 @@ function makeCtx(overlay, ws, body) {
       ok('bulk created 2 nodes', r.body.created === 2);
       ok('bulk reported edges_added: 2', r.body.edges_added === 2);
       ok('bulk wrote 2 code edges into overlay.code_edges', o.code_edges.length === 2);
+      ok('bulk preserved the canonical caller source', o.code_edges.some((e) => e.from === 'code:b.js#bar'));
       ok('deferred full-index bulk persists nodes and edges without an intermediate publish', getNotifyCount() === 0);
     }
 
@@ -279,8 +289,11 @@ function makeCtx(overlay, ws, body) {
     // Contract-level check: resolveCodeEdges over a synthetic extract returns the same edges the bulk
     // route accepts (proves ingest will send a valid edges[] payload).
     const resolved = ingest.resolveCodeEdges({
-      symbols: [{ name: 'foo', kind: 'function', file: 'a.js', exported: true }],
-      edges: [{ from: 'b.js', to: 'foo', kind: 'calls' }],
+      symbols: [
+        { name: 'foo', kind: 'function', file: 'a.js', exported: true },
+        { name: 'caller', kind: 'function', file: 'b.js' },
+      ],
+      edges: [{ from: 'b.js', caller: 'caller', to: 'foo', kind: 'calls' }],
     });
     ok('ingest.resolveCodeEdges yields a code edge for a cross-file call',
       resolved.codeEdges.some((e) => e.from_file === 'b.js' && e.to === 'code:a.js#foo'));
@@ -292,7 +305,7 @@ function makeCtx(overlay, ws, body) {
         { name: 'foo', kind: 'function', file: 'a.js', signature: 'foo()', exported: true },
         { name: 'caller', kind: 'function', file: 'b.js', signature: 'caller()' },
       ],
-      edges: [{ from: 'b.js', to: 'foo', kind: 'calls' }],
+      edges: [{ from: 'b.js', caller: 'caller', to: 'foo', kind: 'calls' }],
       stats: {},
     }, {
       daemonUrl: 'http://daemon.test',
@@ -305,6 +318,9 @@ function makeCtx(overlay, ws, body) {
     });
     ok('full ingest marks every node and edge batch as deferred until watermark commit',
       payloads.length >= 2 && payloads.every((payload) => payload.defer_publish === true));
+    ok('full ingest payload preserves the canonical caller source',
+      payloads.some((payload) => Array.isArray(payload.edges) &&
+        payload.edges.some((e) => e.from === 'code:b.js#caller' && e.to === 'code:a.js#foo')));
   }
 
   // ================================================================================================
@@ -325,7 +341,7 @@ function makeCtx(overlay, ws, body) {
     };
     // resolveAll returns repo-wide resolved edges: changed.js calls a symbol in unchanged.js.
     const resolveAll = async () => ([
-      { from_file: 'changed.js', to: 'code:unchanged.js#dep', kind: 'calls', name: 'dep' },
+      { from_file: 'changed.js', from: 'code:changed.js#changed', to: 'code:unchanged.js#dep', kind: 'calls', name: 'dep' },
       { from_file: 'changed.js', to_file: 'unchanged.js', kind: 'imports' },
       { from_file: 'unchanged.js', to: 'code:other.js#z', kind: 'calls', name: 'z' }, // not a changed file -> not pushed
     ]);
@@ -349,6 +365,9 @@ function makeCtx(overlay, ws, body) {
     ok('sync replaced EDGES for changed.js', replaceEdgeCalls.some((c) => c.file === 'changed.js'));
     ok('sync pushed ONLY changed.js outgoing edges (2: call + import)',
       (replaceEdgeCalls.find((c) => c.file === 'changed.js') || {}).edges.length === 2);
+    ok('sync preserved the canonical caller source on replacement',
+      (replaceEdgeCalls.find((c) => c.file === 'changed.js') || {}).edges
+        .some((e) => e.from === 'code:changed.js#changed'));
     ok('sync did NOT push unchanged.js edges (not a changed file)',
       !replaceEdgeCalls.some((c) => c.file === 'unchanged.js'));
     ok('sync deleted EDGES for the deleted file gone.js', deleteEdgeCalls.some((c) => c.file === 'gone.js'));
