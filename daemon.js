@@ -99,10 +99,10 @@ function authed(req, u) {
 }
 
 // --- caches: avoid re-reading native task files / transcripts on every request ---
-// TTL bounds staleness; fs.watch on the task dir invalidates the aggregate cache instantly
-// when native tasks change (reactive + cheap, fixing the per-call read cost).
-const cache = { agg: new Map(), aggAt: new Map(), usage: new Map(), usageAt: new Map() };
-const AGG_TTL = 1500, USAGE_TTL = 4000;
+// A short TTL plus fs.watch keeps the task aggregate fresh; transcript usage is keyed to the
+// source file identity below so append-only rollouts invalidate without arbitrary rescans.
+const cache = { agg: new Map(), aggAt: new Map(), usage: new Map(), usageStamp: new Map() };
+const AGG_TTL = 1500;
 
 // Response cache for expensive read endpoints: dashboards + heartbeats
 // poll both, and every call rebuilds the whole graph (buildGraph) / recomputes SCC+flow. A short
@@ -294,10 +294,23 @@ function snapshotNative(ov, key, nativeStatus, ws) {
   });
 }
 function usageCached(p) {
-  const now = Date.now();
-  if (cache.usage.has(p) && now - (cache.usageAt.get(p) || 0) < USAGE_TTL) return cache.usage.get(p);
+  // Transcript rollouts are append-only and can be hundreds of MB. Cache immutable history until
+  // its actual file identity changes; a short wall-clock TTL made every unrelated graph mutation
+  // synchronously reread and JSON-parse the same historical rollouts during /state projection.
+  let stamp = null;
+  try {
+    const st = fs.statSync(p);
+    stamp = `${st.dev}:${st.ino}:${st.size}:${st.mtimeMs}`;
+  } catch { /* parseTranscriptUsage returns the existing read error shape */ }
+  if (cache.usage.has(p) && cache.usageStamp.get(p) === stamp) return cache.usage.get(p);
   const v = usageAccounting.parseTranscriptUsage(p);
-  cache.usage.set(p, v); cache.usageAt.set(p, now);
+  if (stamp !== null && !(v && v.error)) {
+    cache.usage.set(p, v); cache.usageStamp.set(p, stamp);
+  } else {
+    // Missing/unreadable transcripts remain retryable; only successful source-stamped parses are
+    // durable cache entries.
+    cache.usage.delete(p); cache.usageStamp.delete(p);
+  }
   return v;
 }
 claudeHarness.tasks.watch(() => { cache.agg.clear(); cache.aggAt.clear(); snapCache.clear(); respCache.clear(); }); // Claude native task dir
@@ -3176,7 +3189,7 @@ function isPrimaryCheckout(root) {
 module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleSnapshotClaimKeys, releaseSnapshotClaim, staleNativeClaimKeys, releaseNativeClaim, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings, worktreeVouchesLive, depSatisfied, vouchedLive, STALE_MINUTES_DEFAULT,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, graphAutoflush, RESP_TTL, sseClients, nodeExistsInGraph, dispatchInProgressCount,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
-  decideOne, decideAll, ensureManagedGraphLoops, buildGraph, effectiveTaskStatuses, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __readinessDetailForTest: readinessDetail, __compareLoopPriorityForTest: compareLoopPriority, __createHeadlessSpawnExecutorForTest: createDaemonHeadlessSpawnExecutor, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
+  decideOne, decideAll, ensureManagedGraphLoops, buildGraph, effectiveTaskStatuses, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __readinessDetailForTest: readinessDetail, __compareLoopPriorityForTest: compareLoopPriority, __createHeadlessSpawnExecutorForTest: createDaemonHeadlessSpawnExecutor, __usageCachedForTest: usageCached, __clearUsageCacheForTest: () => { cache.usage.clear(); cache.usageStamp.clear(); }, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
 
 if (require.main === module) {
   // Log unhandled promise rejections instead of crashing (Node's default is to exit the process).
