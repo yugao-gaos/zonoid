@@ -39,6 +39,15 @@ const CALL = core.makeCall(PORT, CLIENT_IDENTITY);
 // to this MCP process so session-bound tools can still use the shared timer substrate.
 const SESSION = resolveSession({ client: CLIENT }) || null;
 const CLIENT_EXTRA = extraToolsForClient(CLIENT, GRAPH_REPO, { session: SESSION, workspace: GRAPH_REPO });
+const RPC_CONTEXT = {
+  call: CALL,
+  uiHtml: core.uiHtml,
+  extraTools: CLIENT_EXTRA,
+  session: SESSION,
+  identity: CLIENT_IDENTITY,
+  workspace: GRAPH_REPO,
+  client: CLIENT,
+};
 
 function daemonEnv() {
   const env = { ...process.env };
@@ -93,7 +102,7 @@ async function ensureDaemon() {
 function write(msg) { process.stdout.write(JSON.stringify(msg) + '\n'); }
 async function handle(msg) {
   if (msg.method === 'tools/call') await ensureDaemon();   // self-heal before any tool runs
-  const resp = await core.handleRpc(msg, { call: CALL, uiHtml: core.uiHtml, extraTools: CLIENT_EXTRA, session: SESSION, identity: CLIENT_IDENTITY, workspace: GRAPH_REPO, client: CLIENT });
+  const resp = await core.handleRpc(msg, RPC_CONTEXT);
   if (resp !== undefined) write(resp);
 }
 
