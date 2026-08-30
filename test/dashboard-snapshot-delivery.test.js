@@ -67,8 +67,12 @@ function request(workspace, client, extraCtx = {}, includeWorkspace = true) {
 
 function parsedResult(rpc) {
   assert.ok(rpc && rpc.result && !rpc.result.isError);
-  const legacy = JSON.parse(rpc.result.content[0].text);
-  const status = rpc.result.content.find((item, index) => index > 0 && item.type === 'text');
+  const legacy = rpc.result.structuredContent;
+  assert.ok(legacy && typeof legacy === 'object', 'legacy fields must use structuredContent');
+  const expectedText = legacy.snapshot_summary || legacy.snapshot_text;
+  const status = rpc.result.content.find((item) => item.type === 'text' && item.text === expectedText);
+  assert.ok(status, 'accessible status must remain first-class MCP text content');
+  assert.ok(!status.text.trimStart().startsWith('{'), 'accessible status must not require a legacy JSON text block');
   const image = rpc.result.content.find((item) => item.type === 'image');
   return { legacy, status, image };
 }
@@ -85,13 +89,12 @@ function parsedResult(rpc) {
     assert.strictEqual(legacy.browser_url, legacy.deep_link, `${client} keeps the desktop fallback aliases`);
     assert.strictEqual(legacy.launch.resource_uri, 'ui://orchestrator/graph', `${client} keeps the MCP App enhancement`);
     assert.strictEqual(legacy.snapshot_delivery.image_content, true, `${client} reports MCP image delivery`);
-    assert.ok(status && status.text.includes('Zonoid workspace status'), `${client} parses portable text content`);
+    assert.ok(status && status.text, `${client} parses portable text content`);
     assert.ok(image && image.mimeType === 'image/png', `${client} parses portable image content`);
     assert.deepStrictEqual([...Buffer.from(image.data, 'base64').subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
     for (const leaked of [OPAQUE, rawPath, rawToken, 'hunter2']) {
       assert.ok(!status.text.includes(leaked), `${client} portable text leaked ${leaked}`);
     }
-    assert.deepStrictEqual(rpc.result.structuredContent, legacy, `${client} parses the same structured legacy fields`);
     hashes.push(legacy.snapshot_hash);
   }
   assert.strictEqual(new Set(hashes).size, 1, 'snapshot delivery is client-neutral and never hostname-branched');
