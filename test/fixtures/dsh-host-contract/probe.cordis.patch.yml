@@ -1,0 +1,26 @@
+# Compatibility probe for the pinned DSH host. Values come from the probe
+# runner so paths and credentials are never baked into a profile.
+- id: headless-runner
+  disabled: true
+
+- insert:
+    - id: zonoid-contract-mcp
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: zonoid
+        transport: stdio
+        command: !!js process.execPath
+        args:
+          - !!js process.env.ZONOID_DSH_MCP_ENTRY
+        env:
+          ZONOID_DSH_MCP_LOG: !!js process.env.ZONOID_DSH_MCP_LOG
+        cwd: !!js process.env.ZONOID_DSH_WORKSPACE
+        failOnStartupError: true
+        reconnect:
+          enabled: false
+
+    - id: zonoid-host-contract-probe
+      name: __ZONOID_DSH_PROBE_PLUGIN__
+      inject: [agentDefaultModel, agents, sessions, tools]
+      config:
+        receiptPath: !!js process.env.ZONOID_DSH_PROBE_RECEIPT

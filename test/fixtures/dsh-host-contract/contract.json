@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "host": {
+    "package": "@deepseek-ai/dsh",
+    "version": "0.1.1-rc.2",
+    "tag": "dsh-v0.1.1-rc.2",
+    "gitRevision": "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e",
+    "nodeEngine": "^22.19.0 || >=24.0.0"
+  },
+  "invocation": {
+    "headless": ["--profile", "headless", "<task>"],
+    "patchFlag": "--patch",
+    "dumpFlag": "--dump-config"
+  },
+  "mcp": {
+    "package": "@deepseek-ai/dsh-mcp-client",
+    "transport": "stdio",
+    "serverName": "zonoid",
+    "publicToolPrefix": "mcp__zonoid__",
+    "failOnStartupError": true,
+    "reconnectEnabled": false
+  },
+  "identity": {
+    "agentIdEqualsSessionId": true,
+    "workspacePathSource": "agent.session.header.cwd",
+    "workspacePathCanonical": true,
+    "workspaceIdIsNotPath": true
+  },
+  "events": {
+    "lifecycle": [
+      "session/created",
+      "session/event",
+      "session/flush",
+      "agent/created",
+      "agent/session-start",
+      "agent/disposed",
+      "session/disposed"
+    ],
+    "toolPipeline": [
+      "tools/pre-execute",
+      "tools/execute",
+      "tools/post-execute",
+      "tools/result"
+    ]
+  },
+  "blocking": {
+    "preDenySkipsBody": true,
+    "postBlockReturnsError": true,
+    "askWithoutApprovalDenies": true,
+    "asyncPolicyMustObserveAbortSignal": true
+  },
+  "teardown": {
+    "sessionFlushAwaited": true,
+    "pluginDisposerAwaited": true,
+    "mcpChildDisconnected": true,
+    "processShutdownTimeoutMs": 5000
+  }
+}

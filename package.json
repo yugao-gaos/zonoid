@@ -22,6 +22,7 @@
     "hooks/",
     "adapters/",
     "packages/claude-dashboard-mcpb/",
+    "packages/dsh/",
     "packages/opencode-plugin/",
     "packages/vscode-dashboard/",
     "skills/",

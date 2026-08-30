@@ -1,0 +1,63 @@
+{
+  "host": {
+    "version": "0.1.1-rc.2",
+    "revision": "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e",
+    "node": "v24.19.0"
+  },
+  "invocation": {
+    "profile": "headless",
+    "patch": true,
+    "dumpConfig": true
+  },
+  "identity": {
+    "agentIdEqualsSessionId": true,
+    "cwdCanonical": true
+  },
+  "blocking": {
+    "allowSucceeded": true,
+    "preDenySkippedBody": true,
+    "postBlockReturnedError": true
+  },
+  "lifecycle": [
+    "session/created",
+    "session/event:session-zonoid-contract:permission/preset",
+    "session/event:session-zonoid-contract:sandbox/mode",
+    "session/event:session-zonoid-contract:approval/policy",
+    "agent/created",
+    "agent/session-start",
+    "session/flush",
+    "session/flush",
+    "session/flush",
+    "agent/disposed",
+    "session/disposed"
+  ],
+  "toolPipeline": [
+    "pre:allow",
+    "execute:allow",
+    "post:allow",
+    "result:allow:ok",
+    "pre:deny",
+    "post:deny",
+    "result:deny:error",
+    "pre:post-block",
+    "execute:post-block",
+    "post:post-block",
+    "result:post-block:error"
+  ],
+  "mcp": {
+    "publicTool": "mcp__zonoid__contract_ping",
+    "requests": [
+      "initialize",
+      "notifications/initialized",
+      "tools/list",
+      "tools/call",
+      "tools/call",
+      "stdio/eof"
+    ],
+    "toolCallCount": 2
+  },
+  "teardown": {
+    "pluginDisposed": true,
+    "mcpStdioClosed": true
+  }
+}
