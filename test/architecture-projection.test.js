@@ -183,9 +183,9 @@ assert.deepEqual(databaseEdge.to_ancestors, ['group:lib/db', 'module:lib']);
 const emittedHierarchyIds = new Set([
   ...hierarchy.modules.map((module) => module.id),
   ...hierarchy.groups.map((group) => group.id),
-  ...hierarchy.files.map((file) => file.id),
+  ...hierarchy.hierarchy_files.map((file) => file.id),
 ]);
-for (const node of [...hierarchy.modules, ...hierarchy.groups, ...hierarchy.files]) {
+for (const node of [...hierarchy.modules, ...hierarchy.groups, ...hierarchy.hierarchy_files]) {
   if (node.parent_id) assert.ok(emittedHierarchyIds.has(node.parent_id), `${node.id} parent is emitted`);
   for (const childId of node.child_ids || []) {
     assert.ok(emittedHierarchyIds.has(childId), `${node.id} child ${childId} is emitted`);
@@ -203,6 +203,44 @@ const boundedHierarchy = buildArchitectureProjection({
 }, { maxRelations: 1 });
 assert.equal(boundedHierarchy.hierarchy_relations.length, 1);
 assert.equal(boundedHierarchy.omitted.hierarchy_relations, 1);
+
+const completeHierarchy = buildArchitectureProjection({
+  codeNodes: hierarchyNodes,
+  codeEdges: hierarchyEdges,
+}, { maxFiles: 1 });
+assert.equal(completeHierarchy.files.length, 1, 'rich symbol detail remains bounded');
+assert.equal(completeHierarchy.hierarchy_files.length, 5, 'lightweight hierarchy includes every indexed file');
+assert.equal(completeHierarchy.omitted.files, 4);
+assert.equal(completeHierarchy.omitted.hierarchy_files, 0);
+assert.equal(completeHierarchy.hierarchy_relations.length, 2,
+  'clean relations retain endpoints outside the rich file detail limit');
+assert.equal(completeHierarchy.hierarchy_files.filter((file) => file.has_rich_detail).length, 1);
+assert.ok(completeHierarchy.hierarchy_files.every((file) => !Object.hasOwn(file, 'symbols')),
+  'lightweight hierarchy records never duplicate rich symbol arrays');
+const omittedMiddleware = completeHierarchy.hierarchy_files
+  .find((file) => file.path === 'src/api/http/middleware.js');
+assert.equal(omittedMiddleware.has_rich_detail, false);
+assert.equal(omittedMiddleware.parent_id, 'group:src/api/http');
+assert.deepEqual(completeHierarchy.groups.find((group) => group.path === 'src/api/http').file_ids, [
+  'file:src/api/http/middleware.js',
+  'file:src/api/http/routes.js',
+], 'directory compounds reference complete lightweight children, not only rich records');
+
+const safetyBoundedHierarchy = buildArchitectureProjection({
+  codeNodes: hierarchyNodes,
+  codeEdges: hierarchyEdges,
+}, { maxFiles: 1, maxHierarchyFiles: 2 });
+assert.equal(safetyBoundedHierarchy.limits.hierarchy_files, 2);
+assert.equal(safetyBoundedHierarchy.hierarchy_files.length, 2);
+assert.equal(safetyBoundedHierarchy.omitted.hierarchy_files, 3);
+const safetyIds = new Set([
+  ...safetyBoundedHierarchy.modules.map((module) => module.id),
+  ...safetyBoundedHierarchy.groups.map((group) => group.id),
+  ...safetyBoundedHierarchy.hierarchy_files.map((file) => file.id),
+]);
+for (const node of [...safetyBoundedHierarchy.groups, ...safetyBoundedHierarchy.hierarchy_files]) {
+  assert.ok(safetyIds.has(node.parent_id), 'safety-bounded hierarchy never emits a dangling parent');
+}
 assert.deepEqual(
   hierarchy,
   buildArchitectureProjection({

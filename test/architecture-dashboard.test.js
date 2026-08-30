@@ -42,8 +42,9 @@ assert.ok(html.indexOf('<g class="arch-compound-backgrounds">') < html.indexOf('
   'compound fills render below relations while interactive headers and files render above them');
 assert.ok(html.includes('architectureSearchMatchIds') && html.includes('arch-file-noise'),
   'search still reveals and labels normally hidden noisy files');
-assert.ok(html.includes('omitted_symbols') && html.includes('detail omitted by limit'),
-  'the UI discloses server-side file and symbol bounds');
+assert.ok(html.includes('omitted_symbols') && html.includes('lightweight hierarchy record')
+  && html.includes('rich details omitted') && html.includes('paths omitted by safety limit'),
+  'the UI distinguishes complete lightweight paths from bounded rich symbol detail');
 assert.ok(html.includes('@media (max-width: 760px)') && html.includes('.arch-shell { flex-direction: column;'),
   'architecture layout stacks its inspector on narrow screens');
 assert.ok(html.includes("event.key==='Enter'||event.key===' '"),
@@ -111,6 +112,37 @@ const fingerprintProjection = {
     count: 1,
     ambiguous_count: 0,
   }],
+  hierarchy_files: [{
+    id: 'file:src/api.js',
+    path: 'src/api.js',
+    name: 'api.js',
+    module: 'src',
+    parent_id: 'group:src/api',
+    ancestor_ids: ['group:src/api', 'module:src'],
+    noise: null,
+    is_noisy: false,
+    symbol_count: 1,
+    exported_count: 1,
+    incoming_count: 0,
+    outgoing_count: 1,
+    internal_count: 0,
+    has_rich_detail: true,
+  }, {
+    id: 'file:lib/db.js',
+    path: 'lib/db.js',
+    name: 'db.js',
+    module: 'lib',
+    parent_id: 'module:lib',
+    ancestor_ids: ['module:lib'],
+    noise: null,
+    is_noisy: false,
+    symbol_count: 1,
+    exported_count: 0,
+    incoming_count: 1,
+    outgoing_count: 0,
+    internal_count: 0,
+    has_rich_detail: false,
+  }],
   files: [{
     id: 'file:src/api.js',
     path: 'src/api.js',
@@ -173,6 +205,8 @@ for (const [label, mutate] of [
   ['module aggregate change', projection => { projection.modules[0].symbol_count = 2; }],
   ['module child change', projection => { projection.modules[0].child_ids = []; }],
   ['group parent change', projection => { projection.groups[0].parent_id = 'module:other'; }],
+  ['hierarchy file path change', projection => { projection.hierarchy_files[1].path = 'lib/store.js'; }],
+  ['hierarchy detail availability change', projection => { projection.hierarchy_files[1].has_rich_detail = true; }],
   ['module relation change', projection => { projection.module_relations[0].count = 2; }],
   ['relation detail change', projection => { projection.relations[0].ambiguous_count = 1; }],
   ['hierarchy ancestry change', projection => { projection.hierarchy_relations[0].from_ancestors = ['module:src']; }],
@@ -184,11 +218,11 @@ for (const [label, mutate] of [
 }
 
 const helperSource = html.slice(
-  html.indexOf('function architectureFileMatches'),
+  html.indexOf('function architectureProjectionFiles'),
   html.indexOf('function architectureCanvasNodeLabel'),
 );
 const helperContext = {};
-vm.runInNewContext(`${helperSource};this.helpers={architectureFileMatches,architectureSearchMatchIds,architectureEffectiveExpandedIds,architectureVisibleHierarchy,architectureRetargetEndpoint,architectureRetargetRelations,architectureBreadcrumbIds,architectureLayoutHierarchy};`, helperContext);
+vm.runInNewContext(`${helperSource};this.helpers={architectureProjectionFiles,architectureFileMatches,architectureSearchMatchIds,architectureEffectiveExpandedIds,architectureVisibleHierarchy,architectureRetargetEndpoint,architectureRetargetRelations,architectureBreadcrumbIds,architectureLayoutHierarchy};`, helperContext);
 const projection = {
   modules: [
     { id: 'module:src', name: 'src', child_ids: ['group:src/api'], file_count: 2, default_file_count: 2 },
@@ -201,11 +235,14 @@ const projection = {
     { id: 'group:lib/db', name: 'db', path: 'lib/db', parent_id: 'module:lib', child_ids: ['file:lib/db/query.js'], file_count: 1, default_file_count: 1 },
     { id: 'group:test/api', name: 'api', path: 'test/api', parent_id: 'module:test', child_ids: ['file:test/api/routes.test.js'], file_count: 1, default_file_count: 0 },
   ],
+  hierarchy_files: [
+    { id: 'file:src/api/http/routes.js', name: 'routes.js', path: 'src/api/http/routes.js', module: 'src', parent_id: 'group:src/api/http', ancestor_ids: ['group:src/api/http', 'group:src/api', 'module:src'], is_noisy: false, symbol_count: 1, has_rich_detail: true },
+    { id: 'file:src/api/helper.js', name: 'helper.js', path: 'src/api/helper.js', module: 'src', parent_id: 'group:src/api', ancestor_ids: ['group:src/api', 'module:src'], is_noisy: false, symbol_count: 1, has_rich_detail: false },
+    { id: 'file:lib/db/query.js', name: 'query.js', path: 'lib/db/query.js', module: 'lib', parent_id: 'group:lib/db', ancestor_ids: ['group:lib/db', 'module:lib'], is_noisy: false, symbol_count: 1, has_rich_detail: false },
+    { id: 'file:test/api/routes.test.js', name: 'routes.test.js', path: 'test/api/routes.test.js', module: 'test', parent_id: 'group:test/api', ancestor_ids: ['group:test/api', 'module:test'], noise: 'test', is_noisy: true, symbol_count: 1, has_rich_detail: false },
+  ],
   files: [
     { id: 'file:src/api/http/routes.js', name: 'routes.js', path: 'src/api/http/routes.js', module: 'src', parent_id: 'group:src/api/http', ancestor_ids: ['group:src/api/http', 'group:src/api', 'module:src'], is_noisy: false, symbols: [{ name: 'loadUsers', kind: 'function' }] },
-    { id: 'file:src/api/helper.js', name: 'helper.js', path: 'src/api/helper.js', module: 'src', parent_id: 'group:src/api', ancestor_ids: ['group:src/api', 'module:src'], is_noisy: false, symbols: [{ name: 'loadHelper', kind: 'function' }] },
-    { id: 'file:lib/db/query.js', name: 'query.js', path: 'lib/db/query.js', module: 'lib', parent_id: 'group:lib/db', ancestor_ids: ['group:lib/db', 'module:lib'], is_noisy: false, symbols: [{ name: 'query', kind: 'function' }] },
-    { id: 'file:test/api/routes.test.js', name: 'routes.test.js', path: 'test/api/routes.test.js', module: 'test', parent_id: 'group:test/api', ancestor_ids: ['group:test/api', 'module:test'], noise: 'test', is_noisy: true, symbols: [{ name: 'routeTest', kind: 'function' }] },
   ],
   hierarchy_relations: [
     { from: 'file:src/api/http/routes.js', to: 'file:lib/db/query.js', from_ancestors: ['group:src/api/http', 'group:src/api', 'module:src'], to_ancestors: ['group:lib/db', 'module:lib'], kind: 'calls', count: 2, ambiguous_count: 0 },
@@ -213,6 +250,12 @@ const projection = {
   ],
 };
 assert.ok(helperContext.helpers.architectureFileMatches(projection.files[0], 'loadusers'));
+const mergedFiles = helperContext.helpers.architectureProjectionFiles(projection);
+assert.equal(mergedFiles.length, 4, 'lightweight stubs and rich files merge without duplicates');
+assert.equal(mergedFiles.find(file => file.path === 'src/api/http/routes.js').has_rich_detail, true);
+assert.equal(mergedFiles.find(file => file.path === 'src/api/helper.js').has_rich_detail, false);
+assert.equal(mergedFiles.find(file => file.path === 'src/api/helper.js').symbols, undefined,
+  'symbol arrays stay exclusive to rich file records');
 assert.deepEqual(
   helperContext.helpers.architectureVisibleHierarchy(projection, new Set(), '', false).nodes.map(node => node.id),
   ['module:src', 'module:lib'],
@@ -246,7 +289,7 @@ const deepestExpanded = new Set(['module:src', 'group:src/api', 'group:src/api/h
 const deepestRelations = helperContext.helpers.architectureRetargetRelations(projection, deepestExpanded);
 assert.ok(deepestRelations.some(edge => edge.from === 'file:src/api/http/routes.js' && edge.to === 'file:lib/db/query.js'),
   'when both sides are expanded, edges terminate at the deepest visible files');
-const searchVisible = helperContext.helpers.architectureVisibleHierarchy(projection, new Set(), 'routetest', false);
+const searchVisible = helperContext.helpers.architectureVisibleHierarchy(projection, new Set(), 'routes.test', false);
 assert.ok(searchVisible.nodes.some(node => node.id === 'file:test/api/routes.test.js'),
   'search auto-expands ancestors and reveals a normally hidden noisy match');
 const toggledVisible = helperContext.helpers.architectureVisibleHierarchy(projection, new Set(['module:test', 'group:test/api']), '', true);
