@@ -247,10 +247,11 @@ function buildProgressiveDisclosureContext(graph, ov, taskKey, dependencySummari
         summary: truncateText(description || title, 360),
       },
       why: truncateText(description || `Complete ${title}.`, 360),
-      next_action: 'Claim the assignment with subconscious_assignment.accept, work in the assigned worktree, commit changes, then complete with task_result.',
+      next_action: 'Claim the assignment with subconscious_assignment.accept, work in the assigned worktree, inspect and update affected documentation, commit changes, then complete with task_result.',
       must_know_constraints: [
         'Preserve existing assignment fields and consumers.',
         'Keep default context concise; use drill-down handles for deeper payloads.',
+        'Before successful completion, update affected project documentation in the same attempt or give a credible no-change rationale in the completion summary.',
       ],
       blockers: blocking,
     },

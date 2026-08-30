@@ -355,6 +355,15 @@ Claude Code's native `TaskCreate`; these tools manage them once they exist.)
 
 ### Task lifecycle
 
+Routine Subconscious assignments treat documentation as part of implementation. Before a successful
+`subconscious_assignment complete`, the worker inspects relevant README, `docs/`, API/contract, and
+operator guidance, updates affected documents in the same attempt commit, and records the updated
+paths in its completion summary. When no documentation change is needed, the summary instead includes
+a credible `Documentation: not needed — <reason>` rationale. Same-node review checks that evidence
+against the attempt diff and kicks back undocumented behavior, contract, setup, or lifecycle changes.
+Legacy summary-only completions remain accepted; this responsibility does not change the
+`task_result` v1 schema.
+
 | Tool | Purpose |
 |---|---|
 | `start_task` | Claim a task and mark it in_progress, recording which agent is working it |
