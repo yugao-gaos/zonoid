@@ -5633,6 +5633,10 @@ function architectureFingerprint(projection){
   const moduleRelations=(projection.module_relations||[]).map(relation=>[
     relation.id,relation.from,relation.to,relation.kind,relation.count,relation.ambiguous_count
   ]);
+  const hierarchyFiles=(projection.hierarchy_files||[]).map(file=>[
+    file.id,file.path,file.name,file.module,file.parent_id,file.ancestor_ids||[],file.noise,file.is_noisy,
+    file.symbol_count,file.exported_count,file.incoming_count,file.outgoing_count,file.internal_count,file.has_rich_detail
+  ]);
   const files=(projection.files||[]).map(file=>[
     file.id,file.path,file.module,file.parent_id,file.ancestor_ids||[],file.noise,file.is_noisy,file.symbol_count,
     file.exported_count,file.incoming_count,file.outgoing_count,file.internal_count,file.omitted_symbols,
@@ -5648,7 +5652,7 @@ function architectureFingerprint(projection){
     relation.id,relation.from,relation.to,relation.from_ancestors||[],relation.to_ancestors||[],
     relation.kind,relation.count,relation.ambiguous_count
   ]);
-  return JSON.stringify([projection.status,projection.message||'',projection.summary||{},projection.omitted||{},modules,groups,moduleRelations,files,relations,hierarchyRelations]);
+  return JSON.stringify([projection.status,projection.message||'',projection.summary||{},projection.omitted||{},modules,groups,moduleRelations,hierarchyFiles,files,relations,hierarchyRelations]);
 }
 function stateFingerprint(d){
   const s=d.summary||{}, sc=s.statuses||{};
@@ -6657,6 +6661,12 @@ function fallbackCopy(text,done){
   document.body.removeChild(ta);
 }
 // ---- Architecture: recursively expandable compound hierarchy on an infinite SVG canvas ----------
+function architectureProjectionFiles(projection){
+  const byId=new Map();
+  for(const file of (projection&&projection.hierarchy_files||[])) byId.set(file.id,{...file,has_rich_detail:false});
+  for(const file of (projection&&projection.files||[])) byId.set(file.id,{...(byId.get(file.id)||{}),...file,has_rich_detail:true});
+  return [...byId.values()];
+}
 function architectureFileMatches(file, query){
   const q=String(query||'').trim().toLowerCase();
   if(!q) return true;
@@ -6664,17 +6674,17 @@ function architectureFileMatches(file, query){
     .some(value=>String(value||'').toLowerCase().includes(q));
 }
 function architectureHierarchyById(projection){
-  return new Map([...(projection&&projection.modules||[]),...(projection&&projection.groups||[]),...(projection&&projection.files||[])]
+  return new Map([...(projection&&projection.modules||[]),...(projection&&projection.groups||[]),...architectureProjectionFiles(projection)]
     .map(node=>[node.id,node]));
 }
 function architectureSearchMatchIds(projection, query){
   const q=String(query||'').trim();
-  return new Set(q?(projection&&projection.files||[]).filter(file=>architectureFileMatches(file,q)).map(file=>file.id):[]);
+  return new Set(q?architectureProjectionFiles(projection).filter(file=>architectureFileMatches(file,q)).map(file=>file.id):[]);
 }
 function architectureEffectiveExpandedIds(projection, expandedIds, query){
   const expanded=new Set(expandedIds||[]);
   const matches=architectureSearchMatchIds(projection,query);
-  for(const file of (projection&&projection.files||[])) if(matches.has(file.id)){
+  for(const file of architectureProjectionFiles(projection)) if(matches.has(file.id)){
     for(const ancestor of (file.ancestor_ids||[])) expanded.add(ancestor);
   }
   return expanded;
@@ -6684,7 +6694,7 @@ function architectureVisibleHierarchy(projection, expandedIds, query, showNoise)
   const matchIds=architectureSearchMatchIds(projection,query);
   const expanded=architectureEffectiveExpandedIds(projection,expandedIds,query);
   const matchedAncestors=new Set();
-  for(const file of (projection&&projection.files||[])) if(matchIds.has(file.id)){
+  for(const file of architectureProjectionFiles(projection)) if(matchIds.has(file.id)){
     for(const ancestor of (file.ancestor_ids||[])) matchedAncestors.add(ancestor);
   }
   const allowed=node=>{
@@ -6773,7 +6783,9 @@ function architectureCanvasNodeLabel(node){
   return label.length>34?label.slice(0,33)+'…':label;
 }
 function architectureCanvasNodeMeta(node, expanded){
-  if(node.hierarchy_kind==='file') return `${node.symbol_count||0} symbols · ←${node.incoming_count||0} · →${node.outgoing_count||0}`;
+  if(node.hierarchy_kind==='file') return node.has_rich_detail===false
+    ? `${node.symbol_count||0} indexed symbols · rich detail omitted`
+    : `${node.symbol_count||0} symbols · ←${node.incoming_count||0} · →${node.outgoing_count||0}`;
   if(expanded) return `${(node.child_ids||[]).length} immediate items`;
   return `${node.default_file_count||0} source files · ${node.symbol_count||0} symbols`;
 }
@@ -6818,8 +6830,12 @@ function renderArchitectureInspector(projection,visibleRelations){
     return `<div class="arch-relation ${esc(relation.kind)}"><b>${outgoing?'→':'←'} ${esc(relation.kind)}</b> ${esc(peer&&(peer.path||peer.name)||'visible endpoint')} <span>×${relation.count||1}${relation.ambiguous_count?' · '+relation.ambiguous_count+' ambiguous':''}</span></div>`;
   }).join('');
   if(isFile){
-    const symbolHtml=(node.symbols||[]).map(symbol=>`<div class="arch-symbol"><b>${esc(symbol.name)}</b> <span>${esc(symbol.kind)}${symbol.start_line!=null?' · line '+symbol.start_line:''}${symbol.exported?' · exported':''}</span>${symbol.summary?`<div><span>${esc(symbol.summary)}</span></div>`:''}</div>`).join('');
-    inspector.innerHTML=`<div class="arch-inspector-pad"><button class="arch-clear" type="button" aria-label="Clear selected file" onclick="clearArchitectureSelection()">✕</button><div class="arch-inspector-title">${esc(node.path)}${node.is_noisy?` <span class="arch-file-noise">${esc(node.noise)}</span>`:''}</div><div class="arch-inspector-meta">${esc(node.module)} · ${node.symbol_count||0} symbols · ${node.incoming_count||0} incoming · ${node.outgoing_count||0} outgoing</div><div class="arch-inspector-section"><div class="arch-inspector-label">Symbols</div>${symbolHtml||'<div class="empty">No symbol details indexed.</div>'}${node.omitted_symbols?`<div class="empty">+${node.omitted_symbols} more symbols omitted by the projection limit.</div>`:''}</div><div class="arch-inspector-section"><div class="arch-inspector-label">Relationships</div>${relationHtml||'<div class="empty">No indexed cross-file relationships.</div>'}${node.internal_count?`<div class="arch-relation calls"><b>↻ internal calls</b> <span>×${node.internal_count}</span></div>`:''}</div></div>`;
+    const hasRichDetail=node.has_rich_detail!==false;
+    const symbolHtml=hasRichDetail?(node.symbols||[]).map(symbol=>`<div class="arch-symbol"><b>${esc(symbol.name)}</b> <span>${esc(symbol.kind)}${symbol.start_line!=null?' · line '+symbol.start_line:''}${symbol.exported?' · exported':''}</span>${symbol.summary?`<div><span>${esc(symbol.summary)}</span></div>`:''}</div>`).join(''):'';
+    const symbolDetail=hasRichDetail
+      ? symbolHtml||'<div class="empty">No symbol details indexed.</div>'
+      : `<div class="empty">Rich symbol and signature detail is omitted for this lightweight hierarchy record. This path remains searchable; rich detail is limited to ${(projection.limits||{}).files||120} files.</div>`;
+    inspector.innerHTML=`<div class="arch-inspector-pad"><button class="arch-clear" type="button" aria-label="Clear selected file" onclick="clearArchitectureSelection()">✕</button><div class="arch-inspector-title">${esc(node.path)}${node.is_noisy?` <span class="arch-file-noise">${esc(node.noise)}</span>`:''}</div><div class="arch-inspector-meta">${esc(node.module)} · ${node.symbol_count||0} indexed symbols · ${node.incoming_count||0} incoming · ${node.outgoing_count||0} outgoing${hasRichDetail?'':' · rich detail omitted'}</div><div class="arch-inspector-section"><div class="arch-inspector-label">Symbols</div>${symbolDetail}${hasRichDetail&&node.omitted_symbols?`<div class="empty">+${node.omitted_symbols} more symbols omitted by the projection limit.</div>`:''}</div><div class="arch-inspector-section"><div class="arch-inspector-label">Relationships</div>${relationHtml||'<div class="empty">No relationship detail in the bounded hierarchy relation set.</div>'}${node.internal_count?`<div class="arch-relation calls"><b>↻ internal calls</b> <span>×${node.internal_count}</span></div>`:''}</div></div>`;
     return;
   }
   const label=node.path||node.name;
@@ -6892,8 +6908,9 @@ function renderArchitectureCanvas(projection){
     return `<g class="${classes}" transform="translate(${box.x},${box.y})" data-arch-id="${esc(node.id)}" data-parent-id="${esc(node.visible_parent_id||'')}" role="button" tabindex="0" aria-expanded="${expanded}" aria-label="${esc(aria)}"><rect width="${box.w}" height="${expanded?34:box.h}" rx="10"/><text class="arch-canvas-chevron" x="13" y="23">${expanded?'▾':'▸'}</text><text class="arch-canvas-title" x="31" y="23">${esc(label)}</text><text class="arch-canvas-meta" x="${expanded?box.w-12:13}" y="${expanded?23:48}" text-anchor="${expanded?'end':'start'}">${esc(meta)}</text><title>${esc(node.path||node.name)}</title></g>`;
   }).join('');
   const matchCount=visible.match_ids.size;
-  const omittedDetail=(projection.omitted||{}).files?` · ${(projection.omitted||{}).files} file detail omitted by limit`:'';
-  count.textContent=(architectureSearchText.trim()?`${matchCount} search result${matchCount===1?'':'s'} · ${visible.nodes.length} visible nodes`:`${(projection.modules||[]).length} modules · ${(projection.summary||{}).indexed_files||0} indexed files · ${relations.length} visible relations`)+omittedDetail;
+  const omittedRich=(projection.omitted||{}).files?` · ${(projection.omitted||{}).files} rich details omitted`:'';
+  const omittedPaths=(projection.omitted||{}).hierarchy_files?` · ${(projection.omitted||{}).hierarchy_files} paths omitted by safety limit`:'';
+  count.textContent=(architectureSearchText.trim()?`${matchCount} search result${matchCount===1?'':'s'} · ${visible.nodes.length} visible nodes`:`${(projection.modules||[]).length} modules · ${(projection.summary||{}).indexed_files||0} indexed files · ${relations.length} visible relations`)+omittedRich+omittedPaths;
   map.innerHTML=`<svg id="architectureCanvas" role="region" aria-label="Pan and zoom architecture hierarchy" tabindex="0"><title>Architecture hierarchy</title><desc>Modules and folders expand recursively. Drag to pan and use the wheel to zoom.</desc><defs><marker id="arch-canvas-imports" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#58a6ff"/></marker><marker id="arch-canvas-calls" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#d29922"/></marker></defs><g class="arch-canvas-root"><g class="arch-compound-backgrounds">${backgrounds}</g><g class="arch-canvas-edges">${edges}</g><g class="arch-canvas-nodes">${nodes}</g></g></svg><div class="arch-canvas-hint">Drag to pan · wheel/pinch to zoom · Enter to expand</div>`;
   map.querySelectorAll('.arch-canvas-node').forEach(element=>{
     const activate=event=>{ event.stopPropagation(); selectArchitectureNode(element.dataset.archId,true); };
