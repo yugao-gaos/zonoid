@@ -69,18 +69,20 @@ function parsedResult(rpc) {
   assert.ok(rpc && rpc.result && !rpc.result.isError);
   const legacy = rpc.result.structuredContent;
   assert.ok(legacy && typeof legacy === 'object', 'legacy fields must use structuredContent');
+  const content = rpc.result.content;
+  assert.ok(Array.isArray(content), 'portable MCP results must expose content');
   const expectedText = legacy.snapshot_summary || legacy.snapshot_text;
-  const status = rpc.result.content[0];
+  const status = content[0];
   assert.ok(status && status.type === 'text', 'accessible status must remain first-class MCP text content');
   assert.strictEqual(status.text, expectedText, 'accessible status must match the structured fallback');
   assert.ok(!status.text.trimStart().startsWith('{'), 'accessible status must not require a legacy JSON text block');
-  const image = rpc.result.content[1];
+  const image = content[1];
   if (legacy.snapshot_delivery.image_content) {
     assert.ok(image && image.type === 'image', 'portable image content must follow the text block');
   } else {
     assert.strictEqual(image, undefined, 'text-only fallback must omit the image block');
   }
-  return { legacy, status, image };
+  return { legacy, status, image, content };
 }
 
 (async () => {
