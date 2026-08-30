@@ -17,6 +17,36 @@ const { defaultSubconsciousStore } = require('../lib/subconscious');
 
 const POSITIVE_RECALL_OUTCOMES = new Set(['approve', 'tested']);
 const NEGATIVE_RECALL_OUTCOMES = new Set(['kickback', 'failed']);
+const MEMORY_LANES = new Set(['evidence', 'guidance']);
+const SOURCE_ROLES = new Set(['user', 'assistant', 'tool', 'artifact', 'system', 'unknown']);
+const AUTHORITIES = new Set(['directive', 'observation', 'inference']);
+const EPISODE_FIELDS = new Set(['session_id', 'transcript_ref', 'turn', 'span']);
+
+function validateNoteProvenance(note) {
+  if (note.memory_lane != null && !MEMORY_LANES.has(note.memory_lane)) return 'memory_lane must be evidence or guidance';
+  if (note.source_role != null && !SOURCE_ROLES.has(note.source_role)) return 'invalid source_role';
+  if (note.authority != null && !AUTHORITIES.has(note.authority)) return 'invalid authority';
+  if (note.confidence != null && (typeof note.confidence !== 'number' || !Number.isFinite(note.confidence) || note.confidence < 0 || note.confidence > 1)) {
+    return 'confidence must be a number from 0 to 1';
+  }
+  if (note.episode == null) return null;
+  if (!isPlainObject(note.episode)) return 'episode must be an object';
+  const extra = Object.keys(note.episode).filter((field) => !EPISODE_FIELDS.has(field));
+  if (extra.length) return `episode has unsupported field(s): ${extra.join(', ')}`;
+  if (note.episode.session_id != null && typeof note.episode.session_id !== 'string') return 'episode.session_id must be a string';
+  if (note.episode.transcript_ref != null && typeof note.episode.transcript_ref !== 'string') return 'episode.transcript_ref must be a string';
+  if (note.episode.turn != null && (!Number.isInteger(note.episode.turn) || note.episode.turn < 0)) return 'episode.turn must be a non-negative integer';
+  if (note.episode.span != null) {
+    const span = note.episode.span;
+    if (!isPlainObject(span)) return 'episode.span must be an object';
+    if (Object.keys(span).some((field) => field !== 'start' && field !== 'end')) return 'episode.span supports only start and end';
+    if (typeof span.start !== 'number' || !Number.isFinite(span.start) || span.start < 0
+      || typeof span.end !== 'number' || !Number.isFinite(span.end) || span.end < span.start) {
+      return 'episode.span must have non-negative numeric start and end with end >= start';
+    }
+  }
+  return null;
+}
 
 function recallOutcomeSignal(outcome) {
   if (POSITIVE_RECALL_OUTCOMES.has(outcome)) return true;
@@ -1104,6 +1134,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (ctx.opReplay(res, b)) return true;
     const T = targetOverlay(b, u);
     if (!b.title || !b.summary) { send(res, 400, { ok: false, error: 'title and summary required' }); return true; }
+    const provenanceError = validateNoteProvenance(b);
+    if (provenanceError) { send(res, 400, { ok: false, error: provenanceError }); return true; }
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     // Validate wires_to targets BEFORE creating the note — reject unknown task keys (phantom-node guard).
     if (Array.isArray(b.wires_to) && b.wires_to.length) {
@@ -1315,6 +1347,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     const invalid = b.notes.findIndex((n) => !n || !n.title || !n.summary);
     if (invalid !== -1) { send(res, 400, { ok: false, error: `notes[${invalid}] missing title or summary` }); return true; }
+    const invalidProvenance = b.notes.findIndex((n) => validateNoteProvenance(n));
+    if (invalidProvenance !== -1) {
+      send(res, 400, { ok: false, error: `notes[${invalidProvenance}]: ${validateNoteProvenance(b.notes[invalidProvenance])}` }); return true;
+    }
 
     // Pooled embedding text per note — the SAME noteEmbedText the single-note path feeds to .vec, so
     // bulk-ingested notes are retrievable/dedupable identically. Field-level .vecs are intentionally
