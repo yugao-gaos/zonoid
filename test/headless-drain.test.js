@@ -322,6 +322,36 @@ test('review merge drain promotes already-merged tested task to done', async () 
   assert.equal(o.status[key], 'done');
 });
 
+test('review merge drain repairs approved task left in review_pending', async () => {
+  const hd = freshModule();
+  const overlayStore = require('../lib/overlay');
+  const o = overlayStore.EMPTY();
+  const key = 'codex/review-approved-stale-pending';
+  overlayStore.setStatus(o, key, 'tested');
+  overlayStore.setReviewLifecycle(o, key, {
+    review_state: 'approved',
+    review_verdict: 'APPROVE',
+    merge_state: 'review_pending',
+  });
+  const calls = [];
+  const result = await hd.runReviewMergeDrain(os.tmpdir(), {
+    overlay: o,
+    overlayStore,
+    mergeTask: async (candidate) => {
+      calls.push(['merge', candidate.key]);
+      return { merged: true, head: 'abc789' };
+    },
+    promoteTask: async (candidate, merge) => {
+      calls.push(['promote', candidate.key, merge.head]);
+      overlayStore.setStatus(o, candidate.key, 'done');
+      return { ok: true };
+    },
+  });
+  assert.equal(result.ran, 1);
+  assert.deepEqual(calls, [['merge', key], ['promote', key, 'abc789']]);
+  assert.equal(o.status[key], 'done');
+});
+
 test('review merge drain repairs ready task that already has merged metadata', async () => {
   const hd = freshModule();
   const overlayStore = require('../lib/overlay');
@@ -2162,6 +2192,85 @@ test('preparation timeout is persisted as an error and releases its worker slot'
   }
 });
 
+test('failed learner generation persists a bounded queue cooldown across restart and clears it on success', async () => {
+  const savedBase = process.env.HEADLESS_DRAIN_LEARNER_BACKOFF_BASE_MS;
+  const savedCap = process.env.HEADLESS_DRAIN_LEARNER_BACKOFF_CAP_MS;
+  process.env.HEADLESS_DRAIN_LEARNER_BACKOFF_BASE_MS = '60000';
+  process.env.HEADLESS_DRAIN_LEARNER_BACKOFF_CAP_MS = '120000';
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-learner-cooldown-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  const queueFile = path.join(outDir, 'onboard-queue.json');
+  const statusFile = path.join(outDir, 'onboard-drain-status.json');
+  let learnerRuns = 0;
+  const { hd, calls, restore } = freshModuleWithMockedSpawn(() => {
+    learnerRuns++;
+    if (learnerRuns === 1) return makeFakeChild({ code: 1, stderr: 'retryable learner failure\n' });
+    const queue = JSON.parse(fs.readFileSync(queueFile, 'utf8'));
+    fs.writeFileSync(queueFile, JSON.stringify({
+      ...queue,
+      cursor: queue.total,
+      rejected: [{ title: 'Retryable', reason: 'filtered after retry' }],
+      pending: [],
+    }));
+    return makeFakeChild({ code: 0 });
+  });
+  const options = {
+    ...judgeDeps({ depth: 0, eagerNodes: [] }),
+    ...labelDeps({ journal: [], labeledKeys: [] }),
+    ...mockBackendDeps().deps,
+  };
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(queueFile, JSON.stringify({
+      generation: 'generation-learner-cooldown', total: 1, cursor: 0,
+      kept: [], rejected: [], pending: [{ title: 'Retryable', summary: 'retry me' }],
+    }));
+    fs.writeFileSync(statusFile, JSON.stringify({ repo, outDir }));
+
+    await hd.runDueDrains({ workspace: repo, registeredWorkspaces: [repo] }, noopHttp(), options);
+    let status = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+    assert.equal(calls.length, 1);
+    assert.equal(status.learnerGeneration, 'generation-learner-cooldown');
+    assert.equal(status.learnerAttempts, 1);
+    assert.ok(status.learnerRetryAt > Date.now());
+    assert.match(status.learnerError, /retryable learner failure/);
+    assert.equal(freshModule().findPendingLearnerQueues(repo).length, 0,
+      'a restarted daemon honors the queue-specific persisted cooldown');
+
+    const capStart = Date.now();
+    hd._persistLearnerFailure(repo, outDir, 'generation-learner-cooldown', 'retry 2', capStart);
+    hd._persistLearnerFailure(repo, outDir, 'generation-learner-cooldown', 'retry 3', capStart);
+    status = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+    assert.equal(status.learnerAttempts, 3);
+    assert.equal(status.learnerRetryAt, capStart + 120000,
+      'exponential queue cooldown is capped at the configured bound');
+
+    status.error = null;
+    fs.writeFileSync(statusFile, JSON.stringify(status));
+    assert.equal(freshModule().findPendingLearnerQueues(repo).length, 1,
+      'explicit generic-error rearm makes the queue immediately discoverable');
+
+    status.error = status.learnerError;
+    status.learnerRetryAt = Date.now() - 1;
+    fs.writeFileSync(statusFile, JSON.stringify(status));
+    hd._governor.backoffUntil = Date.now() - 1;
+    await hd.runDueDrains({ workspace: repo, registeredWorkspaces: [repo] }, noopHttp(), options);
+    status = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+    assert.equal(calls.length, 2, 'the generation retries once its durable cooldown expires');
+    assert.equal(status.learnerAttempts, 0);
+    assert.equal(status.learnerRetryAt, null);
+    assert.equal(status.learnerError, null);
+    assert.equal(status.error, null);
+  } finally {
+    restore();
+    fs.rmSync(repo, { recursive: true, force: true });
+    if (savedBase === undefined) delete process.env.HEADLESS_DRAIN_LEARNER_BACKOFF_BASE_MS;
+    else process.env.HEADLESS_DRAIN_LEARNER_BACKOFF_BASE_MS = savedBase;
+    if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_LEARNER_BACKOFF_CAP_MS;
+    else process.env.HEADLESS_DRAIN_LEARNER_BACKOFF_CAP_MS = savedCap;
+  }
+});
+
 test('runDueDrains with mocked runDrain: governor is incremented and decremented correctly', async () => {
   const savedMaxIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
   process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '10';
@@ -2245,7 +2354,7 @@ test('learner backlog starts one learner per pump by default', async () => {
   }
 });
 
-test('learner selection stays fair across pumps when the first registered project repeatedly fails', async () => {
+test('learner selection keeps serving healthy queues while a failed queue cools down', async () => {
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
   process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '2';
@@ -2287,15 +2396,13 @@ test('learner selection stays fair across pumps when the first registered projec
     assert.equal(second.ran, 1);
     const third = await hd.runDueDrains(state, noopHttp(), options);
     assert.equal(third.ran, 1);
-    assert.ok(hd._governor.backoffUntil > Date.now(), 'the repeated first-project failure still backs off');
-    hd._governor.backoffUntil = Date.now() - 1;
     const fourth = await hd.runDueDrains(state, noopHttp(), options);
     assert.equal(fourth.ran, 1);
 
     assert.deepEqual(
       calls.map((call) => call.opts.cwd),
-      [repos[0], repos[1], repos[0], repos[1]],
-      'cross-pump selection should round-robin instead of resetting to the failing first queue'
+      [repos[0], repos[1], repos[1], repos[1]],
+      'the cooling failed queue must not reclaim subsequent learner slots'
     );
     assert.equal(hd._governor.iterationsUsed, 4, 'fairness does not bypass the iteration governor');
     assert.equal(hd._governor.concurrentRunning, 0, 'each learner still releases its concurrency slot');

@@ -63,6 +63,7 @@ async function dashboardOpen({ workspace, origin, port, open = true, opener } = 
     workspace,
     origin: origin || process.env.ZONOID_DASHBOARD_ORIGIN,
     port: port || process.env.ORCH_PORT,
+    viewer: 'opencode',
   });
   const opened = open ? await (opener || openExternal)(launch.url) : { ok: false, skipped: true };
   return { ok: true, launch, opened };

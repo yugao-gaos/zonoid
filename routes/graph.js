@@ -124,7 +124,18 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(null, u);
     const chain = overlayStore.noteChain(T.ov, id).map((cid) => {
       const n = T.ov.note_nodes[cid];
-      return { key: 'note:' + cid, title: n.title, validFrom: n.validFrom || null, validTo: n.validTo || null, current: !n.validTo };
+      return {
+        key: 'note:' + cid,
+        title: n.title,
+        validFrom: n.validFrom || null,
+        validTo: n.validTo || null,
+        current: !n.validTo,
+        memory_lane: n.memory_lane || null,
+        source_role: n.source_role || 'unknown',
+        authority: n.authority || null,
+        confidence: typeof n.confidence === 'number' ? n.confidence : null,
+        episode: n.episode || null,
+      };
     });
     send(res, 200, { key: 'note:' + id, workspace: T.ws, chain }); return true;
   }

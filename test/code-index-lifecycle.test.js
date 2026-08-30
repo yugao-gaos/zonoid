@@ -36,6 +36,18 @@ function completedRepo() {
   return { repo, outDir, head: git(repo, ['rev-parse', 'HEAD']) };
 }
 
+function setSucceededSyncStatus(fixture, head, from = fixture.head) {
+  const statusFile = path.join(fixture.outDir, 'onboard-drain-status.json');
+  const status = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+  fs.writeFileSync(statusFile, JSON.stringify({
+    ...status,
+    codeIndexState: 'succeeded',
+    codeIndexMode: 'sync',
+    codeIndexFrom: from,
+    codeIndexHead: head,
+  }));
+}
+
 test('completed onboarding without a watermark is discovered once and success stores counts', () => {
   const fixture = completedRepo();
   try {
@@ -160,6 +172,46 @@ test('a succeeded full index restores a lost watermark and does not rerun at the
     const restored = overlayStore.load(fixture.repo);
     assert.equal(overlayStore.getLastIndexedCommit(restored, fixture.repo), fixture.head,
       'the succeeded full-index status is a durable recovery source');
+  } finally {
+    fs.rmSync(fixture.repo, { recursive: true, force: true });
+  }
+});
+
+test('a succeeded incremental sync restores a missing watermark before discovery', () => {
+  const fixture = completedRepo();
+  try {
+    fs.writeFileSync(path.join(fixture.repo, 'index.js'), 'exports.ready = false;\n');
+    git(fixture.repo, ['add', 'index.js']);
+    git(fixture.repo, ['commit', '-m', 'sync change']);
+    const nextHead = git(fixture.repo, ['rev-parse', 'HEAD']);
+    setSucceededSyncStatus(fixture, nextHead);
+
+    assert.equal(lifecycle.findDueIncrementalIndexJobs({ registeredWorkspaces: [fixture.repo] }).length, 0);
+    const restored = overlayStore.load(fixture.repo);
+    assert.equal(overlayStore.getLastIndexedCommit(restored, fixture.repo), nextHead,
+      'the succeeded sync status should repopulate a missing watermark');
+  } finally {
+    fs.rmSync(fixture.repo, { recursive: true, force: true });
+  }
+});
+
+test('a succeeded incremental sync overwrites a stale watermark before discovery', () => {
+  const fixture = completedRepo();
+  try {
+    fs.writeFileSync(path.join(fixture.repo, 'index.js'), 'exports.ready = false;\n');
+    git(fixture.repo, ['add', 'index.js']);
+    git(fixture.repo, ['commit', '-m', 'sync change']);
+    const nextHead = git(fixture.repo, ['rev-parse', 'HEAD']);
+    setSucceededSyncStatus(fixture, nextHead);
+
+    const overlay = overlayStore.load(fixture.repo);
+    overlayStore.setLastIndexedCommit(overlay, fixture.repo, fixture.head);
+    overlayStore.save(fixture.repo, overlay);
+
+    assert.equal(lifecycle.findDueIncrementalIndexJobs({ registeredWorkspaces: [fixture.repo] }).length, 0);
+    const restored = overlayStore.load(fixture.repo);
+    assert.equal(overlayStore.getLastIndexedCommit(restored, fixture.repo), nextHead,
+      'the succeeded sync status should overwrite a stale watermark');
   } finally {
     fs.rmSync(fixture.repo, { recursive: true, force: true });
   }
@@ -502,6 +554,49 @@ test('headless maintenance pump automatically invokes incremental sync after HEA
     if (originalLease === undefined) delete process.env.HEADLESS_DRAIN_LEASE_FILE;
     else process.env.HEADLESS_DRAIN_LEASE_FILE = originalLease;
     fs.rmSync(leaseDir, { recursive: true, force: true });
+    delete require.cache[require.resolve('../lib/headless-drain')];
+  }
+});
+
+test('headless maintenance pump shares one authoritative overlay across code-index discovery', async () => {
+  delete require.cache[require.resolve('../lib/headless-drain')];
+  const headless = require('../lib/headless-drain');
+  const workspace = os.tmpdir();
+  const authoritative = { config: {}, code_nodes: { sentinel: { kind: 'function' } } };
+  let overlayLoads = 0;
+  const seen = [];
+  const saveOverlay = () => {};
+  const inspectDeps = (deps) => {
+    seen.push(deps.loadOverlay(workspace));
+    assert.equal(deps.saveOverlay, saveOverlay);
+    return [];
+  };
+  const fakeLifecycle = {
+    findDueFullIndexJobs: (_state, deps) => inspectDeps(deps),
+    findDueIncrementalIndexJobs: (_state, deps) => inspectDeps(deps),
+  };
+  const options = {
+    overlayLoad: () => { overlayLoads++; return authoritative; },
+    overlaySave: saveOverlay,
+    codeIndexDeps: { lifecycle: fakeLifecycle },
+    judgeDeps: {
+      judgeLib: { judgeQueueDepth: () => 0, buildQueue: () => [], eagerJudgeNodes: () => [] },
+    },
+    labelDeps: {
+      rowKey: () => '', journalPath: () => '/none', labeledPath: () => '/none', readJsonl: () => [],
+    },
+  };
+
+  try {
+    await headless.runDueDrains({ workspace }, null, options);
+    assert.equal(overlayLoads, 1, 'full and incremental discovery share one load per pump');
+
+    options.overlay = authoritative;
+    await headless.runDueDrains({ workspace }, null, options);
+    assert.equal(overlayLoads, 1, 'explicit daemon overlay bypasses the external loader');
+    assert.equal(seen.length, 4, 'both discovery paths ran on both pumps');
+    assert.equal(seen.every((overlay) => overlay === authoritative), true);
+  } finally {
     delete require.cache[require.resolve('../lib/headless-drain')];
   }
 });

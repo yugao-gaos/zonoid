@@ -99,36 +99,47 @@ function authed(req, u) {
 }
 
 // --- caches: avoid re-reading native task files / transcripts on every request ---
-// TTL bounds staleness; fs.watch on the task dir invalidates the aggregate cache instantly
-// when native tasks change (reactive + cheap, fixing the per-call read cost).
-const cache = { agg: new Map(), aggAt: new Map(), usage: new Map(), usageAt: new Map() };
-const AGG_TTL = 1500, USAGE_TTL = 4000;
+// A short TTL plus fs.watch keeps the task aggregate fresh; transcript usage is keyed to the
+// source file identity below so append-only rollouts invalidate without arbitrary rescans.
+const cache = { agg: new Map(), aggAt: new Map(), usage: new Map(), usageStamp: new Map() };
+const AGG_TTL = 1500;
 
-// Response cache for the expensive read endpoints (/state, /costflow): dashboards + heartbeats
-// poll both, and every call rebuilds the whole graph (buildGraph) / recomputes SCC+flow. A short
-// TTL bounds the recompute cost; EVERY overlay mutation invalidates immediately — notifyChange()
-// is the choke point all mutation routes already call — so status/claim flows never read stale
-// state. The harness task watch below covers native task-file writes that bypass the daemon.
+// Response cache for expensive read endpoints: dashboards + heartbeats poll both, and every call
+// rebuilds the whole graph (buildGraph) / recomputes SCC+flow. The default short TTL bounds state
+// staleness. Ordinary entries invalidate immediately through
+// notifyChange and the source watches below, so status/claim flows never read stale state. A route
+// may explicitly opt an expensive response into bounded-stale caching; those entries survive broad
+// graph churn and rely on their caller-supplied safety TTL instead.
 // buildGraph carries side effects (timestamp stamping, unwired-quarantine stamp, autowire of
 // newly-seen tasks); caching delays those by at most RESP_TTL, which is acceptable.
 // Dependency-free: a Map of { key -> { ts, payload } }, keyed per workspace + query params.
-// A hit additionally requires the workspace's overlay FILE mtime to be unchanged, so overlay
-// writes from OTHER processes (scripts/tests calling overlayStore.save directly — invisible to
-// notifyChange) also invalidate immediately. One stat per request: trivial next to a rebuild.
+// An ordinary hit additionally requires the workspace's overlay FILE mtime to be unchanged, so
+// writes from OTHER processes (invisible to notifyChange) invalidate immediately. Bounded-stale
+// entries deliberately skip that check until their safety TTL. One stat per ordinary request is
+// trivial next to a rebuild.
 const RESP_TTL = 3000;
 const respCache = new Map();
 function overlayStamp(ws) {
   try { return fs.statSync(overlayStore.fileFor(ws)).mtimeMs; } catch { return 0; }
 }
-function respCacheGet(ws, key) {
+function respCacheGet(ws, key, maxAgeMs = RESP_TTL, options = {}) {
   const hit = respCache.get(key);
-  return (hit && Date.now() - hit.ts < RESP_TTL && hit.stamp === overlayStamp(ws)) ? hit.payload : undefined;
+  const ttl = Number.isFinite(Number(maxAgeMs)) ? Math.max(0, Number(maxAgeMs)) : RESP_TTL;
+  const boundedStale = !!(options && options.boundedStale === true && hit && hit.boundedStale === true);
+  return (hit && Date.now() - hit.ts < ttl && (boundedStale || hit.stamp === overlayStamp(ws)))
+    ? hit.payload
+    : undefined;
 }
-function respCachePut(ws, key, payload) {
+function respCachePut(ws, key, payload, options = {}) {
   // Stamp AFTER the build: buildGraph itself may have saved the overlay (timestamp stamping,
   // autowire) and the payload already reflects that state — stamping post-build lets it hit.
-  respCache.set(key, { ts: Date.now(), payload, stamp: overlayStamp(ws) });
+  respCache.set(key, { ts: Date.now(), payload, stamp: overlayStamp(ws), boundedStale: !!(options && options.boundedStale === true) });
   return payload;
+}
+function invalidateRespCache() {
+  for (const [key, hit] of respCache) {
+    if (!hit.boundedStale) respCache.delete(key);
+  }
 }
 
 // --- per-workspace overlay cache (P3: the ONLY overlay store — no global default) ------------
@@ -142,8 +153,8 @@ function respCachePut(ws, key, payload) {
 // lookup that finds the file mtime CHANGED reloads + recaches — so an out-of-band write (another
 // process / a test calling overlayStore.save directly) is picked up on the next lookup. This is the
 // SAME staleness guard already used by respCache. After the daemon's own write through a cached
-// overlay, callers should call refreshOverlayStamp(ws) so the just-saved content isn't needlessly
-// reloaded next lookup (write-coalescing); targetOverlay's save() does this. A missed refresh only
+// overlay, daemon-local callers persist through saveCachedOverlay() so the just-saved content isn't
+// needlessly reloaded next lookup (write-coalescing); targetOverlay's save() does this. A missed refresh only
 // costs a redundant reload of identical content — never incorrect.
 const overlayCache = new Map();   // ws -> { ov, stamp }
 // Test-only fallback holder. Production code NEVER reads these — every route/sweep resolves an
@@ -292,15 +303,28 @@ function snapshotNative(ov, key, nativeStatus, ws) {
   });
 }
 function usageCached(p) {
-  const now = Date.now();
-  if (cache.usage.has(p) && now - (cache.usageAt.get(p) || 0) < USAGE_TTL) return cache.usage.get(p);
+  // Transcript rollouts are append-only and can be hundreds of MB. Cache immutable history until
+  // its actual file identity changes; a short wall-clock TTL made every unrelated graph mutation
+  // synchronously reread and JSON-parse the same historical rollouts during /state projection.
+  let stamp = null;
+  try {
+    const st = fs.statSync(p);
+    stamp = `${st.dev}:${st.ino}:${st.size}:${st.mtimeMs}`;
+  } catch { /* parseTranscriptUsage returns the existing read error shape */ }
+  if (cache.usage.has(p) && cache.usageStamp.get(p) === stamp) return cache.usage.get(p);
   const v = usageAccounting.parseTranscriptUsage(p);
-  cache.usage.set(p, v); cache.usageAt.set(p, now);
+  if (stamp !== null && !(v && v.error)) {
+    cache.usage.set(p, v); cache.usageStamp.set(p, stamp);
+  } else {
+    // Missing/unreadable transcripts remain retryable; only successful source-stamped parses are
+    // durable cache entries.
+    cache.usage.delete(p); cache.usageStamp.delete(p);
+  }
   return v;
 }
-claudeHarness.tasks.watch(() => { cache.agg.clear(); cache.aggAt.clear(); snapCache.clear(); respCache.clear(); }); // Claude native task dir
+claudeHarness.tasks.watch(() => { cache.agg.clear(); cache.aggAt.clear(); snapCache.clear(); invalidateRespCache(); }); // Claude native task dir
 // filedrop.watch below covers designated-folder stubs
-filedrop.watch(() => { cache.agg.clear(); cache.aggAt.clear(); snapCache.clear(); respCache.clear(); }); // designated-folder stub drops surface without /sync
+filedrop.watch(() => { cache.agg.clear(); cache.aggAt.clear(); snapCache.clear(); invalidateRespCache(); }); // designated-folder stub drops surface without /sync
 
 const ACTION_STATUSES = ['in_progress', 'tested', 'done', 'failed', 'canceled'];
 const ALL_STATUSES = ['not_ready', 'ready', ...ACTION_STATUSES];
@@ -334,7 +358,7 @@ const WORKSPACES_FILE = path.join(BASE, 'workspaces.json');
 function migrateBlindEdges(workspace, overlay) {
   if (!workspace || !overlay) return 0;
   const tagged = judge.tagBlindEdges(overlay);
-  if (tagged > 0) { try { overlayStore.save(workspace, overlay); } catch { /* best effort */ } }
+  if (tagged > 0) { try { saveCachedOverlay(workspace, overlay); } catch { /* best effort */ } }
   return tagged;
 }
 
@@ -429,7 +453,7 @@ const graphAutoflush = createGraphAutoflush();
 // refetches that don't affect their selected workspace. Bare call (no ws) emits the legacy
 // `data: changed\n\n` payload and always triggers a refetch on all clients (back-compat).
 function notifyChange(ws) {
-  respCache.clear();
+  invalidateRespCache();
   const payload = ws ? `data: changed:${ws}\n\n` : 'data: changed\n\n';
   for (const r of sseClients) { try { r.write(payload); } catch { sseClients.delete(r); } }
   const graphRepo = ws && typeof ws === 'object' ? (ws.graph_repo || ws.workspace) : ws;
@@ -566,7 +590,7 @@ async function loadState() {
         const ov = overlayFor(ws);
         const ack = followups.acknowledgeDaemonRestartOnBoot(ov, { bootedAt: BOOTED_AT });
         if (ack) {
-          overlayStore.save(ws, ov); refreshOverlayStamp(ws);
+          saveCachedOverlay(ws, ov);
           notifyChange(ws);
           process.stdout.write(`orchestrator: acknowledged restart bucket ${ack.key} (${ws})\n`);
         }
@@ -576,12 +600,24 @@ async function loadState() {
   process.stdout.write(`orchestrator boot complete (phase:ready)\n`);
 }
 function saveLoops() { try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(LOOPS_FILE, JSON.stringify(Object.fromEntries(loops))); } catch { /* best effort */ } }
+
+function createDaemonHeadlessSpawnExecutor() {
+  return headlessSpawn.createSpawnExecutor({
+    loops,
+    decide: (o) => { const r = decideAll(o); saveLoops(); return r; },
+    // The spawn pump wakes alongside maintenance work. Keep its config reads and lease/backoff
+    // writes on the daemon-authoritative overlay so an idle wake cannot replay the full graph and
+    // an executor-local save cannot invalidate the cache stamp it just wrote.
+    overlayLoad: overlayFor,
+    overlaySave: saveCachedOverlay,
+  });
+}
 function saveAgents() {
   try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(AGENTS_FILE, JSON.stringify(state.agents)); } catch { /* best effort */ }
   // Agent counts and local_in_progress live in buildGraph's cached summary even though the agent
   // registry is stored outside the workspace overlay. Any agent transition must therefore bust
   // graph/response caches or /state can pair a current agents[] array with stale summary counts.
-  try { snapCache.clear(); respCache.clear(); } catch { /* caches may not be initialized during boot */ }
+  try { snapCache.clear(); invalidateRespCache(); } catch { /* caches may not be initialized during boot */ }
 }
 
 // touchAgent: register or heartbeat-stamp an agent in the global registry. Idempotent with
@@ -664,14 +700,21 @@ function targetOverlay(b, u) {
     ...fields,
     ws,
     ov,
-    save: () => { overlayStore.save(ws, ov); refreshOverlayStamp(ws, ov); invalidateAggregate(ws); },
+    save: () => { saveCachedOverlay(ws, ov); invalidateAggregate(ws); },
   };
+}
+
+// Single daemon-local persistence seam: every cached-overlay save must re-stamp the exact object it
+// wrote. Callers layer notification and aggregate invalidation on top without changing those semantics.
+function saveCachedOverlay(ws, ov, options) {
+  if (!ws || !ov) return;
+  overlayStore.save(ws, ov, options);
+  refreshOverlayStamp(ws, ov);
 }
 
 function saveDispatchOverlay(ws, ov) {
   if (!ws || !ov) return;
-  overlayStore.save(ws, ov);
-  refreshOverlayStamp(ws, ov);
+  saveCachedOverlay(ws, ov);
   notifyChange(ws);
 }
 
@@ -1026,7 +1069,7 @@ function sweepStaleClaims(ws, ov) {
     }
   }
   if (agentsDirty) saveAgents();
-  if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
+  if (dirty) saveDispatchOverlay(ws, ov);
   return dirty;
 }
 
@@ -1044,7 +1087,7 @@ function sweepStaleNativeClaims(ws, ov, tasks) {
     }
   }
   if (agentsDirty) saveAgents();
-  if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
+  if (dirty) saveDispatchOverlay(ws, ov);
   return dirty;
 }
 // Reconcile terminal operational debris. Landed/superseded outcomes are normalized immediately;
@@ -1062,7 +1105,7 @@ function sweepFailedTasks(ws, ov) {
     console.log(`[reconcile] task ${action.task_key}: ${action.action}`);
   }
   cache.agg.delete(ws); cache.aggAt.delete(ws);
-  overlayStore.save(ws, ov); notifyChange(ws);
+  saveDispatchOverlay(ws, ov);
   return true;
 }
 // staleVerdictKeys (pure): which 'tested'/'ready' tasks are stale verdict-pending hand-offs — owner
@@ -1094,6 +1137,14 @@ function hasPendingStaleVerdictReview(ov, key) {
       || (g.action && g.action.kind === 'stale-verdict' && (g.action.task_key === key || g.action.verdictKey === key))));
 }
 
+function hasSettledStaleVerdictReview(ov, key) {
+  const review = (ov.reviews && ov.reviews[key]) || {};
+  const gitInfo = (ov.git && ov.git[key]) || {};
+  return overlayStore.lifecycleMachine.isReviewSettled(review.review_state)
+    || review.merge_state === 'merged'
+    || !!gitInfo.merged;
+}
+
 // Route stale verdict-pending hand-offs into same-node review. Do not mutate status/assignee or write
 // native pending: a stale tested/ready handoff is evidence for the judge drain, not a user dashboard
 // decision.
@@ -1102,10 +1153,9 @@ function sweepStaleVerdicts(ws, ov) {
   if (!stale.length) return false;
   let dirty = false;
   for (const { key, status, agentId } of stale) {
-    if (hasPendingStaleVerdictReview(ov, key)) continue;
-    // Through the guarded machine, so a stale APPROVED-awaiting-merge task cannot have its landed
-    // verdict reset to 'requested' (hasPendingStaleVerdictReview only sees still-open reviews, so it
-    // waves settled ones straight through — that reset was a real lost-verdict path).
+    if (hasSettledStaleVerdictReview(ov, key) || hasPendingStaleVerdictReview(ov, key)) continue;
+    // Only genuinely unreviewed stale handoffs reach the guarded transition. Open and settled
+    // lifecycles were handled above, so they neither reopen nor churn the same refusal log.
     const decision = overlayStore.applyLifecycleEvent(ov, key, 'review_request', {
       task_status: status,
       review_requested_by: 'stale-verdict-sweep',
@@ -1119,7 +1169,7 @@ function sweepStaleVerdicts(ws, ov) {
     console.log(`[self-heal] task ${key} (was ${status}) routed to same-node review — owner gone`);
     dirty = true;
   }
-  if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
+  if (dirty) saveDispatchOverlay(ws, ov);
   return dirty;
 }
 
@@ -1165,7 +1215,7 @@ function sweepStaleGuidance(ws, ov) {
     console.log(`[self-heal] guidance ${g.id} ${reason} — auto-resolved`);
     dirty = true;
   }
-  if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
+  if (dirty) saveDispatchOverlay(ws, ov);
   return dirty;
 }
 
@@ -1373,7 +1423,7 @@ function applyOptimize(prob, base, L, ws, ov) {
   });
   if (d.decision === 'iterate') {
     overlayStore.setOptimize(ov, P.id, { decision: 'iterate', verdicts: prob.verdicts.length });
-    overlayStore.save(ws, ov); notifyChange(ws);
+    saveDispatchOverlay(ws, ov);
     return { ...base, action: 'optimize', problem: P.id, label: P.label, metric: P.metric.metric,
       reason: d.reason, prior_verdict: last, next_poll_seconds: L.config.minPoll };
   }
@@ -1387,12 +1437,12 @@ function applyOptimize(prob, base, L, ws, ov) {
     });
     overlayStore.setOptimize(ov, P.id, { closed: true, decision: 'stuck' });
     L.active = false;
-    overlayStore.save(ws, ov); notifyChange(ws);
+    saveDispatchOverlay(ws, ov);
     return { ...base, action: 'await_user', reason: `optimize stuck on ${P.id}: ${d.reason}` };
   }
   // converged | budget — stop iterating THIS problem; let the normal drained logic decide next.
   overlayStore.setOptimize(ov, P.id, { closed: true, decision: d.decision });
-  overlayStore.save(ws, ov); notifyChange(ws);
+  saveDispatchOverlay(ws, ov);
   return null; // fall through to drained→plan/stop
 }
 
@@ -1525,7 +1575,7 @@ function decideOne(L, ctx) {
       });
       // Auto-block so it doesn't re-fire guidance every tick before the user responds.
       overlayStore.setBlocked(ov, t.id, 'cost_gate: awaiting user approval');
-      overlayStore.save(ws, ov); notifyChange(ws);
+      saveDispatchOverlay(ws, ov);
     }
     // Re-derive ready after auto-blocking; keep guidance-pending tasks out of the spawn pool.
     const nowBlocked = (t) => !!(ov.blocked && ov.blocked[t.id]);
@@ -1589,8 +1639,7 @@ function loopDecisionContext(ws, batch = null) {
   decisionDelivery.reconcileStale(ov, Date.now(), graph);
   decisionDelivery.syncTaskHolds(ov);
   if (ws && before !== JSON.stringify([ov.guidance, ov.decision_holds])) {
-    overlayStore.save(ws, ov);
-    notifyChange(ws);
+    saveDispatchOverlay(ws, ov);
   }
   const pend = overlayStore.userAttentionGuidance(ov);
   return {
@@ -1612,9 +1661,7 @@ function ensureManagedGraphLoops(ctxByWs = null) {
     }
     const r = ensureManagedGraphLoop({ ctx: { loops, newLoop, now }, workspace: ws, graph: c.graph, overlay: c.ov });
     if (r.overlayChanged) {
-      overlayStore.save(ws, c.ov);
-      refreshOverlayStamp(ws);
-      notifyChange(ws);
+      saveDispatchOverlay(ws, c.ov);
     }
     if (r.changed) dirty = true;
   }
@@ -1720,7 +1767,7 @@ function decideAll(opts = {}) {
       const before = JSON.stringify([ctx.ov.guidance, ctx.ov.decision_holds]);
       const nudges = decisionDelivery.takeDueNudges(ctx.ov, L.session, liveDecisionSessions, ctx.graph, ctx.ws);
       if (nudges.length) entry.decision_nudges = nudges;
-      if (before !== JSON.stringify([ctx.ov.guidance, ctx.ov.decision_holds])) overlayStore.save(ctx.ws, ctx.ov);
+      if (before !== JSON.stringify([ctx.ov.guidance, ctx.ov.decision_holds])) saveCachedOverlay(ctx.ws, ctx.ov);
     }
     if (ctx.reviewPending > 0) {
       const pend = overlayStore.pendingGuidance(ctx.ov);
@@ -2179,7 +2226,7 @@ function sweepFiledropStubs(ws) {
   const ov = overlayFor(ws);
   const result = filedropGc.sweepWorkspaceStubs(ws, ov, { dryRun: false });
   if (result.adopted.length || result.removed.length) {
-    overlayStore.save(ws, ov); refreshOverlayStamp(ws);
+    saveCachedOverlay(ws, ov);
     cache.agg.delete(ws); cache.aggAt.delete(ws);
   }
   return result;
@@ -2290,6 +2337,14 @@ function makeResolver() {
 
   function label(ws, key) { const { tasks } = loadWs(ws); return tasks[key] ? tasks[key].label : key; }
   return { loadWs, depRefs, effective, dependencyEffective, exists, explicitStatus, label };
+}
+
+function effectiveTaskStatuses(ws, keys, resolver = makeResolver()) {
+  resolver.loadWs(ws);
+  return Object.fromEntries(keys.map((key) => [
+    key,
+    resolver.exists(ws, key) ? resolver.effective(ws, key) : null,
+  ]));
 }
 
 function readinessDetail(R, ws, key, opts = {}) {
@@ -2532,7 +2587,7 @@ function commitGraphProjectionEffects(ws, ovWs, effects) {
     effects.edgesDirty = true;
   }
   if (effects.tsDirty || effects.edgesDirty || effects.adoptDirty || effects.repairDirty) {
-    overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange(ws);
+    saveCachedOverlay(ws, ovWs, { deferred: true }); notifyChange(ws);
   }
   // INGEST-AT-BIRTH (BUILD1): native tasks adopted THIS build pass through the unified ingestNode funnel
   // (embed → setTaskVec → autowire → markEagerJudge) so they carry a vec + candidate edges + an eager mark
@@ -2548,7 +2603,7 @@ function commitGraphProjectionEffects(ws, ovWs, effects) {
           // vestigial judgingSince anchor here purely to keep the overlay tidy (the gate no longer reads
           // it; readiness is derived solely from unverifiedEdgesForNode).
           if (r.seeded === 0) { overlayStore.clearJudgingSince(ovWs, n.key); }
-          if (r.vec || r.seeded === 0) { overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange(ws); }
+          if (r.vec || r.seeded === 0) { saveCachedOverlay(ws, ovWs, { deferred: true }); notifyChange(ws); }
         } catch { /* best-effort birth ingest */ }
       }
     })();
@@ -2679,7 +2734,13 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
       // from the local overlay.pendingDup map (round-trips via save's LOCAL_FIELDS) — NOT a note_node field.
       pending_dup: pendingDup,
       dup_match: dupMatch,
-      category: n.category || null, tags: Array.isArray(n.tags) ? n.tags : [] });
+      category: n.category || null, tags: Array.isArray(n.tags) ? n.tags : [],
+      created_by: n.created_by || null,
+      memory_lane: n.memory_lane || null,
+      source_role: n.source_role || 'unknown',
+      authority: n.authority || null,
+      confidence: typeof n.confidence === 'number' ? n.confidence : null,
+      episode: n.episode || null });
   }
   // Append typed knowledge nodes for source/provenance structure. They are graph/search nodes only:
   // no native status lifecycle, no assignee/session/todo semantics.
@@ -2961,6 +3022,7 @@ const uiRoute = require('./routes/ui');
 const usageRoute = require('./routes/usage');
 const subconsciousRoute = require('./routes/subconscious');
 const activityRoute = require('./routes/activity');
+const documentationRoute = require('./routes/documentation');
 
 // ctx: live access to daemon state + helpers. State fields use getters so reassignment
 // (state = {...} at /reset) is always visible. P3: there is no daemon-global workspace/overlay.
@@ -3023,7 +3085,7 @@ const ctx = {
   onboardRuntimeIgnoreError: reportOnboardRuntimeIgnoreError,
   workspaceForRepo: (repoPath) => registry.repoToWorkspace(registry.loadRegistry(WORKSPACES_FILE)).get(repoPath) || null,
   repoRoot: registry.repoRoot,
-  send, sendOp, readBody, notifyChange, graphAutoflush, buildGraph, readGraphSnapshot, targetOverlay, overlayFor, invalidateAggregate, resolveRepo, resolveRepoTarget, nodeExistsInGraph, registeredWorkspaces,
+  send, sendOp, readBody, notifyChange, graphAutoflush, buildGraph, effectiveTaskStatuses, readGraphSnapshot, targetOverlay, overlayFor, invalidateAggregate, resolveRepo, resolveRepoTarget, nodeExistsInGraph, registeredWorkspaces,
   validateMetricSpec, validateBenchmark,
   overlayStore, harness: claudeHarness, harnessRegistry, filedrop, writeTaskStatus, readNativeTask, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
   cache, loops, saveLoops, saveAgents,
@@ -3055,7 +3117,7 @@ const routeModules = [
   mcpRoute(ctx), stateRoute(ctx), metaRoute(ctx), graphRoute(ctx), taskRoute(ctx), overlayRoute(ctx),
   gitRoute(ctx), judgeRoute(ctx), labelRoute(ctx), configRoute(ctx), analyticsRoute(ctx), onboardRoute(ctx),
   sessionRoute(ctx), execRoute(ctx), classifyRoute(ctx), usageRoute(ctx), subconsciousRoute(ctx),
-  activityRoute(ctx), uiRoute(ctx),
+  activityRoute(ctx), documentationRoute(ctx), uiRoute(ctx),
 ];
 
 function superviseCodexWakeDeliveryForRegisteredWorkspaces() {
@@ -3142,7 +3204,7 @@ function isPrimaryCheckout(root) {
 module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleSnapshotClaimKeys, releaseSnapshotClaim, staleNativeClaimKeys, releaseNativeClaim, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings, worktreeVouchesLive, depSatisfied, vouchedLive, STALE_MINUTES_DEFAULT,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, graphAutoflush, RESP_TTL, sseClients, nodeExistsInGraph, dispatchInProgressCount,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
-  decideOne, decideAll, ensureManagedGraphLoops, buildGraph, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __readinessDetailForTest: readinessDetail, __compareLoopPriorityForTest: compareLoopPriority, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
+  decideOne, decideAll, ensureManagedGraphLoops, buildGraph, effectiveTaskStatuses, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __readinessDetailForTest: readinessDetail, __compareLoopPriorityForTest: compareLoopPriority, __createHeadlessSpawnExecutorForTest: createDaemonHeadlessSpawnExecutor, __usageCachedForTest: usageCached, __clearUsageCacheForTest: () => { cache.usage.clear(); cache.usageStamp.clear(); }, __invalidateRespCacheForTest: invalidateRespCache, __clearRespCacheForTest: () => respCache.clear(), __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
 
 if (require.main === module) {
   // Log unhandled promise rejections instead of crashing (Node's default is to exit the process).
@@ -3373,12 +3435,25 @@ if (require.main === module) {
 
   const maintenanceDrainExecutor = {
     _governor: headlessDrain._governor,
-    runDueDrains: (currentState) => headlessDrain.runDueDrains(currentState, undefined, {
-      // Native tasks may carry a completed review lifecycle while readiness is temporarily masked
-      // by context judging. Give review discovery the canonical graph so it can distinguish that
-      // valid attempt from terminal/blocked lifecycle debris.
-      reviewVerdictDeps: { buildGraph },
-    }),
+    runDueDrains: (currentState) => {
+      const workspace = (currentState && currentState.workspace) || __dirname;
+      const overlay = overlayFor(workspace);
+      const overlaySave = (ws, value) => {
+        saveCachedOverlay(ws, value);
+      };
+      return headlessDrain.runDueDrains(currentState, undefined, {
+        // The daemon's per-workspace cache is authoritative and mtime-coherent with out-of-process
+        // writers. Reuse it across judge/review/code lifecycle discovery; saves re-stamp that same
+        // cache entry so the next pump does not replay a 500MB graph it just wrote itself.
+        overlay,
+        overlayLoad: overlayFor,
+        overlaySave,
+        // Native tasks may carry a completed review lifecycle while readiness is temporarily masked
+        // by context judging. Give review discovery the canonical graph so it can distinguish that
+        // valid attempt from terminal/blocked lifecycle debris.
+        reviewVerdictDeps: { buildGraph },
+      });
+    },
   };
   const headlessDrainRunner = createHeadlessDrainRunner({
     headlessDrain: maintenanceDrainExecutor,
@@ -3397,10 +3472,7 @@ if (require.main === module) {
   // instance) and the SAME headless-drain governor — see lib/headless-spawn.js.
   // decide mirrors the /next-action route exactly (decideAll() then saveLoops()), but FORWARDS the
   // executor's scoping opts so loops on session-driven workspaces are never ticked or leased here.
-  const headlessSpawnExecutor = headlessSpawn.createSpawnExecutor({
-    loops,
-    decide: (o) => { const r = decideAll(o); saveLoops(); return r; },
-  });
+  const headlessSpawnExecutor = createDaemonHeadlessSpawnExecutor();
   const headlessSpawnRunner = createHeadlessDrainRunner({
     headlessDrain: headlessSpawnExecutor,
     getState: () => state,
@@ -3462,7 +3534,7 @@ if (require.main === module) {
         nativeTaskSigs.set(ws, sig);
         if (prev === undefined || prev === sig) continue;
         invalidateAggregate(ws);
-        respCache.clear();
+        invalidateRespCache();
         buildGraph(ws);
       }
     } catch { /* best effort */ }

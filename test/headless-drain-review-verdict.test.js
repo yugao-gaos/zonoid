@@ -326,6 +326,9 @@ test('buildReviewVerdictPrompt embeds bounded inputs and requires one JSON verdi
   assert.match(prompt, /dead\/redundant code/, 'rubric: dead/redundant code');
   assert.match(prompt, /test presence\/quality/, 'rubric: tests');
   assert.match(prompt, /style/, 'rubric: style');
+  assert.match(prompt, /documentation impact/, 'rubric: documentation impact');
+  assert.match(prompt, /credible rationale/, 'rubric: no-change rationale evidence');
+  assert.match(prompt, /Kick back undocumented changes/, 'rubric: documentation failures block approval');
   assert.match(prompt, /"verdict":"APPROVE"/, 'APPROVE output shape present');
   assert.match(prompt, /"verdict":"KICK_BACK"/, 'KICK_BACK output shape present');
   assert.match(prompt, /daemon validates and applies/, 'the child never mutates lifecycle state');

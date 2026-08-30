@@ -105,6 +105,75 @@ const near = (a, b, eps = 1e-9) => Math.abs(a - b) <= eps;
   ok('reconcile save + notify called', saved && notified);
 }
 
+// Incremental Codex reports stay cumulative while alternating harnesses remain aggregated.
+{
+  const ov = { usage_reconcile: {} };
+  const usage = (model, output) => ({
+    input_tokens: 0,
+    output_tokens: output,
+    cache_read_input_tokens: 0,
+    cache_creation_input_tokens: 0,
+    by_model: { [model]: { input_tokens: 0, output_tokens: output, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } },
+  });
+  const session = (id, harness, model, output, usd) => ({
+    id,
+    path: `/tmp/${id}.jsonl`,
+    total: output,
+    harness,
+    usage: usage(model, output),
+    cost: { ...usageAccounting.emptyCost(), usd, by_model: { [model]: { tokens: output, usd } } },
+  });
+  const report = (harness, sessions) => usageAccounting.mergeCumulativeSessionReport(
+    null,
+    { harness, workspace: '/tmp/mixed-reconcile', sessions },
+  );
+  const codexReports = [
+    report('codex', [session('c1', 'codex', 'gpt-5.6-sol', 10, 0.2)]),
+    report('codex', [
+      session('c1', 'codex', 'gpt-5.6-sol', 12, 0.24),
+      session('c2', 'codex', 'gpt-5.6-sol', 3, 0.06),
+    ]),
+  ];
+  const claudeReport = report('claude', [session('a1', 'claude', 'claude-sonnet-5', 7, 0.1)]);
+  let codexCalls = 0;
+  const codexOpts = [];
+  const registry = {
+    get(name) {
+      if (name === 'codex') return {
+        name,
+        usage: {
+          incrementalSessionSnapshots: true,
+          reconcile(_workspace, opts) { codexOpts.push(opts); return codexReports[codexCalls++]; },
+        },
+      };
+      if (name === 'claude') return { name, usage: { reconcile: () => claudeReport } };
+      throw new Error(name);
+    },
+  };
+  const times = [
+    '2026-08-30T10:00:00.000Z',
+    '2026-08-30T10:05:00.000Z',
+    '2026-08-30T10:10:00.000Z',
+  ];
+  const ctx = {
+    harnessRegistry: registry,
+    targetOverlay: () => ({ ws: '/tmp/mixed-reconcile', ov, save() {} }),
+    now: () => times.shift(),
+    notifyChange() {},
+  };
+
+  runUsageReconcile(ctx, { harness: 'codex', workspace: '/tmp/mixed-reconcile', force: true });
+  runUsageReconcile(ctx, { harness: 'claude', workspace: '/tmp/mixed-reconcile', force: true });
+  runUsageReconcile(ctx, { harness: 'codex', workspace: '/tmp/mixed-reconcile', force: true });
+
+  const snapshot = ov.usage_reconcile_snapshot;
+  ok('reconcile: second detailed Codex sweep uses prior harness timestamp', codexOpts[0].since === null && codexOpts[1].since === '2026-08-30T10:00:00.000Z');
+  ok('reconcile: cumulative Codex session replaces updated row and retains new row', snapshot.reports.codex.sessions.length === 2 && snapshot.reports.codex.totals.output_tokens === 15);
+  ok('reconcile: alternating provider order keeps both harness reports', snapshot.harness === 'mixed' && snapshot.harnesses.join(',') === 'claude,codex' && snapshot.reports.claude === claudeReport);
+  ok('reconcile: top-level totals aggregate all harnesses and models', snapshot.totals.output_tokens === 22 && snapshot.totals.by_model['gpt-5.6-sol'].output_tokens === 15 && snapshot.totals.by_model['claude-sonnet-5'].output_tokens === 7);
+  ok('reconcile: top-level estimated cost aggregates all harnesses', near(snapshot.cost.usd, 0.4) && snapshot.cost.estimated === true);
+}
+
 {
   const ov = {
     usage_reconcile_snapshot: {

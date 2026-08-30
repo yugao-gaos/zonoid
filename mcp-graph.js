@@ -93,7 +93,7 @@ async function ensureDaemon() {
 function write(msg) { process.stdout.write(JSON.stringify(msg) + '\n'); }
 async function handle(msg) {
   if (msg.method === 'tools/call') await ensureDaemon();   // self-heal before any tool runs
-  const resp = await core.handleRpc(msg, { call: CALL, uiHtml: core.uiHtml, extraTools: CLIENT_EXTRA, session: SESSION, identity: CLIENT_IDENTITY, workspace: GRAPH_REPO });
+  const resp = await core.handleRpc(msg, { call: CALL, uiHtml: core.uiHtml, extraTools: CLIENT_EXTRA, session: SESSION, identity: CLIENT_IDENTITY, workspace: GRAPH_REPO, client: CLIENT });
   if (resp !== undefined) write(resp);
 }
 

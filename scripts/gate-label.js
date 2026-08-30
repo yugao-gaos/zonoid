@@ -59,6 +59,30 @@ function httpGet(url) {
   });
 }
 
+function httpPost(url, body) {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify(body || {});
+    const req = http.request(url, {
+      method: 'POST',
+      timeout: 8000,
+      headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) },
+    }, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => {
+        try {
+          resolve({ status: res.statusCode, body: JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') });
+        } catch (e) {
+          reject(new Error(`JSON parse error for ${url}: ${e.message}`));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error(`timeout fetching ${url}`)); });
+    req.end(data);
+  });
+}
+
 // ── Stable row key: hash of ts + task_key + query ────────────────────────────
 function rowKey(row) {
   return crypto.createHash('sha256')
@@ -80,8 +104,15 @@ function appendJsonl(file, obj) {
 }
 
 // ── Task detail fetch ─────────────────────────────────────────────────────────
+async function fetchTaskStatuses(keys) {
+  const url = `http://localhost:${PORT}/task/status-batch`;
+  const r = await httpPost(url, { workspace: WORKSPACE, keys });
+  if (r.status !== 200) throw new Error(`task status batch → HTTP ${r.status}`);
+  return new Map(Object.entries(r.body.statuses || {}));
+}
+
 async function fetchTaskDetail(taskKey) {
-  const url = `http://localhost:${PORT}/task/detail?key=${encodeURIComponent(taskKey)}`;
+  const url = `http://localhost:${PORT}/task/detail?key=${encodeURIComponent(taskKey)}&workspace=${encodeURIComponent(WORKSPACE)}`;
   const r = await httpGet(url);
   if (r.status !== 200) throw new Error(`task detail ${taskKey} → HTTP ${r.status}`);
   return r.body;
@@ -179,6 +210,13 @@ async function main() {
   let stillPending = 0;
   let unlabelable = 0;
   const quadCounts = { TP: 0, FP: 0, TN: 0, FN: 0 };
+  const pendingTaskKeys = [...new Set(journalRows
+    .filter((row) => row.task_key && !labeledKeys.has(rowKey(row)))
+    .map((row) => row.task_key))];
+  let taskStatuses = new Map();
+  if (pendingTaskKeys.length) {
+    try { taskStatuses = await fetchTaskStatuses(pendingTaskKeys); } catch { /* status failure leaves rows pending */ }
+  }
 
   for (const row of journalRows) {
     const key = rowKey(row);
@@ -189,6 +227,14 @@ async function main() {
     // No task_key → unlabelable
     if (!row.task_key) {
       unlabelable++;
+      continue;
+    }
+
+    // One lightweight batch-status request filters the large nonterminal backlog without calling
+    // /task/detail (which resolves transcripts synchronously). A terminal row still fetches full
+    // detail below so token cost, transcript/note-used, metrics, and task summary stay unchanged.
+    if (!isTerminal(taskStatuses.get(row.task_key) || '')) {
+      stillPending++;
       continue;
     }
 

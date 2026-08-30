@@ -11,6 +11,7 @@ const { listDispatcherChildren } = require('../lib/dispatcher-children');
 const { attributionMeta } = require('../lib/dispatcher-attribution');
 const gitClaims = require('../lib/git-claims');
 const git = require('../lib/git');
+const outcomePolicyMemory = require('../lib/outcome-policy-memory');
 
 // Auto-resolve a guidance escalation by spawning an Opus CLI process.
 // Returns the trimmed answer string, or null if Opus is unavailable or fails.
@@ -27,7 +28,7 @@ async function resolveViaOpusCli({ question, context, workspace }) {
 }
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
-  const { send, readBody, notifyChange, buildGraph, state, targetOverlay, resolveRepo, now,
+  const { send, readBody, notifyChange, buildGraph, state, targetOverlay, overlayFor, resolveRepo, now,
     stopSignalFor, agentsArr, loops, saveLoops, ESCALATION_DEFAULTS, OPTIMIZE_DEFAULTS } = ctx;
 
   if (p === '/active-claim') {
@@ -70,7 +71,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     if (sid) {
       for (const ws of scanWorkspaces) {
-        const ov = ws === T.ws ? T.ov : overlayStore.load(ws);
+        const ov = ws === T.ws ? T.ov : overlayFor(ws);
         const cs = ov.claimSessions;
         if (!cs) continue;
         for (const t of all.filter((t) => t.workspace === ws && t.session !== sid)) {
@@ -142,6 +143,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (b.cost_gate != null) T.ov.config.cost_gate = !!b.cost_gate;
     if (b.automode != null) T.ov.config.automode = !!b.automode;
     if (b.headless_driver != null) T.ov.config.headless_driver = !!b.headless_driver;
+    if (b.outcome_policy_memory != null) T.ov.config.outcome_policy_memory = !!b.outcome_policy_memory;
     // Atomic full-autonomy toggle ("orch auto"): { auto:true|false } expands server-side to the
     // three autonomy flags (self_plan + automode + headless_driver) so every surface — the
     // conversation hook, the dashboard toggle, plain curl — stays atomic through this one code
@@ -178,6 +180,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       T.ov.config.optimize = cur;
     }
     T.save();
+    // Code-index batches persist with defer_publish=true so a full/sync run does not force every
+    // dashboard to rebuild intermediate graph states. The final watermark is the atomic publish:
+    // reaching it means every preceding code-node/edge write succeeded for this HEAD.
+    if (b.last_indexed_commit && b.defer_publish !== true) notifyChange(T.graph_repo || T.ws);
     // On enabling headless autonomy, ensure the managed graph loop exists promptly instead of
     // waiting for the daemon's 60s ensure interval. Best-effort and optional: unit tests drive
     // this route with a fake ctx that has no loop machinery.
@@ -403,6 +409,22 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     const healed = followups.healOrphanHolds(T.ov);
     if (healed.length) result.healed_orphan_holds = healed;
+    // A correction is opt-in and explicit. Ordinary answers/approvals are not silently promoted to
+    // durable policy, and the recorder refuses unscoped/global one-off guidance.
+    if (b.correction != null) {
+      const correctionTask = item.origin_task
+        || (action && (action.task_key || action.taskKey))
+        || null;
+      result.outcome_policy = outcomePolicyMemory.recordCorrection({
+        overlay: T.ov,
+        workspace: T.ws,
+        taskKey: correctionTask,
+        correction: b.correction,
+        scope: b.correction_scope,
+        sessionId: item.request_session || b.session_id,
+        transcriptRef: `guidance:${item.id}`,
+      });
+    }
     T.save(); notifyChange(T.graph_repo || T.ws);
     result.pending = overlayStore.pendingGuidance(T.ov).length;
     send(res, 200, result); return true;

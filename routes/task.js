@@ -4,6 +4,8 @@ const measure = require('../lib/measure');
 const git = require('../lib/git');
 const { reassembleNoteBody } = require('../lib/note-full-body');
 
+const TASK_STATUS_BATCH_MAX_KEYS = 5000;
+
 function isAdmissibleOverlayTaskKey(key) {
   return typeof key === 'string'
     && (/^[^/\s]+\/[^/\s]+$/.test(key) || /^[A-Za-z][A-Za-z0-9_.-]*$/.test(key));
@@ -19,7 +21,7 @@ function dashboardTask(task) {
 }
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
-  const { send, readBody, buildGraph, state, targetOverlay, nodeExistsInGraph,
+  const { send, readBody, buildGraph, effectiveTaskStatuses, state, targetOverlay, nodeExistsInGraph,
     validateMetricSpec, validateBenchmark, resolveRepoTarget, taskTranscript, usageCached } = ctx;
   const graphHasKey = (ws, key) => {
     if (typeof nodeExistsInGraph !== 'function') return true;
@@ -47,6 +49,22 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (ctx.cache.aggAt) ctx.cache.aggAt.delete(T.ws);
     }
   };
+
+  if (p === '/task/status-batch' && m === 'POST') {
+    const b = await readBody(req);
+    const T = targetOverlay(b, u);
+    if (!T.ws) { send(res, 400, { ok: false, error: 'graph_repo required; workspace required (deprecated alias)' }); return true; }
+    if (!Array.isArray(b.keys)) { send(res, 400, { ok: false, error: 'keys must be an array' }); return true; }
+    if (b.keys.length > TASK_STATUS_BATCH_MAX_KEYS) {
+      send(res, 413, { ok: false, error: `keys exceeds maximum of ${TASK_STATUS_BATCH_MAX_KEYS}`, max_keys: TASK_STATUS_BATCH_MAX_KEYS }); return true;
+    }
+    if (b.keys.some((key) => typeof key !== 'string')) {
+      send(res, 400, { ok: false, error: 'keys must contain strings only' }); return true;
+    }
+    const keys = [...new Set(b.keys.map((key) => key.trim()).filter(Boolean))];
+    const statuses = effectiveTaskStatuses(T.ws, keys);
+    send(res, 200, { ok: true, statuses }); return true;
+  }
 
   if (p === '/task/metric' && m === 'POST') {
     const b = await readBody(req);

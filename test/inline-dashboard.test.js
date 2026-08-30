@@ -17,6 +17,7 @@ function ok(name, pass) {
 
 ok('inline dashboard renders compact summary shell', html.includes('<main id="dash">'));
 ok('inline dashboard exposes refresh action', html.includes('id="refreshBtn"') && html.includes('refreshBtn.onclick=refresh'));
-ok('inline dashboard links to the full view in the Codex browser', html.includes('Open in Codex browser') && html.includes('dashboardUrl()'));
+ok('inline dashboard exposes viewer-aware launch labels', html.includes('dashboardButtonLabel()') && html.includes('Open in Codex browser') && html.includes('Open in Claude browser') && html.includes('Open dashboard'));
+ok('inline dashboard passes viewer only to the full-view URL', html.includes('dashboardUrl()') && /function dashboardUrl\(\)[\s\S]*searchParams\.set\('viewer', VIEWER_HOST\)/.test(html) && !/function scoped\(path\)[\s\S]*searchParams\.set\('viewer', VIEWER_HOST\)[\s\S]*function dashboardButtonLabel/.test(html));
 ok('inline dashboard does not render per-task node cards', !html.includes('className=\'node') && !html.includes('levelize('));
 ok('inline dashboard still polls daemon state', html.includes("fetch(DAEMON + scoped('/state')"));

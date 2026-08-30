@@ -10,6 +10,13 @@ const { agreementRate } = require('../lib/shadow-journal');
 const { getPromotionState } = require('../lib/promotion-gate');
 const { estimatedSavings } = require('../lib/economy');
 
+// Shared daemon cache: graph/overlay mutations invalidate immediately through notifyChange and
+// out-of-process overlay writes invalidate by mtime. Analytics may be bounded-stale when only a
+// transcript grows; use a long safety fallback so idle dashboards do not synchronously cold-scan at
+// an arbitrary one-minute boundary across clients.
+const ANALYTICS_CACHE_TTL_MS = 10 * 60 * 1000;
+const COSTFLOW_CACHE_OPTIONS = Object.freeze({ boundedStale: true });
+
 function sessionsFromOverlay(ov) {
   const snap = ov && ov.usage_reconcile_snapshot;
   if (snap && Array.isArray(snap.sessions) && snap.sessions.length) return snap.sessions;
@@ -151,7 +158,9 @@ function harnessNameForWorkspace(state, ov, workspace, fallback) {
     .filter((s) => s && s.workspace === workspace && s.harness)
     .sort((a, b) => String(b.lastSeen || '').localeCompare(String(a.lastSeen || '')));
   if (sessions.length) return sessions[0].harness;
-  if (ov && ov.usage_reconcile_snapshot && ov.usage_reconcile_snapshot.harness) return ov.usage_reconcile_snapshot.harness;
+  const snapshot = ov && ov.usage_reconcile_snapshot;
+  if (snapshot && Array.isArray(snapshot.harnesses) && snapshot.harnesses.length === 1) return snapshot.harnesses[0];
+  if (snapshot && snapshot.harness && snapshot.harness !== 'mixed') return snapshot.harness;
   if (process.env.ZONOID_HARNESS) return process.env.ZONOID_HARNESS;
   return fallback || 'claude';
 }
@@ -168,7 +177,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     let activeHarness = harness;
     try { if (harnessRegistry && harnessName) activeHarness = harnessRegistry.get(harnessName); } catch { activeHarness = harness; }
     const cfKey = `costflow|${cfWs}|${harnessName}|${u.searchParams.get('since') || ''}`;
-    const cfHit = respCacheGet(cfWs, cfKey);
+    const cfHit = respCacheGet(cfWs, cfKey, ANALYTICS_CACHE_TTL_MS, COSTFLOW_CACHE_OPTIONS);
     if (cfHit !== undefined) { send(res, 200, cfHit); return true; }
     const g = buildGraph(T.ws);
     const stWs = { ...state, overlay: T.ov };
@@ -297,13 +306,19 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // economy_totals: output-token attribution basis — productive/exploration/trapped partition.
     // usage_totals: scalar usage-record/reconcile basis — input/output/cache/cache-create.
     // `totals` remains an alias for economy_totals for dashboard/client backcompat.
-    const byModelEmit = Object.fromEntries(Object.entries(rawByModel).map(([m2,v])=>[m2,{input_tokens:rnd(v.input_tokens),output_tokens:rnd(v.output_tokens),cache_read:rnd(v.cache_read_input_tokens)}]));
+    const byModelEmit = Object.fromEntries(Object.entries(rawByModel).map(([m2,v])=>[m2,{
+      input_tokens: rnd(v.input_tokens),
+      output_tokens: rnd(v.output_tokens),
+      cache_read: rnd(v.cache_read_input_tokens),
+      cache_creation: rnd(v.cache_creation_input_tokens),
+    }]));
     const grossTotals = Object.values(byModelEmit).reduce((acc, v) => {
       acc.input_tokens += v.input_tokens || 0;
       acc.output_tokens += v.output_tokens || 0;
       acc.cache_read += v.cache_read || 0;
+      acc.cache_creation += v.cache_creation || 0;
       return acc;
-    }, { input_tokens: 0, output_tokens: 0, cache_read: 0 });
+    }, { input_tokens: 0, output_tokens: 0, cache_read: 0, cache_creation: 0 });
     const economyTotals = { total: productive + explorationTok + trappedTok, productive, exploration: explorationTok, trapped: trappedTok };
     const usageTotals = {
       input_tokens: rnd(rawInput),
@@ -312,7 +327,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       cache_creation: rnd(merged.totals.cache_creation_input_tokens || 0),
       total: rnd(rawInput + rawOutput + rawCacheRead + (merged.totals.cache_creation_input_tokens || 0)),
     };
-    const grossUsageTotal = grossTotals.input_tokens + grossTotals.output_tokens + grossTotals.cache_read;
+    const grossUsageTotal = grossTotals.input_tokens + grossTotals.output_tokens + grossTotals.cache_read + grossTotals.cache_creation;
     const hasBillingData = grossUsageTotal > 0 || (((merged.cost && merged.cost.usd) || 0) > 0);
     const costByCause = usageAccounting.costCauseLedger(T.ov, {
       tasks: g.tasks,
@@ -333,25 +348,36 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       sources: {
         economy: 'transcript_output_attribution',
         usage: usageTotals.total > 0 ? 'usage_records_or_reconcile' : 'missing',
-        billing: hasBillingData ? 'usage_records_or_reconcile' : 'missing',
+        billing: hasBillingData ? 'usage_estimate' : 'missing',
       },
       by_model: byModelEmit,
-      // cost: DOLLAR overlay (CDX-3). Daemon SUMS already-computed per-slice cost.usd (adapter-priced
-      // from pricing.json); it does NOT price here. source is weakest-wins ('estimated' if any
-      // contributing slice was a chars/4 estimate, else 'real'). ADDITIVE to the token figures above.
-      cost: { usd: Math.round(((merged.cost && merged.cost.usd) || 0) * 100) / 100, source: (merged.cost && merged.cost.source) || 'real', by_model: (merged.cost && merged.cost.by_model) || {} },
+      // Dollar values are published list-rate estimates derived from locally captured tokens. The
+      // source field still distinguishes captured-token vs chars/4 inputs; it is not a billing claim.
+      cost: {
+        usd: Math.round(((merged.cost && merged.cost.usd) || 0) * 100) / 100,
+        source: (merged.cost && merged.cost.source) || 'real',
+        kind: 'estimate',
+        estimated: true,
+        caveat: (merged.cost && merged.cost.caveat) || usageAccounting.COST_ESTIMATE_CAVEAT,
+        complete: !((merged.cost && merged.cost.unpriced_models) || []).length,
+        unpriced_models: (merged.cost && merged.cost.unpriced_models) || [],
+        by_model: (merged.cost && merged.cost.by_model) || {},
+      },
       cost_by_cause: costByCause,
       cause_ledger: costByCause,
       sessions: { count: catchalls.nodes.length, unattributed: rnd(catchalls.nodes.reduce((s, n) => s + n.own, 0)) },
       results: flow.results.map((r) => ({ task: r.task, kind: kindOf(r.task), label: r.label, members: r.members.length > 1 ? r.members : undefined, T: rnd(r.T), own: rnd(r.own), inherited: rnd(r.inherited) })),
       waste: wasteTrapped.map((w) => ({ task: w.task, kind: kindOf(w.task), label: w.label, members: w.members.length > 1 ? w.members : undefined, trapped: rnd(w.trapped) })),
       exploration: wasteExploration.map((w) => ({ task: w.task, kind: kindOf(w.task), label: w.label, members: w.members.length > 1 ? w.members : undefined, tokens: rnd(w.trapped) })),
-    })); return true;
+    }, COSTFLOW_CACHE_OPTIONS)); return true;
   }
 
   if (p === '/harness/overhead' && m === 'GET') {
     const T = targetOverlay(null, u);
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace set' }); return true; }
+    const overheadKey = `harness-overhead|${T.ws}`;
+    const overheadHit = respCacheGet(T.ws, overheadKey, ANALYTICS_CACHE_TTL_MS);
+    if (overheadHit !== undefined) { send(res, 200, overheadHit); return true; }
     const merged = usageAccounting.sumUsageRecords(T.ov);
     const overhead = usageAccounting.sumOverhead(T.ov);
     const human = merged.human || { tokens: 0, chars: 0, messages: 0, dropped: 0 };
@@ -387,7 +413,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
     } catch { /* best effort — never fail the response */ }
 
-    send(res, 200, { overhead, human, total_input_est: overhead.tokens + human.tokens, total_session_input: totalSessionInput, system_reminder_est, harness_fraction: totalSessionInput > 0 ? Math.round(((overhead.tokens + system_reminder_est) / totalSessionInput) * 1000) / 1000 : 0, self_maintenance: { tokens: Math.round(selfMaintenanceTokens), description: 'output_tokens attributed to harness-prefixed self-maintenance tasks (e.g. judge drain)' } }); return true;
+    send(res, 200, respCachePut(T.ws, overheadKey, { overhead, human, total_input_est: overhead.tokens + human.tokens, total_session_input: totalSessionInput, system_reminder_est, harness_fraction: totalSessionInput > 0 ? Math.round(((overhead.tokens + system_reminder_est) / totalSessionInput) * 1000) / 1000 : 0, self_maintenance: { tokens: Math.round(selfMaintenanceTokens), description: 'output_tokens attributed to harness-prefixed self-maintenance tasks (e.g. judge drain)' } })); return true;
   }
 
   // Per-node judging-cost rollup: sums output_tokens from usage slices whose judged_node equals
@@ -444,10 +470,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!T.ws) { send(res, 400, { ok: false, error: 'workspace required — pass ?workspace=' }); return true; }
     const windowParam = parseInt(u.searchParams.get('window') || '200', 10);
     const win = (Number.isFinite(windowParam) && windowParam > 0) ? windowParam : 200;
+    const agreementKey = `agreement|${T.ws}|${win}`;
+    const agreementHit = respCacheGet(T.ws, agreementKey, ANALYTICS_CACHE_TTL_MS);
+    if (agreementHit !== undefined) { send(res, 200, agreementHit); return true; }
     const result = agreementRate(T.ws, win);
     const agreement = result ? { ...result, window: win } : null;
     const promotionState = getPromotionState(T.ws);
-    send(res, 200, { ok: true, agreement, promoted: !!promotionState.promoted, promotionState: promotionState.promoted ? promotionState : null });
+    send(res, 200, respCachePut(T.ws, agreementKey, { ok: true, agreement, promoted: !!promotionState.promoted, promotionState: promotionState.promoted ? promotionState : null }));
     return true;
   }
 
@@ -491,4 +520,4 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   return false;
 };
 
-module.exports._internal = { sessionsFromOverlay, claimedOutputForSession, harnessNameForWorkspace, representedSessionIds };
+module.exports._internal = { sessionsFromOverlay, claimedOutputForSession, harnessNameForWorkspace, representedSessionIds, ANALYTICS_CACHE_TTL_MS, COSTFLOW_CACHE_OPTIONS };

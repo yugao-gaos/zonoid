@@ -32,14 +32,14 @@ function ok(label, cond) {
   const ws = path.join(os.tmpdir(), 'install client repo');
   const url = dashboardUrl(ws, '8787');
   ok('dashboardUrl pins and URL-encodes workspace path',
-    url === `http://localhost:8787/graph?workspace=${encodeURIComponent(path.resolve(ws))}`);
+    url === `http://localhost:8787/graph?workspace=${encodeURIComponent(path.resolve(ws))}&viewer=claude`);
 
   const rendered = renderClaudeInstructions(
     'A http://localhost:8787/graph\nB http://localhost:8787/graph?workspace=%2Fold%2Frepo',
     ws,
     '8788'
   );
-  const expected = `http://localhost:8788/graph?workspace=${encodeURIComponent(path.resolve(ws))}`;
+  const expected = `http://localhost:8788/graph?workspace=${encodeURIComponent(path.resolve(ws))}&viewer=claude`;
   ok('renderClaudeInstructions rewrites generic dashboard URL', rendered.includes(`A ${expected}`));
   ok('renderClaudeInstructions rewrites existing pinned dashboard URL', rendered.includes(`B ${expected}`));
 }

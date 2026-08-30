@@ -148,15 +148,17 @@ const T = (id, status, extra = {}) => ({ id, label: id, status, deps: [], contex
   ok('context dep depth 3 default weight 0.5 NOT kept (0.5 < 0.75)', !F.frontierKeep(tasksD3).has('c'));
 }
 
-// --- frontierKeep: reverse direction (live dependent of seed) ---
+// --- frontierKeep: reverse direction (actionable dependent of seed) ---
 {
   const tasks = [
     T('seed', 'ready'),
-    T('live-dep', 'not_ready', { deps: ['seed'] }),
+    T('live-dep', 'in_progress', { deps: ['seed'] }),
+    T('blocked-dep', 'not_ready', { deps: ['seed'] }),
     T('done-dep', 'done', { deps: ['seed'] }),
   ];
   const keep = F.frontierKeep(tasks);
   ok('live downstream dependent of seed kept via reverse scan', keep.has('live-dep'));
+  ok('dependency-blocked downstream plan stays out of frontier', !keep.has('blocked-dep'));
   ok('done downstream dependent of seed NOT kept via reverse scan', !keep.has('done-dep'));
 }
 
