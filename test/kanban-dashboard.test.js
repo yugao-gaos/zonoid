@@ -16,11 +16,12 @@ assert.ok(stateRoute.includes('dashboardTasks(frontier.archivedTaskList'), 'arch
 assert.ok(stateRoute.includes('tasks: dashboardTasks(f.tasks)'), 'frontier task projection must strip embeddings');
 assert.ok(stateRoute.includes('tasks: dashboardTasks(tasks)'), 'default task projection must strip embeddings');
 
+const specTab = html.indexOf('data-view="spec"');
 const kanbanTab = html.indexOf('data-view="kanban"');
 const frontierTab = html.indexOf('data-view="frontier"');
 const cloudTab = html.indexOf('data-view="cloud"');
-assert.ok(kanbanTab !== -1 && kanbanTab < frontierTab && frontierTab < cloudTab,
-  'top-level tabs must be ordered Kanban Board, Frontier Tasks, Force Cloud');
+assert.ok(specTab !== -1 && specTab < kanbanTab && kanbanTab < frontierTab && frontierTab < cloudTab,
+  'top-level tabs must begin Spec, Kanban, Frontier, Knowledge');
 assert.match(html, /localStorage\.getItem\('orchView'\)[\s\S]*?'kanban'/,
   'Kanban must be the fallback operational view');
 

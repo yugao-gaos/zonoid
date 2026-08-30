@@ -7,12 +7,13 @@ const path = require('path');
 const vm = require('vm');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'graph.html'), 'utf8');
+const specTab = html.indexOf('data-view="spec"');
 const kanbanTab = html.indexOf('data-view="kanban"');
 const frontierTab = html.indexOf('data-view="frontier"');
 const cloudTab = html.indexOf('data-view="cloud"');
 const architectureTab = html.indexOf('data-view="architecture"');
-assert.ok(kanbanTab !== -1 && kanbanTab < frontierTab && frontierTab < cloudTab && cloudTab < architectureTab,
-  'Architecture is additive and preserves the established dashboard tab order');
+assert.ok(specTab !== -1 && specTab < kanbanTab && kanbanTab < frontierTab && frontierTab < cloudTab && cloudTab < architectureTab,
+  'Architecture is last in the Spec, Kanban, Frontier, Knowledge, Architecture tab order');
 assert.ok(html.includes('<div id="architecture" role="region" aria-label="Code architecture map">'));
 assert.ok(html.includes('id="architectureSearchInput"') && html.includes('aria-label="Search architecture files and symbols"'));
 assert.ok(html.includes('id="architectureInspector" aria-label="Architecture file inspector"'));
@@ -27,7 +28,7 @@ assert.ok(html.includes('omitted by limit') && html.includes('omitted_symbols'),
   'the UI discloses server-side file and symbol bounds');
 assert.ok(html.includes('@media (max-width: 760px)') && html.includes('.arch-shell { flex-direction: column;'),
   'architecture layout stacks its inspector on narrow screens');
-assert.ok(html.includes("v==='cloud'||v==='frontier'||v==='kanban'||v==='architecture'"));
+assert.ok(html.includes("v==='spec'||v==='cloud'||v==='frontier'||v==='kanban'||v==='architecture'"));
 assert.ok(html.includes("document.getElementById('architecture').classList.toggle('show', v==='architecture')"));
 assert.ok(html.includes("else if(currentView==='architecture') renderArchitecture(d)"));
 

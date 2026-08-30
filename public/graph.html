@@ -107,7 +107,7 @@
   body { margin: 0; padding-bottom: var(--dock-h); font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; background: #0d1117; color: #e6edf3; }
   .wrap { display: flex; height: calc(100vh - var(--hdr-h) - var(--dock-h)); overflow: hidden; }
   .left { flex: 1; min-width: 0; overflow: auto; display: flex; flex-direction: column; }
-  #cloud.show, #flow.show, #architecture.show { flex: 1; min-height: 0; }
+  #spec.show, #cloud.show, #flow.show, #architecture.show { flex: 1; min-height: 0; }
   #flowstats { flex-shrink: 0; }
   /* (legacy DAG-column view removed — Flow is the structure view) */
   .badge { display: inline-block; font-size: 10px; background: #1f6feb33; color: #79c0ff; border: 1px solid #1f6feb55; border-radius: 9px; padding: 0 6px; margin-left: 6px; }
@@ -157,6 +157,30 @@
   .toggle { display: inline-flex; border: 1px solid #30363d; border-radius: 6px; overflow: hidden; }
   .toggle button { background: #161b22; color: #8b949e; border: none; padding: 3px 12px; cursor: pointer; font: inherit; }
   .toggle button.on { background: #1f6feb33; color: #79c0ff; }
+  /* Canonical project Spec: one current system note, edited through versioned supersession. */
+  #spec { display: none; flex: 1; min-height: 0; overflow: auto; background: #0d1117; }
+  #spec.show { display: block; }
+  .spec-shell { width: min(920px, 100%); min-height: 100%; margin: 0 auto; padding: clamp(20px, 4vw, 48px); box-sizing: border-box; }
+  .spec-card { border: 1px solid #30363d; border-radius: 12px; background: #11151c; box-shadow: 0 14px 36px rgba(0,0,0,.2); overflow: hidden; }
+  .spec-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 20px 22px 16px; border-bottom: 1px solid #21262d; }
+  .spec-eyebrow { color: #58a6ff; font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+  .spec-title { margin-top: 4px; color: #e6edf3; font-size: 18px; font-weight: 700; }
+  .spec-meta { margin-top: 5px; color: #6e7681; font-size: 10px; }
+  .spec-version { flex: none; padding: 2px 7px; border: 1px solid #30363d; border-radius: 10px; color: #8b949e; background: #0d1117; font-size: 9px; }
+  .spec-body { padding: 20px 22px 22px; }
+  .spec-help { margin: 0 0 12px; color: #8b949e; font-size: 11px; line-height: 1.55; }
+  .spec-editor { display: block; width: 100%; min-height: clamp(320px, 52vh, 640px); resize: vertical; box-sizing: border-box; padding: 16px; border: 1px solid #30363d; border-radius: 8px; outline: none; background: #0d1117; color: #e6edf3; font: 13px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace; tab-size: 2; }
+  .spec-editor:focus { border-color: #58a6ff; box-shadow: 0 0 0 3px #1f6feb22; }
+  .spec-editor::placeholder { color: #484f58; }
+  .spec-actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+  .spec-btn { border: 1px solid #30363d; border-radius: 7px; padding: 6px 11px; background: #161b22; color: #c9d1d9; cursor: pointer; font: inherit; font-size: 11px; }
+  .spec-btn:hover:not(:disabled) { border-color: #484f58; background: #1c2230; }
+  .spec-btn.primary { border-color: #238636; background: #238636; color: #fff; font-weight: 650; }
+  .spec-btn.primary:hover:not(:disabled) { border-color: #2ea043; background: #2ea043; }
+  .spec-btn:disabled { cursor: default; opacity: .45; }
+  .spec-status { flex: 1; min-height: 16px; color: #8b949e; font-size: 10px; text-align: right; }
+  .spec-status.ok { color: #3fb950; }
+  .spec-status.err { color: #ff7b72; }
   /* operational Kanban view */
   #kanban { display: none; flex: 1; min-height: 0; overflow: auto; background: #0d1117; }
   #kanban.show { display: block; }
@@ -770,9 +794,10 @@
       Zonoid
     </h1>
     <div class="toggle" id="viewToggle" role="tablist" aria-label="Dashboard views">
-      <button data-view="kanban" class="on" role="tab" aria-selected="true" title="Kanban Board — the operational task lifecycle from Queue through Done, including review, merge, and user-attention cues.">Kanban Board</button>
-      <button data-view="frontier" role="tab" aria-selected="false" title="Frontier view — DAG layout showing tasks at the current working frontier: in-progress, ready, and their immediate dependencies. Best for day-to-day steering.">Frontier Tasks</button>
-      <button data-view="cloud" role="tab" aria-selected="false" title="Force Cloud — all tasks in a force-directed layout. Shows the full graph structure and long-range dependencies at once. Best for auditing the big picture.">Force Cloud</button>
+      <button data-view="spec" role="tab" aria-selected="false" title="Spec — view and edit the canonical project specification. Saves create a new auditable version and retire the previous one.">Spec</button>
+      <button data-view="kanban" class="on" role="tab" aria-selected="true" title="Kanban — the operational task lifecycle from Plan through Done, including review, merge, and user-attention cues.">Kanban</button>
+      <button data-view="frontier" role="tab" aria-selected="false" title="Frontier — tasks at the current working frontier: in-progress, ready, and their immediate dependencies. Best for day-to-day steering.">Frontier</button>
+      <button data-view="cloud" role="tab" aria-selected="false" title="Knowledge — tasks, notes, and their full relationship graph. Best for retrieval and auditing the big picture.">Knowledge</button>
       <button data-view="architecture" role="tab" aria-selected="false" title="Architecture — a bounded, inspectable map of indexed source files, symbols, calls, and imports.">Architecture</button>
     </div>
   </div>
@@ -908,6 +933,7 @@
 <div class="wrap">
   <div class="left">
     <div id="ws" style="font-size:11px;color:#6e7681;padding:0 16px 8px;display:none"></div>
+    <div id="spec" role="region" aria-label="Project specification"></div>
     <div id="kanban" role="region" aria-label="Operational Kanban board"></div>
     <div id="cloud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><div id="cloudTraceLegend"></div><div id="cloudSearchSummary"></div><svg id="cloudsvg"></svg></div>
     <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div></div>
@@ -4957,6 +4983,7 @@ async function loadWorkspacePicker() {
 function selectWorkspace(wsPath) {
   WS = wsPath || '';
   WS_RESOLVED = !!WS;
+  specDraftText=null; specDraftId=null; specNotice=null;
   const u = new URL(location.href);
   if (WS) u.searchParams.set('workspace', WS);
   else u.searchParams.delete('workspace');
@@ -5021,10 +5048,14 @@ let detailRequestSeq=0;
 let selectedDetailData=null;
 let lastState=null; // most recent full /state payload, for re-render on view switch
 let liveAgentIds=new Set();
-let currentView=(v=>v==='cloud'||v==='frontier'||v==='kanban'||v==='architecture'?v:(v==='flow'?'frontier':'kanban'))(localStorage.getItem('orchView'));  // stale Flow migrates; Kanban is the operational default
+let currentView=(v=>v==='spec'||v==='cloud'||v==='frontier'||v==='kanban'||v==='architecture'?v:(v==='flow'?'frontier':'kanban'))(localStorage.getItem('orchView'));  // stale Flow migrates; Kanban is the operational default
 let focusedId=null;            // Focus view target; survives view switches, NOT persisted
 let focusReturnView='frontier'; // return to the tab that opened Focus, with its state intact
 const viewUiState={kanban:{scrollLeft:0,scrollTop:0}};
+let specDraftText=null;
+let specDraftId=null;
+let specNotice=null;
+let specSaving=false;
 let architectureSearchText='';
 let architectureSelectedId=null;
 let cloudSim=null;             // live d3 force simulation
@@ -5767,6 +5798,99 @@ function renderKanban(d){
   root.scrollTop=viewUiState.kanban.scrollTop;
 }
 
+function canonicalSpecTitle(){
+  return 'SPEC: '+(currentRepoName()||repoBasename(WS)||'project');
+}
+function currentSpecTask(d){
+  const title=canonicalSpecTitle().toLowerCase();
+  return (d&&d.tasks||[])
+    .filter(task=>task&&task.kind==='note'&&task.category==='system'&&!task.validTo&&String(task.label||'').toLowerCase()===title)
+    .sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')))[0]||null;
+}
+function renderSpec(d){
+  const root=document.getElementById('spec');
+  const current=currentSpecTask(d);
+  const currentId=current?current.id:null;
+  if(specDraftId!==currentId){
+    specDraftId=currentId;
+    specDraftText=current?String(current.summary||''):'';
+  }
+  const currentSummary=current?String(current.summary||'').trim():'';
+  const draft=specDraftText==null?currentSummary:String(specDraftText);
+  const dirty=draft.trim()!==currentSummary;
+  const updated=current&&current.created_at?new Date(current.created_at).toLocaleString():'';
+  const notice=specNotice||{};
+  root.innerHTML=`<div class="spec-shell"><section class="spec-card">`+
+    `<header class="spec-head"><div><div class="spec-eyebrow">Canonical system note</div><div class="spec-title">${esc(canonicalSpecTitle())}</div>`+
+    `<div class="spec-meta">${current?(updated?'Last updated '+esc(updated):'Current project specification'):'Create the first project specification for this workspace.'}</div></div>`+
+    `<span class="spec-version">${current?'Current · versioned':'Not created'}</span></header>`+
+    `<div class="spec-body"><p class="spec-help">Agents receive this specification as the workspace-level source of goals, constraints, interfaces, and invariants. Saving creates a new version and preserves the previous one in graph history.</p>`+
+    `<textarea id="specEditor" class="spec-editor" spellcheck="true" aria-label="Project specification editor" placeholder="Describe the project goals, hard constraints, interfaces, and invariants…"${specSaving?' disabled':''}>${esc(draft)}</textarea>`+
+    `<div class="spec-actions"><button type="button" class="spec-btn primary" id="specSaveBtn" onclick="saveSpec()"${specSaving||!dirty||!draft.trim()?' disabled':''}>${specSaving?'Saving…':current?'Save new version':'Create Spec'}</button>`+
+    `<button type="button" class="spec-btn" onclick="resetSpecDraft()"${specSaving||!dirty?' disabled':''}>Reset</button>`+
+    `<span id="specStatus" class="spec-status${notice.type?' '+esc(notice.type):''}">${esc(notice.text||'')}</span></div></div></section></div>`;
+  const editor=document.getElementById('specEditor');
+  if(editor) editor.addEventListener('input',()=>{
+    specDraftText=editor.value;
+    specNotice=null;
+    const save=document.getElementById('specSaveBtn');
+    const reset=editor.parentElement.querySelector('.spec-actions .spec-btn:not(.primary)');
+    const changed=editor.value.trim()!==currentSummary;
+    if(save) save.disabled=specSaving||!changed||!editor.value.trim();
+    if(reset) reset.disabled=specSaving||!changed;
+    const status=document.getElementById('specStatus');
+    if(status){ status.textContent=''; status.className='spec-status'; }
+  });
+}
+function resetSpecDraft(){
+  const current=currentSpecTask(lastState);
+  specDraftId=current?current.id:null;
+  specDraftText=current?String(current.summary||''):'';
+  specNotice=null;
+  if(lastState) renderSpec(lastState);
+}
+async function saveSpec(){
+  if(specSaving) return;
+  const editor=document.getElementById('specEditor');
+  const current=currentSpecTask(lastState);
+  const summary=String(editor&&editor.value||'').trim();
+  const currentSummary=String(current&&current.summary||'').trim();
+  if(!summary){ specNotice={type:'err',text:'The project Spec cannot be empty.'}; if(lastState) renderSpec(lastState); return; }
+  if(summary===currentSummary){ specNotice={type:'',text:'No changes to save.'}; if(lastState) renderSpec(lastState); return; }
+  specSaving=true;
+  specDraftText=summary;
+  specNotice={type:'',text:'Saving a new version…'};
+  if(lastState) renderSpec(lastState);
+  try{
+    const savedAt=new Date().toISOString();
+    const opId='dashboard-spec-'+(globalThis.crypto&&typeof globalThis.crypto.randomUUID==='function'?globalThis.crypto.randomUUID():Date.now());
+    const body={
+      title:canonicalSpecTitle(), summary, category:'system', created_by:'dashboard-spec',
+      valid_from:savedAt, op_id:opId, ...(current?{supersedes:current.id}:{})
+    };
+    const response=await dfetch('/overlay/note',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const result=await response.json();
+    if(!response.ok||!result.ok) throw new Error(result.error||`Save failed (${response.status})`);
+    specDraftId=result.key||null;
+    specDraftText=summary;
+    specNotice={type:'ok',text:'Saved. The previous Spec remains in graph history.'};
+    if(lastState&&result.key){
+      if(current) current.validTo=result.superseded&&result.superseded.at||savedAt;
+      lastState.tasks=[...(lastState.tasks||[]),{
+        id:result.key, kind:'note', label:body.title, summary, category:'system',
+        created_at:savedAt, validFrom:savedAt, validTo:null
+      }];
+    }
+    lastRenderFp='';
+    await tick();
+  }catch(error){
+    specNotice={type:'err',text:error&&error.message?error.message:'Could not save the project Spec.'};
+  }finally{
+    specSaving=false;
+    if(lastState) renderSpec(lastState);
+  }
+}
+
 function fmtK(n){ if(n==null)return'—'; return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(Math.round(n)); }
 function setDockVal(id, val, nonZeroColor){
   const el=document.getElementById(id); if(!el) return;
@@ -5965,7 +6089,8 @@ async function tick(prefetchedState){
   const graphChanged=fp!==lastRenderFp;
   if(graphChanged){
     lastRenderFp=fp;
-    if(currentView==='kanban') renderKanban(d);
+    if(currentView==='spec') renderSpec(d);
+    else if(currentView==='kanban') renderKanban(d);
     else if(currentView==='cloud') renderCloud(d);
     else if(currentView==='architecture') renderArchitecture(d);
     else if(currentView==='focus') renderFocus(d);
@@ -5984,7 +6109,7 @@ async function tick(prefetchedState){
 }
 // User decisions are leased to the relevant live agent session AND retained in this shared dashboard
 // inbox. Session delivery gets the question into the active conversation; the durable sidebar makes
-// it discoverable from Kanban, Frontier, Force Cloud, and Focus even after that nudge scrolls away.
+// it discoverable from Spec, Kanban, Frontier, Knowledge, Architecture, and Focus after that nudge scrolls away.
 // tick() re-runs this every 2s, so re-render is SIGNATURE-GATED: the DOM is only rebuilt when the
 // queue actually changes (or force=true after a resolve). UI state that must survive a rebuild —
 // answer drafts, keeper picks, expanded rows, inline errors, fetched note details — lives in the
@@ -6436,7 +6561,7 @@ document.getElementById('architectureSearchInput').addEventListener('input',even
   architectureSearchText=event.target.value;
   if(lastState) renderArchitecture(lastState);
 });
-// ---- view switching: Kanban | Frontier | Cloud | Architecture | Focus (one task's lineage)
+// ---- view switching: Spec | Kanban | Frontier | Knowledge | Architecture | Focus (one task's lineage)
 function captureViewState(v){
   if(v==='kanban'){
     const root=document.getElementById('kanban');
@@ -6448,6 +6573,7 @@ function setView(v){
   captureViewState(currentView);
   currentView=v;
   if(v!=='focus') localStorage.setItem('orchView',v);   // focus is never persisted
+  document.getElementById('spec').classList.toggle('show', v==='spec');
   document.getElementById('kanban').classList.toggle('show', v==='kanban');
   document.getElementById('cloud').classList.toggle('show', v==='cloud');
   document.getElementById('architecture').classList.toggle('show', v==='architecture');
@@ -6461,7 +6587,7 @@ function setView(v){
   if(v!=='cloud' && cloudSim) cloudSim.stop();
   if(v!=='cloud') disposeCloudThree(document.getElementById('cloudsvg'));
   if(v==='frontier'||v==='focus') dagState[v].init=false;   // next render restores that view's saved pan/zoom, or first-fits
-  if(lastState){ if(v==='kanban') renderKanban(lastState); else if(v==='cloud') renderCloud(lastState); else if(v==='architecture') renderArchitecture(lastState); else if(v==='focus') renderFocus(lastState); else renderFrontier(lastState); }
+  if(lastState){ if(v==='spec') renderSpec(lastState); else if(v==='kanban') renderKanban(lastState); else if(v==='cloud') renderCloud(lastState); else if(v==='architecture') renderArchitecture(lastState); else if(v==='focus') renderFocus(lastState); else renderFrontier(lastState); }
   updateFocusBtn();
 }
 function focusNode(key){
@@ -7758,7 +7884,8 @@ function hpNext(){
 
 window.addEventListener('resize', ()=>{
   if(!lastState) return;
-  if(currentView==='kanban') renderKanban(lastState);
+  if(currentView==='spec') renderSpec(lastState);
+  else if(currentView==='kanban') renderKanban(lastState);
   else if(currentView==='cloud'){ cloudSig=''; renderCloud(lastState); }
   else if(currentView==='architecture') renderArchitecture(lastState);
   else { const v=currentView==='focus'?'focus':'frontier'; dagState[v]={init:false,tf:null}; if(v==='focus') renderFocus(lastState); else renderFrontier(lastState); }
