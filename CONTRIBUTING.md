@@ -79,6 +79,14 @@ enables `push.recurseSubmodules=on-demand`, so a superproject push cannot publis
 commit is missing remotely. The graph repository carries its own JSONL/checkpoint merge policy in
 `.graph/.gitattributes`.
 
+If a graph rebase is interrupted, start with `zonoid graph recover-rebase --dry-run`. Recovery is
+fail-closed: it only resolves claim JSON toward the terminal/newer record and unions valid JSONL
+events; every other conflict class is reported for manual inspection without mutation. Persist
+`drain_max_iterations=-1`, verify that value is effective, then rerun with
+`--confirm-drains-paused`; the flag alone cannot bypass the persisted pause check. The command
+stashes unstaged/untracked graph events before continuing each known conflict step, restores them
+only after the rebase finishes, and reports a retained recovery stash if a later step fails.
+
 ## Pull request process
 
 1. Fork the repo and create a branch from `main`.

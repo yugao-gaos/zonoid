@@ -1310,11 +1310,11 @@ function checkGraphSubmoduleGit(cwd) {
 
 function parseGraphArgs(argv) {
   const graphIndex = argv[0] === 'graph' ? 0 : argv[1] === 'graph' ? 1 : argv[2] === 'graph' ? 2 : -1;
-  if (graphIndex < 0) throw new Error('expected: zonoid graph <init|sync|flush|checkpoint|status>');
+  if (graphIndex < 0) throw new Error('expected: zonoid graph <init|sync|flush|checkpoint|status|recover-rebase>');
   const rest = argv.slice(graphIndex + 1);
   const command = rest.shift();
-  if (!['init', 'sync', 'flush', 'checkpoint', 'status'].includes(command)) {
-    throw new Error('graph command must be init, sync, flush, checkpoint, or status');
+  if (!['init', 'sync', 'flush', 'checkpoint', 'status', 'recover-rebase'].includes(command)) {
+    throw new Error('graph command must be init, sync, flush, checkpoint, status, or recover-rebase');
   }
   const out = {
     command,
@@ -1326,6 +1326,7 @@ function parseGraphArgs(argv) {
     dryRun: false,
     latest: undefined,
     push: true,
+    drainsPaused: false,
   };
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
@@ -1347,6 +1348,8 @@ function parseGraphArgs(argv) {
       out.latest = true;
     } else if (arg === '--no-push') {
       out.push = false;
+    } else if (arg === '--confirm-drains-paused') {
+      out.drainsPaused = true;
     } else if (arg === '--repo' && rest[i + 1]) {
       out.repo = rest[++i];
     } else {
@@ -1392,6 +1395,7 @@ function githubCreateRemote(repoRoot, graphArgs, deps = {}) {
 
 function graphExitCode(command, result, graphArgs = {}) {
   if (command === 'status' || result.dryRun === true) return 0;
+  if (command === 'recover-rebase' && ['recovered', 'not-needed'].includes(result.status)) return 0;
   if (command === 'flush' && graphArgs.push === false && result.status === 'pending' && !result.error) return 0;
   return ['initialized', 'exists', 'synced', 'pushed', 'pending', 'staged'].includes(result.status)
     && !['pending'].includes(result.status) ? 0 : 1;
@@ -1409,6 +1413,7 @@ async function runGraphCommand(graphArgs, deps = {}) {
     dryRun: graphArgs.dryRun,
     latest: graphArgs.latest,
     push: graphArgs.push,
+    drainsPaused: graphArgs.drainsPaused,
   };
 
   if (graphArgs.command === 'init' && !graphArgs.yes && !graphArgs.dryRun) {
@@ -1427,11 +1432,24 @@ async function runGraphCommand(graphArgs, deps = {}) {
   if (graphArgs.command === 'init' && graphArgs.createRemote) {
     lifecycleOptions.createRemoteCallback = githubCreateRemote(repoRoot, graphArgs, deps);
   }
+  if (graphArgs.command === 'recover-rebase' && !graphArgs.drainsPaused && !graphArgs.dryRun) {
+    const plan = await lifecycle.recoverRebase(repoRoot, { ...lifecycleOptions, dryRun: true });
+    const result = {
+      ...plan,
+      status: 'confirmation-required',
+      action: 'recover the interrupted .graph rebase while preserving unstaged graph events',
+      requires: '--confirm-drains-paused',
+      exitCode: 1,
+    };
+    output(result);
+    return result;
+  }
   let result;
   if (graphArgs.command === 'init') result = await lifecycle.init(repoRoot, lifecycleOptions);
   else if (graphArgs.command === 'sync') result = await lifecycle.sync(repoRoot, lifecycleOptions);
   else if (graphArgs.command === 'flush') result = await lifecycle.flush(repoRoot, lifecycleOptions);
   else if (graphArgs.command === 'checkpoint') result = await lifecycle.checkpoint(repoRoot, lifecycleOptions);
+  else if (graphArgs.command === 'recover-rebase') result = await lifecycle.recoverRebase(repoRoot, lifecycleOptions);
   else result = await lifecycle.status(repoRoot, lifecycleOptions);
   if ((graphArgs.command === 'init' && result.status === 'initialized') || graphArgs.command === 'sync') {
     checkGraphSubmoduleGit(repoRoot);
@@ -2226,6 +2244,7 @@ if (require.main === module) {
     console.log('  npx @zonoid/cli graph flush [--no-push]');
     console.log('  npx @zonoid/cli graph checkpoint');
     console.log('  npx @zonoid/cli graph status');
+    console.log('  npx @zonoid/cli graph recover-rebase [--dry-run] [--confirm-drains-paused]');
     console.log('');
     console.log('Commands:');
     console.log('  init      Wire daemon, hooks/plugins, MCP, skills, and dashboard for this workspace.');
