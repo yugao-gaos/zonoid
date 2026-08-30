@@ -20,6 +20,8 @@ const HOOKS_SAMPLE = path.join(ADAPTERS, 'hooks.json.sample');
 const cursorTx = require('../lib/cursor-transcripts');
 const filedrop = require('../lib/filedrop-tasks');
 const { writeCurlStub, hookEnv } = require('./helpers/curl-stub');
+const { bashExe } = require('./helpers/bash');
+const { freePort } = require('./helpers/port');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
@@ -47,7 +49,13 @@ function req(port, method, p, body) {
   });
 }
 
-async function waitForPing(port, ms = 8000) {
+// Boot deadline, not a latency budget: waitForPing returns the moment /ping answers, so a generous
+// ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated. 8s was
+// under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the runtime
+// dir), and this suite boots FOUR of them in sequence — the later ones start on an already loaded
+// machine, so `classify: daemon up` failed with ECONNREFUSED while its daemon was merely still
+// starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
+async function waitForPing(port, ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     try { const r = await req(port, 'GET', '/ping'); if (r.status === 200) return true; } catch { /* */ }
@@ -76,7 +84,7 @@ function runHook(script, input, env = {}) {
   } else {
     overrides = { ...rest, PATH: process.env.PATH };
   }
-  const r = spawnSync('bash', [script], { input, encoding: 'utf8', env: hookEnv(stubDirs, overrides) });
+  const r = spawnSync(bashExe(), [script], { input, encoding: 'utf8', env: hookEnv(stubDirs, overrides) });
   return { status: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
 }
 
@@ -105,7 +113,12 @@ function runHook(script, input, env = {}) {
 // ── 2) sessionStart → POST /workspace (sandbox daemon) ─────────────────────
 (async () => {
   const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-e2e-d-')));
-  const PORT = 18920 + Math.floor(Math.random() * 80);
+  // Four sandboxed daemons boot in this file. Guessed ranges collided both with other suites and
+  // with EACH OTHER — 18920+rand(80) (this one) overlapped 18980+rand(40) (the costflow daemon at
+  // the bottom) across 18980-18999. A collision does not fail loudly: the second daemon cannot bind
+  // and dies, /ping is answered by the FIRST one, so `daemon up` passes and every later assertion
+  // fails against a daemon pointed at the wrong sandbox. Ask the OS instead. See helpers/port.js.
+  const PORT = await freePort();
   const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-e2e-ws-')));
   // Mark WS as a real workspace so repoRoot() resolves it (repo-rooted model: a bare
   // mkdtemp dir has repoRoot()===null, so start-daemon.js would skip registration). The
@@ -151,7 +164,7 @@ function runHook(script, input, env = {}) {
   // {claimed:false} for /active-claim and {is_subagent:true} for /session-info so the gate
   // correctly denies the unclaimed subagent write.
   {
-    const gatePort = 18800 + Math.floor(Math.random() * 100);
+    const gatePort = await freePort();
     const stubServerCode = `
 'use strict';
 const http = require('http');
@@ -228,7 +241,7 @@ srv.listen(${gatePort}, '127.0.0.1', () => { process.stdout.write('ready\\n'); }
   // ── 5) beforeSubmitPrompt → classify.sh (sandbox daemon POST /classify) ────
   {
     const clSandbox = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-cl-d-')));
-    const clPort = 19020 + Math.floor(Math.random() * 40);
+    const clPort = await freePort();
     const clWs = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-cl-ws-')));
     const conv = 'conv-classify-e2e';
     fs.mkdirSync(path.join(clWs, '.graph'), { recursive: true });
@@ -258,9 +271,9 @@ srv.listen(${gatePort}, '127.0.0.1', () => { process.stdout.write('ready\\n'); }
       // Debug: try hooks/classify.sh directly (bypassing adapter)
       const HOOK_CLASSIFY = path.join(REPO, 'hooks', 'classify.sh');
       const traceEnv = { ORCH_PORT: String(clPort), CLAUDE_PLUGIN_DATA: clSandbox };
-      const whichCurl = spawnSync('bash', ['-c', 'which curl; curl --version 2>&1 | head -1'], { encoding: 'utf8', env: hookEnv([], { ...traceEnv, PATH: process.env.PATH }) });
+      const whichCurl = spawnSync(bashExe(), ['-c', 'which curl; curl --version 2>&1 | head -1'], { encoding: 'utf8', env: hookEnv([], { ...traceEnv, PATH: process.env.PATH }) });
       console.log('DBG_CURL:', whichCurl.stdout.trim(), '|| ERR:', whichCurl.stderr.trim().slice(0, 200));
-      const lh = spawnSync('bash', ['-c', `curl -s --max-time 2 localhost:${clPort}/ping; echo " EXIT=$?"`], { encoding: 'utf8', env: hookEnv([], { ...traceEnv, PATH: process.env.PATH }) });
+      const lh = spawnSync(bashExe(), ['-c', `curl -s --max-time 2 localhost:${clPort}/ping; echo " EXIT=$?"`], { encoding: 'utf8', env: hookEnv([], { ...traceEnv, PATH: process.env.PATH }) });
       console.log('DBG_LOCALHOST:', lh.stdout.slice(0, 200), 'ERR:', lh.stderr.slice(0, 200));
       if (!/additionalContext/.test(cr.stdout)) console.log('DBG_CL:', JSON.stringify({ status: cr.status, stdout: cr.stdout.slice(0, 300), stderr: cr.stderr.slice(0, 300) }));
       ok('classify: additionalContext in stdout', /additionalContext/.test(cr.stdout));
@@ -282,7 +295,7 @@ srv.listen(${gatePort}, '127.0.0.1', () => { process.stdout.write('ready\\n'); }
   // ── 6) costflow includes cursor harness when transcript fixture present ────
   {
     const cfSandbox = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-cf-d-')));
-    const cfPort = 18980 + Math.floor(Math.random() * 40);
+    const cfPort = await freePort();
     const cfWs = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-cf-ws-')));
     const conv = 'conv-costflow-e2e';
     const projDir = cursorTx.projectDir(cfWs);

@@ -8,13 +8,23 @@ const crypto = require('crypto');
 const { spawnSync } = require('child_process');
 const runtimePaths = require('../lib/runtime-paths');
 const codexSessionBridge = require('../lib/codex-session-bridge');
+const { bashExe, bashBinDir } = require('./helpers/bash');
 
+// Every env var that can steer runtime-path resolution, so setEnv() fully controls the sandbox.
+// APPDATA and USERPROFILE are the Windows arms of that set: externalDataDir() prefers $APPDATA over
+// $HOME, and userHome() falls through HOME -> USERPROFILE -> os.homedir(). Leaving them out means an
+// in-process resolution (e.g. lib/git's module-load-time WORKTREE_DIR) silently answers for the
+// developer's REAL account while the assertion expects the sandbox home. Listing them here makes
+// setEnv({HOME: home}) clear them, matching the explicit `{HOME, USERPROFILE}` env objects the
+// same assertions pass to runtimePaths directly. Harmless on POSIX, where neither is set.
 const oldEnv = {
   ORCH_DATA: process.env.ORCH_DATA,
   ZONOID_DATA: process.env.ZONOID_DATA,
   CLAUDE_PLUGIN_DATA: process.env.CLAUDE_PLUGIN_DATA,
   HOME: process.env.HOME,
   XDG_DATA_HOME: process.env.XDG_DATA_HOME,
+  APPDATA: process.env.APPDATA,
+  USERPROFILE: process.env.USERPROFILE,
 };
 
 function setEnv(values) {
@@ -29,21 +39,48 @@ function cleanChildEnv(values) {
   delete env.ORCH_DATA;
   delete env.ZONOID_DATA;
   delete env.CLAUDE_PLUGIN_DATA;
+  // Scrub the platform data-root vars too. The Node side is compared against
+  // runtimePaths.externalDataDir({HOME, USERPROFILE}) — an env with NO APPDATA/XDG_DATA_HOME, so it
+  // derives the root from the sandbox HOME. The shell child, however, inherits the REAL environment:
+  // orch_external_data_dir() prefers $APPDATA on MSYS2 (and $XDG_DATA_HOME on Linux) over $HOME, so
+  // without this it answers for the developer's actual account while Node answers for the sandbox.
+  // Both are behaving correctly — the harness just has to hand them the same environment. Callers
+  // that WANT these set can still pass them through `values`.
+  delete env.APPDATA;
+  delete env.XDG_DATA_HOME;
   for (const [key, value] of Object.entries(values || {})) {
     if (value != null) env[key] = value;
   }
   return env;
 }
 
+// The shell helper reports paths in the SHELL's own form. On Windows/MSYS2 orch_canonical_dir()
+// canonicalizes an existing dir with `cd -P && pwd -P`, which emits a POSIX path (`/tmp/x/.zonoid`)
+// where the Node side computes a native one (`C:\...\Temp\x\.zonoid`). Both name the same directory
+// — the shell form is CORRECT for the hooks that consume it — so translate the shell's answer back
+// to native form before comparing rather than asserting a spelling bash never produces. `cygpath -w`
+// comes from the same MSYS2 install as the resolved bash. No-op on POSIX.
+function toNative(out) {
+  if (process.platform !== 'win32' || !out) return out;
+  const dir = bashBinDir();
+  const cygpath = dir ? path.join(dir, 'cygpath.exe') : 'cygpath';
+  try {
+    const c = spawnSync(cygpath, ['-w', out], { encoding: 'utf8' });
+    if (c.status === 0 && c.stdout.trim()) return path.resolve(c.stdout.trim());
+  } catch { /* cygpath unavailable — fall through */ }
+  return path.resolve(out);
+}
+
 function shellDataDir(values) {
   const script = '. ./hooks/lib/runtime-paths.sh; orch_data_dir';
-  const r = spawnSync('bash', ['-lc', script], {
+  const r = spawnSync(bashExe(), ['-lc', script], {
     cwd: path.join(__dirname, '..'),
     env: cleanChildEnv(values),
     encoding: 'utf8',
   });
   assert.equal(r.status, 0, r.stderr || r.stdout);
-  return r.stdout.trim();
+  const out = r.stdout.trim();
+  return process.platform === 'win32' ? toNative(out) : out;
 }
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-paths-'));

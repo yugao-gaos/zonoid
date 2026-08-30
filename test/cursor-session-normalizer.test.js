@@ -2,6 +2,7 @@
 'use strict';
 const { spawnSync } = require('child_process');
 const path = require('path');
+const { bashExe } = require('./helpers/bash');
 
 const LIB = path.resolve(__dirname, '..', 'adapters', 'cursor', 'lib.sh');
 let pass = 0, fail = 0;
@@ -12,7 +13,7 @@ function ok(label, cond) {
 
 function runFn(fn, input) {
   const escaped = input.replace(/'/g, "'\\''");
-  const r = spawnSync('bash', ['-c', `source "${LIB}"; ${fn} '${escaped}'`], {
+  const r = spawnSync(bashExe(), ['-c', `source "${LIB}"; ${fn} '${escaped}'`], {
     encoding: 'utf8',
     env: { ...process.env, CURSOR_PROJECT_DIR: '/proj/root' },
   });

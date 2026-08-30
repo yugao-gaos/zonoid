@@ -1,17 +1,66 @@
 #!/bin/bash
 # Smoke test: exercises the daemon end to end against an isolated fixture. Safe to run while the
-# live :8787 daemon is up - it uses its own port (8799), its own state dir (CLAUDE_PLUGIN_DATA),
-# and controls its daemon by PID (never pkills/port-kills anything else).
-# Run: bash test/smoke.sh
+# live :8787 daemon is up - it uses its own port, its own state dir (CLAUDE_PLUGIN_DATA), and
+# controls its daemon by PID (never pkills/port-kills anything else).
+# Run: bash test/smoke.sh   (override the port with ORCH_SMOKE_PORT=NNNN)
 set -u
 cd "$(dirname "$0")/.." || exit 1
-PORT=${ORCH_SMOKE_PORT:-8799}; pass=0; fail=0; DPID=""
+
+# Ask the OS for a free port instead of hardcoding one. The old default was a fixed 8799, which is
+# only "private" by convention: ANY long-lived local dev server can be sitting on it (observed here
+# for over a week — an unrelated `wrangler dev`/workerd holding 127.0.0.1:8799). When that happens
+# the daemon spawned below sees a live listener, logs "Daemon already running at port 8799 — exiting
+# redundant instance", and quits; boot() then spins its full 30s and every later assertion runs
+# against a stranger's server. That failure blocks `npm run test:all`, and so blocks pre-push, while
+# looking nothing like a port conflict.
+#
+# node is already a hard dependency here (it runs daemon.js), so use it to bind port 0 and report
+# what the kernel handed back. Mirrors test/helpers/port.js on the JS side. ORCH_SMOKE_PORT still
+# wins for anyone who needs a fixed port.
+free_port(){ node -e 'const s=require("net").createServer();s.listen(0,"127.0.0.1",()=>{const p=s.address().port;s.close(()=>console.log(p));});'; }
+PORT=${ORCH_SMOKE_PORT:-$(free_port)}; pass=0; fail=0; DPID=""
+if [ -z "$PORT" ]; then echo "smoke: could not allocate a port" >&2; exit 1; fi
 SMOKE_ROOT=$(mktemp -d /tmp/orch-smoke.XXXXXX)
+# Canonicalize first: macOS mktemp hands back /tmp/..., a symlink to /private/tmp, and the daemon
+# realpath()s what it stores — so un-canonicalized fixture paths fail every echo-back comparison.
 SMOKE_ROOT=$(cd "$SMOKE_ROOT" && pwd -P)
-SMOKE_LOG="$SMOKE_ROOT/daemon.log"
-SSE_OUT="$SMOKE_ROOT/sse.out"
-export CLAUDE_PLUGIN_DATA="$SMOKE_ROOT/data"      # isolate overlay/loop/workspace from production
-chk(){ if [ "$2" = "$3" ]; then echo "PASS  $1"; pass=$((pass+1)); else echo "FAIL  $1 (got '$2' want '$3')"; fail=$((fail+1)); fi; }
+# Every fixture path below derives from SMOKE_ROOT, and each one is BOTH sent to the daemon and
+# compared against what the daemon echoes back. The daemon is a native Windows node process, so it
+# path.resolve()s whatever it receives into backslash form — a POSIX `/tmp/...` string can therefore
+# never equal the value that comes back, and ~6 assertions failed on spelling alone.
+#
+# Worse, the translation is not even consistent. MSYS2 rewrites POSIX paths in a child's ARGV, so
+# paths that travelled as command-line args arrived correctly as C:\Users\...\Temp\..., while paths
+# sent inside a curl JSON BODY were untouched and node resolved `/tmp/x` against the current drive
+# -> C:\tmp\x, a directory that does not exist. That is why the git assertions failed for real
+# rather than cosmetically: git_init ran against a nonexistent repo path, so init/status/commit all
+# reported false and "change landed on base" came back 'no'.
+#
+# Fixing it at the root is enough: convert once, here, and every derived path is already in the
+# daemon's own spelling. `cygpath` ships only with MSYS2/Cygwin, so `command -v` is both the
+# conversion and the platform guard — this is a no-op on Linux/macOS/CI. Backslash form (-w, not the
+# mixed -m form) is what node's path.resolve emits, and MSYS2 bash handles it fine for mkdir/rm/cd.
+#
+# nat() is that conversion, and it must be applied to each DERIVED path too, not just the root:
+# joining in bash would otherwise leave a half-converted `C:/Users/.../orch-smoke.X` + `/wa`.
+#
+# It emits the MIXED form (cygpath -m: `C:/Users/...`), not the backslash form (-w). Both name the
+# same location and Windows accepts either, but this script builds most request bodies with
+# `printf '{"repo_path":"%s"}'` — raw interpolation into JSON. A backslash path lands in the body as
+# \U, \A, \T ... which are invalid JSON escapes, so the daemon fails to parse and silently never
+# sets the field (observed as `repo` coming back null, then every git assertion failing on it).
+# Forward slashes need no escaping, so they survive printf-built JSON intact.
+nat(){ if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi; }
+SMOKE_ROOT=$(nat "$SMOKE_ROOT")
+SMOKE_LOG=$(nat "$SMOKE_ROOT/daemon.log")
+SSE_OUT=$(nat "$SMOKE_ROOT/sse.out")
+export CLAUDE_PLUGIN_DATA=$(nat "$SMOKE_ROOT/data")   # isolate overlay/loop/workspace from production
+# Compare with path separators normalized. The daemon path.resolve()s anything it is handed, so a
+# path sent as C:/Users/... is echoed back as C:\Users\... — the same location under the other legal
+# Windows spelling. Only the separator is folded (never case, never the drive), so a genuinely
+# different path still fails; on POSIX there are no backslashes in these values and this is a no-op.
+_sep(){ printf '%s' "${1//\\//}"; }
+chk(){ if [ "$(_sep "$2")" = "$(_sep "$3")" ]; then echo "PASS  $1"; pass=$((pass+1)); else echo "FAIL  $1 (got '$2' want '$3')"; fail=$((fail+1)); fi; }
 boot(){
   ORCH_AUTOWIRE_THRESHOLD=999 ORCH_PORT=$PORT node "$PWD/daemon.js" >>"$SMOKE_LOG" 2>&1 & DPID=$!
   for i in $(seq 1 120); do
@@ -80,7 +129,7 @@ trap cleanup EXIT
 
 # clean isolated state + free our port (port-specific; does not touch :8787)
 mkdir -p "$CLAUDE_PLUGIN_DATA"; lsof -ti tcp:$PORT 2>/dev/null | xargs kill -9 2>/dev/null; sleep 0.3
-WS="$SMOKE_ROOT/ws"; mkdir -p "$WS"
+WS=$(nat "$SMOKE_ROOT/ws"); mkdir -p "$WS"
 S=$(session_id "99999999-0000-0000-0000")
 PROJ="$HOME/.claude/projects/$(encoded_ws "$WS")"; T="$HOME/.claude/tasks/$S"
 rm -rf "$PROJ" "$T"   # clear native-task state for this run's unique workspace/session
@@ -95,7 +144,7 @@ prepare_claim_worktree(){
   local key="$1" repo
   g "task/detail?key=$(urlenc "$key")" >/dev/null
   jpost mark-root "$(printf '{"task_key":"%s","reason":"smoke standalone claim fixture"}' "$key")" >/dev/null
-  repo=$(mktemp -d "$SMOKE_ROOT/claim-repo.XXXXXX")
+  repo=$(nat "$(mktemp -d "$SMOKE_ROOT/claim-repo.XXXXXX")")
   jpost git/repo "$(printf '{"key":"%s","repo_path":"%s"}' "$key" "$repo")" >/dev/null
   jpost git/init "$(printf '{"key":"%s"}' "$key")" >/dev/null
   jpost git/worktree "$(printf '{"key":"%s"}' "$key")" >/dev/null
@@ -274,13 +323,23 @@ chk "no session-dead sweep during bootstrap grace"   "$(g "loop/status?loopId=$L
 jpost loop/stop "$(printf '{"loopId":"%s"}' "$LID3")" >/dev/null
 
 # target-repo decoupling: workspace is NOT a git repo, so a task carries a separate target repo path.
-GREPO=$(mktemp -d "$SMOKE_ROOT/repo.XXXXXX"); GK="$S/1"
+GREPO=$(nat "$(mktemp -d "$SMOKE_ROOT/repo.XXXXXX")"); GK="$S/1"
 chk "git_status: workspace not a repo" "$(g "git/status?repo_path=$(urlenc "$WS")" | jq -r .isRepo)" "false"
+# The daemon deliberately does NOT infer "the workspace is the git repo" — a graph identity is never
+# reused as a Git target (lib/repo-target.js, asserted by test/repo-target.test.js "single-repo
+# convenience is not inferred by the daemon"). A bare git/status therefore 400s asking for a target
+# rather than reporting isRepo:false, which is what this line used to expect. Assert the refusal;
+# the isRepo:false answer for this same workspace is covered below, via an explicit repo_path.
+chk "git_status: no target -> refuses to infer" "$(g 'git/status' | jq -r .code)" "repo_target_required"
 jpost git/repo "$(printf '{"key":"%s","repo_path":"%s"}' "$GK" "$GREPO")" >/dev/null
 chk "task carries target repo"  "$(g 'task/detail?key='"$GK" | jq -r .repo)"      "$GREPO"
 chk "node exposes repo field"   "$(g state | jq -r '.tasks[]|select(.id=="'"$GK"'")|.repo')" "$GREPO"
-chk "git_init on target repo"   "$(jpost git/init "$(printf '{"key":"%s"}' "$GK")" | jq -r '.head!=null and .repo=="'"$GREPO"'"')" "true"
-chk "git_status resolves task repo" "$(g 'git/status?key='"$GK" | jq -r '.isRepo and .repo=="'"$GREPO"'"')" "true"
+# Compare the returned repo path in chk, NOT inside jq: the daemon echoes the path in native
+# backslash form and jq's == is exact, so an in-jq comparison against our forward-slash spelling is
+# false for the same directory. chk folds separators (see _sep); jq only reports the other half of
+# the condition (head present / isRepo) by substituting a sentinel that can never match a path.
+chk "git_init on target repo"   "$(jpost git/init "$(printf '{"key":"%s"}' "$GK")" | jq -r 'if .head!=null then .repo else "no-head" end')" "$GREPO"
+chk "git_status resolves task repo" "$(g 'git/status?key='"$GK" | jq -r 'if .isRepo then .repo else "not-a-repo" end')" "$GREPO"
 chk "branch_task on target repo" "$(jpost git/worktree "$(printf '{"key":"%s"}' "$GK")" | jq -r '.branch=="orch/attempt/'"$(printf '%s' "$GK" | tr '/' '-')"'"')" "true"
 chk "explicit repo_path overrides task field (status)" "$(g "git/status?repo_path=$(urlenc "$WS")" | jq -r .isRepo)" "false"
 chk "merge_attempt on target repo" "$(jpost git/merge "$(printf '{"key":"%s"}' "$GK")" | jq -r '.merged or (.conflict!=null) or (.reason!=null)')" "true"
@@ -288,7 +347,7 @@ chk "remove_worktree on target repo" "$(jpost git/worktree/remove "$(printf '{"k
 rm -rf "$GREPO" "$CLAUDE_PLUGIN_DATA/worktrees"
 
 # git/merge: a real attempt commit lands on the base, missing branches return false with a reason.
-HREPO=$(mktemp -d "$SMOKE_ROOT/hold.XXXXXX"); HK="$S/2"
+HREPO=$(nat "$(mktemp -d "$SMOKE_ROOT/hold.XXXXXX")"); HK="$S/2"
 jpost git/repo "$(printf '{"key":"%s","repo_path":"%s"}' "$HK" "$HREPO")" >/dev/null
 jpost git/init "$(printf '{"key":"%s"}' "$HK")" >/dev/null
 HWT=$(jpost git/worktree "$(printf '{"key":"%s"}' "$HK")" | jq -r .worktree)
@@ -321,7 +380,7 @@ chk "clear metric (empty spec)" "$(jpost task/metric "$(printf '{"key":"%s"}' "$
 chk "metric cleared on node"    "$(g 'task/detail?key='"$MK" | jq -r '.metric==null')" "true"
 
 # measure node: run measure_command in the attempt worktree, parse + store value(s).
-MREPO=$(mktemp -d "$SMOKE_ROOT/measure.XXXXXX"); MMK="$S/1"
+MREPO=$(nat "$(mktemp -d "$SMOKE_ROOT/measure.XXXXXX")"); MMK="$S/1"
 jpost git/repo "$(printf '{"key":"%s","repo_path":"%s"}' "$MMK" "$MREPO")" >/dev/null
 jpost git/init "$(printf '{"key":"%s"}' "$MMK")" >/dev/null
 MSPEC='{"metric":"score","direction":"max","measure_command":"echo 42","parse":"last_number","guardrails":[{"metric":"test_pass","direction":"max","measure_command":"echo 1","parse":"last_number"}]}'
@@ -350,7 +409,7 @@ chk "benchmark cleared on node"  "$(g 'task/detail?key='"$BK" | jq -r '.benchmar
 # session's pin as body.workspace) and the heartbeat decides it against THAT graph — even after
 # another session flips the daemon-global /workspace pointer. Regression: the heartbeat used the
 # GLOBAL workspace, saw the other workspace's empty graph, and demoted a live loop with "DAG drained".
-WA="$SMOKE_ROOT/wa"; WB="$SMOKE_ROOT/wb"; mkdir -p "$WA" "$WB"
+WA=$(nat "$SMOKE_ROOT/wa"); WB=$(nat "$SMOKE_ROOT/wb"); mkdir -p "$WA" "$WB"
 SA=$(session_id "77777777-0000-0000-0001")
 PA="$HOME/.claude/projects/$(encoded_ws "$WA")"; TA="$HOME/.claude/tasks/$SA"
 mkdir -p "$PA" "$TA"; : > "$PA/$SA.jsonl"
@@ -379,7 +438,7 @@ jpost workspace "$(b_ws)" >/dev/null
 rm -rf "$TA" "$PA"
 
 # format-drift detection
-DW="$SMOKE_ROOT/drift"; DS=$(session_id "66666666-0000-0000-0000")
+DW=$(nat "$SMOKE_ROOT/drift"); DS=$(session_id "66666666-0000-0000-0000")
 DP="$HOME/.claude/projects/$(encoded_ws "$DW")"; DT="$HOME/.claude/tasks/$DS"
 mkdir -p "$DW" "$DP" "$DT"; : > "$DP/$DS.jsonl"
 echo 'NOT JSON' > "$DT/1.json"; sleep 1.7

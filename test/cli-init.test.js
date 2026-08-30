@@ -727,8 +727,13 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
     ok('checkPrePushTestHook writes pre-push hook', fs.existsSync(hookPath));
     ok('checkPrePushTestHook writes executable test:all guard',
       hook.includes('Zonoid pre-push test guard') && hook.includes('npm run test:all'));
+    // NTFS carries no POSIX execute bit. fs.chmodSync(path, 0o755) is a documented no-op for it on
+    // Windows (stat keeps reporting 0o666), and Git for Windows runs hooks regardless of mode — so
+    // bin/install.js already wraps its chmod in try/catch as "harmless on Windows". Assert the bit
+    // only where the filesystem actually has one; the hook's existence and content are asserted on
+    // both platforms above, so Windows keeps full coverage of what it can express.
     ok('checkPrePushTestHook chmods hook executable',
-      (fs.statSync(hookPath).mode & 0o111) !== 0);
+      process.platform === 'win32' || (fs.statSync(hookPath).mode & 0o111) !== 0);
 
     fs.writeFileSync(hookPath, prePushTestHookScript('npm test'));
     checkPrePushTestHook(repo);

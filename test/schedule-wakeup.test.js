@@ -5,13 +5,14 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const sw = require('../lib/schedule-wakeup');
+const { bashExe } = require('./helpers/bash');
 let pass = 0, fail = 0;
 const ok = (l,c)=>{if(c){console.log('PASS  '+l);pass++;}else{console.log('FAIL  '+l);fail++;}};
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-wake-')));
 const SCRIPT = path.resolve(__dirname, '..', 'adapters', 'common', 'schedule-wakeup.sh');
 const prevData = process.env.ORCH_DATA; process.env.ORCH_DATA = SANDBOX;
 const prevWs = process.env.ORCH_WORKSPACE; process.env.ORCH_WORKSPACE = SANDBOX;
-function runSh(args){return spawnSync('bash',[SCRIPT,...args],{encoding:'utf8',env:{...process.env,ORCH_DATA:SANDBOX}});}
+function runSh(args){return spawnSync(bashExe(),[SCRIPT,...args],{encoding:'utf8',env:{...process.env,ORCH_DATA:SANDBOX}});}
 try{
 ok('resolveWakeDir', sw.resolveWakeDir()===path.join(SANDBOX,'wake'));
 ok('sessionSlug', sw.sessionSlug('sess/a')==='sess_a');

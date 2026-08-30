@@ -7,6 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { writeCurlStub, hookEnv } = require('./helpers/curl-stub');
+const { bashExe } = require('./helpers/bash');
 
 const REPO = path.resolve(__dirname, '..');
 const HOOK = path.join(REPO, 'adapters', 'cursor', 'classify.sh');
@@ -26,7 +27,7 @@ function runHook(input, extraEnv = {}, stubDirs = []) {
     CLAUDE_PLUGIN_DATA: path.dirname(SESSION_DIR),
     ...extraEnv,
   });
-  const r = spawnSync('bash', [HOOK], { input, encoding: 'utf8', env });
+  const r = spawnSync(bashExe(), [HOOK], { input, encoding: 'utf8', env });
   return { status: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
 }
 

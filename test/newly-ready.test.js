@@ -16,7 +16,12 @@ const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-newl
 process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
 const filedrop = require('../lib/filedrop-tasks');
 
-const PORT = 18860 + Math.floor(Math.random() * 100);
+// Free port from the OS, not a random pick in a reserved-by-comment range: the ranges overlap
+// between suites and are never checked for occupancy, so a daemon leaked by an earlier run answers
+// /ping from a deleted sandbox and every later assertion fails for an unrelated-looking reason.
+// See test/helpers/port.js.
+const { freePort } = require("./helpers/port");
+let PORT = 0;
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-newly-ready-ws-')));
 
 let pass = 0, fail = 0;
@@ -45,7 +50,13 @@ function req(method, p, body) {
   });
 }
 
-async function waitForPing(ms = 8000) {
+// Boot deadline, not a latency budget: waitForPing returns the moment /ping answers, so a
+// generous ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated.
+// 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
+// runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
+// still starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
+
+async function waitForPing(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     try { const r = await req('GET', '/ping'); if (r.status === 200) return true; } catch { /* not up yet */ }
@@ -84,6 +95,7 @@ function dropStub(harness, id, extra = {}) {
 }
 
 (async () => {
+  PORT = await freePort();
   git.initRepo(WS); // claim gate needs a registered worktree, which needs a git repo
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ZONOID_EMBED_PROVIDER: 'voyage', VOYAGE_API_KEY: '', JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1' },

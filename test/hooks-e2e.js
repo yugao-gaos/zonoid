@@ -16,6 +16,7 @@ const os = require('os');
 const path = require('path');
 const { startHookStub } = require('./support/hook-http-stub');
 const runtimePaths = require('../lib/runtime-paths');
+const { bashExe } = require('./helpers/bash');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const ROOT = path.join(__dirname, '..');
@@ -72,7 +73,7 @@ function runHookWithStub(name, payload, config, extraEnv = {}) {
   }
 }
 function runScript(scriptPath, payload, env) {
-  const res = spawnSync('bash', [scriptPath], {
+  const res = spawnSync(bashExe(), [scriptPath], {
     input: payload === undefined ? '' : JSON.stringify(payload), encoding: 'utf8', timeout: 8000,
     env: { ...process.env, ...(env || {}) },
   });

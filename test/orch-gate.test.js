@@ -12,6 +12,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { withHookStub } = require('./support/hook-http-stub');
+const { bashExe } = require('./helpers/bash');
 
 const HOOK = path.resolve(__dirname, '..', 'hooks', 'orch-gate.sh');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-gate-test-'));
@@ -31,7 +32,7 @@ function mkInput(filePath, sessionId) {
 
 function runHook(input, extraEnv) {
   const env = { ...process.env, ...extraEnv };
-  const r = spawnSync('bash', [HOOK], {
+  const r = spawnSync(bashExe(), [HOOK], {
     input,
     encoding: 'utf8',
     env,

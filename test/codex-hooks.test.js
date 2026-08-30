@@ -6,6 +6,7 @@ const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 const { writeCurlStub, hookEnv } = require('./helpers/curl-stub');
 const codexSessionBridge = require('../lib/codex-session-bridge');
+const { bashExe } = require('./helpers/bash');
 
 const HOOK = path.join(__dirname, '..', 'adapters', 'codex', 'hooks', 'agent-done.sh');
 const SESSION_START = path.join(__dirname, '..', 'hooks', 'start-daemon.js');
@@ -85,7 +86,7 @@ try {
     '',
   ].join('\n'));
 
-  const r = spawnSync('bash', [HOOK], {
+  const r = spawnSync(bashExe(), [HOOK], {
     input: JSON.stringify({ agent_id: 'codex-hook-agent' }),
     encoding: 'utf8',
     env: hookEnv(stubDir, { CODEX_HOME: codexHome }),
@@ -99,7 +100,7 @@ try {
   ok('agent-done forwards output tokens', args.includes('"output_tokens":50'));
 
   const skippedBridgePath = path.join(TMP, 'adapters', 'codex', 'session-bridge.json');
-  const skipStart = spawnUnderHeadlessAncestor('bash', [CODEX_SESSION_START], {
+  const skipStart = spawnUnderHeadlessAncestor(bashExe(), [CODEX_SESSION_START], {
     input: JSON.stringify({
       cwd: TMP,
       session_id: 'headless-drain-session',

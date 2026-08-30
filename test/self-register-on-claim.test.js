@@ -49,7 +49,13 @@ function req(method, p, body) {
   });
 }
 
-async function waitForPing(ms = 8000) {
+// Boot deadline, not a latency budget: waitForPing returns the moment /ping answers, so a
+// generous ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated.
+// 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
+// runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
+// still starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
+
+async function waitForPing(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     try { const r = await req('GET', '/ping'); if (r.status === 200) return true; } catch { /* not up yet */ }
@@ -102,6 +108,9 @@ function runWriteGate(filePath) {
 
     // Branch a worktree (proof of delegation) via the real branch_task endpoint, which registers
     // it in overlay.git — then claim → self-register-on-claim allows it.
+    // `target_repo` is REQUIRED: the Git target is never inferred from the graph workspace
+    // (lib/repo-target.resolveRepoTarget has no workspace fallback — test/repo-target.test.js
+    // "single-repo convenience is not inferred by the daemon"), so omitting it 400s.
     const wt = await req('POST', '/git/worktree', { key: K(1), target_repo: WS });
     ok('attempt worktree created + registered', wt.status === 200 && String(wt.body.branch).startsWith('orch/attempt/'));
     // Claim carries the session workspace (main repo), exactly as the start_task MCP tool does —
@@ -109,13 +118,17 @@ function runWriteGate(filePath) {
     const claim = await req('POST', '/overlay/status', { key: K(1), status: 'in_progress', agent_id: 'hookless-worker', session_id: SESSION, workspace: WS });
     ok('hook-less claim WITH worktree self-registers and succeeds', claim.status === 200 && claim.body.ok === true);
     const permit = claim.body.execution_permit;
+    // Permits canonicalize paths to forward slashes (lib/subconscious normalizePermitPath) so the
+    // write gate can string-compare a tool's file_path against allowed_paths; /git/worktree returns
+    // the NATIVE path. Same worktree, two spellings on Windows — compare in the canonical form.
+    const slash = (v) => String(v == null ? '' : v).replace(/\\/g, '/');
     ok('accepted worker claim auto-issues active execution permit',
       permit &&
       permit.status === 'active' &&
       permit.session_id === SESSION &&
       permit.agent_id === 'hookless-worker' &&
       permit.task_key === K(1) &&
-      permit.worktree === wt.body.worktree &&
+      slash(permit.worktree) === slash(wt.body.worktree) &&
       permit.branch === wt.body.branch);
     const readPermit = await req(
       'GET',
