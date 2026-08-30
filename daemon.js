@@ -144,8 +144,8 @@ function respCachePut(ws, key, payload) {
 // lookup that finds the file mtime CHANGED reloads + recaches — so an out-of-band write (another
 // process / a test calling overlayStore.save directly) is picked up on the next lookup. This is the
 // SAME staleness guard already used by respCache. After the daemon's own write through a cached
-// overlay, callers should call refreshOverlayStamp(ws) so the just-saved content isn't needlessly
-// reloaded next lookup (write-coalescing); targetOverlay's save() does this. A missed refresh only
+// overlay, daemon-local callers persist through saveCachedOverlay() so the just-saved content isn't
+// needlessly reloaded next lookup (write-coalescing); targetOverlay's save() does this. A missed refresh only
 // costs a redundant reload of identical content — never incorrect.
 const overlayCache = new Map();   // ws -> { ov, stamp }
 // Test-only fallback holder. Production code NEVER reads these — every route/sweep resolves an
@@ -336,7 +336,7 @@ const WORKSPACES_FILE = path.join(BASE, 'workspaces.json');
 function migrateBlindEdges(workspace, overlay) {
   if (!workspace || !overlay) return 0;
   const tagged = judge.tagBlindEdges(overlay);
-  if (tagged > 0) { try { overlayStore.save(workspace, overlay); } catch { /* best effort */ } }
+  if (tagged > 0) { try { saveCachedOverlay(workspace, overlay); } catch { /* best effort */ } }
   return tagged;
 }
 
@@ -568,7 +568,7 @@ async function loadState() {
         const ov = overlayFor(ws);
         const ack = followups.acknowledgeDaemonRestartOnBoot(ov, { bootedAt: BOOTED_AT });
         if (ack) {
-          overlayStore.save(ws, ov); refreshOverlayStamp(ws);
+          saveCachedOverlay(ws, ov);
           notifyChange(ws);
           process.stdout.write(`orchestrator: acknowledged restart bucket ${ack.key} (${ws})\n`);
         }
@@ -666,14 +666,21 @@ function targetOverlay(b, u) {
     ...fields,
     ws,
     ov,
-    save: () => { overlayStore.save(ws, ov); refreshOverlayStamp(ws, ov); invalidateAggregate(ws); },
+    save: () => { saveCachedOverlay(ws, ov); invalidateAggregate(ws); },
   };
+}
+
+// Single daemon-local persistence seam: every cached-overlay save must re-stamp the exact object it
+// wrote. Callers layer notification and aggregate invalidation on top without changing those semantics.
+function saveCachedOverlay(ws, ov, options) {
+  if (!ws || !ov) return;
+  overlayStore.save(ws, ov, options);
+  refreshOverlayStamp(ws, ov);
 }
 
 function saveDispatchOverlay(ws, ov) {
   if (!ws || !ov) return;
-  overlayStore.save(ws, ov);
-  refreshOverlayStamp(ws, ov);
+  saveCachedOverlay(ws, ov);
   notifyChange(ws);
 }
 
@@ -1028,7 +1035,7 @@ function sweepStaleClaims(ws, ov) {
     }
   }
   if (agentsDirty) saveAgents();
-  if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
+  if (dirty) saveDispatchOverlay(ws, ov);
   return dirty;
 }
 
@@ -1046,7 +1053,7 @@ function sweepStaleNativeClaims(ws, ov, tasks) {
     }
   }
   if (agentsDirty) saveAgents();
-  if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
+  if (dirty) saveDispatchOverlay(ws, ov);
   return dirty;
 }
 // Reconcile terminal operational debris. Landed/superseded outcomes are normalized immediately;
@@ -1064,7 +1071,7 @@ function sweepFailedTasks(ws, ov) {
     console.log(`[reconcile] task ${action.task_key}: ${action.action}`);
   }
   cache.agg.delete(ws); cache.aggAt.delete(ws);
-  overlayStore.save(ws, ov); notifyChange(ws);
+  saveDispatchOverlay(ws, ov);
   return true;
 }
 // staleVerdictKeys (pure): which 'tested'/'ready' tasks are stale verdict-pending hand-offs — owner
@@ -1128,7 +1135,7 @@ function sweepStaleVerdicts(ws, ov) {
     console.log(`[self-heal] task ${key} (was ${status}) routed to same-node review — owner gone`);
     dirty = true;
   }
-  if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
+  if (dirty) saveDispatchOverlay(ws, ov);
   return dirty;
 }
 
@@ -1174,7 +1181,7 @@ function sweepStaleGuidance(ws, ov) {
     console.log(`[self-heal] guidance ${g.id} ${reason} — auto-resolved`);
     dirty = true;
   }
-  if (dirty) { overlayStore.save(ws, ov); notifyChange(ws); }
+  if (dirty) saveDispatchOverlay(ws, ov);
   return dirty;
 }
 
@@ -1382,7 +1389,7 @@ function applyOptimize(prob, base, L, ws, ov) {
   });
   if (d.decision === 'iterate') {
     overlayStore.setOptimize(ov, P.id, { decision: 'iterate', verdicts: prob.verdicts.length });
-    overlayStore.save(ws, ov); notifyChange(ws);
+    saveDispatchOverlay(ws, ov);
     return { ...base, action: 'optimize', problem: P.id, label: P.label, metric: P.metric.metric,
       reason: d.reason, prior_verdict: last, next_poll_seconds: L.config.minPoll };
   }
@@ -1396,12 +1403,12 @@ function applyOptimize(prob, base, L, ws, ov) {
     });
     overlayStore.setOptimize(ov, P.id, { closed: true, decision: 'stuck' });
     L.active = false;
-    overlayStore.save(ws, ov); notifyChange(ws);
+    saveDispatchOverlay(ws, ov);
     return { ...base, action: 'await_user', reason: `optimize stuck on ${P.id}: ${d.reason}` };
   }
   // converged | budget — stop iterating THIS problem; let the normal drained logic decide next.
   overlayStore.setOptimize(ov, P.id, { closed: true, decision: d.decision });
-  overlayStore.save(ws, ov); notifyChange(ws);
+  saveDispatchOverlay(ws, ov);
   return null; // fall through to drained→plan/stop
 }
 
@@ -1534,7 +1541,7 @@ function decideOne(L, ctx) {
       });
       // Auto-block so it doesn't re-fire guidance every tick before the user responds.
       overlayStore.setBlocked(ov, t.id, 'cost_gate: awaiting user approval');
-      overlayStore.save(ws, ov); notifyChange(ws);
+      saveDispatchOverlay(ws, ov);
     }
     // Re-derive ready after auto-blocking; keep guidance-pending tasks out of the spawn pool.
     const nowBlocked = (t) => !!(ov.blocked && ov.blocked[t.id]);
@@ -1598,8 +1605,7 @@ function loopDecisionContext(ws, batch = null) {
   decisionDelivery.reconcileStale(ov, Date.now(), graph);
   decisionDelivery.syncTaskHolds(ov);
   if (ws && before !== JSON.stringify([ov.guidance, ov.decision_holds])) {
-    overlayStore.save(ws, ov);
-    notifyChange(ws);
+    saveDispatchOverlay(ws, ov);
   }
   const pend = overlayStore.userAttentionGuidance(ov);
   return {
@@ -1621,9 +1627,7 @@ function ensureManagedGraphLoops(ctxByWs = null) {
     }
     const r = ensureManagedGraphLoop({ ctx: { loops, newLoop, now }, workspace: ws, graph: c.graph, overlay: c.ov });
     if (r.overlayChanged) {
-      overlayStore.save(ws, c.ov);
-      refreshOverlayStamp(ws);
-      notifyChange(ws);
+      saveDispatchOverlay(ws, c.ov);
     }
     if (r.changed) dirty = true;
   }
@@ -1729,7 +1733,7 @@ function decideAll(opts = {}) {
       const before = JSON.stringify([ctx.ov.guidance, ctx.ov.decision_holds]);
       const nudges = decisionDelivery.takeDueNudges(ctx.ov, L.session, liveDecisionSessions, ctx.graph, ctx.ws);
       if (nudges.length) entry.decision_nudges = nudges;
-      if (before !== JSON.stringify([ctx.ov.guidance, ctx.ov.decision_holds])) overlayStore.save(ctx.ws, ctx.ov);
+      if (before !== JSON.stringify([ctx.ov.guidance, ctx.ov.decision_holds])) saveCachedOverlay(ctx.ws, ctx.ov);
     }
     if (ctx.reviewPending > 0) {
       const pend = overlayStore.pendingGuidance(ctx.ov);
@@ -2188,7 +2192,7 @@ function sweepFiledropStubs(ws) {
   const ov = overlayFor(ws);
   const result = filedropGc.sweepWorkspaceStubs(ws, ov, { dryRun: false });
   if (result.adopted.length || result.removed.length) {
-    overlayStore.save(ws, ov); refreshOverlayStamp(ws);
+    saveCachedOverlay(ws, ov);
     cache.agg.delete(ws); cache.aggAt.delete(ws);
   }
   return result;
@@ -2549,7 +2553,7 @@ function commitGraphProjectionEffects(ws, ovWs, effects) {
     effects.edgesDirty = true;
   }
   if (effects.tsDirty || effects.edgesDirty || effects.adoptDirty || effects.repairDirty) {
-    overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange(ws);
+    saveCachedOverlay(ws, ovWs, { deferred: true }); notifyChange(ws);
   }
   // INGEST-AT-BIRTH (BUILD1): native tasks adopted THIS build pass through the unified ingestNode funnel
   // (embed → setTaskVec → autowire → markEagerJudge) so they carry a vec + candidate edges + an eager mark
@@ -2565,7 +2569,7 @@ function commitGraphProjectionEffects(ws, ovWs, effects) {
           // vestigial judgingSince anchor here purely to keep the overlay tidy (the gate no longer reads
           // it; readiness is derived solely from unverifiedEdgesForNode).
           if (r.seeded === 0) { overlayStore.clearJudgingSince(ovWs, n.key); }
-          if (r.vec || r.seeded === 0) { overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange(ws); }
+          if (r.vec || r.seeded === 0) { saveCachedOverlay(ws, ovWs, { deferred: true }); notifyChange(ws); }
         } catch { /* best-effort birth ingest */ }
       }
     })();
@@ -3395,8 +3399,7 @@ if (require.main === module) {
       const workspace = (currentState && currentState.workspace) || __dirname;
       const overlay = overlayFor(workspace);
       const overlaySave = (ws, value) => {
-        overlayStore.save(ws, value);
-        refreshOverlayStamp(ws, value);
+        saveCachedOverlay(ws, value);
       };
       return headlessDrain.runDueDrains(currentState, undefined, {
         // The daemon's per-workspace cache is authoritative and mtime-coherent with out-of-process
