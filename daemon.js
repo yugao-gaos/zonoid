@@ -2299,6 +2299,14 @@ function makeResolver() {
   return { loadWs, depRefs, effective, dependencyEffective, exists, explicitStatus, label };
 }
 
+function effectiveTaskStatuses(ws, keys, resolver = makeResolver()) {
+  resolver.loadWs(ws);
+  return Object.fromEntries(keys.map((key) => [
+    key,
+    resolver.exists(ws, key) ? resolver.effective(ws, key) : null,
+  ]));
+}
+
 function readinessDetail(R, ws, key, opts = {}) {
   const status = opts.status || R.effective(ws, key);
   if (status !== 'not_ready') return null;
@@ -3031,7 +3039,7 @@ const ctx = {
   onboardRuntimeIgnoreError: reportOnboardRuntimeIgnoreError,
   workspaceForRepo: (repoPath) => registry.repoToWorkspace(registry.loadRegistry(WORKSPACES_FILE)).get(repoPath) || null,
   repoRoot: registry.repoRoot,
-  send, sendOp, readBody, notifyChange, graphAutoflush, buildGraph, readGraphSnapshot, targetOverlay, overlayFor, invalidateAggregate, resolveRepo, resolveRepoTarget, nodeExistsInGraph, registeredWorkspaces,
+  send, sendOp, readBody, notifyChange, graphAutoflush, buildGraph, effectiveTaskStatuses, readGraphSnapshot, targetOverlay, overlayFor, invalidateAggregate, resolveRepo, resolveRepoTarget, nodeExistsInGraph, registeredWorkspaces,
   validateMetricSpec, validateBenchmark,
   overlayStore, harness: claudeHarness, harnessRegistry, filedrop, writeTaskStatus, readNativeTask, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
   cache, loops, saveLoops, saveAgents,
@@ -3150,7 +3158,7 @@ function isPrimaryCheckout(root) {
 module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleSnapshotClaimKeys, releaseSnapshotClaim, staleNativeClaimKeys, releaseNativeClaim, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings, worktreeVouchesLive, depSatisfied, vouchedLive, STALE_MINUTES_DEFAULT,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, graphAutoflush, RESP_TTL, sseClients, nodeExistsInGraph, dispatchInProgressCount,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
-  decideOne, decideAll, ensureManagedGraphLoops, buildGraph, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __readinessDetailForTest: readinessDetail, __compareLoopPriorityForTest: compareLoopPriority, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
+  decideOne, decideAll, ensureManagedGraphLoops, buildGraph, effectiveTaskStatuses, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __readinessDetailForTest: readinessDetail, __compareLoopPriorityForTest: compareLoopPriority, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
 
 if (require.main === module) {
   // Log unhandled promise rejections instead of crashing (Node's default is to exit the process).
