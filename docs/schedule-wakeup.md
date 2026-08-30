@@ -43,6 +43,7 @@ compatibility and diagnostics. When only the random fallback is available, `deli
 | Layer | Path |
 |---|---|
 | Core substrate | `lib/schedule-wakeup.js` |
+| Shared wake host | `lib/wake-host.js` (one process delivers a whole registry) |
 | Shell CLI | `adapters/common/schedule-wakeup.sh` (`arm` / `cancel`) |
 | MCP (cursor, codex) | `lib/mcp-harness-tools.js` → tool name `ScheduleWakeup` |
 | Codex delivery supervisor | `lib/codex-wakeup-delivery.js` daemon-owned watcher → `codex resume <session-id> <prompt>` |
@@ -56,31 +57,66 @@ Wake pid/fire files live under the Zonoid runtime data dir's `wake/` folder.
 `CLAUDE_PLUGIN_DATA`, or `~/.claude/orchestrator/.zonoid` is used. Durable graph
 state remains in workspace `.graph/`.
 
+## Delivery: one shared wake host
+
+`armWakeup` does **not** spawn a process per wakeup. It writes a self-describing registry row and
+ensures a single **wake host** (`lib/wake-host.js`) is running for that registry; the host delivers
+every pending wakeup in it.
+
+**Registry.** `KEY -> {fireAt, session, payload, fire}` in
+`<workspace>/.graph/scheduled-wakeups.json` (falls back to the runtime data dir when
+`ORCH_WORKSPACE` is unset). The row carries everything needed to fire it, so *any* host — the one
+`armWakeup` started, or one a later sweep starts — can deliver it. The row is written **before** the
+host is ensured, so a row can never be stranded behind a host that idle-exits in the gap.
+
+**Host.** One per registry, pid published as `<wake-dir>/wake-host-<hash-of-registry-path>.pid`.
+Each tick (immediately on start, then every `ORCH_WAKE_HOST_TICK_MS`, default 1000ms) it appends the
+fire line for every row whose `fireAt` has passed, drops those rows, and exits once nothing has been
+pending for `ORCH_WAKE_HOST_IDLE_MS` (default 10s). The pidfile is the handover token: a host that
+no longer owns it stops on its next tick, so a racing second host never double-fires.
+
+**Why.** The previous design spawned a detached `node -e` sleeper per wakeup, so the live-process
+count tracked the pending-wakeup count and every way a fire could be lost (hard kill, crashed
+sleeper, a registry split across differing `ORCH_WORKSPACE` values so the daemon sweep never saw the
+row) leaked a process nothing could find again. 3,893 accumulated on one machine and exhausted the
+process table — system-wide `EPERM` `uv_spawn` failures. N pending wakeups now cost one process.
+
+**Cancel never kills the host.** The host owns every session's pending wake, so deleting the row
+*is* the cancel. `cancelWakeup` refuses to kill a pid that matches the host pidfile, and the bash
+adapter's `cancel` skips any pid listed in a `wake-host-*.pid` — which is why those pidfiles live in
+the wake dir rather than beside the registry.
+
 ## Leak reaping (daemon sweeps)
 
-Armed sleepers are detached `node -e` processes, so a lost fire (hard kill, crashed sleeper,
-daemon restart) leaks both a live process and a dangling registry row. Two sweeps run in the
-daemon's 60s cycle (`daemon.js`, inside `require.main === module`, each `setInterval(...).unref()`'d)
-and both reuse the module's single `isPidAlive` / `killPid` pair — there is no second liveness or
-kill path.
-
-**Registry.** `armWakeup` records `KEY -> {pid, fireAt, session}` in
-`<workspace>/.graph/scheduled-wakeups.json` (falls back to the runtime data dir when
-`ORCH_WORKSPACE` is unset). The sleeper deletes its own row when it fires.
+Two sweeps run in the daemon's 60s cycle (`daemon.js`, inside `require.main === module`, each
+`setInterval(...).unref()`'d) and both reuse the module's single `isPidAlive` / `killPid` pair —
+there is no second liveness or kill path. `killPid` records its recently-killed memo **only on a
+real kill**: memoizing a kill that never happened (`taskkill` failing to spawn is exactly what
+process-table exhaustion produces) would make `isPidAlive` report a live process as dead, and the
+sweeps would prune its row and lose track of it for good.
 
 ### Part 1 — `sweepStaleWakeups()` (always on)
 
-Reconciles every registry row against process reality:
+Reconciles every registry row against process reality, and doubles as the host's supervisor:
 
 | Row state | Action |
 |---|---|
-| pid dead | prune the row (it fired + exited; the reap-on-fire write may have been lost) |
-| pid alive, `now > fireAt + GRACE` | stuck sleeper → `killPid` + prune |
-| pending, or only just past `fireAt` | leave alone |
+| hosted, `now > fireAt + GRACE` | no host delivered it → prune the row |
+| hosted, pending | leave alone |
+| *legacy* pid dead | prune the row (it fired + exited; the reap-on-fire write may have been lost) |
+| *legacy* pid alive, `now > fireAt + GRACE` | stuck sleeper → `killPid` + prune |
+| *legacy* pending, or only just past `fireAt` | leave alone |
+
+An undelivered hosted row is evidence the recorded host is not working — stuck, or its pid recycled
+onto an unrelated process — so the sweep releases the host registration (unlink only; that pid is
+never killed, because it can no longer be identified). Afterwards, if any hosted row is still
+pending it calls `ensureWakeHost`, so a host that died, hung, or was killed out from under the
+registry is replaced. Rows carrying a `pid` and no `payload` are *legacy* rows from the old
+one-sleeper-per-wakeup design and are still reaped by pid.
 
 `GRACE` defaults to **5 min**, override with `ORCH_WAKEUP_GRACE_MIN`. Rows with a non-numeric
-`fireAt` are never treated as overdue — they are pruned only when their pid is dead. Returns
-`{swept, killed, pruned}`.
+`fireAt` are never treated as overdue — a legacy row is then pruned only when its pid is dead.
+Returns `{swept, killed, pruned, hosted}`.
 
 ### Part 2 — `sweepOrphanProcesses()` (opt-in, default OFF)
 

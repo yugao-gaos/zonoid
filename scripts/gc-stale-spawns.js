@@ -6,9 +6,13 @@
 // Enumerates orchestrator-spawned Node child processes and kills stale ones:
 //
 //   Targeted process classes (NEVER kills anything else):
-//     - ORCH_SCHEDULED_TASK sleepers: detached `node -e <inline-script>` children spawned by
-//       lib/schedule-wakeup.js. These write "ORCH_SCHEDULED_TASK {...}" to a .fire file after a
-//       delaySeconds timeout. If the session is gone, they sleep forever.
+//     - ORCH_SCHEDULED_TASK sleepers: detached `node -e <inline-script>` children spawned by the
+//       OLD one-sleeper-per-wakeup design in lib/schedule-wakeup.js. These write
+//       "ORCH_SCHEDULED_TASK {...}" to a .fire file after a delaySeconds timeout. If the session is
+//       gone, they sleep forever — which is how 3,893 of them accumulated on one machine. Wakeups
+//       are now served by a single shared lib/wake-host.js process per registry, which carries no
+//       ORCH_SCHEDULED_TASK marker and is therefore never a candidate here; this class exists to
+//       clean up leftovers from before that change.
 //     - Headless drain `claude -p` children: identified by ORCH_DRAIN_* env vars set by
 //       lib/headless-drain.js. These are kill-safe: the drain governor re-spawns them on the next
 //       tick if needed.

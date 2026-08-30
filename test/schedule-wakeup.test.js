@@ -10,6 +10,7 @@ const ok = (l,c)=>{if(c){console.log('PASS  '+l);pass++;}else{console.log('FAIL 
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-wake-')));
 const SCRIPT = path.resolve(__dirname, '..', 'adapters', 'common', 'schedule-wakeup.sh');
 const prevData = process.env.ORCH_DATA; process.env.ORCH_DATA = SANDBOX;
+const prevWs = process.env.ORCH_WORKSPACE; process.env.ORCH_WORKSPACE = SANDBOX;
 function runSh(args){return spawnSync('bash',[SCRIPT,...args],{encoding:'utf8',env:{...process.env,ORCH_DATA:SANDBOX}});}
 try{
 ok('resolveWakeDir', sw.resolveWakeDir()===path.join(SANDBOX,'wake'));
@@ -19,9 +20,14 @@ ok('arm ok', arm.ok&&typeof arm.pid==='number');
 ok('pidfile', fs.existsSync(sw.pidFile('test-sess')));
 ok('fireFile path', sw.fireFile('test-sess')===path.join(SANDBOX,'wake','test-sess.fire'));
 const rearm=sw.armWakeup({session:'test-sess',delaySeconds:2,reason:'re',prompt:'again'});
-ok('re-arm ok', rearm.ok&&rearm.pid!==arm.pid);
+// Re-arm replaces the registry row; it does NOT spawn a second process — one shared wake host
+// serves every pending wakeup, so the pid is expected to be the SAME.
+ok('re-arm reuses the shared host', rearm.ok&&rearm.pid===arm.pid);
+const rearmed=sw._readRegistry(sw.resolveRegistryPath())[sw.sessionSlug('test-sess')];
+ok('re-arm replaces the row', rearmed&&rearmed.payload.prompt==='again');
 const cancel=sw.cancelWakeup('test-sess');
 ok('cancel ok', cancel.ok&&cancel.canceled);
+ok('cancel clears the row', sw._readRegistry(sw.resolveRegistryPath())[sw.sessionSlug('test-sess')]===undefined);
 ok('pidfile gone', !fs.existsSync(sw.pidFile('test-sess')));
 ok('noop cancel', sw.cancelWakeup('missing').canceled===false);
 ok('arm needs session', sw.armWakeup({delaySeconds:1}).ok===false);
@@ -32,5 +38,5 @@ ok('claude native', claude.scheduler.armWakeup().method==='native');
 ok('claude noop', claude.scheduler.cancelWakeup().noop===true);
 const harness=require('../lib/harness');
 ok('harness export', typeof harness.scheduleWakeup.armWakeup==='function');
-}finally{if(prevData===undefined)delete process.env.ORCH_DATA;else process.env.ORCH_DATA=prevData;fs.rmSync(SANDBOX,{recursive:true,force:true});}
+}finally{if(prevData===undefined)delete process.env.ORCH_DATA;else process.env.ORCH_DATA=prevData;if(prevWs===undefined)delete process.env.ORCH_WORKSPACE;else process.env.ORCH_WORKSPACE=prevWs;fs.rmSync(SANDBOX,{recursive:true,force:true});}
 console.log('-----');console.log(pass+' passed, '+fail+' failed');process.exit(fail?1:0);

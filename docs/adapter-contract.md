@@ -493,8 +493,8 @@ path** differs per row above.
 
 | Method | Behavior |
 |---|---|
-| `armWakeup({ session, delaySeconds, reason, prompt })` | Cancel prior wake → arm sleeper → return `{ ok, pid, delaySeconds }`. |
-| `cancelWakeup({ session })` | Kill pid, remove pidfile → `{ ok, canceled }`. |
+| `armWakeup({ session, delaySeconds, reason, prompt })` | Cancel prior wake → write the registry row → ensure the shared wake host → `{ ok, pid, host, hosted, fireAt, delaySeconds }`. `pid` is the host, not a per-wakeup sleeper. |
+| `cancelWakeup({ session })` | Delete the registry row, remove pidfile → `{ ok, canceled }`. Never kills the shared host (it owns every other session's pending wake). |
 | `writeScheduledTask({ id, title, prompt, taskKey, when, fireAt, cwd, session?, orchDir? })` | Write deferred note; if `session` + `fireAt` present, also `armWakeup` with computed delay. |
 
 ---
