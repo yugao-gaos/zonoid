@@ -25,7 +25,7 @@ const path = require('path');
 process.env.CLAUDE_PLUGIN_DATA = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ovcache-base-')));
 const overlayStore = require('../lib/overlay');
 const daemon = require('../daemon');
-const { overlayFor, refreshOverlayStamp, __setOverlayForTest, __setWorkspaceForTest, __clearOverlayCacheForTest } = daemon;
+const { overlayFor, refreshOverlayStamp, sweepStaleGuidance, __setOverlayForTest, __setWorkspaceForTest, __clearOverlayCacheForTest } = daemon;
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
@@ -33,6 +33,7 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
 const WS_CUR = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ovcache-cur-')));
 const WS_A = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ovcache-A-')));
 const WS_B = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ovcache-B-')));
+const WS_SWEEP = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ovcache-sweep-')));
 
 // Pin a current workspace + its authoritative in-memory overlay (mirrors setWorkspace).
 const curOv = overlayStore.EMPTY();
@@ -64,6 +65,22 @@ try {
   overlayStore.save(WS_B, b1); refreshOverlayStamp(WS_B);
   ok('(4) after daemon save + refreshOverlayStamp, cached coalesced object is RETAINED (not reloaded)', overlayFor(WS_A) === a2);
 
+  // A representative daemon-local sweep saves the cached overlay through the shared helper. The
+  // next access must retain identity and must not replay/load the graph it just persisted.
+  const sweepOv = overlayFor(WS_SWEEP);
+  sweepOv.status['origin/done'] = 'done';
+  overlayStore.addGuidance(sweepOv, { question: 'stale?', origin_task: 'origin/done' });
+  const originalLoad = overlayStore.load;
+  let sweepReloads = 0;
+  overlayStore.load = (...args) => { sweepReloads++; return originalLoad(...args); };
+  try {
+    ok('(4) representative stale-guidance sweep persisted a local mutation', sweepStaleGuidance(WS_SWEEP, sweepOv) === true);
+    ok('(4) daemon-local sweep save retains the cached overlay identity', overlayFor(WS_SWEEP) === sweepOv);
+    ok('(4) daemon-local sweep save causes zero overlay reloads on next access', sweepReloads === 0);
+  } finally {
+    overlayStore.load = originalLoad;
+  }
+
   // (4) out-of-band coherency: an EXTERNAL writer mutates wsA's file (fresh object → new mtime).
   // The next overlayFor(wsA) must pick up the external change (reload), exactly as the pre-P2a
   // per-call load() did — no NEW staleness class.
@@ -83,7 +100,7 @@ try {
   console.error('TEST ERROR:', e);
   fail++;
 } finally {
-  for (const d of [process.env.CLAUDE_PLUGIN_DATA, WS_CUR, WS_A, WS_B]) {
+  for (const d of [process.env.CLAUDE_PLUGIN_DATA, WS_CUR, WS_A, WS_B, WS_SWEEP]) {
     try { fs.rmSync(d, { recursive: true, force: true }); } catch { /* */ }
   }
 }
