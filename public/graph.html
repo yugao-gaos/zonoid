@@ -6405,9 +6405,10 @@ function renderArchitecture(d){
     renderArchitectureInspector(null);
     return;
   }
-  if(projection.status==='empty'){
+  if(projection.status==='empty'||!(projection.files||[]).length){
     count.textContent='0 indexed files';
-    map.innerHTML=`<div class="arch-empty"><div><b>Nothing indexed yet</b><br>${esc(projection.message||'Run project onboarding to build the architecture map.')}</div></div>`;
+    const emptyTitle=projection.status==='indexing'?'Indexing architecture…':projection.status==='error'?'Architecture index needs retry':projection.status==='ready'?'No source symbols found':'Nothing indexed yet';
+    map.innerHTML=`<div class="arch-empty"><div><b>${esc(emptyTitle)}</b><br>${esc(projection.message||'Project onboarding will build the architecture map automatically.')}</div></div>`;
     renderArchitectureInspector(projection);
     return;
   }

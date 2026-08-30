@@ -30,14 +30,16 @@ const { ingestRepo } = require('../lib/code-extract/ingest');
 const { syncRepo, httpDaemonClient } = require('../lib/code-extract/sync');
 
 function parseArgs(argv) {
-  const out = { daemon: 'http://localhost:8787', sync: false, async: false };
+  const out = { daemon: 'http://localhost:8787', sync: false, async: false, json: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--repo') out.repo = argv[++i];
     else if (a === '--workspace') out.workspace = argv[++i];
     else if (a === '--daemon') out.daemon = argv[++i];
+    else if (a === '--expected-head') out.expectedHead = argv[++i];
     else if (a === '--sync') out.sync = true;
     else if (a === '--async') out.async = true;
+    else if (a === '--json') out.json = true;
     else if (a === '--help' || a === '-h') out.help = true;
   }
   return out;
@@ -50,6 +52,7 @@ const USAGE = `Usage: node scripts/onboard-code.js --repo <abs> --workspace <ws>
   --daemon <url>    daemon base URL (default http://localhost:8787)
   --sync            incremental git-diff sync (default is a full onboard)
   --async           boot tree-sitter so non-JS/TS files parse
+  --json            emit one machine-readable result object
   --help            show this message`;
 
 function headCommit(repoAbs) {
@@ -58,14 +61,25 @@ function headCommit(repoAbs) {
 }
 
 // FULL onboard: extract the whole repo, bulk-ingest, then stamp lastIndexedCommit = HEAD.
-async function fullOnboard({ repoAbs, workspace, daemon, async }) {
+async function fullOnboard({ repoAbs, workspace, daemon, async, expectedHead = null }) {
   const result = await ingestRepo(repoAbs, { daemonUrl: daemon, workspace, async });
   const head = headCommit(repoAbs);
+  let watermark_recorded = false;
+  let watermark_error = null;
   if (head) {
-    try { await httpDaemonClient(daemon).setLastIndexedCommit({ key: repoAbs, commit: head, workspace }); }
-    catch (e) { console.warn(`[onboard-code] warning: failed to record lastIndexedCommit: ${e.message}`); }
+    if (expectedHead && head !== expectedHead) {
+      watermark_error = `HEAD changed during indexing (${expectedHead} -> ${head})`;
+    } else {
+      try {
+        await httpDaemonClient(daemon).setLastIndexedCommit({ key: repoAbs, commit: head, workspace });
+        watermark_recorded = true;
+      } catch (e) {
+        watermark_error = e && e.message ? e.message : String(e);
+      }
+    }
+    if (watermark_error) console.warn(`[onboard-code] warning: failed to record lastIndexedCommit: ${watermark_error}`);
   }
-  return { mode: 'full', repo: result.repo, symbols: result.symbols, created: result.created, edges: result.edges, edges_added: result.edges_added, batches: result.batches, stats: result.stats, head };
+  return { mode: 'full', repo: result.repo, symbols: result.symbols, created: result.created, edges: result.edges, edges_added: result.edges_added, batches: result.batches, stats: result.stats, head, watermark_recorded, watermark_error };
 }
 
 async function main() {
@@ -80,19 +94,28 @@ async function main() {
   const { workspace, daemon } = args;
 
   if (args.sync) {
-    const sync = await syncRepo({ repo: repoAbs, workspace, daemon }, { async: args.async });
+    const sync = await syncRepo({
+      repo: repoAbs,
+      workspace,
+      daemon,
+      expectedHead: args.expectedHead,
+    }, { async: args.async });
     if (sync.full_onboard_needed) {
       console.log(`[onboard-code] no prior index (${sync.reason}); running a FULL onboard instead.`);
-      const full = await fullOnboard({ repoAbs, workspace, daemon, async: args.async });
-      printSummary(full, { workspace, daemon });
+      const full = await fullOnboard({ repoAbs, workspace, daemon, async: args.async, expectedHead: args.expectedHead });
+      if (args.json) process.stdout.write(`${JSON.stringify(full)}\n`);
+      else printSummary(full, { workspace, daemon });
       return;
     }
-    printSummary({ mode: 'sync', repo: repoAbs, ...sync }, { workspace, daemon });
+    const result = { mode: 'sync', repo: repoAbs, ...sync, watermark_recorded: true };
+    if (args.json) process.stdout.write(`${JSON.stringify(result)}\n`);
+    else printSummary(result, { workspace, daemon });
     return;
   }
 
-  const full = await fullOnboard({ repoAbs, workspace, daemon, async: args.async });
-  printSummary(full, { workspace, daemon });
+  const full = await fullOnboard({ repoAbs, workspace, daemon, async: args.async, expectedHead: args.expectedHead });
+  if (args.json) process.stdout.write(`${JSON.stringify(full)}\n`);
+  else printSummary(full, { workspace, daemon });
 }
 
 function printSummary(r, { workspace, daemon }) {
@@ -127,4 +150,8 @@ function printSummary(r, { workspace, daemon }) {
   console.log('');
 }
 
-main().catch((e) => { console.error(`[onboard-code] ${e && e.stack ? e.stack : e}`); process.exit(1); });
+if (require.main === module) {
+  main().catch((e) => { console.error(`[onboard-code] ${e && e.stack ? e.stack : e}`); process.exit(1); });
+}
+
+module.exports = { parseArgs, headCommit, fullOnboard, printSummary, main };
