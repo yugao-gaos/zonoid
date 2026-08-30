@@ -1266,19 +1266,23 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     // Contradiction band (judge-mediated supersession, GATED via ZONOID_CONTRADICTION_RESOLUTION=1;
     // default OFF). Below the 0.92 subsumption bar sit notes about the SAME subject that may be a
-    // contradiction/update OR merely complementary — cosine cannot tell them apart. So we only SEED a
-    // 'contradicts' CANDIDATE edge new->old and let the eager judge decide per edge-judge.md
-    // (supersede the older via a consolidate verdict, or keep both). Nothing is retired here without a
-    // judge verdict; the new note is NOT hidden. Best-effort: never blocks the note write.
-    if (b.vec && judge.contradictionResolutionEnabled()) {
+    // contradiction/update OR merely complementary — cosine cannot tell them apart. So we reuse the
+    // existing pending-dup dup-cluster path: admit the new note provisionally, enqueue the best
+    // contradiction candidate as a dup-cluster pair, and let the judge decide consolidate/distinct.
+    // Nothing is retired here without a judge verdict. Best-effort: never blocks the note write.
+    if (b.vec && judge.contradictionResolutionEnabled() && !b.supersedes && !b.force && !pendingDupMatch) {
       try {
         const cands = judge.findContradictionCandidates(id, b.vec, T.ov);
-        for (const { noteId, similarity } of cands) {
-          overlayStore.addEdge(T.ov, 'note:' + id, 'note:' + noteId, null, 'context',
-            Math.max(0, 1 - similarity),
-            { judged: false, by: 'subconscious', origin: 'contradiction-seed', relation: 'contradicts', score: similarity });
+        const best = cands.slice().sort((a, b) => (b.similarity - a.similarity) || (String(a.noteId).localeCompare(String(b.noteId))))[0];
+        if (best) {
+          pendingDupMatch = {
+            key: 'note:' + best.noteId,
+            title: (T.ov.note_nodes && T.ov.note_nodes[best.noteId] && T.ov.note_nodes[best.noteId].title) || best.noteId,
+            summary: (T.ov.note_nodes && T.ov.note_nodes[best.noteId] && String(T.ov.note_nodes[best.noteId].summary || '').slice(0, 200)) || '',
+            score: best.similarity,
+          };
+          overlayStore.markPendingDup(T.ov, 'note:' + id, pendingDupMatch.key, pendingDupMatch.score);
         }
-        if (cands.length) overlayStore.markEagerJudge(T.ov, 'note:' + id);
       } catch { /* contradiction seeding is best-effort — never block the note write */ }
     }
     T.save(); notifyChange(T.ws);
