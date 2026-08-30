@@ -217,6 +217,38 @@ class ActionSubmissionTests(unittest.TestCase):
         self.assertEqual(complex_action.name, "ACTION6")
         self.assertEqual(complex_action.data, {"x": 12, "y": 34})
 
+    def test_idle_eviction_recovers_via_reset_and_replay(self):
+        class _EvictOnceWrapper(_FakeArcWrapper):
+            def __init__(self):
+                super().__init__(width=4, levels=1)
+                self.evict_next = False
+
+            def step(self, action):
+                if self.evict_next and action.name != "RESET":
+                    self.evict_next = False
+                    self.submitted.append(action)
+                    self._last = _FakeFrame([], self.levels_completed, "NOT_STARTED", [])
+                    return None
+                return super().step(action)
+
+        wrapper = _EvictOnceWrapper()
+        session = LiveArcSession(_FakeArcClient(wrapper), "ls20").open()
+        session.act(["ACTION3"])
+        wrapper.evict_next = True
+
+        result = session.act(["ACTION3"])
+
+        self.assertEqual(session._recoveries, 1)
+        self.assertEqual(session.actions_taken, 2)
+        self.assertEqual(wrapper.pos, 2)
+        self.assertEqual(session._action_log, [("ACTION3", None, None)] * 2)
+        self.assertEqual(
+            [action.name for action in wrapper.submitted],
+            ["RESET", "ACTION3", "ACTION3", "RESET", "ACTION3", "ACTION3"],
+        )
+        self.assertEqual(result["executed"], ["ACTION3"])
+        self.assertTrue(result["board_changed"])
+
     def test_dict_and_string_actions_both_accepted(self):
         wrapper = _FakeArcWrapper(width=4, levels=1)
         client = _FakeArcClient(wrapper)

@@ -369,6 +369,7 @@ class LiveConfigWiringTests(unittest.TestCase):
         class _FakeSession:
             levels_completed = 0
             actions_taken = 0
+            _recoveries = 2
 
             def open(self):
                 return self
@@ -450,6 +451,7 @@ class LiveConfigWiringTests(unittest.TestCase):
         # diagnosable live (no targets vs the phase never engaging — the run-39 ambiguity).
         self.assertEqual(summary.get("hoist_phase"), "reach",
                          "driver dropped the Run-40 hoist_phase echo from the summary")
+        self.assertEqual(summary.get("session_recoveries"), 2)
 
 
 class ImportPurityTests(unittest.TestCase):

@@ -684,6 +684,7 @@ def live_run(
             "won": bool(summary.get("won")),
             "levels_completed": session.levels_completed,
             "actions_taken": session.actions_taken,
+            "session_recoveries": getattr(session, "_recoveries", 0),
             "decide_calls": summary.get("decide_calls", 0),
             "reflect_calls": summary.get("reflect_calls", 0),
             "modes_visited": sorted(set(summary.get("modes", []))),

@@ -196,6 +196,10 @@ class LiveArcSession:
         self.won = False
         self.game_over = False
         self.stop_reason: str | None = None
+        # Non-RESET actions that reached playable frames. The deterministic history restores the
+        # current position if the live ARC server evicts an idle session between model calls.
+        self._action_log: list[tuple[str, int | None, int | None]] = []
+        self._recoveries = 0
 
     # -- lifecycle ---------------------------------------------------------------------------------
 
@@ -318,17 +322,66 @@ class LiveArcSession:
             return name, action.get("x"), action.get("y")
         return str(action), None, None
 
-    def _submit(self, name: str, x: int | None = None, y: int | None = None) -> Any:
-        """Submit one action through the checkout env; return the resulting frame; update counters."""
+    @staticmethod
+    def _frame_is_playable(frame: Any) -> bool:
+        """Return whether ``frame`` represents a started game with a non-empty grid."""
+
+        if frame is None or LiveArcSession._state_name(frame) in {
+            "NOT_STARTED",
+            "GAME_NOT_STARTED",
+        }:
+            return False
+        frames = getattr(frame, "frame", None)
+        if frames is None and isinstance(frame, dict):
+            frames = frame.get("frame")
+        if not frames or frames[-1] is None:
+            return False
+        grid = frames[-1]
+        size = getattr(grid, "size", None)
+        return bool(size) if size is not None else bool(grid)
+
+    def _raw_submit(self, name: str, x: int | None, y: int | None) -> Any:
+        """Submit one action without touching counters or the replay log."""
 
         game_action = self.client.game_action(name, x, y)
         frame = self.env.step(game_action)
         if frame is None:
             # Fall back to the wrapper's last observation if step returns None.
             frame = getattr(self.env, "observation_space", None)
+        return frame
+
+    def _recover_session(self) -> Any:
+        """Re-make an idle-evicted game, RESET it, and replay the deterministic action history."""
+
+        self._recoveries += 1
+        try:
+            self.env = self.client.make(self.game_id, self.card_id)
+            if self.env is None:
+                return None
+            frame = self._raw_submit("RESET", None, None)
+            if not self._frame_is_playable(frame):
+                return None
+            for action_name, action_x, action_y in self._action_log:
+                frame = self._raw_submit(action_name, action_x, action_y)
+                if not self._frame_is_playable(frame):
+                    return None
+            return frame
+        except Exception:  # noqa: BLE001 - recovery is best-effort; the failed frame is surfaced
+            return None
+
+    def _submit(self, name: str, x: int | None = None, y: int | None = None) -> Any:
+        """Submit one action, recovering an idle-evicted live session once when needed."""
+
+        frame = self._raw_submit(name, x, y)
+        if name != "RESET" and not self._frame_is_playable(frame):
+            restored = self._recover_session()
+            if restored is not None:
+                frame = self._raw_submit(name, x, y)
         self._last_frame = frame
         if name != "RESET":
             self.actions_taken += 1
+            if self._frame_is_playable(frame):
+                self._action_log.append((name, x, y))
         self._sync_progress(frame)
         return frame
 
