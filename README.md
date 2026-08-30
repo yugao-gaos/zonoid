@@ -312,7 +312,8 @@ dsh --profile headless "task"
 The installer uses DSH's public profile plugin command and keeps its managed bundle under
 `$DSH_HOME/zonoid/packages/dsh`. It preserves user Cordis patches, plugins, other MCP servers,
 dependencies, and bundle layers; repeated init calls are idempotent, and profile metadata is
-backed up before DSH changes it.
+backed up before DSH changes it. The hermetic operator proof and optional pinned-host rerun are
+documented in [`docs/dsh-acceptance.md`](docs/dsh-acceptance.md).
 
 ## MCP tools
 
