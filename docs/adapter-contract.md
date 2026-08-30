@@ -107,7 +107,7 @@ harness guarantees interception.
 | **Ready nudge after dispatch** | `PostToolUse` `Agent\|Task` → `post-agent.sh` → `/ready` | `postToolUse` → relay | `PostToolUse` → relay | `tool.execute.after` and `todo.updated` with session id → `/ready` best-effort |
 | **Task mint** | Native `TaskCreate` → Claude task file → daemon pull (no `/sync` required) | `postToolUse` on todo tool → stub under `cursor/` → `/sync` | Shell/hook stub under `codex/` → `/sync`; fallback harness-scoped MCP `create_task` | Custom `task_create` tool → stub under `opencode/` → `/sync` |
 | **Task assignment / claim / complete** | MCP `subconscious_assignment` → `/subconscious/assignment` + `/overlay/status` | Same MCP surface | Same MCP surface (filtered tool list when MCP spawn sets `ORCH_CLIENT=codex`) | Same MCP + plugin-registered tools |
-| **Claim session alias** | `PostToolUse` after `subconscious_assignment accept` (or raw `start_task`) → `/overlay/claim-session` | Same when MCP used | Same when MCP used | Same when MCP used |
+| **Claim session alias** | `PostToolUse` after `subconscious_assignment accept` (or raw `start_task`) → `/overlay/claim-session`, forwarding the accepted assignment's `graph_repo` / `workspace` identity | Same when MCP used | Same when MCP used | Same when MCP used |
 | **Raw branch / merge escape hatches** | MCP `branch_task` / `merge_attempt` remain for backcompat/internal use; routine agents use `subconscious_assignment prepare` / `accept` / `complete`, and review verdicts use `submit_verdict` | Same | Same | Same |
 | **Blocking vs advisory** | Exit 2 blocking on gates; MCP + injection advisory | Same pattern; **IDE hook coverage ⊃ CLI** | Partial shell interception; manual trust on hook hash change | Throw-to-block; frozen-args bug makes throw mandatory |
 
@@ -257,7 +257,7 @@ Installed hooks in `hooks/hooks.json`:
 | `PreToolUse` `Write\|Edit` | `orch-gate.sh` | `/active-claim`, `/session-info`, `/task/detail` |
 | `PostToolUse` `Agent\|Task` | `post-agent.sh` | `/ready` |
 | `PostToolUse` `TaskCreate` | `suggest-links.sh` | MCP / graph tools (wiring nudge) |
-| *(after MCP `subconscious_assignment accept` / raw `start_task`)* | `orch-posttool-starttask.sh` | `/overlay/claim-session` |
+| *(after MCP `subconscious_assignment accept` / raw `start_task`)* | `orch-posttool-starttask.sh` | `/overlay/claim-session` with the accepted assignment's `graph_repo` / `workspace` identity |
 
 `POST /classify` is the contract target for prompt-submit relays. Claude's `classify.sh`
 remains the reference hook relay, while OpenCode uses `chat.message` to append returned

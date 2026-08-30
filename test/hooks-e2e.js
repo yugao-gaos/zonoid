@@ -255,7 +255,7 @@ function mkOff(sid) { fs.mkdirSync(SESS, { recursive: true }); fs.writeFileSync(
   // ── orch-posttool-starttask (filters on tool_name, POSTs claim-session) ──────
   console.log('orch-posttool-starttask.js');
   { check('non start_task tool -> noop exit 0', runHook('orch-posttool-starttask.js', { session_id: 'e2e-pt', tool_name: 'Bash', tool_input: { command: 'ls' } }).code === 0);
-    const r = runHook('orch-posttool-starttask.js', { session_id: 'e2e-pt', tool_name: 'mcp__orchestrator-graph__start_task', tool_input: { task_key: 'e2e/probe-task', agent_id: 'e2e-worker' } });
+    const r = runHook('orch-posttool-starttask.js', { session_id: 'e2e-pt', tool_name: 'mcp__orchestrator-graph__start_task', tool_input: { task_key: 'e2e/probe-task', agent_id: 'e2e-worker', graph_repo: '/workspace/e2e-probe' } });
     check('start_task -> exit 0 (claim-session posted)', r.code === 0, `code=${r.code}`);
     const claim = await daemon('GET', '/active-claim?session=e2e-pt');
     info('/active-claim after claim-session', claim.text.slice(0, 80)); }
@@ -267,7 +267,7 @@ function mkOff(sid) { fs.mkdirSync(SESS, { recursive: true }); fs.writeFileSync(
       const startScript = path.join(CODEX_HOOKS, 'post-start-task.sh');
       for (const toolName of ['mcp__orchestrator-graph__start_task', 'mcp__orchestrator_graph__start_task', 'start_task']) {
         const before = curlHits(stub.logPath).length;
-        const r = runScript(startScript, { session_id: `e2e-cdx-start-${before}`, tool_name: toolName, tool_input: { task_key: `e2e/${before}`, agent_id: 'e2e-worker' } }, stub.env);
+        const r = runScript(startScript, { session_id: `e2e-cdx-start-${before}`, tool_name: toolName, tool_input: { task_key: `e2e/${before}`, agent_id: 'e2e-worker', graph_repo: '/workspace/e2e-codex' } }, stub.env);
         const hits = curlHits(stub.logPath);
         const last = hits[hits.length - 1] || '';
         check(`post-start accepts ${toolName}`, r.code === 0 && hits.length === before + 1 && last.includes('/overlay/claim-session'), `code=${r.code} hits=${hits.length} last=${last}`);
@@ -277,7 +277,7 @@ function mkOff(sid) { fs.mkdirSync(SESS, { recursive: true }); fs.writeFileSync(
         const r = runScript(startScript, {
           session_id: `e2e-cdx-accept-${before}`,
           tool_name: toolName,
-          tool_input: { action: 'accept', task_key: `e2e/${before}`, agent_id: 'e2e-worker' },
+          tool_input: { action: 'accept', task_key: `e2e/${before}`, agent_id: 'e2e-worker', graph_repo: '/workspace/e2e-codex' },
           tool_response: { isError: false, content: [{ type: 'text', text: '{"ok":true}' }] },
         }, stub.env);
         const hits = curlHits(stub.logPath);

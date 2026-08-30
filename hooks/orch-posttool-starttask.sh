@@ -35,12 +35,19 @@ esac
 SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')
 TASK_KEY=$(printf '%s' "$INPUT" | jq -r '.tool_input.task_key // empty')
 AGENT_ID=$(printf '%s' "$INPUT" | jq -r '.tool_input.agent_id // empty')
+GRAPH_REPO=$(printf '%s' "$INPUT" | jq -r '.tool_input.graph_repo // .tool_input.workspace // empty')
 PORT=${ORCH_PORT:-8787}
 
 [[ -n "$SID" && -n "$TASK_KEY" && -n "$AGENT_ID" ]] || exit 0
 
-BODY=$(jq -nc --arg task_key "$TASK_KEY" --arg session_id "$SID" --arg agent_id "$AGENT_ID" \
-  '{task_key: $task_key, session_id: $session_id, agent_id: $agent_id}')
+if [[ -n "$GRAPH_REPO" ]]; then
+  BODY=$(jq -nc --arg task_key "$TASK_KEY" --arg session_id "$SID" --arg agent_id "$AGENT_ID" \
+    --arg graph_repo "$GRAPH_REPO" --arg workspace "$GRAPH_REPO" \
+    '{task_key: $task_key, session_id: $session_id, agent_id: $agent_id, graph_repo: $graph_repo, workspace: $workspace}')
+else
+  BODY=$(jq -nc --arg task_key "$TASK_KEY" --arg session_id "$SID" --arg agent_id "$AGENT_ID" \
+    '{task_key: $task_key, session_id: $session_id, agent_id: $agent_id}')
+fi
 
 curl -s --max-time 1 -X POST "http://localhost:$PORT/overlay/claim-session" \
   -H "Content-Type: application/json" \

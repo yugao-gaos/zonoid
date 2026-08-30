@@ -48,7 +48,17 @@ function successfulAssignmentAccept(input) {
   const sid = input.session_id || '';
   const taskKey = (input.tool_input && input.tool_input.task_key) || '';
   const agentId = (input.tool_input && input.tool_input.agent_id) || '';
+  const graphRepo = (input.tool_input && (input.tool_input.graph_repo || input.tool_input.workspace)) || '';
   if (!sid || !taskKey || !agentId) k.allow();
-  await k.post('/overlay/claim-session', { task_key: taskKey, session_id: sid, agent_id: agentId }, 1000);
+  const body = {
+    task_key: taskKey,
+    session_id: sid,
+    agent_id: agentId,
+  };
+  if (graphRepo) {
+    body.graph_repo = graphRepo;
+    body.workspace = graphRepo;
+  }
+  await k.post('/overlay/claim-session', body, 1000);
   process.exit(0);
 })().catch(() => process.exit(0));
