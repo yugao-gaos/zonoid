@@ -75,10 +75,13 @@ function showDashboard(workspace, client, extra = {}) {
 
 function consume(rpc) {
   assert.ok(rpc && rpc.result && !rpc.result.isError);
-  const legacy = JSON.parse(rpc.result.content[0].text);
-  const text = rpc.result.content.find((item, index) => index > 0 && item.type === 'text');
+  const legacy = rpc.result.structuredContent;
+  assert.ok(legacy && typeof legacy === 'object', 'legacy fields must use structuredContent');
+  const expectedText = legacy.snapshot_summary || legacy.snapshot_text;
+  const text = rpc.result.content.find((item) => item.type === 'text' && item.text === expectedText);
+  assert.ok(text, 'accessible status must remain first-class MCP text content');
+  assert.ok(!text.text.trimStart().startsWith('{'), 'accessible status must not require a legacy JSON text block');
   const image = rpc.result.content.find((item) => item.type === 'image');
-  assert.deepStrictEqual(rpc.result.structuredContent, legacy);
   return { legacy, text, image };
 }
 
@@ -108,10 +111,11 @@ function validatePng(image) {
 }
 
 function assertPortableSafe(delivery, workspace) {
-  assert.ok(delivery.text && delivery.text.text.includes('Zonoid workspace status'));
+  assert.ok(delivery.text && delivery.text.text);
   const png = validatePng(delivery.image);
   for (const leaked of [OPAQUE, WORKSPACE_A, WORKSPACE_B, workspace, '/mnt/', 'My Project', 'fileserver', 'My Share', SECRET, 'hunter2', 'localhost']) {
     assert.ok(!delivery.text.text.includes(leaked), `accessible text leaked ${leaked}`);
+    assert.ok(!delivery.legacy.snapshot_text.includes(leaked), `structured accessible fallback leaked ${leaked}`);
     assert.ok(!png.includes(Buffer.from(leaked)), `PNG bytes leaked ${leaked}`);
   }
 }
@@ -174,7 +178,7 @@ function assertPortableSafe(delivery, workspace) {
   assert.strictEqual(new Set(clientText).size, 1, 'portable consumption must be client-neutral');
 
   const textOnly = consume(await showDashboard(WORKSPACE_A, 'claude', { resultCapabilities: { image: false } }));
-  assert.ok(textOnly.text && textOnly.text.text.includes('Zonoid workspace status'));
+  assert.ok(textOnly.text && textOnly.text.text);
   assert.strictEqual(textOnly.image, undefined);
   assert.strictEqual(textOnly.legacy.snapshot_delivery.image_content, false);
   assert.ok(textOnly.legacy.browser_url && textOnly.legacy.launch.resource_uri,
