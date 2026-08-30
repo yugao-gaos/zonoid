@@ -20,6 +20,7 @@ const PORT = 19170 + Math.floor(Math.random() * 200);
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-selfreg-ws-')));
 
 const SESSION = 'aaaaaaaa-feedface-0000-4000-800000000003';
+const REAL_SESSION = 'bbbbbbbb-feedface-0000-4000-800000000004';
 const { encodeWorkspace } = require('../lib/native-tasks');
 const PROJ_DIR = path.join(os.homedir(), '.claude', 'projects', encodeWorkspace(WS));
 const TASKS_DIR = path.join(os.homedir(), '.claude', 'tasks', SESSION);
@@ -58,10 +59,10 @@ async function waitForPing(ms = 8000) {
   return false;
 }
 
-function runWriteGate(filePath) {
+function runWriteGate(filePath, sessionId = SESSION) {
   return spawnSync(process.execPath, [path.join(__dirname, '..', 'hooks', 'orch-gate.js')], {
     input: JSON.stringify({
-      session_id: SESSION,
+      session_id: sessionId,
       agent_id: 'hookless-worker',
       tool_name: 'Write',
       tool_input: { file_path: filePath, new_string: 'x' },
@@ -135,28 +136,104 @@ function runWriteGate(filePath) {
     ok('worker owns its task — idempotent re-claim by same agent succeeds', reclaim.status === 200 && reclaim.body.ok === true);
     ok('idempotent re-claim reuses valid execution permit',
       reclaim.body.execution_permit && reclaim.body.execution_permit.id === (permit && permit.id));
+
+    const missingAgentRebind = await req('POST', '/overlay/claim-session', {
+      task_key: K(1), session_id: REAL_SESSION, workspace: WS,
+    });
+    ok('claim-session rebind requires agent_id', missingAgentRebind.status === 400 && /agent_id/.test(String(missingAgentRebind.body.error)));
+    const wrongAgentRebind = await req('POST', '/overlay/claim-session', {
+      task_key: K(1), session_id: REAL_SESSION, agent_id: 'other-worker', workspace: WS,
+    });
+    ok('claim-session rebind rejects a different agent', wrongAgentRebind.status === 409 && /agent_id/.test(String(wrongAgentRebind.body.error)));
+    const unpreparedRebind = await req('POST', '/overlay/claim-session', {
+      task_key: K(2), session_id: REAL_SESSION, agent_id: 'hookless-worker', workspace: WS,
+    });
+    ok('claim-session rebind rejects an inactive unprepared task', unpreparedRebind.status === 409 && /active claimed task/.test(String(unpreparedRebind.body.error)));
+    const terminal = await req('POST', '/overlay/status', {
+      key: K(2), status: 'canceled', agent_id: 'hookless-worker', session_id: SESSION, workspace: WS,
+    });
+    const terminalRebind = await req('POST', '/overlay/claim-session', {
+      task_key: K(2), session_id: REAL_SESSION, agent_id: 'hookless-worker', workspace: WS,
+    });
+    ok('claim-session rebind rejects a terminal task',
+      terminal.status === 200 && terminalRebind.status === 409 && /active claimed task/.test(String(terminalRebind.body.error)));
+
+    // Codex Desktop can accept through an MCP fallback session, while PostToolUse observes the
+    // actual worker thread id. Rebinding must atomically move both the claim alias and its permit.
+    const rebind = await req('POST', '/overlay/claim-session', {
+      task_key: K(1), session_id: REAL_SESSION, agent_id: 'hookless-worker', workspace: WS,
+    });
+    const reboundPermit = rebind.body.execution_permit;
+    ok('claim-session rebind issues an active same-session execution permit',
+      rebind.status === 200 &&
+      rebind.body.rebound === true &&
+      rebind.body.previous_session_id === SESSION &&
+      reboundPermit &&
+      reboundPermit.status === 'active' &&
+      reboundPermit.session_id === REAL_SESSION &&
+      reboundPermit.agent_id === 'hookless-worker' &&
+      reboundPermit.task_key === K(1));
+    ok('rebound permit preserves exact prepared branch/worktree scope',
+      reboundPermit &&
+      reboundPermit.branch === wt.body.branch &&
+      reboundPermit.worktree === wt.body.worktree &&
+      reboundPermit.scope === 'worktree' &&
+      Array.isArray(reboundPermit.allowed_paths) &&
+      reboundPermit.allowed_paths.length === 1 &&
+      reboundPermit.allowed_paths[0] === wt.body.worktree);
+    const oldPermit = await req(
+      'GET',
+      `/subconscious/permit?session_id=${encodeURIComponent(SESSION)}&agent_id=hookless-worker&task_key=${encodeURIComponent(K(1))}`,
+    );
+    ok('fallback-session execution permit is revoked after rebind',
+      oldPermit.status === 200 &&
+      oldPermit.body.valid === false &&
+      oldPermit.body.execution_permit &&
+      oldPermit.body.execution_permit.id === (permit && permit.id) &&
+      oldPermit.body.execution_permit.status === 'revoked');
+    const newPermit = await req(
+      'GET',
+      `/subconscious/permit?session_id=${encodeURIComponent(REAL_SESSION)}&agent_id=hookless-worker&task_key=${encodeURIComponent(K(1))}`,
+    );
+    ok('real-session execution permit is readable after rebind',
+      newPermit.status === 200 &&
+      newPermit.body.valid === true &&
+      newPermit.body.execution_permit.id === (reboundPermit && reboundPermit.id));
+    const oldGate = runWriteGate(path.join(wt.body.worktree, 'fallback-session-write.js'));
+    const realGate = runWriteGate(path.join(wt.body.worktree, 'real-session-write.js'), REAL_SESSION);
+    ok('fallback session can no longer pass the write gate after rebind', oldGate.status === 2);
+    ok('real worker session passes the write gate immediately after rebind', realGate.status === 0);
+    const idempotentRebind = await req('POST', '/overlay/claim-session', {
+      task_key: K(1), session_id: REAL_SESSION, agent_id: 'hookless-worker', workspace: WS,
+    });
+    ok('idempotent same-session rebind reuses its active permit',
+      idempotentRebind.status === 200 &&
+      idempotentRebind.body.rebound === false &&
+      idempotentRebind.body.execution_permit &&
+      idempotentRebind.body.execution_permit.id === (reboundPermit && reboundPermit.id));
+
     // And a DIFFERENT agent cannot steal the in_progress task without force (boundary intact).
-    const steal = await req('POST', '/overlay/status', { key: K(1), status: 'in_progress', agent_id: 'other-worker', session_id: SESSION, workspace: WS });
+    const steal = await req('POST', '/overlay/status', { key: K(1), status: 'in_progress', agent_id: 'other-worker', session_id: REAL_SESSION, workspace: WS });
     ok('different agent cannot steal the claim without force', steal.status === 409);
 
-    const badCompleteAgent = await req('POST', '/overlay/status', { key: K(1), status: 'tested', agent_id: 'other-worker', session_id: SESSION, summary: 'malicious done', workspace: WS });
+    const badCompleteAgent = await req('POST', '/overlay/status', { key: K(1), status: 'tested', agent_id: 'other-worker', session_id: REAL_SESSION, summary: 'malicious done', workspace: WS });
     ok('different agent cannot terminal-complete another worker claim', badCompleteAgent.status === 409 && /agent_id/.test(String(badCompleteAgent.body.error)));
-    const badCompleteSession = await req('POST', '/overlay/status', { key: K(1), status: 'tested', agent_id: 'hookless-worker', session_id: 'wrong-session', summary: 'malicious done', workspace: WS });
+    const badCompleteSession = await req('POST', '/overlay/status', { key: K(1), status: 'tested', agent_id: 'hookless-worker', session_id: SESSION, summary: 'malicious done', workspace: WS });
     ok('wrong session cannot terminal-complete active claim', badCompleteSession.status === 409 && /session_id/.test(String(badCompleteSession.body.error)));
     const missingSessionComplete = await req('POST', '/overlay/status', { key: K(1), status: 'tested', agent_id: 'hookless-worker', summary: 'malicious done', workspace: WS });
     ok('terminal completion of active claim requires session_id', missingSessionComplete.status === 409 && missingSessionComplete.body.missing === 'session_id');
 
     const revoke = await req('POST', '/subconscious/permit', {
       action: 'revoke',
-      permit_id: permit && permit.id,
-      session_id: SESSION,
+      permit_id: reboundPermit && reboundPermit.id,
+      session_id: REAL_SESSION,
       agent_id: 'hookless-worker',
       task_key: K(1),
       reason: 'test revoke',
       workspace: WS,
     });
     ok('permit revoke succeeds', revoke.status === 200 && revoke.body.execution_permit.status === 'revoked');
-    const gateDeny = runWriteGate(path.join(wt.body.worktree, 'revoked-worker-write.js'));
+    const gateDeny = runWriteGate(path.join(wt.body.worktree, 'revoked-worker-write.js'), REAL_SESSION);
     ok('revoked permit still denies claimed worker write', gateDeny.status === 2 && (gateDeny.stderr || '').includes('revoked'));
   } finally {
     try { child.kill(); } catch { /* already gone */ }
