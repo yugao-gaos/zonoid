@@ -8,7 +8,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { test } = require('node:test');
-const { PACKAGE_FILES, build, validateSource } = require('../packages/claude-dashboard-mcpb/build');
+const { PACKAGE_FILES, build, readPackageFile, validateSource } = require('../packages/claude-dashboard-mcpb/build');
 
 const packageDir = path.join(__dirname, '..', 'packages', 'claude-dashboard-mcpb');
 
@@ -58,8 +58,11 @@ test('MCPB builder is deterministic and checked archive matches its sources', ()
 
     const entries = storedZipEntries(a);
     assert.deepEqual([...entries.keys()].sort(), PACKAGE_FILES.slice().sort());
+    // Compare against the canonical (LF) source form, not the raw checkout bytes: a Windows
+    // checkout materialises these text sources with CRLF, and the archive stores the committed
+    // content. Still an exact byte comparison — just against the same bytes the builder packs.
     for (const name of PACKAGE_FILES) {
-      assert.deepEqual(entries.get(name), fs.readFileSync(path.join(packageDir, name)));
+      assert.deepEqual(entries.get(name), readPackageFile(packageDir, name));
     }
   } finally {
     fs.rmSync(temp, { recursive: true, force: true });

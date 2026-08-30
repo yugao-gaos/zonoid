@@ -11,3 +11,20 @@
 # ".graph repository and checkpoints").
 .graph/** merge=ours
 **/.graph/** merge=ours
+
+# Checked-in deterministic archives. They are byte-compared against a fresh build in the test
+# suite, so they must never be touched by EOL conversion on checkout or commit.
+*.mcpb binary
+*.vsix binary
+
+# Sources packed verbatim into those archives. The builders normalise CRLF -> LF anyway (the
+# archive must be a function of the committed content, not of the checkout's EOL policy), but
+# pinning the working-tree form keeps the two in agreement on Windows checkouts too.
+packages/claude-dashboard-mcpb/manifest.json text eol=lf
+packages/claude-dashboard-mcpb/server/index.js text eol=lf
+packages/vscode-dashboard/package.json text eol=lf
+packages/vscode-dashboard/extension.js text eol=lf
+packages/vscode-dashboard/README.md text eol=lf
+# The VSIX manifest/content-types entries are template literals inside this file, so its own
+# line endings would otherwise leak into the archive.
+packages/vscode-dashboard/package-vsix.js text eol=lf

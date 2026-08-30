@@ -7,6 +7,14 @@ const path = require('path');
 const ROOT = __dirname;
 const OUTPUT = path.join(ROOT, 'zonoid-dashboard-0.1.0.vsix');
 
+// Every VSIX entry is text, from two sources that both track the checkout's EOL policy: files read
+// off disk (CRLF under core.autocrlf=true on Windows) and the template literals below, whose
+// newlines are literal bytes of THIS source file. Canonicalise both to LF so the archive is a
+// function of the committed content and the checked-in .vsix matches on every platform.
+function normalizeText(value) {
+  return Buffer.from(value.toString('utf8').replace(/\r\n/g, '\n'), 'utf8');
+}
+
 const CONTENT_TYPES = `<?xml version="1.0" encoding="utf-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="json" ContentType="application/json" />
@@ -46,11 +54,11 @@ function crc32(buffer) {
 
 function archiveFiles() {
   return [
-    ['[Content_Types].xml', Buffer.from(CONTENT_TYPES)],
-    ['extension.vsixmanifest', Buffer.from(VSIX_MANIFEST)],
-    ['extension/package.json', fs.readFileSync(path.join(ROOT, 'package.json'))],
-    ['extension/extension.js', fs.readFileSync(path.join(ROOT, 'extension.js'))],
-    ['extension/README.md', fs.readFileSync(path.join(ROOT, 'README.md'))],
+    ['[Content_Types].xml', normalizeText(CONTENT_TYPES)],
+    ['extension.vsixmanifest', normalizeText(VSIX_MANIFEST)],
+    ['extension/package.json', normalizeText(fs.readFileSync(path.join(ROOT, 'package.json')))],
+    ['extension/extension.js', normalizeText(fs.readFileSync(path.join(ROOT, 'extension.js')))],
+    ['extension/README.md', normalizeText(fs.readFileSync(path.join(ROOT, 'README.md')))],
   ].sort(([a], [b]) => a.localeCompare(b));
 }
 
@@ -115,4 +123,4 @@ if (require.main === module) {
   console.log(OUTPUT);
 }
 
-module.exports = { OUTPUT, buildVsixBuffer };
+module.exports = { OUTPUT, buildVsixBuffer, normalizeText };
