@@ -2,7 +2,7 @@
 // Tests for scripts/gate-label.js — the outcome-linkage labeler.
 //
 // Strategy: spin up a lightweight mock HTTP server that impersonates the daemon's
-// /task/detail and /search endpoints. Write synthetic gate-journal.jsonl rows to a
+// /task/status-batch, /task/detail, and /search endpoints. Write synthetic gate-journal.jsonl rows to a
 // temp workspace. Run gate-label.js as a child process pointed at the mock server
 // (via ORCH_PORT env). Use async spawn (not spawnSync) so the parent event loop
 // stays live to serve the mock server while the child runs.
@@ -48,7 +48,7 @@ const RETRIEVAL_WEIGHTS_PATH = path.join(GRAPH_DIR, retrievalWeights.JOURNAL_FIL
 fs.mkdirSync(GRAPH_DIR, { recursive: true });
 
 // ── Mock daemon server ────────────────────────────────────────────────────────
-// Serves /task/detail and /search from in-memory fixtures.
+// Serves /task/status-batch, /task/detail, and /search from in-memory fixtures.
 // NOTE: Must stay async-friendly — use spawn (not spawnSync) for child process so
 // the parent event loop can serve mock requests while the child runs.
 const MOCK_PORT = 19900 + Math.floor(Math.random() * 100);
@@ -56,9 +56,10 @@ const MOCK_PORT = 19900 + Math.floor(Math.random() * 100);
 // In-memory fixtures, mutated per test.
 const taskRegistry = {};   // key → { task, summary, transcript }
 let searchResults = [];    // returned by /search
+let batchStatusRequestCount = 0;
 let stateRequestCount = 0;
 let detailRequestCount = 0;
-let lastStateUrl = null;
+let lastBatchStatusBody = null;
 
 function startMockServer() {
   return new Promise((resolve) => {
@@ -71,9 +72,24 @@ function startMockServer() {
         return;
       }
 
+      if (url.pathname === '/task/status-batch' && req.method === 'POST') {
+        batchStatusRequestCount++;
+        const chunks = [];
+        req.on('data', (chunk) => chunks.push(chunk));
+        req.on('end', () => {
+          lastBatchStatusBody = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+          const statuses = Object.fromEntries((lastBatchStatusBody.keys || []).map((key) => [
+            key,
+            taskRegistry[key] ? (taskRegistry[key].task.status || null) : null,
+          ]));
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, statuses }));
+        });
+        return;
+      }
+
       if (url.pathname === '/state') {
         stateRequestCount++;
-        lastStateUrl = url;
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ tasks: Object.values(taskRegistry).map((entry) => entry.task) }));
         return;
@@ -150,9 +166,10 @@ function clearLabeled() {
 }
 
 function resetRequestCounts() {
+  batchStatusRequestCount = 0;
   stateRequestCount = 0;
   detailRequestCount = 0;
-  lastStateUrl = null;
+  lastBatchStatusBody = null;
 }
 
 function writeTranscript(text) {
@@ -295,13 +312,11 @@ function recalledEdge(taskKey, resultKey) {
       ok('TP: predictive-learning error is zero', learningRows[0] && learningRows[0].prediction_error === 0);
       ok('TP: retrieval-weight feedback is positive', weightRows.length === 1 && weightRows[0].signal === 'positive');
       ok('TP: retrieval weight is reinforced', Math.round(retrievalWeights.getRetrievalWeight(WS, TASK_TP, NOTE_KEY, 'context') * 100) === 110);
-      ok('TP: one compact state snapshot is fetched', stateRequestCount === 1);
+      ok('TP: one batch-status request is fetched', batchStatusRequestCount === 1);
+      ok('TP: heavyweight state endpoint is not fetched', stateRequestCount === 0);
       ok('TP: terminal task and injected note still fetch full detail', detailRequestCount === 2);
-      ok('TP: state snapshot includes explicit workspace',
-        lastStateUrl && lastStateUrl.searchParams.get('workspace') === WS);
-      ok('TP: state snapshot includes archived and internal tasks', lastStateUrl
-        && lastStateUrl.searchParams.get('include_archived') === '1'
-        && lastStateUrl.searchParams.get('include_internal') === '1');
+      ok('TP: batch-status request includes explicit workspace',
+        lastBatchStatusBody && lastBatchStatusBody.workspace === WS);
     }
 
     // ══ TEST 2: inject + done + topKey NOT in transcript → FP ════════════════
@@ -494,12 +509,13 @@ function recalledEdge(taskKey, resultKey) {
 
       const r = await runLabeler();
       ok('high-cardinality: exit code 0', r.status === 0);
-      ok('high-cardinality: one state request for 1,147 rows', stateRequestCount === 1);
+      ok('high-cardinality: one batch-status request for 1,147 rows', batchStatusRequestCount === 1);
+      ok('high-cardinality: heavyweight state endpoint is never requested', stateRequestCount === 0);
       ok('high-cardinality: nonterminal rows make zero detail requests', detailRequestCount === 0);
       ok('high-cardinality: no nonterminal rows are labeled', readJsonl(LABELED_PATH).length === 0);
       ok('high-cardinality: all rows remain pending', r.stdout.includes(`Still pending:        ${pendingCount}`));
-      ok('high-cardinality: compact state mode is requested',
-        lastStateUrl && lastStateUrl.searchParams.get('compact') === '1');
+      ok('high-cardinality: all task keys are sent in one bounded batch',
+        lastBatchStatusBody && lastBatchStatusBody.keys.length === pendingCount);
     }
 
   } catch (e) {
