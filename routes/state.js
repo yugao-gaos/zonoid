@@ -2,6 +2,7 @@
 const internalLanes = require('../lib/internal-lanes');
 const kanban = require('../lib/kanban');
 const architecture = require('../lib/architecture');
+const codeIndexLifecycle = require('../lib/code-extract/lifecycle');
 
 function dashboardTasks(tasks) {
   return tasks.map((task) => {
@@ -23,7 +24,8 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     const stWs = T.graph_repo || T.ws;
     if (!stWs) { send(res, 400, { ok: false, error: 'graph_repo required; workspace required (deprecated alias)' }); return true; }
     const kanbanPins = [...new Set(u.searchParams.getAll('kanban_pin').filter(Boolean))].sort();
-    const stKey = `state|${stWs}|${u.searchParams.get('scope') || ''}|${u.searchParams.get('compact') || ''}|${u.searchParams.get('include_archived') || ''}|${u.searchParams.get('include_internal') || ''}|${JSON.stringify(kanbanPins)}|arch1`;
+    const codeIndexStatus = codeIndexLifecycle.publicCodeIndexStatus(stWs);
+    const stKey = `state|${stWs}|${u.searchParams.get('scope') || ''}|${u.searchParams.get('compact') || ''}|${u.searchParams.get('include_archived') || ''}|${u.searchParams.get('include_internal') || ''}|${JSON.stringify(kanbanPins)}|arch2|${JSON.stringify(codeIndexStatus)}`;
     const stHit = respCacheGet(stWs, stKey);
     if (stHit !== undefined) { send(res, 200, stHit); return true; }
     const ws = T.ws;
@@ -49,6 +51,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     const architectureProjection = architecture.buildArchitectureProjection({
       codeNodes: T.ov.code_nodes,
       codeEdges: T.ov.code_edges,
+      codeIndexStatus,
     });
     const arch = isFinite(windowMs) ? frontier.archivedIds(graphTasks, { windowMs, keep }) : new Set();
     const archivedTasks = arch.size ? dashboardTasks(frontier.archivedTaskList(graphTasks, arch)) : null;

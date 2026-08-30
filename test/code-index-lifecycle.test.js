@@ -1,0 +1,207 @@
+'use strict';
+
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const childProcess = require('child_process');
+const { EventEmitter } = require('events');
+const overlayStore = require('../lib/overlay');
+const lifecycle = require('../lib/code-extract/lifecycle');
+
+function git(repo, args) {
+  return childProcess.execFileSync('git', ['-C', repo, ...args], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+}
+
+function completedRepo() {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'code-index-lifecycle-'));
+  git(repo, ['init']);
+  git(repo, ['config', 'user.name', 'test']);
+  git(repo, ['config', 'user.email', 'test@example.com']);
+  fs.writeFileSync(path.join(repo, 'index.js'), 'exports.ready = true;\n');
+  git(repo, ['add', 'index.js']);
+  git(repo, ['commit', '-m', 'init']);
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  fs.mkdirSync(outDir, { recursive: true });
+  fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+    generation: 'onboard-test', total: 1, cursor: 1, kept: [], rejected: [], pending: [],
+  }));
+  fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+    repo, outDir, preparationState: 'ready', injectionState: 'not_needed',
+  }));
+  return { repo, outDir, head: git(repo, ['rev-parse', 'HEAD']) };
+}
+
+test('completed onboarding without a watermark is discovered once and success stores counts', () => {
+  const fixture = completedRepo();
+  try {
+    const jobs = lifecycle.findDueFullIndexJobs({ registeredWorkspaces: [fixture.repo] });
+    assert.equal(jobs.length, 1);
+    assert.equal(jobs[0].head, fixture.head);
+
+    const owner = 'test-owner';
+    const claimed = lifecycle.claimFullIndex(jobs[0], {
+      owner, timeoutMs: 60_000, now: 1_000, pid: process.pid,
+    });
+    assert.equal(claimed.applied, true);
+    let status = JSON.parse(fs.readFileSync(path.join(fixture.outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.codeIndexState, 'running');
+    assert.equal(status.codeIndexAttempts, 1);
+
+    const completed = lifecycle.completeFullIndex(jobs[0], owner, {
+      head: fixture.head, symbols: 7, created: 7, edges: 3, edges_added: 3, batches: 1,
+    }, 2_000);
+    assert.equal(completed.applied, true);
+    status = JSON.parse(fs.readFileSync(path.join(fixture.outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.codeIndexState, 'succeeded');
+    assert.deepEqual(status.codeIndexCounts, { symbols: 7, created: 7, edges: 3, edges_added: 3, batches: 1 });
+
+    const overlay = overlayStore.load(fixture.repo);
+    overlayStore.setLastIndexedCommit(overlay, fixture.repo, fixture.head);
+    overlayStore.save(fixture.repo, overlay);
+    assert.equal(lifecycle.findDueFullIndexJobs({ registeredWorkspaces: [fixture.repo] }).length, 0,
+      'the durable overlay watermark prevents a second full index');
+  } finally {
+    fs.rmSync(fixture.repo, { recursive: true, force: true });
+  }
+});
+
+test('failed indexing preserves the KB queue and becomes retryable after backoff', () => {
+  const fixture = completedRepo();
+  try {
+    const queueFile = path.join(fixture.outDir, 'onboard-queue.json');
+    const queueBefore = fs.readFileSync(queueFile);
+    const job = lifecycle.findDueFullIndexJobs({ registeredWorkspaces: [fixture.repo] })[0];
+    lifecycle.claimFullIndex(job, { owner: 'failure-owner', timeoutMs: 60_000, now: 10_000, pid: process.pid });
+    lifecycle.failFullIndex(job, 'failure-owner', 'parser crashed', 20_000);
+
+    const status = JSON.parse(fs.readFileSync(path.join(fixture.outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.codeIndexState, 'failed');
+    assert.match(status.codeIndexError, /parser crashed/);
+    assert.ok(status.codeIndexRetryAt > 20_000);
+    assert.deepEqual(fs.readFileSync(queueFile), queueBefore, 'AST failure must not rewrite or discard KB work');
+    assert.equal(lifecycle.findDueFullIndexJobs({ registeredWorkspaces: [fixture.repo] }, {
+      now: status.codeIndexRetryAt - 1,
+    }).length, 0);
+    assert.equal(lifecycle.findDueFullIndexJobs({ registeredWorkspaces: [fixture.repo] }, {
+      now: status.codeIndexRetryAt + 1,
+    }).length, 1);
+    assert.equal(lifecycle.publicCodeIndexStatus(fixture.repo).retryable, true);
+  } finally {
+    fs.rmSync(fixture.repo, { recursive: true, force: true });
+  }
+});
+
+test('an expired running lease is recovered after daemon restart', () => {
+  const fixture = completedRepo();
+  try {
+    const statusFile = path.join(fixture.outDir, 'onboard-drain-status.json');
+    const status = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+    fs.writeFileSync(statusFile, JSON.stringify({
+      ...status,
+      codeIndexState: 'running',
+      codeIndexHead: fixture.head,
+      codeIndexOwner: 'dead-daemon',
+      codeIndexPid: 99999999,
+      codeIndexLeaseExpiresAt: 5_000,
+    }));
+    assert.equal(lifecycle.findDueFullIndexJobs({ registeredWorkspaces: [fixture.repo] }, {
+      now: 6_000, pidAlive: () => false,
+    }).length, 1);
+  } finally {
+    fs.rmSync(fixture.repo, { recursive: true, force: true });
+  }
+});
+
+test('a watermark committed before parent exit repairs stale running status on restart', () => {
+  const fixture = completedRepo();
+  try {
+    const statusFile = path.join(fixture.outDir, 'onboard-drain-status.json');
+    const status = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+    fs.writeFileSync(statusFile, JSON.stringify({
+      ...status,
+      codeIndexState: 'running', codeIndexHead: fixture.head,
+      codeIndexOwner: 'exited-parent', codeIndexPid: 99999999, codeIndexLeaseExpiresAt: 1,
+    }));
+    const overlay = overlayStore.load(fixture.repo);
+    overlayStore.setLastIndexedCommit(overlay, fixture.repo, fixture.head);
+    overlayStore.save(fixture.repo, overlay);
+
+    assert.equal(lifecycle.findDueFullIndexJobs({ registeredWorkspaces: [fixture.repo] }, {
+      now: 10_000, pidAlive: () => false,
+    }).length, 0);
+    const repaired = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+    assert.equal(repaired.codeIndexState, 'succeeded');
+    assert.equal(repaired.codeIndexOwner, null);
+    assert.equal(repaired.codeIndexHead, fixture.head);
+  } finally {
+    fs.rmSync(fixture.repo, { recursive: true, force: true });
+  }
+});
+
+test('headless maintenance pump invokes the existing multi-language onboarder', async () => {
+  const originalSpawn = childProcess.spawn;
+  const originalLease = process.env.HEADLESS_DRAIN_LEASE_FILE;
+  const leaseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'code-index-lease-'));
+  process.env.HEADLESS_DRAIN_LEASE_FILE = path.join(leaseDir, 'leases.json');
+  const calls = [];
+  childProcess.spawn = (bin, args, opts) => {
+    calls.push({ bin, args, opts });
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter(); child.stdout.setEncoding = () => {};
+    child.stderr = new EventEmitter(); child.stderr.setEncoding = () => {};
+    child.kill = () => { child.emit('close', null); return true; };
+    setImmediate(() => {
+      child.stdout.emit('data', JSON.stringify({
+        mode: 'full', head: 'abc123', watermark_recorded: true,
+        symbols: 4, created: 4, edges: 2, edges_added: 2, batches: 1,
+      }) + '\n');
+      child.emit('close', 0);
+    });
+    return child;
+  };
+  delete require.cache[require.resolve('../lib/headless-drain')];
+  const headless = require('../lib/headless-drain');
+  const completed = [];
+  const fakeLifecycle = {
+    findDueFullIndexJobs: () => [{ repo: os.tmpdir(), workspace: os.tmpdir(), outDir: os.tmpdir(), head: 'abc123', status: {} }],
+    claimFullIndex: () => ({ applied: true }),
+    buildFullIndexArgs: lifecycle.buildFullIndexArgs,
+    parseIndexResult: lifecycle.parseIndexResult,
+    completeFullIndex: (_job, _owner, result) => { completed.push(result); return { applied: true }; },
+    failFullIndex: () => { throw new Error('unexpected failure'); },
+  };
+  try {
+    const result = await headless.runDueDrains({ workspace: os.tmpdir() }, null, {
+      codeIndexDeps: { lifecycle: fakeLifecycle, daemonUrl: 'http://127.0.0.1:9876' },
+      judgeDeps: {
+        overlayLoad: () => ({}),
+        judgeLib: { judgeQueueDepth: () => 0, buildQueue: () => [], eagerJudgeNodes: () => [] },
+      },
+      labelDeps: {
+        rowKey: () => '', journalPath: () => '/none', labeledPath: () => '/none', readJsonl: () => [],
+      },
+    });
+    assert.equal(result.drains.some((entry) => entry.drain === headless.CODE_INDEX_DRAIN_KEY), true);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].bin, process.execPath);
+    assert.ok(calls[0].args.includes('--async'));
+    assert.ok(calls[0].args.includes('--json'));
+    assert.equal(calls[0].args[calls[0].args.indexOf('--expected-head') + 1], 'abc123');
+    assert.deepEqual(completed[0], {
+      mode: 'full', head: 'abc123', watermark_recorded: true,
+      symbols: 4, created: 4, edges: 2, edges_added: 2, batches: 1,
+    });
+    assert.equal(headless._governor.concurrentRunning, 0);
+  } finally {
+    childProcess.spawn = originalSpawn;
+    if (originalLease === undefined) delete process.env.HEADLESS_DRAIN_LEASE_FILE;
+    else process.env.HEADLESS_DRAIN_LEASE_FILE = originalLease;
+    fs.rmSync(leaseDir, { recursive: true, force: true });
+    delete require.cache[require.resolve('../lib/headless-drain')];
+  }
+});

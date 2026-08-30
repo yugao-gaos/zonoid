@@ -56,6 +56,18 @@ assert.equal(empty.status, 'empty');
 assert.equal(empty.files.length, 0);
 assert.match(empty.message, /not indexed yet/i);
 
+const indexing = buildArchitectureProjection({ codeIndexStatus: { state: 'running', attempts: 1 } });
+assert.equal(indexing.status, 'indexing');
+assert.match(indexing.message, /indexing source/i);
+assert.equal(indexing.code_index.state, 'running');
+
+const failed = buildArchitectureProjection({ codeIndexStatus: {
+  state: 'failed', retryable: true, error: 'tree-sitter failed', retry_at: 123,
+} });
+assert.equal(failed.status, 'error');
+assert.match(failed.message, /tree-sitter failed/);
+assert.equal(failed.code_index.retryable, true);
+
 const route = require('../routes/state')({
   send(_res, status, body) { route.status = status; route.body = body; },
   buildGraph() { return { tasks: [], ghosts: [], summary: { tasks_total: 0 } }; },
