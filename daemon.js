@@ -1094,6 +1094,14 @@ function hasPendingStaleVerdictReview(ov, key) {
       || (g.action && g.action.kind === 'stale-verdict' && (g.action.task_key === key || g.action.verdictKey === key))));
 }
 
+function hasSettledStaleVerdictReview(ov, key) {
+  const review = (ov.reviews && ov.reviews[key]) || {};
+  const gitInfo = (ov.git && ov.git[key]) || {};
+  return overlayStore.lifecycleMachine.isReviewSettled(review.review_state)
+    || review.merge_state === 'merged'
+    || !!gitInfo.merged;
+}
+
 // Route stale verdict-pending hand-offs into same-node review. Do not mutate status/assignee or write
 // native pending: a stale tested/ready handoff is evidence for the judge drain, not a user dashboard
 // decision.
@@ -1102,10 +1110,9 @@ function sweepStaleVerdicts(ws, ov) {
   if (!stale.length) return false;
   let dirty = false;
   for (const { key, status, agentId } of stale) {
-    if (hasPendingStaleVerdictReview(ov, key)) continue;
-    // Through the guarded machine, so a stale APPROVED-awaiting-merge task cannot have its landed
-    // verdict reset to 'requested' (hasPendingStaleVerdictReview only sees still-open reviews, so it
-    // waves settled ones straight through — that reset was a real lost-verdict path).
+    if (hasSettledStaleVerdictReview(ov, key) || hasPendingStaleVerdictReview(ov, key)) continue;
+    // Only genuinely unreviewed stale handoffs reach the guarded transition. Open and settled
+    // lifecycles were handled above, so they neither reopen nor churn the same refusal log.
     const decision = overlayStore.applyLifecycleEvent(ov, key, 'review_request', {
       task_status: status,
       review_requested_by: 'stale-verdict-sweep',
