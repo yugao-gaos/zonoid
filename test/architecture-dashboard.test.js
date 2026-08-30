@@ -35,6 +35,8 @@ assert.ok(html.includes('architectureExpandedIds') && html.includes('architectur
   'compound modules and groups expand recursively');
 assert.ok(html.includes('architectureRetargetEndpoint') && html.includes('architectureRetargetRelations'),
   'file relationships retarget to the deepest currently visible endpoint');
+assert.ok(html.includes('const exactRelations=architectureInspectorRelations(projection,visibleRelations,node.id);'),
+  'the inspector routes file selections through exact relation detail while groups use canvas aggregation');
 assert.ok(html.includes('data-parent-id') && html.includes('arch-compound'),
   'nested groups render inside explicit compound boundaries');
 assert.ok(html.includes('.arch-canvas-edge-halo { fill: none; stroke: #0d1117;')
@@ -231,7 +233,7 @@ const helperSource = html.slice(
   html.indexOf('function architectureCanvasNodeLabel'),
 );
 const helperContext = {};
-vm.runInNewContext(`${helperSource};this.helpers={ARCHITECTURE_LAYOUT,architectureProjectionFiles,architectureFileMatches,architectureSearchMatchIds,architectureEffectiveExpandedIds,architectureVisibleHierarchy,architectureRetargetEndpoint,architectureRetargetRelations,architectureBreadcrumbIds,architectureLayoutHierarchy};`, helperContext);
+vm.runInNewContext(`${helperSource};this.helpers={ARCHITECTURE_LAYOUT,architectureProjectionFiles,architectureFileMatches,architectureSearchMatchIds,architectureEffectiveExpandedIds,architectureVisibleHierarchy,architectureRetargetEndpoint,architectureRetargetRelations,architectureBreadcrumbIds,architectureInspectorRelations,architectureLayoutHierarchy};`, helperContext);
 const projection = {
   modules: [
     { id: 'module:src', name: 'src', child_ids: ['group:src/api'], file_count: 2, default_file_count: 2 },
@@ -359,6 +361,29 @@ assert.deepEqual(
   [['file:app/a.js', 'file:data/store.js', 5]],
   'both expanded sides terminate at deepest visible files and retain the summed count',
 );
+const exactInspectorProjection = {
+  hierarchy_relations: [
+    { from: 'file:app/a.js', to: 'file:data/store.js', kind: 'calls', count: 2 },
+    { from: 'file:app/a.js', to: 'file:data/cache.js', kind: 'calls', count: 3 },
+  ],
+};
+const collapsedInspectorRelations = [
+  { from: 'file:app/a.js', to: 'group:data/__files_1', kind: 'calls', count: 5 },
+];
+assert.deepEqual(
+  helperContext.helpers.architectureInspectorRelations(
+    exactInspectorProjection, collapsedInspectorRelations, 'file:app/a.js',
+  ).map(edge => [edge.to, edge.count]),
+  [['file:data/store.js', 2], ['file:data/cache.js', 3]],
+  'a selected file inspector preserves exact peer files and counts behind one collapsed canvas endpoint',
+);
+assert.deepEqual(
+  helperContext.helpers.architectureInspectorRelations(
+    exactInspectorProjection, collapsedInspectorRelations, 'group:data/__files_1',
+  ).map(edge => [edge.from, edge.to, edge.count]),
+  [['file:app/a.js', 'group:data/__files_1', 5]],
+  'a selected group inspector continues to use the visible aggregated relationship',
+);
 const focusedSearch = helperContext.helpers.architectureVisibleHierarchy(
   projection,
   new Set(['module:lib', 'group:lib/db']),
@@ -413,5 +438,29 @@ assert.ok(helperContext.helpers.ARCHITECTURE_LAYOUT.rootWidth >= 380
   && helperContext.helpers.ARCHITECTURE_LAYOUT.columnGutter >= 140
   && secondSibling.y - (firstSibling.y + firstSibling.h) >= helperContext.helpers.ARCHITECTURE_LAYOUT.siblingGap,
   'named layout constants materially widen cards, nested padding, sibling gaps, and routing gutters');
+const deepNodes=[{ id: 'module:deep', hierarchy_kind: 'module', visible_parent_id: null }];
+let deepParent='module:deep';
+for(let depth=1;depth<=6;depth++){
+  const id=`group:deep/${depth}`;
+  deepNodes.push({ id, hierarchy_kind: 'group', visible_parent_id: deepParent });
+  deepParent=id;
+}
+deepNodes.push({ id: 'file:deep/leaf.js', hierarchy_kind: 'file', visible_parent_id: deepParent });
+const deepVisible={
+  nodes:deepNodes,
+  expanded:new Set(deepNodes.filter(node=>node.hierarchy_kind!=='file').map(node=>node.id)),
+};
+const deepLayout=helperContext.helpers.architectureLayoutHierarchy(deepVisible);
+assert.ok(deepLayout.boxes.get('module:deep').w > helperContext.helpers.ARCHITECTURE_LAYOUT.rootWidth,
+  'deep expansion grows its root compound instead of shrinking descendants below their minimum width');
+for(const node of deepNodes.filter(node=>node.visible_parent_id)){
+  const box=deepLayout.boxes.get(node.id);
+  const parent=deepLayout.boxes.get(node.visible_parent_id);
+  assert.ok(box.x >= parent.x + helperContext.helpers.ARCHITECTURE_LAYOUT.childInset
+    && box.x + box.w <= parent.x + parent.w - helperContext.helpers.ARCHITECTURE_LAYOUT.childInset
+    && box.y >= parent.y + helperContext.helpers.ARCHITECTURE_LAYOUT.compoundHeader
+    && box.y + box.h <= parent.y + parent.h - helperContext.helpers.ARCHITECTURE_LAYOUT.compoundBottom,
+  `${node.id} stays fully contained at six expanded hierarchy levels`);
+}
 
 console.log('PASS  architecture dashboard contract');
