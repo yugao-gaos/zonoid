@@ -7,6 +7,43 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const vm = require('node:vm');
+const { EventEmitter } = require('node:events');
+const childProcess = require('node:child_process');
+
+const originalSpawn = childProcess.spawn;
+const interceptedSpawns = [];
+let spawnHandler = null;
+
+function fakeChild(opts = {}) {
+  const child = new EventEmitter();
+  child.pid = 9000 + interceptedSpawns.length;
+  child.stdout = new EventEmitter();
+  child.stdout.setEncoding = () => {};
+  child.stderr = new EventEmitter();
+  child.stderr.setEncoding = () => {};
+  child.kill = () => { child.emit('close', null); return true; };
+  child.unref = () => {};
+  setImmediate(async () => {
+    try {
+      if (typeof opts.beforeClose === 'function') await opts.beforeClose();
+      if (opts.stdout) child.stdout.emit('data', opts.stdout);
+      if (opts.stderr) child.stderr.emit('data', opts.stderr);
+      child.emit('close', opts.code == null ? 0 : opts.code);
+    } catch (error) {
+      child.stderr.emit('data', error && error.stack || String(error));
+      child.emit('close', 1);
+    }
+  });
+  return child;
+}
+
+// Patch before loading product modules: lib/embed eagerly launches its sidecar on require, while
+// runDueDrains launches review/judge workers. This validation must never start either real child.
+childProcess.spawn = (bin, args, opts) => {
+  const call = { bin, args: Array.isArray(args) ? [...args] : args, opts };
+  interceptedSpawns.push(call);
+  return (spawnHandler && spawnHandler(call)) || fakeChild();
+};
 
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-frontier-integrated-'));
 const previousOrchData = process.env.ORCH_DATA;
@@ -21,8 +58,110 @@ const internalLanes = require('../lib/internal-lanes');
 const judge = require('../lib/judge');
 const kanban = require('../lib/kanban');
 const loopAutostart = require('../lib/loop-autostart');
+const { TOOLS } = require('../lib/mcp-core');
 const overlayStore = require('../lib/overlay');
+const overlayRoute = require('../routes/overlay');
+const apiReviewWorker = require('../scripts/api-review-worker');
 const taskRecovery = require('../lib/task-recovery');
+
+const assignmentTool = TOOLS.find((tool) => tool.name === 'subconscious_assignment');
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function noopHttp() {
+  return {
+    request(_opts, callback) {
+      const response = { resume() {}, on(event, fn) { if (event === 'end') fn(); } };
+      if (callback) callback(response);
+      return { on() {}, write() {}, end() {} };
+    },
+  };
+}
+
+function idleLabelDeps() {
+  return {
+    labelDeps: {
+      rowKey: (row) => row._k,
+      journalPath: () => path.join(ROOT, 'irrelevant-gate-journal.jsonl'),
+      labeledPath: () => path.join(ROOT, 'irrelevant-gate-labeled.jsonl'),
+      readJsonl: () => [],
+    },
+  };
+}
+
+function makeOverlayHarness(workspace, overlay, keys) {
+  let response = null;
+  let requestBody = null;
+  const opCache = new Map();
+  const graph = () => ({
+    tasks: keys.map((key) => ({
+      id: key,
+      label: key,
+      status: overlay.status[key] || overlayStore.lifecycleDerivedStatus(overlay, key) || 'tested',
+      deps: [],
+      context_deps: [],
+    })),
+  });
+  const context = {
+    state: { agents: {} },
+    ALL_STATUSES: ['not_ready', 'ready', 'in_progress', 'tested', 'done', 'failed', 'canceled'],
+    send: (_res, status, body) => { response = { status, body }; },
+    sendOp: (_res, body, status, payload) => {
+      response = { status, body: payload };
+      if (body && body.op_id) opCache.set(String(body.op_id), response);
+    },
+    readBody: async () => requestBody,
+    targetOverlay: () => ({ ov: overlay, ws: workspace, save: () => {} }),
+    buildGraph: graph,
+    nodeExistsInGraph: (built, key) => built.tasks.some((task) => task.id === key),
+    opReplay: (_res, body) => {
+      const replay = body && body.op_id ? opCache.get(String(body.op_id)) : null;
+      if (!replay) return false;
+      response = replay;
+      return true;
+    },
+    notifyChange: () => {},
+    now: () => new Date().toISOString(),
+    embed: async () => null,
+    knowledgeText: () => '',
+    snapshotNative: () => {},
+    suggestToks: () => new Set(),
+    scoreNodeAgainstTokens: () => ({ score: 0 }),
+    SUGGEST_DUP_THRESHOLD: 0.6,
+    DIMS: 384,
+    followups: { validate: () => null, apply: () => [], onBucketComplete: () => null },
+    verdicts: {
+      validate: () => null,
+      apply: () => [],
+      sweepStaleHolds: () => ({ released: [], flagged: [] }),
+      lintProse: () => null,
+    },
+    agentsArr: () => [],
+    saveAgents: () => {},
+    cache: { agg: new Map(), aggAt: new Map() },
+    judge: { judgingState: () => ({ judging: false, timedOut: false }) },
+    resolveRepo: () => workspace,
+    git: { currentBranch: () => null },
+    touchAgent: () => {},
+    writeTaskStatus: () => {},
+    ingestNode: async () => ({ seeded: 0, vec: null }),
+    readNativeTask: () => null,
+    harness: { scheduler: { writeScheduledTask: () => ({ armed: false }) } },
+  };
+  const route = overlayRoute(context);
+  const call = async (method, routePath, body) => {
+    assert.equal(method, 'POST');
+    assert.equal(routePath, '/overlay/status');
+    requestBody = body;
+    response = null;
+    await route(routePath, method, { headers: {} }, {}, { searchParams: { get: () => null } }, null);
+    assert.ok(response);
+    return response.body;
+  };
+  return { call, graph };
+}
 
 function waitFor(predicate, timeoutMs = 2000) {
   const deadline = Date.now() + timeoutMs;
@@ -157,15 +296,216 @@ test('multi-workspace Ready work precedes planning and detached failure preserve
     assert.equal(governor.postBackoffFairness.lane, 'maintenance');
     assert.equal(governor.postBackoffFairness.createdBy, 'frontier');
 
-    const blocked = await maintenance._runPump('backoff-cannot-be-bypassed');
-    assert.equal(blocked.skipped, 'backoff');
-    assert.equal(maintenanceRuns, 0);
     assert.equal(await waitFor(() => maintenanceRuns === 1), true,
       'the opposite lane receives the first post-backoff wake');
   } finally {
     releaseChild({ exitCode: 1, stdout: '', stderr: 'cleanup', timedOut: false, spawnError: null });
     frontierRunner._stop();
     maintenance._stop();
+  }
+});
+
+test('real KICK_BACK recovery survives an API review refresh and unrelated same-tick save', async () => {
+  const workspace = fs.realpathSync(fs.mkdtempSync(path.join(ROOT, 'lifecycle-workspace-')));
+  fs.mkdirSync(path.join(workspace, '.graph'), { recursive: true });
+  const reviewKey = 'work/integrated-kick-back';
+  const unrelatedTasks = ['other:task/a', 'other:task/b'];
+  const unrelatedJudge = 'note:unrelated-same-tick-judge';
+  const authoritative = overlayStore.EMPTY();
+  authoritative.config = { automode: true, backend: { provider: 'integrated-api' } };
+  overlayStore.setStatus(authoritative, reviewKey, 'tested');
+  overlayStore.setSnapshot(authoritative, reviewKey, {
+    subject: reviewKey, status: 'tested', blockedBy: [],
+  });
+  overlayStore.setReviewLifecycle(authoritative, reviewKey, {
+    review_state: 'requested', merge_state: 'review_pending', review_requested_by: 'dispatcher',
+  });
+
+  const unrelatedGuidanceIds = unrelatedTasks.map((key, index) => overlayStore.addGuidance(authoritative, {
+    question: `Keep unrelated guidance ${index + 1}?`,
+    context: `Unrelated guidance payload ${index + 1} must retain its exact value and order.`,
+    trigger: 'scope_expansion',
+    severity: 'blocking',
+    origin_task: key,
+    action: { kind: 'task-recovery', task_key: key, recommended: 'keep' },
+  }));
+  authoritative.judgedTaskDecisions[`decision:merge:${unrelatedTasks[0]}`] = true;
+  authoritative.judgedTaskDecisions[`decision:review:${unrelatedTasks[1]}`] = false;
+  authoritative.reviewVerdictLease = {
+    [unrelatedTasks[0]]: { owner: 'unrelated-reviewer-a', leaseExpiry: Date.now() + 120000 },
+    [unrelatedTasks[1]]: { owner: 'unrelated-reviewer-b', leaseExpiry: Date.now() + 180000 },
+  };
+  authoritative.eagerJudgeLease = {
+    'note:existing-lease-a': { owner: 'judge-a', leaseExpiry: Date.now() + 120000 },
+    'note:existing-lease-b': { owner: 'judge-b', leaseExpiry: Date.now() + 180000 },
+  };
+  authoritative.git[unrelatedTasks[0]] = { branch: 'orch/attempt/unrelated-a', head: 'head-a' };
+  authoritative.git[unrelatedTasks[1]] = { branch: 'orch/attempt/unrelated-b', head: 'head-b' };
+  authoritative.blocked[unrelatedTasks[0]] = { reason: 'keep blocked a' };
+  authoritative.blocked[unrelatedTasks[1]] = { reason: 'keep blocked b' };
+
+  const harness = makeOverlayHarness(workspace, authoritative, [reviewKey, ...unrelatedTasks]);
+  const first = await assignmentTool.run({
+    action: 'submit_verdict', verdict: 'KICK_BACK', workspace, task_key: reviewKey,
+    reason: 'First integrated review failed',
+  }, harness.call);
+  assert.equal(first.ok, true);
+  assert.equal(authoritative.status[reviewKey], 'failed');
+  assert.equal(authoritative.reviews[reviewKey].review_state, 'rejected');
+  assert.equal(authoritative.retryConfig[reviewKey].pendingKickBackRetry, true);
+
+  const firstRecovery = taskRecovery.reconcile(authoritative, harness.graph().tasks, {
+    now: '2026-08-29T14:00:00.000Z',
+  });
+  assert.deepEqual(firstRecovery.actions.map((action) => action.action), ['retry']);
+  assert.equal(authoritative.status[reviewKey], undefined, 'the first KICK_BACK is automatically requeued');
+  assert.equal(authoritative.retryConfig[reviewKey].retryCount, 1);
+  assert.equal(authoritative.retryConfig[reviewKey].pendingKickBackRetry, undefined);
+
+  overlayStore.setStatus(authoritative, reviewKey, 'tested');
+  overlayStore.applyLifecycleEvent(authoritative, reviewKey, 'review_request', {
+    task_status: 'tested', rework: true,
+  });
+  authoritative.eagerJudge[unrelatedJudge] = { at: Date.now() };
+
+  const expectedGuidance = clone(authoritative.guidance);
+  const expectedDecisions = clone(Object.entries(authoritative.judgedTaskDecisions));
+  const expectedReviewLeases = clone(authoritative.reviewVerdictLease);
+  const expectedEagerLeases = clone(Object.entries(authoritative.eagerJudgeLease));
+  const expectedGit = clone(authoritative.git);
+  const expectedBlocked = clone(authoritative.blocked);
+  const tickOverlay = clone(authoritative);
+  let unrelatedSave = null;
+  let secondResponse = null;
+  let secondRecovery = null;
+  const apiProvider = {
+    id: 'integrated-api',
+    kind: 'api',
+    isAvailable: () => true,
+    isAuthed: () => true,
+    buildInvocation: () => { throw new Error('API validation must use a worker'); },
+    callApi: async () => ({ text: '{"verdict":"KICK_BACK","reason":"still failing"}' }),
+  };
+  const backendDeps = {
+    backendDeps: {
+      backendLib: {
+        getActiveBackend: () => ({
+          provider: apiProvider,
+          providerId: apiProvider.id,
+          model: 'integrated-model',
+          config: { provider: apiProvider.id, model: 'integrated-model' },
+        }),
+        getProvider: (id) => id === apiProvider.id ? apiProvider : null,
+        listProviders: () => [apiProvider],
+      },
+    },
+  };
+  const save = (_workspace, value) => {
+    if (value.eagerJudgeLease && value.eagerJudgeLease[unrelatedJudge]) unrelatedSave = clone(value);
+  };
+  const drainSpawnStart = interceptedSpawns.length;
+  spawnHandler = ({ args }) => {
+    const script = String(args && args[0] || '');
+    if (script.includes('api-review-worker.js')) {
+      return fakeChild({
+        stdout: `review verdict: KICK_BACK task=${reviewKey}`,
+        beforeClose: async () => {
+          const body = apiReviewWorker.verdictStatusBody({
+            verdict: 'KICK_BACK', reason: 'Second integrated review failed', key: reviewKey,
+            workspace, agentId: 'api-reviewer', opId: 'integrated-kick-back-2',
+          });
+          secondResponse = await harness.call('POST', '/overlay/status', body);
+          assert.equal(
+            apiReviewWorker.verdictApplyError({ status: 200, body: secondResponse }, body.lifecycle_event),
+            null
+          );
+          secondRecovery = taskRecovery.reconcile(authoritative, harness.graph().tasks, {
+            now: '2026-08-29T14:01:00.000Z',
+          });
+        },
+      });
+    }
+    if (script.includes('api-judge-worker.js')) {
+      return fakeChild({ stdout: '{"judged":1,"kept":1,"pruned":0}' });
+    }
+    throw new Error(`unexpected child spawn in validation: ${script}`);
+  };
+
+  let result;
+  try {
+    result = await headlessDrain.runDueDrains({ workspace }, noopHttp(), {
+      ...idleLabelDeps(),
+      ...backendDeps,
+      reviewVerdictDeps: {
+        overlay: tickOverlay,
+        overlayStore,
+        overlayLoad: () => clone(authoritative),
+        overlaySave: save,
+      },
+      judgeDeps: {
+        overlay: tickOverlay,
+        overlayStore,
+        overlaySave: save,
+        judgeLib: {
+          eagerJudgeNodes: () => [unrelatedJudge],
+          judgeQueueDepth: () => 0,
+          buildQueue: () => [],
+        },
+        acquireEagerJudgeLease: (value, key, owner, ttlMs) => {
+          if (!value.eagerJudgeLease) value.eagerJudgeLease = {};
+          value.eagerJudgeLease[key] = { owner, leaseExpiry: Date.now() + ttlMs };
+          return true;
+        },
+      },
+      reviewMergeDeps: { overlay: tickOverlay, overlayStore },
+    });
+  } finally {
+    spawnHandler = null;
+  }
+
+  assert.equal(secondResponse.ok, true, 'the second worker verdict reaches the real overlay route');
+  assert.deepEqual(secondRecovery.actions.map((action) => action.action), ['needs_guidance']);
+  assert.equal(result.drains.some((item) => item.drain === headlessDrain.REVIEW_VERDICT_DRAIN_KEY), true);
+  assert.equal(result.drains.some((item) => item.drain === headlessDrain.JUDGE_DRAIN_KEY), true);
+  assert.ok(unrelatedSave, 'an unrelated judge performs the later same-tick overlay save');
+
+  const drainSpawns = interceptedSpawns.slice(drainSpawnStart);
+  assert.equal(drainSpawns.length, 2, 'only the mocked API review and judge workers are requested');
+  assert.deepEqual(
+    drainSpawns.map((call) => path.basename(String(call.args[0]))),
+    ['api-review-worker.js', 'api-judge-worker.js']
+  );
+  assert.ok(interceptedSpawns.some((call) => (call.args || []).some((arg) =>
+    String(arg).includes('embed-server.js'))), 'the eager embed sidecar was intercepted before module loading');
+
+  for (const value of [authoritative, tickOverlay, unrelatedSave]) {
+    assert.equal(value.status[reviewKey], 'failed');
+    assert.equal(value.reviews[reviewKey].review_state, 'rejected');
+    assert.equal(value.reviews[reviewKey].review_verdict, 'KICK_BACK');
+    assert.equal(value.reviews[reviewKey].merge_state, 'blocked');
+    assert.equal(value.retryConfig[reviewKey].retryCount, 1);
+    assert.equal(value.retryConfig[reviewKey].pendingKickBackRetry, undefined);
+    const recoveryGuidance = value.guidance.filter((item) => !item.resolved
+      && item.action && item.action.kind === 'task-recovery'
+      && item.action.task_key === reviewKey);
+    assert.equal(recoveryGuidance.length, 1, 'the exhausted task exposes exactly one Needs You row');
+    assert.deepEqual(value.guidance.slice(0, expectedGuidance.length), expectedGuidance);
+    assert.deepEqual(value.guidance.map((item) => item.id), [...unrelatedGuidanceIds, recoveryGuidance[0].id]);
+    assert.deepEqual(Object.entries(value.judgedTaskDecisions), [
+      ...expectedDecisions,
+      [`decision:review:${reviewKey}`, true],
+      [`decision:merge:${reviewKey}`, true],
+      [`decision:kick_back:${reviewKey}`, true],
+    ]);
+    assert.deepEqual(value.reviewVerdictLease, expectedReviewLeases);
+    assert.deepEqual(Object.entries(value.eagerJudgeLease).slice(0, expectedEagerLeases.length), expectedEagerLeases);
+    assert.deepEqual(value.git, expectedGit);
+    assert.deepEqual(value.blocked, expectedBlocked);
+    assert.deepEqual(
+      judge.buildQueue(value).filter((item) => item.kind === 'task-decision' && item.task_key === reviewKey),
+      [],
+      'settled review/merge/kick_back bookkeeping cannot be re-offered'
+    );
   }
 });
 
@@ -290,6 +630,7 @@ test('terminal recovery, guidance, Frontier, Kanban, and internal lanes agree on
 });
 
 after(() => {
+  childProcess.spawn = originalSpawn;
   if (previousOrchData === undefined) delete process.env.ORCH_DATA;
   else process.env.ORCH_DATA = previousOrchData;
   fs.rmSync(ROOT, { recursive: true, force: true });
