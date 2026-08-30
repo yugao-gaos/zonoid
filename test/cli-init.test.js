@@ -119,15 +119,15 @@ ok('mergeCodexHooks replaces stale Codex hook',
 ok('mergeCodexHooks adds missing sample event',
   codexMerged.hooks.UserPromptSubmit.some((e) => e.hooks.some((h) => h.command.includes('classify-relay.sh'))));
 
-const codexStartMatcher = 'mcp__orchestrator-graph__start_task|mcp__orchestrator_graph__start_task|start_task';
+const codexClaimMatcher = 'mcp__orchestrator-graph__start_task|mcp__orchestrator_graph__start_task|start_task|mcp__orchestrator-graph__subconscious_assignment|mcp__orchestrator_graph__subconscious_assignment|subconscious_assignment';
 const codexLifecycleMatcher = 'spawn_agents.*|mcp__orchestrator-graph__complete_task|mcp__orchestrator_graph__complete_task|complete_task|Agent|Task';
 const codexTomlSample = fs.readFileSync(path.join(__dirname, '..', 'adapters', 'codex', 'config.toml.sample'), 'utf8');
 const codexHooksSample = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'adapters', 'codex', 'hooks.json.sample'), 'utf8'));
 const codexPostMatchers = codexHooksSample.hooks.PostToolUse.map((h) => h.matcher);
-ok('codex config.toml sample start_task matcher includes legacy, Codex, and bare names',
-  codexTomlSample.includes(`matcher = "${codexStartMatcher}"`));
-ok('codex hooks.json sample start_task matcher includes legacy, Codex, and bare names',
-  codexPostMatchers.includes(codexStartMatcher));
+ok('codex config.toml sample claim matcher includes start_task and assignment aliases',
+  codexTomlSample.includes(`matcher = "${codexClaimMatcher}"`));
+ok('codex hooks.json sample claim matcher includes start_task and assignment aliases',
+  codexPostMatchers.includes(codexClaimMatcher));
 ok('codex config.toml sample lifecycle matcher includes spawn, complete_task, Agent, and Task names',
   codexTomlSample.includes(`matcher = "${codexLifecycleMatcher}"`));
 ok('codex hooks.json sample lifecycle matcher includes spawn, complete_task, Agent, and Task names',

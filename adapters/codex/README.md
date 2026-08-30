@@ -69,7 +69,7 @@ Thin relay hooks for [OpenAI Codex](https://developers.openai.com/codex/hooks) t
 | `PreToolUse` `Bash` | `orch-gate-bash.sh` | shared gate policy, `/active-claim`, `/task/detail` |
 | `SubagentStart` | `subagent-start.sh` | `/agent/start` |
 | `SubagentStop` | `subagent-stop.sh` | `/agent/done` |
-| `PostToolUse` `mcp__orchestrator-graph__start_task` | `post-start-task.sh` | `/overlay/claim-session` |
+| `PostToolUse` successful claim (`start_task` or `subconscious_assignment accept`) | `post-start-task.sh` | `/overlay/claim-session` |
 | `PostToolUse` spawn / complete | `post-lifecycle.sh` | `/ready` (nudge) |
 | `Stop` | `agent-done.sh` | `/agent/done` |
 
@@ -78,6 +78,7 @@ Thin relay hooks for [OpenAI Codex](https://developers.openai.com/codex/hooks) t
 - **Fail-closed PreToolUse:** relays emit only supported fields (`permissionDecision`, `permissionDecisionReason`, `hookEventName`). Unsupported fields (`continue`, `stopReason`, `updatedInput` without allow) cause Codex to fail the hook and **continue the tool call**.
 - **Partial interception:** not every shell path uses hooked tools (`unified_exec`, some reads). Treat hooks as defense-in-depth; daemon-side refusal still applies on MCP claims/merges.
 - **Session IDs:** the Codex MCP server prefers explicit/hook/context/env session data, then the latest real Codex session id persisted by `SessionStart` for this workspace. When Codex Desktop provides none of those to the MCP subprocess, it generates a cryptographically random, process-local fallback. The fallback is stable only while that MCP process lives; it is not a Codex thread identity and is never persisted. Pass `session_id` explicitly when a known conversation identity is available.
+- **Claim session binding:** after a successful `subconscious_assignment(action: "accept")`, the PostToolUse hook forwards Codex's real hook `session_id`, the accepted `task_key` and `agent_id`, and the daemon-issued `execution_permit.workspace` to `/overlay/claim-session`. The permit workspace is authoritative; client-supplied `graph_repo` / `workspace` fields are ignored for assignment accepts. Failed accepts, responses without a permit workspace, and other assignment actions never bind a session.
 - **Runtime state:** the Codex Desktop session bridge is adapter-specific state at `.zonoid/adapters/codex/session-bridge.json` under the Zonoid runtime data dir. Universal daemon state such as wake files, file-drop stubs, worktrees, loop registries, and model cache stays directly under `.zonoid/`.
 - **Wake delivery:** `ScheduleWakeup` arms a timer that writes to its `.fire` file and always returns the compatible `command` + `notify_pattern`. When a real Codex session id is available, the response also includes `delivery.supported: true` and a `delivery.command` pipeline that invokes `codex resume <session-id> <prompt>` via `adapters/codex/wakeup-monitor.js`. With only the process-local fallback, delivery is explicitly `timer-only`.
 - **Task minting:** use MCP `create_task` (writes `codex/<id>.json` stub + `POST /sync`) or drop a stub file under the daemon file-drop folder manually.
@@ -86,9 +87,9 @@ Thin relay hooks for [OpenAI Codex](https://developers.openai.com/codex/hooks) t
 ## Workflow
 
 1. `create_task` or file-drop stub → task appears in graph
-2. MCP `branch_task(task_key)` → create an isolated attempt worktree
-3. MCP `start_task(task_key, agent_id[, session_id])` → claim before edits
+2. MCP `subconscious_assignment(action: "prepare", ...)` → create an isolated attempt worktree
+3. MCP `subconscious_assignment(action: "accept", task_key, agent_id[, session_id])` → claim before edits
 4. Edit via `apply_patch` / `Bash` inside the returned worktree — gates allow while claimed
-5. MCP `complete_task` → release claim
+5. MCP `subconscious_assignment(action: "complete", ...)` → release claim
 
 Dashboard: http://localhost:8787/graph?workspace=<url-encoded absolute workspace path>
