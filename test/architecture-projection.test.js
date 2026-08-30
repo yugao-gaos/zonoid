@@ -71,6 +71,120 @@ assert.ok(projection.hierarchy_relations.every((edge) => edge.from_ancestors[0] 
   && edge.to_ancestors[0] === 'module:lib'));
 assert.equal(projection.modules.find((module) => module.name === 'vendor').default_file_count, 0);
 assert.equal(projection.modules.find((module) => module.name === 'vendor').hidden_file_count, 1);
+assert.equal(projection.summary.indexed_symbol_nodes, 3);
+assert.equal(projection.summary.indexed_symbol_relations, 0);
+assert.equal(projection.summary.indexed_symbol_relation_groups, 0);
+assert.equal(projection.summary.source_less_symbol_relations, 3);
+assert.equal(projection.summary.source_less_symbol_relation_groups, 2);
+assert.equal(projection.symbol_nodes.length, 3);
+assert.equal(projection.symbol_relations.length, 0,
+  'legacy file-granular call edges never fabricate caller symbols');
+const querySymbol = projection.symbol_nodes.find((symbol) => symbol.id === 'code:lib/db.js#query');
+assert.deepEqual(querySymbol, {
+  id: 'code:lib/db.js#query',
+  name: 'query',
+  kind: 'function',
+  file: 'lib/db.js',
+  file_id: 'file:lib/db.js',
+  module: 'lib',
+  parent_id: 'file:lib/db.js',
+  ancestor_ids: ['file:lib/db.js', 'module:lib'],
+  start_line: 3,
+  end_line: null,
+  signature: null,
+  summary: 'Runs a query',
+  exported: false,
+  noise: null,
+  is_noisy: false,
+  incoming_count: 2,
+  outgoing_count: 0,
+});
+assert.equal(projection.omitted.symbol_nodes, 0);
+assert.equal(projection.omitted.symbol_relations, 0);
+assert.equal(projection.omitted.source_less_symbol_relations, 2);
+
+const symbolGraphNodes = {
+  'code:src/a.js#caller': { file: 'src/a.js', name: 'caller', kind: 'function', start_line: 2, exported: true },
+  'code:src/a.js#helper': { file: 'src/a.js', name: 'helper', kind: 'function', start_line: 8 },
+  'code:src/b.js#sibling': { file: 'src/b.js', name: 'sibling', kind: 'function', start_line: 4 },
+  'code:lib/c.js#remote': { file: 'lib/c.js', name: 'remote', kind: 'method', start_line: 6, signature: 'remote(value)' },
+};
+const symbolGraphEdges = [
+  { from: 'code:src/a.js#caller', from_file: 'src/a.js', to: 'code:src/a.js#helper', kind: 'calls' },
+  { from: 'code:src/a.js#caller', from_file: 'src/a.js', to: 'code:src/b.js#sibling', kind: 'calls' },
+  { from: 'code:src/a.js#caller', from_file: 'src/a.js', to: 'code:lib/c.js#remote', kind: 'calls' },
+  { from: 'code:src/a.js#caller', from_file: 'src/a.js', to: 'code:lib/c.js#remote', kind: 'calls', ambiguous: true },
+  { from: 'code:missing.js#caller', from_file: 'src/a.js', to: 'code:lib/c.js#remote', kind: 'calls' },
+  { from: 'code:src/a.js#caller', from_file: 'lib/c.js', to: 'code:lib/c.js#remote', kind: 'calls' },
+  { from: 'code:src/a.js#caller', from_file: 'src/a.js', to: 'code:lib/c.js#remote', to_file: 'src/b.js', kind: 'calls' },
+  { from_file: 'src/a.js', to: 'code:missing.js#callee', kind: 'calls' },
+  { from_file: '', to: 'code:lib/c.js#remote', kind: 'calls' },
+  { from_file: 'src/a.js', to: 'code:lib/c.js#remote', kind: 'imports' },
+];
+const symbolGraph = buildArchitectureProjection({ codeNodes: symbolGraphNodes, codeEdges: symbolGraphEdges });
+assert.equal(symbolGraph.summary.indexed_symbol_relations, 4,
+  'malformed symbol endpoints and non-call edges do not enter the symbol graph');
+assert.equal(symbolGraph.summary.source_less_symbol_relations, 0,
+  'explicit malformed caller ids are not downgraded into file-only caller guesses');
+assert.equal(symbolGraph.symbol_relations.length, 3);
+assert.ok(symbolGraph.symbol_relations.every((relation) => relation.source_precision === 'symbol'));
+const sameFileCall = symbolGraph.symbol_relations.find((relation) => relation.scope === 'same-file');
+assert.equal(sameFileCall.from, 'code:src/a.js#caller');
+assert.equal(sameFileCall.to, 'code:src/a.js#helper');
+assert.equal(sameFileCall.same_module, true);
+assert.equal(sameFileCall.cross_file, false);
+const sameModuleCall = symbolGraph.symbol_relations.find((relation) => relation.scope === 'same-module');
+assert.equal(sameModuleCall.to, 'code:src/b.js#sibling');
+assert.equal(sameModuleCall.same_module, true);
+assert.equal(sameModuleCall.cross_file, true);
+assert.equal(sameModuleCall.cross_module, false);
+const exactCrossModuleCall = symbolGraph.symbol_relations.find((relation) => relation.scope === 'cross-module');
+assert.equal(exactCrossModuleCall.count, 2);
+assert.equal(exactCrossModuleCall.ambiguous_count, 1);
+assert.equal(exactCrossModuleCall.same_module, false);
+assert.equal(exactCrossModuleCall.cross_module, true);
+assert.deepEqual(exactCrossModuleCall.from_ancestors, ['file:src/a.js', 'module:src']);
+assert.deepEqual(exactCrossModuleCall.to_ancestors, ['file:lib/c.js', 'module:lib']);
+const emittedSymbolGraphIds = new Set([
+  ...symbolGraph.modules.map((module) => module.id),
+  ...symbolGraph.groups.map((group) => group.id),
+  ...symbolGraph.hierarchy_files.map((file) => file.id),
+  ...symbolGraph.symbol_nodes.map((symbol) => symbol.id),
+]);
+for (const symbol of symbolGraph.symbol_nodes) {
+  assert.ok(emittedSymbolGraphIds.has(symbol.parent_id));
+  assert.ok(symbol.ancestor_ids.every((id) => emittedSymbolGraphIds.has(id)));
+}
+for (const relation of symbolGraph.symbol_relations) {
+  assert.ok(emittedSymbolGraphIds.has(relation.from));
+  assert.ok(emittedSymbolGraphIds.has(relation.to));
+  assert.ok(relation.from_ancestors.every((id) => emittedSymbolGraphIds.has(id)));
+  assert.ok(relation.to_ancestors.every((id) => emittedSymbolGraphIds.has(id)));
+}
+const boundedSymbolGraph = buildArchitectureProjection({
+  codeNodes: symbolGraphNodes,
+  codeEdges: symbolGraphEdges,
+}, { maxSymbolNodes: 2, maxSymbolRelations: 1 });
+assert.equal(boundedSymbolGraph.limits.symbol_nodes, 2);
+assert.equal(boundedSymbolGraph.limits.symbol_relations, 1);
+assert.equal(boundedSymbolGraph.symbol_nodes.length, 2);
+assert.equal(boundedSymbolGraph.symbol_relations.length, 1);
+assert.equal(boundedSymbolGraph.omitted.symbol_nodes, 2);
+assert.equal(boundedSymbolGraph.omitted.symbol_relations, 2);
+assert.deepEqual(boundedSymbolGraph.files, symbolGraph.files,
+  'symbol bounds do not change the existing rich file projection');
+assert.deepEqual(boundedSymbolGraph.relations, symbolGraph.relations,
+  'symbol bounds do not change existing file relations');
+assert.deepEqual(boundedSymbolGraph.modules, symbolGraph.modules,
+  'symbol bounds do not change existing module aggregates');
+assert.deepEqual(
+  symbolGraph,
+  buildArchitectureProjection({
+    codeNodes: Object.fromEntries(Object.entries(symbolGraphNodes).reverse()),
+    codeEdges: [...symbolGraphEdges].reverse(),
+  }),
+  'bounded symbol nodes and relations are deterministic across input order',
+);
 
 assert.deepEqual([
   'src/server.js',
@@ -339,6 +453,8 @@ assert.deepEqual(
 const empty = buildArchitectureProjection({});
 assert.equal(empty.status, 'empty');
 assert.equal(empty.files.length, 0);
+assert.deepEqual(empty.symbol_nodes, []);
+assert.deepEqual(empty.symbol_relations, []);
 assert.match(empty.message, /not indexed yet/i);
 
 const indexing = buildArchitectureProjection({ codeIndexStatus: { state: 'running', attempts: 1 } });
