@@ -55,6 +55,13 @@ __setAgentsForTest({
   secondOv.status['s/103'] = 'tested';
   secondOv.assignee['s/103'] = 'live-judge';
   secondOv.timestamps['s/103'] = { firstSeen: ISO(STALE_MS), lastChanged: ISO(STALE_MS), lastStatus: 'tested' };
+  // controls: settled review/merge lifecycles remain untouched and do not make the sweep dirty
+  secondOv.status['s/104'] = 'tested';
+  secondOv.timestamps['s/104'] = { firstSeen: ISO(STALE_MS), lastChanged: ISO(STALE_MS), lastStatus: 'tested' };
+  secondOv.reviews['s/104'] = { review_state: 'approved', review_verdict: 'APPROVE', merge_state: 'pending' };
+  secondOv.status['s/105'] = 'ready';
+  secondOv.timestamps['s/105'] = { firstSeen: ISO(STALE_MS), lastChanged: ISO(STALE_MS), lastStatus: 'ready' };
+  secondOv.reviews['s/105'] = { review_state: 'landed', review_verdict: 'APPROVE', merge_state: 'merged' };
 
   const dirty = sweepStaleVerdicts(SECONDARY_WS, secondOv);
   ok('(a1) sweepStaleVerdicts: dirty=true when stale verdict in secondary ws', dirty === true);
@@ -65,6 +72,10 @@ __setAgentsForTest({
   ok('(a1) sweepStaleVerdicts: review is pending for stale verdict', review && review.review_state === 'requested' && review.merge_state === 'review_pending');
   ok('(a1) sweepStaleVerdicts: fresh tested task NOT swept', secondOv.status['s/102'] === 'tested');
   ok('(a1) sweepStaleVerdicts: live-owner task NOT swept', secondOv.status['s/103'] === 'tested');
+  ok('(a1) sweepStaleVerdicts: settled approved review NOT reopened', secondOv.reviews['s/104'].review_state === 'approved'
+    && secondOv.reviews['s/104'].merge_state === 'pending');
+  ok('(a1) sweepStaleVerdicts: merged review NOT reopened', secondOv.reviews['s/105'].review_state === 'landed'
+    && secondOv.reviews['s/105'].merge_state === 'merged');
 
   // Primary workspace overlay must be untouched
   ok('(a1) sweepStaleVerdicts: primary overlay NOT mutated', !primaryOv.status['s/101'] && (!Array.isArray(primaryOv.guidance) || primaryOv.guidance.length === 0));
