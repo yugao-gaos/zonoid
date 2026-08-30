@@ -92,7 +92,10 @@ test('OpenCode /dashboard command install is idempotent and preserves user files
     assert.equal(first.installed, true);
     const command = path.join(temp, '.opencode', 'commands', 'dashboard.md');
     const installed = fs.readFileSync(command, 'utf8');
-    assert.ok(installed.startsWith('---\n'));
+    // Frontmatter must open the file. Match the delimiter line rather than a literal '---\n': the
+    // installer copies the source command byte-for-byte, and under core.autocrlf the checked-out
+    // source starts '---\r\n' — a checkout artifact, not a missing frontmatter block.
+    assert.match(installed, /^---\r?\n/);
     assert.match(installed, /dashboard_open/);
 
     const second = installOpencodeDashboardCommand(temp);
