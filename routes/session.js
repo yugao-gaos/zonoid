@@ -178,6 +178,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       T.ov.config.optimize = cur;
     }
     T.save();
+    // Code-index batches persist with defer_publish=true so a full/sync run does not force every
+    // dashboard to rebuild intermediate graph states. The final watermark is the atomic publish:
+    // reaching it means every preceding code-node/edge write succeeded for this HEAD.
+    if (b.last_indexed_commit && b.defer_publish !== true) notifyChange(T.graph_repo || T.ws);
     // On enabling headless autonomy, ensure the managed graph loop exists promptly instead of
     // waiting for the daemon's 60s ensure interval. Best-effort and optional: unit tests drive
     // this route with a fake ctx that has no loop machinery.
