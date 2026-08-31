@@ -121,6 +121,36 @@ namespace, durable session usage translation, and the shared hookless scheduler.
 MCP launch, and CLI installation remain deployment/bridge concerns rather than daemon business
 logic.
 
+### Cross-harness worker session identity
+
+Codex provides a verified case study: a worker hook can carry the parent/control `session_id`
+while the executing child owns the accepted claim and permit. This does **not** establish that every
+other harness is currently broken. It does establish an audit risk that applies to any harness able
+to separate hook/control identity from executing-worker identity. Each adapter must inspect and
+document its actual lifecycle payload instead of guessing from environment variables, undocumented
+agent fields, transcript internals, or arbitrary `tool_input`.
+
+The reusable safe pattern is: after a successful assignment accept, validate the exact
+daemon-issued permit against the requested task, agent, workspace, and child session; then correlate
+that child with a documented stable invocation key (for example a turn, request, or run id) scoped
+by the parent/control session. Persist the correlation atomically in a bounded TTL record. On every
+write, gates must still revalidate the active claim and permit plus worktree, branch, and path
+confinement. The Codex implementation is a method and case study, not code other adapters should
+copy without first proving their own payload contract.
+
+Identity resolution must fail closed when fields are missing or unknown, a record is malformed or
+stale, parent/invocation data mismatches, multiple mappings are possible, or assignment accept
+failed. Compatibility fallbacks must never weaken the identity proof.
+
+Harness adoption checklist and minimum test matrix:
+
+- Capture and document the real parent, child, and invocation identifiers emitted by the harness.
+- Prove a fresh live child can perform its first Write/Edit and classified Bash write.
+- Reject a wrong parent or invocation id, stale or malformed records, and ambiguous mappings.
+- Prove cross-project worktree, branch, and path confinement remains enforced.
+- Prove fallback revocation cannot restore or borrow a child identity after its proof is invalid.
+- Run the shared policy parity suite to confirm other adapters retain their existing behavior.
+
 ---
 
 ## Install-time file ownership
