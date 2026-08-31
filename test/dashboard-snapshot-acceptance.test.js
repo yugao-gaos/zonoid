@@ -144,16 +144,34 @@ test('dashboard snapshot acceptance projects live state and offline HTML without
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-dashboard-snapshot-workspace-'));
   const port = 19840 + Math.floor(Math.random() * 50);
   const children = [];
-  const daemonEnv = { ...process.env, CLAUDE_PLUGIN_DATA: sandbox, ORCH_PORT: String(port), ORCH_TOKEN: '' };
+  const daemonEnv = {
+    ...process.env,
+    CLAUDE_PLUGIN_DATA: sandbox,
+    ORCH_PORT: String(port),
+    ORCH_TOKEN: '',
+    HEADLESS_DRAIN_MAX_ITERATIONS: '-1',
+    ZONOID_EMBED_PROVIDER: 'voyage',
+    VOYAGE_API_KEY: '',
+  };
   delete daemonEnv.ORCH_DATA;
   delete daemonEnv.ZONOID_DATA;
 
   const daemon = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
     env: daemonEnv,
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   });
-  children.push({ child: daemon, exited: false });
+  const daemonRecord = { child: daemon, stdout: '', stderr: '', exited: false };
+  children.push(daemonRecord);
+  daemon.stdout.setEncoding('utf8');
+  daemon.stderr.setEncoding('utf8');
+  daemon.stdout.on('data', (chunk) => { daemonRecord.stdout += chunk; });
+  daemon.stderr.on('data', (chunk) => { daemonRecord.stderr += chunk; });
+  daemon.once('exit', (code, signal) => {
+    daemonRecord.exited = true;
+    daemonRecord.code = code;
+    daemonRecord.signal = signal;
+  });
 
   try {
     assert.ok(await waitForPing(port), 'daemon came up on the private port');
@@ -164,7 +182,7 @@ test('dashboard snapshot acceptance projects live state and offline HTML without
     assert.equal(pin.body.ok, true);
 
     const dropStub = (id, stub) => {
-      const file = filedrop.stubFile(workspace, `codex/${id}`);
+      const file = path.join(sandbox, 'tasks', filedrop.workspaceKey(workspace), 'codex', `${id}.json`);
       assert(file, `stub file path is available for ${id}`);
       fs.mkdirSync(path.dirname(file), { recursive: true });
       const tmp = `${file}.${process.pid}.tmp`;
@@ -224,7 +242,8 @@ test('dashboard snapshot acceptance projects live state and offline HTML without
           name: 'get_graph',
           arguments: { scope: 'all', compact: true },
         });
-        assert.equal(graph.result.isError, false);
+        assert.equal(graph.result.isError, false, `${graph.result.content && graph.result.content[0]
+          && graph.result.content[0].text}\ndaemon exit=${daemonRecord.code ?? daemonRecord.signal ?? 'running'}\n${daemonRecord.stderr}`);
         projection = JSON.parse(graph.result.content[0].text);
         const ready = projection.tasks.some((task) => task.id === 'codex/alpha' && task.status === 'ready');
         const blocked = projection.tasks.some((task) => task.id === 'codex/bravo' && task.status === 'not_ready');
@@ -243,7 +262,7 @@ test('dashboard snapshot acceptance projects live state and offline HTML without
         arguments: { workspace, viewer: 'codex' },
       });
       assert.equal(dashboard.result.isError, false);
-      const dash = JSON.parse(dashboard.result.content[0].text);
+      const dash = dashboard.result.structuredContent || JSON.parse(dashboard.result.content[0].text);
       assert.equal(dash.workspace, workspace);
       assert.equal(dash.launch.version, 1);
       assert.equal(dash.launch.preferred_surface, 'mcp_app');

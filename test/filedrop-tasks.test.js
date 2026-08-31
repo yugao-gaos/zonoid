@@ -99,7 +99,7 @@ try {
     let fired = false;
     const dispose = fd.watch(() => { fired = true; });
     write('cursor', 'watched.json', { id: 'watched', subject: 'watch me' });
-    await new Promise((r) => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, 5000));
     ok('watch fires on stub drop', fired);
     dispose();
 

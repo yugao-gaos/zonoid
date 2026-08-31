@@ -56,13 +56,29 @@ const writeTask = (id, extra = {}) =>
   fs.writeFileSync(path.join(TASKS_DIR, `${id}.json`), JSON.stringify({ id: String(id), subject: `task ${id}`, status: 'pending', blockedBy: [], ...extra }, null, 2));
 
 function spawnDaemon() {
-  const env = { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) };
+  const env = {
+    ...process.env,
+    CLAUDE_PLUGIN_DATA: SANDBOX,
+    ORCH_PORT: String(PORT),
+    HEADLESS_DRAIN_MAX_ITERATIONS: '-1',
+  };
   delete env.ORCH_DATA;
   delete env.ZONOID_DATA;
   return spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
     env,
     stdio: 'ignore',
   });
+}
+
+async function waitForAdoption(timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  let overlay = null;
+  while (Date.now() < deadline) {
+    overlay = overlayStore.load(WS);
+    if (overlay.snapshots && overlay.snapshots[K('blk')] && overlay.snapshots[K('dep')]) return overlay;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return overlay;
 }
 
 (async () => {
@@ -80,10 +96,10 @@ function spawnDaemon() {
     // (A) first buildGraph adopts native stub into overlay snapshot
     await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`);
     // Wait for the deferred setImmediate emitDiff in the daemon to flush graph-store JSONL files.
-    await new Promise((r) => setTimeout(r, 200));
-    let ov = overlayStore.load(WS);
+    let ov = await waitForAdoption();
     ok('(A) adoption snapshot created on first sight', ov.snapshots && ov.snapshots[K('blk')] && ov.snapshots[K('dep')]);
-    ok('(A) adopted blockedBy preserved', (ov.snapshots[K('dep')].blockedBy || []).includes(K('blk')));
+    ok('(A) adopted blockedBy preserved', ov.snapshots && ov.snapshots[K('dep')]
+      && (ov.snapshots[K('dep')].blockedBy || []).includes(K('blk')));
 
     // (A2) native-blockedBy INVARIANT: blocking overlay edges must be wired at adoption with
     //      origin:'native-blockedBy' and must NEVER appear in the judge queue.
