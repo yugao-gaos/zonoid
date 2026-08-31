@@ -21,10 +21,15 @@ case "$TOOL" in
           (.structuredContent? | select(. != null) | collect),
           (.result? | select(. != null) | collect),
           (.content? | select(. != null) | collect),
-          (.text? | select(. != null) | collect)
+          (.text? | select(. != null) | collect),
+          (.git_claim? | select(. != null) | collect),
+          (.git_claim_finalize? | select(. != null) | collect)
         else empty end;
       [.tool_response | collect] as $items
-      | if any($items[]; .isError? == true or .ok? == false or (.error? != null))
+      | def advisory_git_claim:
+          .advisory? == true and .ok? == false
+          and (has("already_claimed") or has("pushed") or has("conflict") or has("skipped"));
+        if any($items[]; (.isError? == true or .ok? == false or (.error? != null)) and (advisory_git_claim | not))
         then false
         else any($items[]; .ok? == true)
         end
@@ -34,11 +39,14 @@ case "$TOOL" in
   *) exit 0 ;;
 esac
 
-SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')
+SID=${CODEX_THREAD_ID:-}
+if [[ -z "$SID" ]]; then
+  SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')
+fi
 TASK_KEY=$(printf '%s' "$INPUT" | jq -r '.tool_input.task_key // empty')
 AGENT_ID=$(printf '%s' "$INPUT" | jq -r '.tool_input.agent_id // empty')
 INPUT_WORKSPACE=$(printf '%s' "$INPUT" | jq -r '.tool_input.graph_repo // .tool_input.workspace // empty')
-RESPONSE_WORKSPACE=$(printf '%s' "$INPUT" | jq -r '
+RESPONSE_PERMIT=$(printf '%s' "$INPUT" | jq -c --arg task_key "$TASK_KEY" --arg agent_id "$AGENT_ID" '
   def collect:
     if type == "string" then (try (fromjson | collect) catch empty)
     elif type == "array" then .[] | collect
@@ -47,11 +55,18 @@ RESPONSE_WORKSPACE=$(printf '%s' "$INPUT" | jq -r '
       (.structuredContent? | select(. != null) | collect),
       (.result? | select(. != null) | collect),
       (.content? | select(. != null) | collect),
-      (.text? | select(. != null) | collect)
+      (.text? | select(. != null) | collect),
+      (.git_claim? | select(. != null) | collect),
+      (.git_claim_finalize? | select(. != null) | collect)
     else empty end;
-  [.tool_response | collect | .execution_permit?.workspace?
-    | select(type == "string" and length > 0)] | first // empty
+  [.tool_response | collect | .execution_permit?
+    | select(type == "object")
+    | select((.workspace? | type) == "string" and (.workspace | length) > 0)
+    | select((.session_id? | type) == "string" and (.session_id | length) > 0)
+    | select(.task_key? == $task_key and .agent_id? == $agent_id)] | first // empty
 ' 2>/dev/null || true)
+RESPONSE_WORKSPACE=$(printf '%s' "$RESPONSE_PERMIT" | jq -r '.workspace // empty' 2>/dev/null || true)
+EXPECTED_SESSION_ID=$(printf '%s' "$RESPONSE_PERMIT" | jq -r '.session_id // empty' 2>/dev/null || true)
 if [[ "$REQUIRE_WORKSPACE" == "true" ]]; then
   WORKSPACE=$RESPONSE_WORKSPACE
 else
@@ -60,9 +75,15 @@ fi
 PORT=${ORCH_PORT:-8787}
 
 [[ -n "$SID" && -n "$TASK_KEY" && -n "$AGENT_ID" ]] || exit 0
-[[ "$REQUIRE_WORKSPACE" != "true" || -n "$WORKSPACE" ]] || exit 0
+if [[ "$REQUIRE_WORKSPACE" == "true" ]]; then
+  [[ -n "$WORKSPACE" && -n "$EXPECTED_SESSION_ID" ]] || exit 0
+fi
 
-if [[ -n "$WORKSPACE" ]]; then
+if [[ "$REQUIRE_WORKSPACE" == "true" ]]; then
+  BODY=$(jq -nc --arg task_key "$TASK_KEY" --arg session_id "$SID" --arg agent_id "$AGENT_ID" \
+    --arg workspace "$WORKSPACE" --arg expected_session_id "$EXPECTED_SESSION_ID" \
+    '{task_key: $task_key, session_id: $session_id, agent_id: $agent_id, workspace: $workspace, expected_session_id: $expected_session_id}')
+elif [[ -n "$WORKSPACE" ]]; then
   BODY=$(jq -nc --arg task_key "$TASK_KEY" --arg session_id "$SID" --arg agent_id "$AGENT_ID" \
     --arg workspace "$WORKSPACE" \
     '{task_key: $task_key, session_id: $session_id, agent_id: $agent_id, workspace: $workspace}')

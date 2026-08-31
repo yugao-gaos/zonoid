@@ -23,7 +23,7 @@ const policy = require('./lib/gate-policy');
   // Harness plumbing that is NOT substantive work. Orchestrator source is deliberately NOT exempt.
   if (policy.allTargetsExempt(targets)) k.allow();
 
-  const sid = input.session_id || '';
+  const sid = k.hookSessionId(input);
   if (!sid) k.allow();                       // no session id -> can't correlate; don't block
   if (k.isOff(sid)) k.allow();               // orchestrator disabled for this conversation
   const agentId = input.agent_id || ti.agent_id || '';

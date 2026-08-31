@@ -34,7 +34,7 @@ const PORT = k.PORT;
   if (policy.allTargetsExempt(targets)) k.allow();
 
   // ── Session claim check (same as orch-gate.js, matched against the write targets) ──
-  const sid = input.session_id || '';
+  const sid = k.hookSessionId(input);
   if (!sid) k.allow();
   if (k.isOff(sid)) k.allow();
   const ti = input.tool_input || {};

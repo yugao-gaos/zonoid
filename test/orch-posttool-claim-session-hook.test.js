@@ -12,9 +12,12 @@ const CODEX_SHELL_HOOK = path.join(ROOT, 'adapters', 'codex', 'hooks', 'post-sta
 
 function run(command, args, payload, env) {
   return new Promise((resolve, reject) => {
+    const childEnv = { ...process.env };
+    delete childEnv.CODEX_THREAD_ID;
+    Object.assign(childEnv, env);
     const child = spawn(command, args, {
       cwd: ROOT,
-      env: { ...process.env, ...env },
+      env: childEnv,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let stdout = '';
@@ -53,6 +56,12 @@ function startServer() {
 }
 
 function assignmentPayload(toolName, overrides = {}) {
+  const executionPermit = {
+    workspace: '/graph/default',
+    session_id: 'mcp-fallback-session',
+    task_key: 'codex/claim-hook-probe',
+    agent_id: 'worker-probe',
+  };
   return {
     session_id: 'real-codex-thread',
     tool_name: toolName,
@@ -64,7 +73,7 @@ function assignmentPayload(toolName, overrides = {}) {
     },
     tool_response: {
       isError: false,
-      content: [{ type: 'text', text: '{"ok":true,"execution_permit":{"workspace":"/graph/default"}}' }],
+      content: [{ type: 'text', text: JSON.stringify({ ok: true, execution_permit: executionPermit }) }],
     },
     ...overrides,
   };
@@ -84,9 +93,9 @@ function lastRequest(server) {
       'subconscious_assignment',
     ];
     const successResponses = [
-      { ok: true, execution_permit: { workspace: '/graph/workspace-0' } },
-      { isError: false, structuredContent: { ok: true, execution_permit: { workspace: '/graph/workspace-1' } } },
-      { content: [{ type: 'text', text: '{"ok":true,"execution_permit":{"id":"permit-test","workspace":"/graph/workspace-2"}}' }] },
+      { ok: true, execution_permit: { workspace: '/graph/workspace-0', session_id: 'fallback-0', task_key: 'codex/claim-hook-probe', agent_id: 'worker-probe' } },
+      { isError: false, structuredContent: { ok: true, execution_permit: { workspace: '/graph/workspace-1', session_id: 'fallback-1', task_key: 'codex/claim-hook-probe', agent_id: 'worker-probe' } } },
+      { content: [{ type: 'text', text: '{"ok":true,"execution_permit":{"id":"permit-test","workspace":"/graph/workspace-2","session_id":"fallback-2","task_key":"codex/claim-hook-probe","agent_id":"worker-probe"}}' }] },
     ];
     for (let i = 0; i < assignmentAliases.length; i++) {
       const before = stub.requests.length;
@@ -107,7 +116,54 @@ function lastRequest(server) {
         session_id: `real-codex-thread-${i}`,
         agent_id: 'worker-probe',
         workspace: `/graph/workspace-${i}`,
+        expected_session_id: `fallback-${i}`,
       });
+    }
+
+    {
+      const before = stub.requests.length;
+      const result = await run(process.execPath, [NODE_HOOK], assignmentPayload('subconscious_assignment', {
+        session_id: 'parent-payload-session',
+      }), { ...env, CODEX_THREAD_ID: 'child-thread-session', CODEX_SESSION_ID: 'parent-runtime-session' });
+      assert.equal(result.code, 0);
+      assert.equal(stub.requests.length, before + 1, 'trusted child thread env should override the parent hook payload');
+      assert.deepEqual(lastRequest(stub).body, {
+        task_key: 'codex/claim-hook-probe',
+        session_id: 'child-thread-session',
+        agent_id: 'worker-probe',
+        workspace: '/graph/default',
+        expected_session_id: 'mcp-fallback-session',
+      });
+    }
+
+    {
+      const before = stub.requests.length;
+      const permit = {
+        workspace: '/graph/advisory',
+        session_id: 'advisory-fallback',
+        task_key: 'codex/claim-hook-probe',
+        agent_id: 'worker-probe',
+      };
+      const result = await run(process.execPath, [NODE_HOOK], assignmentPayload('subconscious_assignment', {
+        session_id: 'advisory-child',
+        tool_response: {
+          structuredContent: { ok: true, execution_permit: permit },
+          result: { git_claim: { ok: false, already_claimed: false, pushed: false, conflict: false, advisory: true, error: 'git claim acquire failed' } },
+        },
+      }), env);
+      assert.equal(result.code, 0);
+      assert.equal(stub.requests.length, before + 1, 'advisory git-claim failure must not hide a successful accept');
+      assert.equal(lastRequest(stub).body.expected_session_id, 'advisory-fallback');
+
+      const failedBefore = stub.requests.length;
+      const failed = await run(process.execPath, [NODE_HOOK], assignmentPayload('subconscious_assignment', {
+        tool_response: {
+          structuredContent: { ok: true, execution_permit: permit },
+          result: { git_claim: { ok: false, already_claimed: false, pushed: false, conflict: false, advisory: false, error: 'strict git claim failed' } },
+        },
+      }), env);
+      assert.equal(failed.code, 0);
+      assert.equal(stub.requests.length, failedBefore, 'non-advisory accept failure must not bind a session');
     }
 
     {
@@ -117,6 +173,22 @@ function lastRequest(server) {
       }), env);
       assert.equal(result.code, 0);
       assert.equal(stub.requests.length, before, 'accept without a permit workspace must not use the client workspace fallback');
+    }
+
+    for (const field of ['task_key', 'agent_id']) {
+      const before = stub.requests.length;
+      const permit = {
+        workspace: '/graph/mismatched-permit',
+        session_id: 'mismatched-fallback',
+        task_key: 'codex/claim-hook-probe',
+        agent_id: 'worker-probe',
+        [field]: `wrong-${field}`,
+      };
+      const result = await run(process.execPath, [NODE_HOOK], assignmentPayload('subconscious_assignment', {
+        tool_response: { ok: true, execution_permit: permit },
+      }), env);
+      assert.equal(result.code, 0);
+      assert.equal(stub.requests.length, before, `permit ${field} must match the accepted assignment`);
     }
 
     for (const action of ['prepare', 'read', 'complete', 'submit_verdict']) {
@@ -186,17 +258,18 @@ function lastRequest(server) {
           },
           tool_response: {
             isError: false,
-            content: [{ type: 'text', text: '{"ok":true,"execution_permit":{"workspace":"/graph/shell-workspace"}}' }],
+            content: [{ type: 'text', text: '{"ok":true,"execution_permit":{"workspace":"/graph/shell-workspace","session_id":"shell-fallback-session","task_key":"codex/claim-hook-probe","agent_id":"worker-probe"}}' }],
           },
         }
-      ), env);
+      ), { ...env, CODEX_THREAD_ID: 'shell-child-session', CODEX_SESSION_ID: 'shell-parent-runtime' });
       assert.equal(result.code, 0, result.stderr);
       assert.equal(stub.requests.length, before + 1, 'Codex shell adapter should register successful accept');
       assert.deepEqual(lastRequest(stub).body, {
         task_key: 'codex/claim-hook-probe',
-        session_id: 'shell-real-session',
+        session_id: 'shell-child-session',
         agent_id: 'worker-probe',
         workspace: '/graph/shell-workspace',
+        expected_session_id: 'shell-fallback-session',
       });
 
       const failedBefore = stub.requests.length;
@@ -205,6 +278,40 @@ function lastRequest(server) {
       });
       assert.equal((await run('bash', [CODEX_SHELL_HOOK], failed, env)).code, 0);
       assert.equal(stub.requests.length, failedBefore, 'Codex shell adapter must ignore failed accepts');
+
+      const advisoryBefore = stub.requests.length;
+      const shellPermit = {
+        workspace: '/graph/shell-advisory',
+        session_id: 'shell-advisory-fallback',
+        task_key: 'codex/claim-hook-probe',
+        agent_id: 'worker-probe',
+      };
+      const advisory = assignmentPayload('mcp__orchestrator_graph__subconscious_assignment', {
+        session_id: 'shell-parent-session',
+        tool_response: {
+          structuredContent: { ok: true, execution_permit: shellPermit },
+          result: { git_claim: { ok: false, already_claimed: false, pushed: false, conflict: false, advisory: true, error: 'git claim acquire failed' } },
+        },
+      });
+      assert.equal((await run('bash', [CODEX_SHELL_HOOK], advisory, {
+        ...env,
+        CODEX_THREAD_ID: 'shell-child-session',
+        CODEX_SESSION_ID: 'shell-parent-runtime',
+      })).code, 0);
+      assert.equal(stub.requests.length, advisoryBefore + 1, 'shell adapter should ignore advisory git-claim failure');
+      assert.deepEqual(lastRequest(stub).body, {
+        task_key: 'codex/claim-hook-probe',
+        session_id: 'shell-child-session',
+        agent_id: 'worker-probe',
+        workspace: '/graph/shell-advisory',
+        expected_session_id: 'shell-advisory-fallback',
+      });
+
+      const strictBefore = stub.requests.length;
+      advisory.tool_response.result.git_claim.advisory = false;
+      advisory.tool_response.result.git_claim.error = 'strict git claim failed';
+      assert.equal((await run('bash', [CODEX_SHELL_HOOK], advisory, env)).code, 0);
+      assert.equal(stub.requests.length, strictBefore, 'shell adapter must reject non-advisory accept failures');
     }
 
     console.log('orch post-tool claim-session hook tests passed');

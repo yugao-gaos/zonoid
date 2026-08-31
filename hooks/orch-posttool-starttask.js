@@ -27,7 +27,7 @@ function collectResultObjects(value, out = [], depth = 0) {
   }
   if (typeof value !== 'object') return out;
   out.push(value);
-  for (const key of ['structuredContent', 'result', 'content', 'text']) {
+  for (const key of ['structuredContent', 'result', 'content', 'text', 'git_claim', 'git_claim_finalize']) {
     if (value[key] != null) collectResultObjects(value[key], out, depth + 1);
   }
   return out;
@@ -37,33 +37,54 @@ function successfulAssignmentAccept(input) {
   if (!ASSIGNMENT_TOOLS.has(input.tool_name || '')) return false;
   if (!input.tool_input || input.tool_input.action !== 'accept') return false;
   const results = collectResultObjects(input.tool_response);
-  const failed = results.some((item) => item.isError === true || item.ok === false || item.error != null);
+  const failed = results.some((item) => {
+    const hasFailure = item.isError === true || item.ok === false || item.error != null;
+    const advisoryGitClaim = item.advisory === true && item.ok === false && (
+      Object.prototype.hasOwnProperty.call(item, 'already_claimed') ||
+      Object.prototype.hasOwnProperty.call(item, 'pushed') ||
+      Object.prototype.hasOwnProperty.call(item, 'conflict') ||
+      Object.prototype.hasOwnProperty.call(item, 'skipped')
+    );
+    return hasFailure && !advisoryGitClaim;
+  });
   return !failed && results.some((item) => item.ok === true);
 }
 
-function responseWorkspace(input) {
+function responseExecutionPermit(input, taskKey, agentId) {
   const results = collectResultObjects(input.tool_response);
   for (const item of results) {
-    const workspace = item.execution_permit && item.execution_permit.workspace;
-    if (typeof workspace === 'string' && workspace.trim()) return workspace.trim();
+    const permit = item.execution_permit;
+    if (!permit || typeof permit !== 'object') continue;
+    const workspace = typeof permit.workspace === 'string' ? permit.workspace.trim() : '';
+    const sessionId = typeof permit.session_id === 'string' ? permit.session_id.trim() : '';
+    if (
+      workspace &&
+      sessionId &&
+      permit.task_key === taskKey &&
+      permit.agent_id === agentId
+    ) {
+      return { ...permit, workspace, session_id: sessionId };
+    }
   }
-  return '';
+  return null;
 }
 
 (async () => {
   const input = await k.readInput();
   const isLegacyStart = START_TASK_TOOLS.has(input.tool_name || '');
-  if (!isLegacyStart && !successfulAssignmentAccept(input)) k.allow();
-  const sid = input.session_id || '';
   const taskKey = (input.tool_input && input.tool_input.task_key) || '';
   const agentId = (input.tool_input && input.tool_input.agent_id) || '';
+  const permit = isLegacyStart ? null : responseExecutionPermit(input, taskKey, agentId);
+  if (!isLegacyStart && (!successfulAssignmentAccept(input) || !permit)) k.allow();
+  const sid = k.hookSessionId(input);
   if (!sid || !taskKey || !agentId) k.allow();
   const workspace = isLegacyStart
     ? ((input.tool_input && (input.tool_input.graph_repo || input.tool_input.workspace)) || '')
-    : responseWorkspace(input);
+    : permit.workspace;
   if (!isLegacyStart && !workspace) k.allow();
   const body = { task_key: taskKey, session_id: sid, agent_id: agentId };
   if (workspace) body.workspace = workspace;
+  if (permit) body.expected_session_id = permit.session_id;
   await k.post('/overlay/claim-session', body, 1000);
   process.exit(0);
 })().catch(() => process.exit(0));

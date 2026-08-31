@@ -36,6 +36,10 @@ function mkInput(command, sessionId, cwd) {
 // Run the hook with a given input and env overrides, returns { status, stderr }
 function runHook(input, extraEnv) {
   const env = { ...process.env, ...extraEnv };
+  delete env.CODEX_THREAD_ID;
+  if (extraEnv && Object.prototype.hasOwnProperty.call(extraEnv, 'CODEX_THREAD_ID')) {
+    env.CODEX_THREAD_ID = extraEnv.CODEX_THREAD_ID;
+  }
   const r = spawnSync('bash', [HOOK], {
     input,
     encoding: 'utf8',
@@ -887,6 +891,22 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
   ok('policy: relative --git-dir target resolves against hook cwd', gitDirTargets.includes('/Users/x/outside-cwd/rel-git'));
   ok('policy: --work-tree after relative -C resolves against effective git cwd', effectiveCwdTargets.includes('/Users/x/outside-cwd/rel-base/rel-worktree'));
   ok('policy: --git-dir after relative -C resolves against effective git cwd', effectiveCwdTargets.includes('/Users/x/outside-cwd/rel-base/rel-git'));
+}
+
+// 77. Codex Desktop collaboration child identity overrides the parent payload/session env.
+{
+  const childSession = 'codex-bash-child-thread';
+  const config = makeMultiClaimConfig();
+  config.executionPermits = [
+    executionPermit('task-a', WT_A, 'orch/attempt/task-a', { session_id: childSession }),
+    executionPermit('task-b', WT_B, 'orch/attempt/task-b', { session_id: childSession }),
+  ];
+  const r = runWithConfig(
+    mkInput(`printf child > ${WT_A}/child-session.txt`, 'codex-parent-payload', WT_A),
+    config,
+    { CODEX_THREAD_ID: childSession, CODEX_SESSION_ID: 'codex-parent-runtime' },
+  );
+  ok('CODEX_THREAD_ID child permit overrides parent payload for Bash gate → exit 0', r.status === 0);
 }
 
 // ── Cleanup ─────────────────────────────────────────────────────────────────
