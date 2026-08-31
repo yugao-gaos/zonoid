@@ -751,6 +751,40 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
   ok('standalone git status read → exit 0', r.status === 0);
 }
 
+// 66a. Standalone git submodule status is read-only, including safe flags/pathspecs
+{
+  const plain = runBlocked('git submodule status');
+  const flagged = runBlocked('git -C . submodule --quiet status --cached --recursive -- libs/example');
+  ok('standalone git submodule status → exit 0', plain.status === 0);
+  ok('git submodule status with safe flags/pathspec → exit 0', flagged.status === 0);
+}
+
+// 66b. Other git submodule operations remain gated mutators
+{
+  const mutators = [
+    'git submodule update --init',
+    'git submodule foreach git status',
+    'git submodule add https://example.com/repo.git libs/example',
+    'git submodule deinit libs/example',
+    'git submodule sync',
+    'git submodule set-branch --branch main libs/example',
+    'git submodule set-url libs/example https://example.com/repo.git',
+    'git submodule unrecognized-operation',
+  ];
+  for (const command of mutators) {
+    const r = runBlocked(command);
+    ok(`${command} without claim → exit 2`, r.status === 2);
+  }
+}
+
+// 66c. Redirected or compound git submodule status falls through to write detection
+{
+  const redirected = runBlocked('git submodule status > /Users/x/submodule-status.txt');
+  const compound = runBlocked('git submodule status && echo hi > /Users/x/submodule-compound.txt');
+  ok('redirected git submodule status without claim → exit 2', redirected.status === 2);
+  ok('compound git submodule status plus shell write without claim → exit 2', compound.status === 2);
+}
+
 // 67. Mutating git commands require a claim/permit path
 {
   const add = runBlocked('git add src/main.js');

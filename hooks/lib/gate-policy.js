@@ -154,7 +154,7 @@ function resolveAgainstCwd(target, cwd) {
   return k.normalizePath(`${k.slash(cwd).replace(/\/+$/, '')}/${s}`);
 }
 
-function gitSubcommand(toks, gitIdx) {
+function gitSubcommandIndex(toks, gitIdx) {
   for (let i = gitIdx + 1; i < toks.length; i++) {
     const tok = cleanToken(toks[i]);
     if (!tok || isCommandBoundary(tok)) break;
@@ -166,9 +166,27 @@ function gitSubcommand(toks, gitIdx) {
       continue;
     }
     if (tok.startsWith('-')) continue;
-    return commandName(tok);
+    return i;
   }
-  return '';
+  return -1;
+}
+
+function gitSubcommand(toks, gitIdx) {
+  const idx = gitSubcommandIndex(toks, gitIdx);
+  return idx < 0 ? '' : commandName(toks[idx]);
+}
+
+function isReadOnlyGitSubmoduleStatus(toks, gitIdx) {
+  const submoduleIdx = gitSubcommandIndex(toks, gitIdx);
+  if (submoduleIdx < 0 || commandName(toks[submoduleIdx]) !== 'submodule') return false;
+  for (let i = submoduleIdx + 1; i < toks.length; i++) {
+    const tok = cleanToken(toks[i]);
+    if (!tok || isCommandBoundary(tok) || tok === '--') break;
+    if (tok === '--quiet' || tok === '-q') continue;
+    if (tok.startsWith('-')) return false;
+    return commandName(tok) === 'status';
+  }
+  return false;
 }
 
 function hasRedirect(toks) {
@@ -183,7 +201,7 @@ function isGitCommandExempt(cmd) {
   const gitIdx = commandIdxs[0];
   if (commandName(toks[gitIdx]) !== 'git') return false;
   const subcommand = gitSubcommand(toks, gitIdx);
-  return READ_ONLY_GIT_COMMANDS.has(subcommand);
+  return READ_ONLY_GIT_COMMANDS.has(subcommand) || isReadOnlyGitSubmoduleStatus(toks, gitIdx);
 }
 
 function hasGitMutatorCommand(cmdNoComment) {
