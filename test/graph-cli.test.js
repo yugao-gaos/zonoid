@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 'use strict';
 
-const { parseGraphArgs, runGraphCommand } = require('../packages/cli/bin/zonoid.js');
+const path = require('path');
+const { INSTALL_DIR, parseGraphArgs, runGraphCommand } = require('../packages/cli/bin/zonoid.js');
 
 let pass = 0;
 let fail = 0;
@@ -115,6 +116,9 @@ async function main() {
   );
   ok('confirmed recover-rebase passes the pause assertion and succeeds', confirmed.exitCode === 0
     && confirmedCalls[0].drainsPaused === true && confirmedCalls[0].dryRun === false);
+  ok('recover-rebase pins operator control and daemon identity to the Zonoid install root',
+    confirmedCalls[0].operatorRoot === INSTALL_DIR
+    && confirmedCalls[0].daemonPath === path.join(INSTALL_DIR, 'daemon.js'));
 
   console.log('-----');
   console.log(`${pass} passed, ${fail} failed`);

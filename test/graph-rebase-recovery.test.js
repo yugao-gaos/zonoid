@@ -58,11 +58,18 @@ function pausedEnv() {
 
 function daemonFixture(repo, overrides = {}) {
   const pidFile = path.join(temp('graph-rebase-daemon-'), 'daemon.pid');
+  const operatorRoot = path.join(temp('graph-rebase-operator-'), 'install');
+  const lockFile = path.join(operatorRoot, '.orch-off');
+  const graphLockFile = path.join(repo, '.orch-off');
   const pid = 41041;
   let state = 'running';
   let signals = 0;
   let restarts = 0;
   let flushes = 0;
+  let lockObserved = false;
+  const restartRequests = [];
+  const flushRequests = [];
+  fs.mkdirSync(operatorRoot, { recursive: true });
   write(pidFile, `${pid}\n`);
   const observation = () => state === 'running' ? {
     reachable: true,
@@ -74,6 +81,7 @@ function daemonFixture(repo, overrides = {}) {
     build: 'git:stable-fixture',
   } : { reachable: false, identified: false, ownershipProof: false, ready: false };
   const options = {
+    operatorRoot,
     pidFile,
     daemonShutdownTimeoutMs: 100,
     daemonPollMs: 1,
@@ -81,15 +89,18 @@ function daemonFixture(repo, overrides = {}) {
     isProcessAlive: (candidate) => candidate === pid && state === 'running',
     signalProcess: (candidate, signal) => {
       if (candidate !== pid || signal !== 'SIGTERM') throw new Error('unexpected daemon signal');
+      lockObserved = fs.existsSync(lockFile) && !fs.existsSync(graphLockFile);
       signals++;
       state = 'stopped';
     },
     sleep: async () => {},
-    flushGraph: async () => {
+    flushGraph: async (targetRepo, request) => {
+      flushRequests.push({ targetRepo, request });
       flushes++;
       return { status: 'pushed', commit: 'fixture-graph-commit' };
     },
-    restartDaemon: async () => {
+    restartDaemon: async (request) => {
+      restartRequests.push(request);
       restarts++;
       state = 'running';
       return { ok: true, action: 'started', identity: observation() };
@@ -98,10 +109,15 @@ function daemonFixture(repo, overrides = {}) {
   };
   return {
     options,
-    lockFile: path.join(repo, '.orch-off'),
+    operatorRoot,
+    lockFile,
+    graphLockFile,
     signals: () => signals,
     restarts: () => restarts,
     flushes: () => flushes,
+    lockObserved: () => lockObserved,
+    restartRequests: () => restartRequests,
+    flushRequests: () => flushRequests,
     stop: () => { state = 'stopped'; },
   };
 }
@@ -166,7 +182,7 @@ function createFixture() {
   return { repo, graphDir };
 }
 
-function createRetainedStashFixture() {
+function createRetainedStashFixture(options = {}) {
   const root = temp('graph-retained-stash-');
   const remote = path.join(root, 'remote.git');
   const seed = path.join(root, 'seed');
@@ -205,8 +221,10 @@ function createRetainedStashFixture() {
   git(graphDir, ['commit', '-m', 'newer graph head']);
   ok('retained stash fixture conflicts on apply', gitFails(graphDir, ['stash', 'apply', stashOid]));
   ok('retained stash fixture contains a known marker', fs.readFileSync(claim, 'utf8').includes('<<<<<<<'));
-  git(graphDir, ['add', '--', 'claims/one.json']);
-  git(graphDir, ['commit', '-m', 'committed interrupted stash marker']);
+  if (options.commitMarker !== false) {
+    git(graphDir, ['add', '--', 'claims/one.json']);
+    git(graphDir, ['commit', '-m', 'committed interrupted stash marker']);
+  }
   return { repo, graphDir, stashOid };
 }
 
@@ -280,6 +298,12 @@ async function testKnownRecovery() {
   ok('temporary recovery stash is dropped only after restoration', git(fixture.graphDir, ['stash', 'list']) === '');
   ok('successful recovery flushes before restarting and removes the lock', daemon.flushes() === 1
     && daemon.restarts() === 1 && !fs.existsSync(daemon.lockFile));
+  const restartRequest = daemon.restartRequests()[0];
+  ok('cross-project recovery locks and restarts only from the trusted operator root', daemon.lockObserved()
+    && restartRequest && restartRequest.operatorRoot === daemon.operatorRoot
+    && restartRequest.daemonPath === path.join(daemon.operatorRoot, 'daemon.js')
+    && !fs.existsSync(daemon.graphLockFile)
+    && daemon.flushRequests()[0].targetRepo === fixture.repo);
 }
 
 async function testRetainedStashAndCommittedMarkerRecovery() {
@@ -378,6 +402,46 @@ async function testUnsafeDaemonAndFlushFailureStayFailClosed() {
     && git(wrongBuild.graphDir, ['stash', 'list', '--format=%H']).includes(wrongBuild.stashOid));
 }
 
+async function testNonRebaseAdmissionRequiresCommittedProof() {
+  const uncommitted = createRetainedStashFixture();
+  git(uncommitted.graphDir, ['stash', 'drop', 'stash@{0}']);
+  git(uncommitted.graphDir, ['reset', '--mixed', 'HEAD^']);
+  const uncommittedDaemon = daemonFixture(uncommitted.repo);
+  const uncommittedStatus = git(uncommitted.graphDir, ['status', '--porcelain=v2']);
+  const uncommittedClaim = fs.readFileSync(path.join(uncommitted.graphDir, 'claims', 'one.json'), 'utf8');
+  const uncommittedResult = await lifecycle.recoverRebase(uncommitted.repo, {
+    ...uncommittedDaemon.options,
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('uncommitted working-tree marker is refused without authoritative stash and HEAD proof',
+    uncommittedResult.status === 'refused' && /HEAD|committed|stash/i.test(uncommittedResult.error));
+  ok('uncommitted marker refusal performs no lock, signal, stage, flush, restart, or mutation',
+    uncommittedDaemon.signals() === 0 && uncommittedDaemon.flushes() === 0
+    && uncommittedDaemon.restarts() === 0 && !fs.existsSync(uncommittedDaemon.lockFile)
+    && git(uncommitted.graphDir, ['status', '--porcelain=v2']) === uncommittedStatus
+    && fs.readFileSync(path.join(uncommitted.graphDir, 'claims', 'one.json'), 'utf8') === uncommittedClaim);
+
+  const unmerged = createRetainedStashFixture({ commitMarker: false });
+  const unmergedDaemon = daemonFixture(unmerged.repo);
+  const unmergedIndex = git(unmerged.graphDir, ['ls-files', '-u']);
+  const unmergedClaim = fs.readFileSync(path.join(unmerged.graphDir, 'claims', 'one.json'), 'utf8');
+  const unmergedResult = await lifecycle.recoverRebase(unmerged.repo, {
+    ...unmergedDaemon.options,
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('non-rebase unmerged index is refused without a conflict marker committed in HEAD',
+    unmergedResult.status === 'refused' && /HEAD|committed|unmerged/i.test(unmergedResult.error));
+  ok('non-rebase unmerged refusal performs no lock, signal, stage, flush, restart, or mutation',
+    unmergedDaemon.signals() === 0 && unmergedDaemon.flushes() === 0
+    && unmergedDaemon.restarts() === 0 && !fs.existsSync(unmergedDaemon.lockFile)
+    && git(unmerged.graphDir, ['ls-files', '-u']) === unmergedIndex
+    && fs.readFileSync(path.join(unmerged.graphDir, 'claims', 'one.json'), 'utf8') === unmergedClaim);
+}
+
 async function testUnknownConflictRefusal() {
   const root = temp('graph-rebase-unknown-');
   const remote = path.join(root, 'remote.git');
@@ -426,6 +490,7 @@ async function main() {
     await testKnownRecovery();
     await testRetainedStashAndCommittedMarkerRecovery();
     await testUnsafeDaemonAndFlushFailureStayFailClosed();
+    await testNonRebaseAdmissionRequiresCommittedProof();
     await testUnknownConflictRefusal();
   } finally {
     for (const dir of cleanup.reverse()) fs.rmSync(dir, { recursive: true, force: true });

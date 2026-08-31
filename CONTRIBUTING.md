@@ -84,11 +84,13 @@ fail-closed: it only resolves claim JSON toward the terminal/newer record and un
 events; every other conflict class is reported for manual inspection without mutation. Persist
 `drain_max_iterations=-1`, verify that value is effective, then rerun with
 `--confirm-drains-paused`; the flag alone cannot bypass the persisted pause check. The command first
-proves the signed daemon identity and PID-file owner, writes a repo-local `.orch-off` lock, and
-verifies graceful shutdown before changing graph state. It can resume either an active rebase or a
-retained Zonoid recovery stash with committed known conflict markers. Recovered state is committed
-and pushed before the lock is removed and the same daemon build is restarted; the lock and recovery
-stash remain available whenever an unsafe or failed step prevents that sequence from completing.
+proves the signed daemon identity and PID-file owner, writes `.orch-off` in the trusted Zonoid
+install/source root used by SessionStart, and verifies graceful shutdown before changing the target
+graph state. It can resume either an active rebase or a recognized retained Zonoid recovery stash
+whose known conflict markers are proven present in `HEAD`; working-tree-only markers and unrelated
+non-rebase unmerged state are refused before quiescing. Recovered state is committed and pushed
+before the lock is removed and the same install-root daemon build is restarted; the lock and
+recovery stash remain available whenever an unsafe or failed step prevents that sequence from completing.
 
 ## Pull request process
 

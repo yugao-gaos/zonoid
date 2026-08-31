@@ -1415,6 +1415,10 @@ async function runGraphCommand(graphArgs, deps = {}) {
     push: graphArgs.push,
     drainsPaused: graphArgs.drainsPaused,
   };
+  if (graphArgs.command === 'recover-rebase') {
+    lifecycleOptions.operatorRoot = path.resolve(deps.operatorRoot || INSTALL_DIR);
+    lifecycleOptions.daemonPath = path.join(lifecycleOptions.operatorRoot, 'daemon.js');
+  }
 
   if (graphArgs.command === 'init' && !graphArgs.yes && !graphArgs.dryRun) {
     const plan = await lifecycle.init(repoRoot, { ...lifecycleOptions, dryRun: true });
