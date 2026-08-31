@@ -55,3 +55,16 @@ node scripts/export-kb.js \
 ```
 
 Pass the same `--repo` path used during onboarding so the export queries the correct workspace scope.
+
+## Repair a stale code-edge overlay
+
+If the code-index already exists but its caller edges need to be reconciled after a persistence fix or a partial save, run the repair mode instead of a fresh sync:
+
+```bash
+node scripts/onboard-code.js \
+  --repo /path/to/repo \
+  --workspace /path/to/repo \
+  --repair
+```
+
+The repair pass performs one current-HEAD extraction, compares normalized code edges per file against the persisted overlay state, and rewrites only the files that are missing or mismatched with deferred publishes.

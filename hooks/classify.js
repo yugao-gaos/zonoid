@@ -5,6 +5,14 @@
 // (the old version shelled out to python3 just to build a JSON body — now a plain object).
 const k = require('./lib/hookkit');
 
+function resolveWorkspace(input) {
+  const { repoRoot } = require('../lib/workspace-registry');
+  const ws = repoRoot(input.cwd || process.cwd());
+  if (ws) return ws;
+  if (Array.isArray(input.workspace_roots) && input.workspace_roots[0]) return input.workspace_roots[0];
+  return null;
+}
+
 (async () => {
   const input = await k.readInput();
   const sid = input.session_id || input.conversation_id || input.sessionId || '';
@@ -30,8 +38,7 @@ const k = require('./lib/hookkit');
   if (autoOn || autoOff) {
     // Lazy requires: only loaded when the toggle actually fires, keeping the per-prompt hot path
     // free of the heavier lib modules.
-    const { repoRoot } = require('../lib/workspace-registry');
-    const ws = repoRoot(input.cwd || process.cwd());
+    const ws = resolveWorkspace(input);
     if (!ws) k.emitContext('UserPromptSubmit', '[Orchestrator] orch auto: cwd is not inside a repo — no workspace resolved, nothing toggled.');
     const respText = await k.post('/config', { workspace: ws, auto: autoOn }, 2000);
     let resp = null;

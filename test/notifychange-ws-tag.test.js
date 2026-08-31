@@ -123,17 +123,12 @@ test('notifyChange(T.ws): targeted mutations emit workspace-tagged SSE events', 
   // The WS dir must be a git repo so branch_task / worktree operations work.
   execSync('git init -q', { cwd: WS });
   execSync('git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init', { cwd: WS });
+  const env = { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '', ORCH_GATE_OFF: '1', ZONOID_EMBED_PROVIDER: 'voyage', VOYAGE_API_KEY: '' };
+  delete env.ORCH_DATA;
+  delete env.ZONOID_DATA;
 
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
-    env: {
-      ...process.env,
-      CLAUDE_PLUGIN_DATA: SANDBOX,
-      ORCH_PORT: String(PORT),
-      ORCH_TOKEN: '',
-      ORCH_GATE_OFF: '1',
-      ZONOID_EMBED_PROVIDER: 'voyage',
-      VOYAGE_API_KEY: '',
-    },
+    env,
     stdio: 'ignore',
   });
 
