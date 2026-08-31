@@ -341,6 +341,9 @@ function buildDrainJob(repo, outDir, patch = {}) {
   const successfulTerminal = nothingToInject || !autoInject || injected;
   const retryablePending = !!error && !injectionError && !!persistedQueue && !preparing
     && preparationState !== 'failed' && (qs.remaining > 0 || drainDone);
+  const learnerGenerationMatches = !!queueGen && meta.learnerGeneration === queueGen;
+  const learnerNextAt = learnerGenerationMatches ? countOrZero(meta.learnerNextAt) : 0;
+  const structureGenerationMatches = !!queueGen && meta.structureGeneration === queueGen;
   return {
     repo,
     outDir,
@@ -372,6 +375,12 @@ function buildDrainJob(repo, outDir, patch = {}) {
     preparationState,
     preparationStage: meta.preparationStage || null,
     preparationAttempts: Math.max(0, Number(meta.preparationAttempts) || 0),
+    learnerNextAt: learnerNextAt || null,
+    learnerWaiting: learnerNextAt > Date.now(),
+    structureNodesInjected: structureGenerationMatches ? countOrZero(meta.structureNodesInjected) : 0,
+    structureNodesTotal: structureGenerationMatches ? countOrZero(meta.structureNodesTotal) : 0,
+    structureEdgesInjected: structureGenerationMatches ? countOrZero(meta.structureEdgesInjected) : 0,
+    structureEdgesTotal: structureGenerationMatches ? countOrZero(meta.structureEdgesTotal) : 0,
     noCandidates,
     noNotesToInject,
     overviewReady: qs.overviewReady === true,

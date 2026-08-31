@@ -224,6 +224,7 @@ instead of dying with the shell that exported it.
 | `judge_budget` | `HEADLESS_DRAIN_JUDGE_BUDGET` | 20 |
 | `judge_max_per_tick` | `HEADLESS_DRAIN_MAX_PER_TICK` | unbounded |
 | `learner_max_per_tick` | `HEADLESS_DRAIN_LEARNER_MAX_PER_TICK` | min(1, `drain_max_concurrency`) |
+| `learner_cadence_ms` | `HEADLESS_DRAIN_LEARNER_CADENCE_MS` | 120000 |
 
 **No knob requires a restart.** Every consumer re-resolves per use and the file parse is cached on
 mtime, so a write lands on the next pump. `GET /config/tuning` reports `restart_required: []`.

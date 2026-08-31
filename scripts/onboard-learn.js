@@ -88,6 +88,8 @@ const API_LEARNER_MIN_TOKENS = 2048;
 const API_LEARNER_MAX_TOKENS = 32768;
 const QUEUE_LOCK_STALE_MS = 30 * 1000;
 const QUEUE_LOCK_WAIT_MS = 5000;
+const STRUCTURE_INJECTION_CHECKPOINT_FILE = 'onboard-structure-injection.json';
+const STRUCTURE_CHECKPOINT_EVERY = 16;
 const EXIT_TIMEOUT = 124;
 const EVIDENCE_LINE_RADIUS = 4;
 const MAX_EVIDENCE_CHARS = 1400;
@@ -1018,7 +1020,9 @@ async function injectOnboardNotes(notesFile, confirm, workspace, httpRequest = r
     }
   }
 
-  const structureResult = await injectDocumentStructure(outDir, workspace, httpRequest, assertCurrent);
+  const structureResult = await injectDocumentStructure(outDir, workspace, httpRequest, assertCurrent, {
+    generation: expectedGeneration,
+  });
   for (const [index, n] of kept.entries()) {
     if (index === overviewIndex) continue;
     await upsertNote(n, index);
@@ -1032,31 +1036,74 @@ async function injectOnboardNotes(notesFile, confirm, workspace, httpRequest = r
   return { created, skipped, confirmed, evidenceEdges, structure: structureResult };
 }
 
-async function injectDocumentStructure(inDir, workspace, httpRequest = request, assertCurrent = () => {}) {
+async function injectDocumentStructure(inDir, workspace, httpRequest = request, assertCurrent = () => {}, options = {}) {
   const structure = loadJSON(path.join(inDir, 'doc-structure.json'), { nodes: [], edges: [] });
   const nodes = Array.isArray(structure.nodes) ? structure.nodes : [];
   const edges = Array.isArray(structure.edges) ? structure.edges : [];
-  let upserted = 0;
-  let wired = 0;
-  for (const n of nodes) {
+  const generation = options.generation || `structure-${crypto.createHash('sha256')
+    .update(JSON.stringify({ nodes, edges })).digest('hex')}`;
+  const checkpointFile = path.join(inDir, STRUCTURE_INJECTION_CHECKPOINT_FILE);
+  const prior = loadJSON(checkpointFile, null);
+  let upserted = prior && prior.version === 1 && prior.generation === generation
+      && prior.totalNodes === nodes.length && prior.totalEdges === edges.length
+    ? Math.min(nodes.length, Math.max(0, Number(prior.nodes) || 0))
+    : 0;
+  let wired = upserted === nodes.length && prior && prior.version === 1
+      && prior.generation === generation && prior.totalEdges === edges.length
+    ? Math.min(edges.length, Math.max(0, Number(prior.edges) || 0))
+    : 0;
+  const checkpointEvery = Math.max(1, Number(options.checkpointEvery) || STRUCTURE_CHECKPOINT_EVERY);
+  const persist = () => {
+    const updatedAt = new Date().toISOString();
+    writeJSONAtomic(checkpointFile, {
+      version: 1,
+      generation,
+      nodes: upserted,
+      edges: wired,
+      totalNodes: nodes.length,
+      totalEdges: edges.length,
+      complete: upserted === nodes.length && wired === edges.length,
+      updatedAt,
+    });
+    if (options.generation) {
+      mutateOnboardStatus(inDir, (status) => {
+        if (status.injectionGeneration !== options.generation) return undefined;
+        return {
+          ...status,
+          structureGeneration: options.generation,
+          structureNodesInjected: upserted,
+          structureNodesTotal: nodes.length,
+          structureEdgesInjected: wired,
+          structureEdgesTotal: edges.length,
+          structureUpdatedAt: updatedAt,
+        };
+      });
+    }
+  };
+  for (let index = upserted; index < nodes.length; index++) {
     assertCurrent();
     await httpRequest('POST', '/overlay/knowledge-node', {
-      ...n,
+      ...nodes[index],
       ...(workspace ? { workspace } : {}),
     });
     upserted++;
+    if (upserted % checkpointEvery === 0 || upserted === nodes.length) persist();
   }
-  for (const e of edges) {
+  if (nodes.length === 0 && !prior) persist();
+  for (let index = wired; index < edges.length; index++) {
     assertCurrent();
+    const edge = edges[index];
     await httpRequest('POST', '/overlay/edge', {
-      from: e.from,
-      to: e.to,
-      kind: e.kind || 'context',
-      weight: typeof e.weight === 'number' ? e.weight : 1.0,
+      from: edge.from,
+      to: edge.to,
+      kind: edge.kind || 'context',
+      weight: typeof edge.weight === 'number' ? edge.weight : 1.0,
       ...(workspace ? { workspace } : {}),
     });
     wired++;
+    if (wired % checkpointEvery === 0 || wired === edges.length) persist();
   }
+  if (nodes.length === 0 && edges.length === 0) persist();
   return { nodes: upserted, edges: wired };
 }
 
