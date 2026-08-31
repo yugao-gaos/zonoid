@@ -172,6 +172,48 @@ test('unrelated listener is never signaled even when the pid file exists', async
   assert.equal(spawns, 0);
 });
 
+test('a transient health timeout during cold boot is not classified as an unrelated listener', async (t) => {
+  const { pidFile, lockFile } = fixture(t);
+  let spawned = false;
+  let timedOut = false;
+  const child = fakeChild();
+  const result = await ensureCurrentDaemon({
+    expectedIdentity: { head: 'new', build: 'git:new' },
+    probe: async () => {
+      if (!spawned) return { reachable: false, identified: false, ready: false };
+      if (!timedOut) {
+        timedOut = true;
+        return { reachable: true, identified: false, ready: false, timedOut: true };
+      }
+      return daemon('new', 42);
+    },
+    pidFile,
+    lockFile,
+    spawnDaemon: () => { spawned = true; return child; },
+    pollMs: 1,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.action, 'started');
+  assert.equal(child.signalCode, null);
+});
+
+test('a timed-out pre-existing listener is not trusted or replaced', async (t) => {
+  const { pidFile, lockFile } = fixture(t);
+  let spawns = 0;
+  const result = await ensureCurrentDaemon({
+    expectedIdentity: { head: 'new', build: 'git:new' },
+    probe: async () => ({ reachable: true, identified: false, ready: false, timedOut: true }),
+    pidFile,
+    lockFile,
+    spawnDaemon: () => { spawns++; return fakeChild(); },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'unrelated_listener');
+  assert.equal(spawns, 0);
+});
+
 test('signed stale listener with a PID-file mismatch is not treated as owned', async (t) => {
   const { pidFile, lockFile } = fixture(t);
   let signals = 0;

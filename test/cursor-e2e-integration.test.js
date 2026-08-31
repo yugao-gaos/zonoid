@@ -58,7 +58,13 @@ async function waitForPing(port, ms = 8000) {
 
 function spawnDaemon(port, sandbox, extra = {}) {
   return spawn(process.execPath, [path.join(REPO, 'daemon.js')], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: sandbox, ORCH_PORT: String(port), ...extra },
+    env: {
+      ...process.env,
+      CLAUDE_PLUGIN_DATA: sandbox,
+      ORCH_PORT: String(port),
+      HEADLESS_DRAIN_MAX_ITERATIONS: '-1',
+      ...extra,
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 }

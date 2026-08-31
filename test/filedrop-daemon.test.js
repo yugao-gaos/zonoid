@@ -85,7 +85,7 @@ function dropStub(harness, id, extra = {}) {
 
 function spawnDaemon() {
   return spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1', ORCH_AUTOWIRE_THRESHOLD: '999' },
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), HEADLESS_DRAIN_MAX_ITERATIONS: '-1', JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1', ORCH_AUTOWIRE_THRESHOLD: '999' },
     stdio: 'ignore',
   });
 }
@@ -124,9 +124,13 @@ function spawnDaemon() {
     ok('(A) blocker derives ready (after adopt-hold clears)', aaa && aaa.status === 'ready');
     ok('(A) blocked task derives not_ready', bbb && bbb.status === 'not_ready');
     ok('(A) summary counts stub tasks', g.summary && g.summary.tasks_total === 3); // aaa, bbb, ccc
+    // Adoption persistence is deferred until after the response; wait for the overlay flush before
+    // loading it from this parent process, matching the native-task adoption integration test.
+    await new Promise((r) => setTimeout(r, 200));
     let ovFirst = overlayStore.load(WS);
     ok('(D) adoption snapshot minted at first sight for cursor/aaa', ovFirst.snapshots && ovFirst.snapshots['cursor/aaa']);
-    ok('(D) adopted blockedBy normalized on cursor/bbb', (ovFirst.snapshots['cursor/bbb'].blockedBy || []).includes('cursor/aaa'));
+    ok('(D) adopted blockedBy normalized on cursor/bbb', ovFirst.snapshots && ovFirst.snapshots['cursor/bbb']
+      && (ovFirst.snapshots['cursor/bbb'].blockedBy || []).includes('cursor/aaa'));
 
     // ------------------------------------------------------------------
     // (B) overlay machinery parity: unwired quarantine + claims

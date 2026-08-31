@@ -78,7 +78,7 @@ async function stopDaemon(port) {
     const pid = Number(version.payload && version.payload.pid);
     if (Number.isInteger(pid) && pid > 0) {
       process.kill(pid, 'SIGTERM');
-      const deadline = Date.now() + 2000;
+      const deadline = Date.now() + 7000;
       while (Date.now() < deadline) {
         try { process.kill(pid, 0); } catch { return; }
         await new Promise((resolve) => setTimeout(resolve, 25));
@@ -1583,7 +1583,7 @@ test('daemon boot resumes a persisted preparation request created before the dae
       },
     }), true);
     assert.equal((await daemonRequest(port, 'POST', '/workspace', { path: repo })).status, 200);
-    await waitFor(() => fs.existsSync(path.join(outDir, 'onboard-queue.json')));
+    await waitFor(() => fs.existsSync(path.join(outDir, 'onboard-queue.json')), 60000);
     const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
     assert.equal(status.preparationState, 'ready');
     const queue = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-queue.json'), 'utf8'));

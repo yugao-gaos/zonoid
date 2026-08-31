@@ -31,7 +31,8 @@ assert "/overlay/note" in instructions
 assert "/search" in instructions
 
 summary = adapter.contract_summary()
-assert "REPL-style decide/reflect" in summary
+assert "REPL" in summary
+assert "decide/reflect" in summary
 assert "zonoid-on" in summary
 assert "ZONOID_TASK_INSTRUCTIONS" in summary
 

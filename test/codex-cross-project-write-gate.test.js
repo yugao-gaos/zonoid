@@ -244,7 +244,13 @@ async function exerciseAlias({ id, alias, toolName }) {
 
   const daemon = spawn(process.execPath, [path.join(ROOT, 'daemon.js')], {
     cwd: GRAPH_REPO,
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
+    env: {
+      ...process.env,
+      CLAUDE_PLUGIN_DATA: SANDBOX,
+      ORCH_PORT: String(PORT),
+      HEADLESS_DRAIN_MAX_ITERATIONS: '-1',
+      ORCH_AUTOWIRE_THRESHOLD: '999',
+    },
     stdio: 'ignore',
   });
 

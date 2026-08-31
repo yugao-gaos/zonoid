@@ -79,6 +79,7 @@ function waitForEvent(fn, timeoutMs = 4000) {
     const settle = (m) => {
       if (settled) return;
       settled = true;
+      markReady();
       req.destroy();
       resolve({ matched: m, all });
     };
@@ -131,6 +132,7 @@ test('notifyChange(T.ws): targeted mutations emit workspace-tagged SSE events', 
       ORCH_PORT: String(PORT),
       ORCH_TOKEN: '',
       ORCH_GATE_OFF: '1',
+      HEADLESS_DRAIN_MAX_ITERATIONS: '-1',
       ZONOID_EMBED_PROVIDER: 'voyage',
       VOYAGE_API_KEY: '',
     },

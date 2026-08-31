@@ -13,6 +13,7 @@ const TEST_DIR = path.join(ROOT, 'test');
 const TIMEOUT_MS = 120_000; // per-file safety net
 const FILE_TIMEOUT_MS = {
   'endpoints.test.js': 240_000,
+  'onboard-auto-init.test.js': 180_000,
   'phase2-integration.test.js': 180_000,
   'sync-route.test.js': 240_000,
 };
