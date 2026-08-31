@@ -37,10 +37,11 @@ case "$TOOL" in
   *) exit 0 ;;
 esac
 
-SID=${CODEX_THREAD_ID:-}
-if [[ -z "$SID" ]]; then
-  SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')
-fi
+HOOKKIT="$(cd "$(dirname "$0")" && pwd)/lib/hookkit.js"
+SID=$(printf '%s' "$INPUT" | node -e '
+  const k = require(process.argv[1]);
+  k.readInput().then((input) => process.stdout.write(k.hookSessionId(input)));
+' "$HOOKKIT" 2>/dev/null || true)
 TASK_KEY=$(printf '%s' "$INPUT" | jq -r '.tool_input.task_key // empty')
 AGENT_ID=$(printf '%s' "$INPUT" | jq -r '.tool_input.agent_id // empty')
 RESPONSE_PERMIT=$(printf '%s' "$INPUT" | jq -c --arg task_key "$TASK_KEY" --arg agent_id "$AGENT_ID" '
@@ -64,10 +65,15 @@ RESPONSE_PERMIT=$(printf '%s' "$INPUT" | jq -c --arg task_key "$TASK_KEY" --arg 
 ' 2>/dev/null || true)
 RESPONSE_WORKSPACE=$(printf '%s' "$RESPONSE_PERMIT" | jq -r '.workspace // empty' 2>/dev/null || true)
 EXPECTED_SESSION_ID=$(printf '%s' "$RESPONSE_PERMIT" | jq -r '.session_id // empty' 2>/dev/null || true)
+PAYLOAD_SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')
+REQUESTED_SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.tool_input.session_id // empty')
 PORT=${ORCH_PORT:-8787}
 
 [[ -n "$SID" && -n "$TASK_KEY" && -n "$AGENT_ID" ]] || exit 0
 [[ -n "$RESPONSE_WORKSPACE" && -n "$EXPECTED_SESSION_ID" ]] || exit 0
+if [[ "$SID" == "$PAYLOAD_SESSION_ID" && "$SID" != "$EXPECTED_SESSION_ID" && "$REQUESTED_SESSION_ID" == "$EXPECTED_SESSION_ID" ]]; then
+  exit 0
+fi
 
 BODY=$(jq -nc --arg task_key "$TASK_KEY" --arg session_id "$SID" --arg agent_id "$AGENT_ID" \
   --arg workspace "$RESPONSE_WORKSPACE" --arg expected_session_id "$EXPECTED_SESSION_ID" \

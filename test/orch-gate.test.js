@@ -22,11 +22,13 @@ function ok(label, cond) {
   else       { console.log(`FAIL  ${label}`); fail++; }
 }
 
-function mkInput(filePath, sessionId) {
-  return JSON.stringify({
+function mkInput(filePath, sessionId, agentId) {
+  const input = {
     tool_input: { file_path: filePath, new_string: 'x' },
     session_id: sessionId || 'test-session-x',
-  });
+  };
+  if (agentId) input.agent_id = agentId;
+  return JSON.stringify(input);
 }
 
 function runHook(input, extraEnv) {
@@ -334,6 +336,52 @@ function makeSingleClaimConfig(permit = executionPermit('task-a', WT_A, 'orch/at
   };
   const r = runWithConfig(mkInput(`${WT_A}/slow-claim.js`), config);
   ok('transiently slow task detail and permit preserve fail-closed claimed allow → exit 0', r.status === 0);
+}
+
+// 22. Codex Desktop reports the transport thread UUID as hook agent_id, not the logical assignee.
+{
+  const permit = executionPermit('task-a', WT_A, 'orch/attempt/task-a', { agent_id: 'logical-worker' });
+  const config = makeSingleClaimConfig(permit);
+  const transport = runWithConfig(
+    mkInput(`${WT_A}/transport-agent.js`, 'test-session-x', '01a05606-303e-7342-af86-80d33d596727'),
+    config,
+  );
+  const wrongLogical = runWithConfig(
+    mkInput(`${WT_A}/wrong-logical-agent.js`, 'test-session-x', 'different-logical-worker'),
+    config,
+  );
+  ok('Codex transport UUID uses the same session/task/worktree permit → exit 0', transport.status === 0);
+  ok('different logical non-UUID agent remains denied → exit 2', wrongLogical.status === 2);
+}
+
+// 23. Desktop transcript metadata recovers the child session when hook env lacks CODEX_THREAD_ID.
+{
+  const parentSession = '01a05418-cf8c-7a00-adc2-0b13eee860ca';
+  const childSession = '01a05606-303e-7342-af86-80d33d596727';
+  const windowId = '01a05606-303e-7342-af86-80ef3c3c6d7c';
+  const transcriptPath = path.join(TMP, 'desktop-child.jsonl');
+  fs.writeFileSync(transcriptPath, `${JSON.stringify({
+    type: 'session_meta',
+    payload: {
+      id: childSession,
+      session_id: parentSession,
+      parent_thread_id: parentSession,
+      context_window: { window_id: windowId },
+      source: { subagent: { thread_spawn: { parent_thread_id: parentSession } } },
+    },
+  })}\n`);
+  const config = makeSingleClaimConfig(executionPermit('task-a', WT_A, 'orch/attempt/task-a', {
+    session_id: childSession,
+    agent_id: 'logical-worker',
+  }));
+  const input = JSON.stringify({
+    session_id: windowId,
+    agent_id: childSession,
+    transcript_path: transcriptPath,
+    tool_input: { file_path: `${WT_A}/desktop-transcript.js`, new_string: 'x' },
+  });
+  const r = runWithConfig(input, config);
+  ok('Desktop transcript child session and transport agent use exact permit → exit 0', r.status === 0);
 }
 
 // ── Cleanup ─────────────────────────────────────────────────────────────────

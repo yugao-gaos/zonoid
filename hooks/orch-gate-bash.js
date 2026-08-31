@@ -39,7 +39,7 @@ const CLAIM_DETAIL_TIMEOUT_MS = 2000;
   if (!sid) k.allow();
   if (k.isOff(sid)) k.allow();
   const ti = input.tool_input || {};
-  const agentId = input.agent_id || ti.agent_id || '';
+  const agentId = k.hookAgentId(input);
   const foregroundAgentId = input.foreground_agent_id || ti.foreground_agent_id || '';
 
   async function permitForClaim(key, workspace) {
