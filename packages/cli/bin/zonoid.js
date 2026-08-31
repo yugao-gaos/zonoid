@@ -197,14 +197,41 @@ function checkHooks() {
   warn(`Missing hooks: ${missing.join(', ')} — re-run after verifying the install dir`);
 }
 
+// The `__INSTALL_DIR__` placeholders sit INSIDE JSON string literals, so the install path has to be
+// substituted as JSON source text, not as a raw path. On Windows every separator is a backslash, and
+// splicing `C:\Users\…` in verbatim produces `\U` — an invalid JSON escape that makes JSON.parse
+// throw "Bad escaped character", aborting `init` at the workspace-config step. A function replacer
+// also keeps `$&`/`$1` in the path from being read as replacement patterns.
+function jsonStringBody(value) {
+  return JSON.stringify(String(value)).slice(1, -1);
+}
+
+// "Is this command already wired?" must be answered against the DECODED strings. JSON.stringify()
+// doubles every backslash, so a Windows command `C:\Users\…\classify.sh` is searched for in text
+// that holds `C:\\Users\\…`, never matches, and `init` re-merges + re-backs-up the same config on
+// every run — which is exactly what makes a repeat init non-idempotent on Windows.
+function jsonStringLeaves(node, out = []) {
+  if (typeof node === 'string') out.push(node);
+  else if (Array.isArray(node)) for (const item of node) jsonStringLeaves(item, out);
+  else if (node && typeof node === 'object') for (const item of Object.values(node)) jsonStringLeaves(item, out);
+  return out;
+}
+
+function jsonStringHaystack(node) {
+  return jsonStringLeaves(node).join('\n');
+}
+
+function fillInstallDirTemplate(source) {
+  const installDir = jsonStringBody(INSTALL_DIR);
+  return String(source)
+    .replace(/__INSTALL_DIR__/g, () => installDir)
+    .replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, () => installDir);
+}
+
 function loadSampleSettings() {
   const src = path.join(INSTALL_DIR, '.claude', 'settings.sample.json');
   try {
-    return JSON.parse(
-      fs.readFileSync(src, 'utf8')
-        .replace(/__INSTALL_DIR__/g, INSTALL_DIR)
-        .replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, INSTALL_DIR)
-    );
+    return JSON.parse(fillInstallDirTemplate(fs.readFileSync(src, 'utf8')));
   } catch (e) { warn(`Sample not found at ${src}`); return null; }
 }
 
@@ -266,7 +293,7 @@ function checkSettings(cwd) {
   catch (e) { warn('Cannot parse settings.json — leaving as-is'); return; }
 
   // Check if all sample hooks are already wired to this install dir
-  const content = JSON.stringify(existing);
+  const content = jsonStringHaystack(existing);
   const hasTemplate = content.includes('__INSTALL_DIR__') || content.includes('${CLAUDE_PLUGIN_ROOT}');
   const missingHooks = Object.values(sample.hooks || {}).flat()
     .flatMap(e => (e.hooks || []).map(h => h.command))
@@ -1606,9 +1633,7 @@ function checkCursorHooks(cwd) {
   const dest = path.join(cwd, '.cursor', 'hooks.json');
   if (!fs.existsSync(samplePath)) { warn(`Cursor hook sample missing at ${samplePath}`); return; }
   chmodScripts(path.join(INSTALL_DIR, 'adapters', 'cursor'));
-  const sample = JSON.parse(
-    fs.readFileSync(samplePath, 'utf8').replace(/__INSTALL_DIR__/g, INSTALL_DIR)
-  );
+  const sample = JSON.parse(fillInstallDirTemplate(fs.readFileSync(samplePath, 'utf8')));
   const classifyMarker = `${INSTALL_DIR}/adapters/cursor/classify.sh`;
   const gateMarker = `${INSTALL_DIR}/adapters/cursor/orch-gate.sh`;
   const todoMarker = `${INSTALL_DIR}/adapters/cursor/post-todo-adopt.sh`;
@@ -1618,7 +1643,7 @@ function checkCursorHooks(cwd) {
     let existing;
     try { existing = JSON.parse(fs.readFileSync(dest, 'utf8')); }
     catch (e) { warn('Cannot parse .cursor/hooks.json — leaving as-is'); return; }
-    const content = JSON.stringify(existing);
+    const content = jsonStringHaystack(existing);
     if (content.includes(classifyMarker) && content.includes(gateMarker) && content.includes(todoMarker)) {
       ok('.cursor/hooks.json already references this install');
       return;
@@ -1890,7 +1915,7 @@ function checkCodexHooks() {
   const sample = path.join(INSTALL_DIR, 'adapters', 'codex', 'hooks.json.sample');
   const dest = path.join(os.homedir(), '.codex', 'hooks.json');
   if (!fs.existsSync(sample)) { warn(`Codex hook sample missing at ${sample}`); return; }
-  const sampleJson = JSON.parse(fs.readFileSync(sample, 'utf8').replace(/__INSTALL_DIR__/g, INSTALL_DIR));
+  const sampleJson = JSON.parse(fillInstallDirTemplate(fs.readFileSync(sample, 'utf8')));
   chmodScripts(path.join(INSTALL_DIR, 'adapters', 'codex', 'hooks'));
   if (fs.existsSync(dest)) {
     let existing;

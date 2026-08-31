@@ -34,6 +34,32 @@ function runNode(args, env) {
   });
 }
 
+// Windows stores no POSIX permission bits: chmod() only toggles the read-only attribute, so a file
+// created 0o640 comes back 0o666 and a 0o400 file comes back 0o444. Assert against the mode the
+// platform actually persists instead of the POSIX literal that was requested.
+function storedMode(mode) {
+  if (process.platform !== 'win32') return mode;
+  return (mode & 0o200) ? 0o666 : 0o444;
+}
+
+// A denied write is EACCES on POSIX and EPERM on Windows (the read-only attribute is not a
+// permission bit). Same rejection, different errno.
+const PERMISSION_DENIED_CODE = process.platform === 'win32' ? 'EPERM' : 'EACCES';
+
+// `mkfifo` from the Git-for-Windows MSYS toolchain exits 0 but leaves an ordinary empty file
+// behind, so an exit status is not proof that a FIFO exists — and that empty file is then read as
+// perfectly valid (empty) Git metadata, which is how a "FIFO is skipped" case silently became a
+// "regular file is accepted" case. Confirm the inode, and clear the decoy when it is not one.
+function makeFifo(file) {
+  const made = spawnSync('mkfifo', [file], { encoding: 'utf8', windowsHide: true });
+  if (made.status !== 0) return false;
+  try {
+    if (fs.lstatSync(file).isFIFO()) return true;
+  } catch { return false; }
+  try { fs.rmSync(file, { recursive: true, force: true }); } catch { /* nothing to undo */ }
+  return false;
+}
+
 function writeQueue(outDir, total, cursor, kept = [], generation) {
   const rejectedCount = Math.max(0, cursor - kept.length);
   fs.mkdirSync(outDir, { recursive: true });
@@ -1792,7 +1818,7 @@ test('post-commit Git exclude EACCES settles the init journal and later retries 
 
     assert.equal(sent[0].status, 200, 'advisory Git metadata failure must not change acceptance');
     assert.equal(runtimeErrors.length, 1);
-    assert.equal(runtimeErrors[0].code, 'EACCES');
+    assert.equal(runtimeErrors[0].code, PERMISSION_DENIED_CODE);
     assert.equal(fs.readFileSync(excludeFile, 'utf8'), 'preserve-existing-rule\n');
     const statusFile = path.join(outDir, 'onboard-drain-status.json');
     const statusBytes = fs.readFileSync(statusFile);
@@ -1940,8 +1966,7 @@ test('runtime ignore rejects unsafe Git metadata without hanging or writing outs
       const fifo = makeRepo('fifo-commondir');
       fs.mkdirSync(path.join(fifo, '.git'));
       const fifoFile = path.join(fifo, '.git', 'commondir');
-      const mkfifo = spawnSync('mkfifo', [fifoFile], { encoding: 'utf8' });
-      if (mkfifo.status === 0) cases.push(fifo);
+      if (makeFifo(fifoFile)) cases.push(fifo);
 
       const started = Date.now();
       for (const repo of cases) {
@@ -1972,8 +1997,7 @@ test('runtime ignore rejects unsafe Git metadata without hanging or writing outs
       assert.equal(readStableRegularFile(oversize, 64).reason, 'oversize');
 
       const fifo = path.join(files, 'fifo');
-      const mkfifo = spawnSync('mkfifo', [fifo], { encoding: 'utf8' });
-      if (mkfifo.status === 0) {
+      if (makeFifo(fifo)) {
         const started = Date.now();
         assert.equal(readStableRegularFile(fifo, 64).ok, false);
         assert.ok(Date.now() - started < 1000, 'FIFO read must be bounded');
@@ -2141,7 +2165,7 @@ test('init status snapshots retain one exact bounded image, mode, and replacemen
     const first = onboardInitTransaction.snapshotStatusFile(file);
     assert.equal(first.kind, 'file');
     assert.deepEqual(first.bytes, bytes);
-    assert.equal(first.mode, 0o640);
+    assert.equal(first.mode, storedMode(0o640));
     assert.match(first.fingerprint, /^[a-f0-9]{64}$/);
 
     const replacement = `${file}.replacement`;
@@ -2150,7 +2174,7 @@ test('init status snapshots retain one exact bounded image, mode, and replacemen
     fs.renameSync(replacement, file);
     const second = onboardInitTransaction.snapshotStatusFile(file);
     assert.deepEqual(second.bytes, bytes);
-    assert.equal(second.mode, 0o640);
+    assert.equal(second.mode, storedMode(0o640));
     assert.notEqual(second.fingerprint, first.fingerprint,
       'same bytes and mode on a replacement inode must remain a distinct CAS image');
   } finally {
@@ -2250,7 +2274,10 @@ test('prior v2 fingerprintless snapshot compatibility rejects byte, mode, and ex
         fs.writeFileSync(file, JSON.stringify(beforeStatus) + '\n');
         fs.chmodSync(file, 0o640);
       } else if (mismatch === 'mode') {
-        fs.chmodSync(file, 0o600);
+        // 0o400, not 0o600: Windows records only the read-only attribute, so 0o640 -> 0o600 is
+        // not an observable change there and the case would assert nothing. Dropping the write
+        // bit is a real mode change on both platforms.
+        fs.chmodSync(file, 0o400);
       } else {
         fs.unlinkSync(file);
       }
@@ -2262,6 +2289,8 @@ test('prior v2 fingerprintless snapshot compatibility rejects byte, mode, and ex
       if (mismatch === 'existence') assert.equal(fs.existsSync(file), false);
       else assert.notDeepEqual(fs.readFileSync(file), Buffer.from(JSON.stringify(desiredStatus, null, 2) + '\n'));
     } finally {
+      // A read-only file cannot be unlinked on Windows until the attribute is cleared.
+      try { fs.chmodSync(file, 0o600); } catch { /* absent in the existence case */ }
       fs.rmSync(repo, { recursive: true, force: true });
     }
   }
@@ -2294,7 +2323,7 @@ test('prior v2 fingerprintless snapshot rollback restores the exact captured pre
     const restored = onboardInitTransaction.rollbackIntentStatus(registryFile, intent, beforeSnapshot);
     assert.equal(restored.applied, true);
     assert.deepEqual(fs.readFileSync(file), beforeBytes);
-    assert.equal(fs.statSync(file).mode & 0o777, 0o640);
+    assert.equal(fs.statSync(file).mode & 0o777, storedMode(0o640));
   } finally {
     try { if (intent) onboardInitTransaction.removeIntent(registryFile, intent); } catch { /* fixture cleanup */ }
     fs.rmSync(repo, { recursive: true, force: true });
@@ -2376,7 +2405,7 @@ test('init ensure and rollback parse only their stable captured status bytes', (
       fs.readFileSync = originalReadFileSync;
     }
     assert.deepEqual(fs.readFileSync(file), beforeBytes);
-    assert.equal(fs.statSync(file).mode & 0o777, 0o640);
+    assert.equal(fs.statSync(file).mode & 0o777, storedMode(0o640));
   } finally {
     try { if (intent) onboardInitTransaction.removeIntent(registryFile, intent); } catch { /* fixture cleanup */ }
     fs.rmSync(repo, { recursive: true, force: true });
@@ -2398,7 +2427,7 @@ test('init status snapshots reject replacement and nonregular paths without bloc
     fs.mkdirSync(directory);
     fs.symlinkSync(outside, symlink);
     fs.writeFileSync(oversize, Buffer.alloc(onboardState.ONBOARD_STATUS_MAX_BYTES + 1, 0x78));
-    const fifoMade = spawnSync('mkfifo', [fifo], { encoding: 'utf8', windowsHide: true }).status === 0;
+    const fifoMade = makeFifo(fifo);
 
     const originalReadSync = fs.readSync;
     let replaced = false;
@@ -2656,7 +2685,7 @@ test('malformed and truncated init pre-images roll back exactly and cannot roll 
 
         assert.equal(sent[0].status, 500);
         assert.deepEqual(fs.readFileSync(statusFile), oldBytes);
-        assert.equal(fs.statSync(statusFile).mode & 0o777, 0o640);
+        assert.equal(fs.statSync(statusFile).mode & 0o777, storedMode(0o640));
         assert.equal(fs.existsSync(registryFile), false);
         assert.deepEqual(onboardInitTransaction.reconcilePending(registryFile), [],
           'a later daemon boot must not roll a reported failure forward');
@@ -2674,7 +2703,14 @@ test('malformed and truncated init pre-images roll back exactly and cannot roll 
 
 test('directory and unreadable init pre-images fail without status, registry, or restart mutation', async (t) => {
   for (const kind of ['directory', 'unreadable']) {
-    await t.test(kind, async () => {
+    // An unreadable regular file cannot be produced on Windows through Node: chmod maps to the
+    // read-only attribute and never removes read access, so mode 0o000 still opens fine and the
+    // snapshot is an ordinary 'file'. Only ACL surgery could build the fixture, which is a far
+    // bigger dependency than the case is worth; the POSIX runs keep covering the branch.
+    const skip = kind === 'unreadable' && process.platform === 'win32'
+      ? 'chmod cannot make a file unreadable on Windows'
+      : false;
+    await t.test(kind, { skip }, async () => {
       const repo = fs.mkdtempSync(path.join(os.tmpdir(), `onboard-init-${kind}-`));
       const outDir = defaultOnboardOutDir(repo);
       const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), `onboard-init-${kind}-data-`));
@@ -2908,7 +2944,7 @@ test('nonregular, oversized, and mutating init journals are never read and quara
   fs.mkdirSync(onboardInitTransaction.journalFile(registryFile, ids.directory));
   fs.writeFileSync(onboardInitTransaction.journalFile(registryFile, ids.oversize), 'x'.repeat(256 * 1024 + 1));
   const fifoFile = onboardInitTransaction.journalFile(registryFile, ids.fifo);
-  const fifoMade = spawnSync('mkfifo', [fifoFile], { encoding: 'utf8' }).status === 0;
+  const fifoMade = makeFifo(fifoFile);
   fs.symlinkSync('/dev/null', onboardInitTransaction.journalFile(registryFile, ids.device));
   const mutatingFile = onboardInitTransaction.journalFile(registryFile, ids.mutating);
   fs.writeFileSync(mutatingFile, '{"version":2}');

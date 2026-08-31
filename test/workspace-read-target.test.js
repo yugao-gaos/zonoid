@@ -36,12 +36,22 @@ try {
   if (fs.existsSync(realModels)) fs.symlinkSync(realModels, path.join(SANDBOX, 'models'));
 } catch { /* lexical fallback is fine */ }
 
-const PORT = 18790 + Math.floor(Math.random() * 200);
+// A random port inside a hand-picked range is not a free port: a daemon leaked by an earlier run
+// keeps LISTENING, /ping answers from it, and every later assertion fails against a foreign
+// sandbox. Ask the OS for a port that is free right now instead (see test/helpers/port.js).
+const { freePort } = require('./helpers/port');
+let PORT = 0;
 const WS_A = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-rdtarget-A-')));
 const WS_B = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-rdtarget-B-')));
 
 let pass = 0, fail = 0;
-const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
+// `detail` is printed only on failure: an HTTP assertion that fails with nothing but its label
+// costs a whole debugging round-trip to learn what the daemon actually answered.
+const ok = (label, cond, detail) => {
+  if (cond) { console.log(`PASS  ${label}`); pass++; return; }
+  console.log(`FAIL  ${label}${detail === undefined ? '' : `  <= ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`}`);
+  fail++;
+};
 
 function req(method, p, body) {
   return new Promise((resolve, reject) => {
@@ -63,10 +73,17 @@ function req(method, p, body) {
 // runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
 // still starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
 
+// /ping answers 200 while the daemon is still in its `loading` phase, but every mutating route
+// (including POST /workspace) 503s until boot finishes. Waiting on /ping alone therefore races
+// boot — reliably lost on Windows, where loadState is slow enough that the first POST lands
+// mid-`loading`. Readiness is the /health phase, so wait for that.
 async function waitForPing(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
-    try { const r = await req('GET', '/ping'); if (r.status === 200) return true; } catch { /* not up yet */ }
+    try {
+      const r = await req('GET', '/health');
+      if (r.status === 200 && r.body && r.body.phase === 'ready') return true;
+    } catch { /* not up yet */ }
     await new Promise((r) => setTimeout(r, 100));
   }
   return false;
@@ -109,6 +126,7 @@ async function testMakeCall() {
 (async () => {
   await testMakeCall();
 
+  PORT = await freePort();
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
     stdio: 'ignore',
@@ -118,7 +136,7 @@ async function testMakeCall() {
 
     // Register workspace B (P3: setWorkspace registers + binds, it sets NO daemon-global default).
     const pin = await req('POST', '/workspace', { path: WS_B });
-    ok('workspace B registered', pin.status === 200 && pin.body.ok === true);
+    ok('workspace B registered', pin.status === 200 && pin.body.ok === true, pin);
 
     // Seed workspace A via the (already-fixed) write routes: a note node, an edge, knowledge, guidance.
     dropStub(WS_A, 'sessA', '1');
