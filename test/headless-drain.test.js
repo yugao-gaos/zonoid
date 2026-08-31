@@ -2388,12 +2388,14 @@ test('overview-ready learner runs one batch per durable background cadence', asy
     fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
       repo,
       outDir,
-      overviewReady: true,
+      // Exact crash window: the durable receipt committed, but the cached status flag did not.
+      overviewReady: false,
       injectionGeneration: generation,
       injectionState: 'succeeded',
       injectedKept: 1,
       batchSize: 1,
     }));
+    hd._writeInjectionReceipt(outDir, generation, [hd._onboardNoteId(overview, 0)]);
     const options = {
       ...judgeDeps({ depth: 0, eagerNodes: [] }),
       ...labelDeps({ journal: [], labeledKeys: [] }),
@@ -2404,6 +2406,7 @@ test('overview-ready learner runs one batch per durable background cadence', asy
     const first = await hd.runDueDrains({ workspace: repo, registeredWorkspaces: [repo] }, noopHttp(), options);
     assert.equal(learnerCallCount(), 1, `${JSON.stringify(first)}; one queue gets only one batch per pump even when the global cap is higher`);
     let status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.overviewReady, false, 'the regression must not rely on repairing the stale cache');
     assert.equal(status.learnerGeneration, generation);
     assert.ok(status.learnerNextAt > Date.now());
 
