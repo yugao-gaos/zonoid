@@ -67,7 +67,7 @@ function req(method, p, body) {
   });
 }
 
-// Boot deadline, not a latency budget: waitForPing returns the moment /ping answers, so a
+// Boot deadline, not a latency budget: waitForReady returns the moment /health reports phase:'ready', so a
 // generous ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated.
 // 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
 // runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
@@ -77,7 +77,13 @@ function req(method, p, body) {
 // (including POST /workspace) 503s until boot finishes. Waiting on /ping alone therefore races
 // boot — reliably lost on Windows, where loadState is slow enough that the first POST lands
 // mid-`loading`. Readiness is the /health phase, so wait for that.
-async function waitForPing(ms = 30000) {
+//
+// Probe /health, NOT /ping: daemon.js calls server.listen() before loadState() and /ping is in
+// LOADING_WHITELIST, so /ping answers 200 while every non-whitelisted route still 503s
+// {phase:'loading'}. Waiting on /ping therefore races boot, and the first real request after it
+// can get the 503 body instead of data.
+
+async function waitForReady(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     try {
@@ -132,7 +138,7 @@ async function testMakeCall() {
     stdio: 'ignore',
   });
   try {
-    ok('daemon came up on the test port', await waitForPing());
+    ok('daemon came up on the test port', await waitForReady());
 
     // Register workspace B (P3: setWorkspace registers + binds, it sets NO daemon-global default).
     const pin = await req('POST', '/workspace', { path: WS_B });

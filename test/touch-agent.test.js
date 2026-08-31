@@ -121,7 +121,7 @@ const ok = (label, cond) => {
     });
   }
 
-  // Boot deadline, not a latency budget: waitForPing returns the moment /ping answers, so a
+  // Boot deadline, not a latency budget: waitForReady returns the moment /health reports phase:'ready', so a
 // generous ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated.
 // 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
 // runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely

@@ -97,7 +97,7 @@ function processIsAlive(pid) {
 // carrying the residue of two hundred earlier files — a cold Windows Node start (fresh runtime plus
 // an AV scan) is worth seconds there, against ceilings originally sized for an idle machine. No
 // assertion in this file depends on a process being SLOW to start or exit, so nothing is weakened
-// by waiting longer for one; the same reasoning as waitForPing in test/self-register-on-claim.test.js.
+// by waiting longer for one; the same reasoning as waitForReady in test/self-register-on-claim.test.js.
 const READY_DEADLINE_MS = 30000;
 const EXIT_DEADLINE_MS = 30000;
 
