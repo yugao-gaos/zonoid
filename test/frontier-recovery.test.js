@@ -146,6 +146,7 @@ test('stale daemon, inactive owner credentials, and zombie capacity recover as o
     expectedIdentity: { head: currentHead, build: `git:${currentHead}` },
     spawnDaemon: () => {
       currentChild = spawnListener(port, currentHead);
+      fs.writeFileSync(pidFile, String(currentChild.pid));
       return currentChild;
     },
     healthTimeoutMs: 200,
