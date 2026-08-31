@@ -12,6 +12,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { withHookStub } = require('./support/hook-http-stub');
+const hookkit = require('../hooks/lib/hookkit');
 
 const HOOK = path.resolve(__dirname, '..', 'hooks', 'orch-gate.sh');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-gate-test-'));
@@ -73,6 +74,31 @@ function executionPermit(taskKey, worktree, branch, overrides = {}) {
     expires_at: '2099-01-01T00:00:00.000Z',
     ...overrides,
   };
+}
+
+function withTurnBindingData(fn) {
+  const previous = process.env.ORCH_DATA;
+  process.env.ORCH_DATA = TMP;
+  try { return fn(); }
+  finally {
+    if (previous === undefined) delete process.env.ORCH_DATA;
+    else process.env.ORCH_DATA = previous;
+  }
+}
+
+function bindTurn(parentSession, turnId, childSession) {
+  return withTurnBindingData(() => hookkit.bindTurnSession({
+    session_id: parentSession,
+    turn_id: turnId,
+    tool_input: { session_id: childSession },
+  }, {
+    id: `permit-${turnId}`,
+    workspace: '/graph/test',
+    session_id: childSession,
+    task_key: 'task-a',
+    agent_id: 'logical-worker',
+    expires_at: '2099-01-01T00:00:00.000Z',
+  }, 'task-a', 'logical-worker'));
 }
 
 // ── Test cases ──────────────────────────────────────────────────────────────
@@ -385,7 +411,7 @@ function makeSingleClaimConfig(permit = executionPermit('task-a', WT_A, 'orch/at
     transcript_path: transcriptPath,
     tool_input: { file_path: `${WT_A}/desktop-transcript.js`, new_string: 'x' },
   };
-  const desktopEnv = { CODEX_THREAD_ID: parentSession, CODEX_SESSION_ID: parentSession };
+  const desktopEnv = { CODEX_THREAD_ID: parentSession, CODEX_SESSION_ID: parentSession, ORCH_DATA: TMP };
   const r = runWithConfig(JSON.stringify(input), config, desktopEnv);
   ok('Desktop proven child overrides parent CODEX_THREAD_ID for Write/Edit → exit 0', r.status === 0);
   ok('Desktop transcript child remains available when CODEX_THREAD_ID is absent → exit 0',
@@ -396,13 +422,33 @@ function makeSingleClaimConfig(permit = executionPermit('task-a', WT_A, 'orch/at
     agent_id: childSession,
     tool_input: { file_path: `${WT_A}/desktop-no-transcript.js`, new_string: 'x' },
   };
-  ok('Desktop host UUID overrides parent CODEX_THREAD_ID without a transcript for Write/Edit → exit 0',
-    runWithConfig(JSON.stringify(noTranscript), config, desktopEnv).status === 0);
+  ok('undocumented Desktop host UUID cannot override parent CODEX_THREAD_ID without a turn binding → exit 2',
+    runWithConfig(JSON.stringify(noTranscript), config, desktopEnv).status === 2);
+
+  const boundTurn = 'desktop-write-turn';
+  ok('validated test setup persists parent+turn child binding', bindTurn(parentSession, boundTurn, childSession) === true);
+  const boundInput = {
+    session_id: parentSession,
+    turn_id: boundTurn,
+    tool_input: { file_path: `${WT_A}/desktop-bound-turn.js`, new_string: 'x' },
+  };
+  ok('documented parent+turn binding allows the child Write/Edit permit → exit 0',
+    runWithConfig(JSON.stringify(boundInput), config, desktopEnv).status === 0);
+  ok('different turn cannot borrow the child Write/Edit permit → exit 2',
+    runWithConfig(JSON.stringify({ ...boundInput, turn_id: 'desktop-write-other-turn' }), config, desktopEnv).status === 2);
+  ok('different parent cannot borrow the child Write/Edit permit → exit 2',
+    runWithConfig(JSON.stringify({ ...boundInput, session_id: 'desktop-write-other-parent' }), config, desktopEnv).status === 2);
   ok('tool_input UUID cannot override parent CODEX_THREAD_ID without a transcript → exit 2',
     runWithConfig(JSON.stringify({
       ...noTranscript,
       agent_id: undefined,
       tool_input: { ...noTranscript.tool_input, agent_id: childSession },
+    }), config, desktopEnv).status === 2);
+  ok('arbitrary tool_input session_id cannot establish a child turn binding → exit 2',
+    runWithConfig(JSON.stringify({
+      session_id: parentSession,
+      turn_id: 'unbound-tool-input-turn',
+      tool_input: { file_path: `${WT_A}/tool-input-session.js`, new_string: 'x', session_id: childSession },
     }), config, desktopEnv).status === 2);
   ok('non-UUID top-level logical agent cannot become the hook session → exit 2',
     runWithConfig(JSON.stringify({ ...noTranscript, agent_id: 'logical-worker' }), config, desktopEnv).status === 2);
@@ -427,6 +473,33 @@ function makeSingleClaimConfig(permit = executionPermit('task-a', WT_A, 'orch/at
   fs.writeFileSync(malformedTranscript, '{not-json\n');
   ok('malformed transcript remains fail-closed instead of falling back to the host UUID → exit 2',
     runWithConfig(JSON.stringify({ ...noTranscript, transcript_path: malformedTranscript }), config, desktopEnv).status === 2);
+
+  for (const [label, turnId, contents] of [
+    ['malformed', 'malformed-turn-binding', '{not-json\n'],
+    ['stale', 'stale-turn-binding', JSON.stringify({
+      version: 1,
+      parent_session_id: parentSession,
+      turn_id: 'stale-turn-binding',
+      child_session_id: childSession,
+      expires_at: '2000-01-01T00:00:00.000Z',
+    })],
+    ['mismatched', 'mismatched-turn-binding', JSON.stringify({
+      version: 1,
+      parent_session_id: 'different-parent',
+      turn_id: 'mismatched-turn-binding',
+      child_session_id: childSession,
+      expires_at: '2099-01-01T00:00:00.000Z',
+    })],
+  ]) {
+    const bindingFile = withTurnBindingData(() => hookkit.turnBindingPath(parentSession, turnId));
+    fs.mkdirSync(path.dirname(bindingFile), { recursive: true });
+    fs.writeFileSync(bindingFile, `${contents}\n`);
+    ok(`${label} turn binding falls through to the parent session → exit 2`, runWithConfig(JSON.stringify({
+      session_id: parentSession,
+      turn_id: turnId,
+      tool_input: { file_path: `${WT_A}/${label}-binding.js`, new_string: 'x' },
+    }), config, desktopEnv).status === 2);
+  }
 
   const toolInputOnly = {
     ...input,

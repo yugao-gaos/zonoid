@@ -6,6 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { withHookStub } = require('./support/hook-http-stub');
+const hookkit = require('../hooks/lib/hookkit');
 
 const REPO = path.resolve(__dirname, '..');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'hook-policy-parity-'));
@@ -230,10 +231,42 @@ const desktopNoTranscriptWrite = {
   tool_name: 'Write',
   tool_input: { file_path: `${WT}/src/desktop-no-transcript.js`, new_string: 'x' },
 };
-expectExit('direct Node write gate allows transcript-less Desktop child over parent env', DIRECT_WRITE, desktopNoTranscriptWrite, desktopConfig, 0, desktopEnv);
-expectExit('shell write gate allows transcript-less Desktop child over parent env', SHELL_WRITE, desktopNoTranscriptWrite, desktopConfig, 0, desktopEnv);
-expectExit('Cursor write relay allows transcript-less Desktop child over parent env', CURSOR_WRITE, desktopNoTranscriptWrite, desktopConfig, 0, desktopEnv);
-expectCodexAllow('Codex write relay allows transcript-less Desktop child over parent env', CODEX_WRITE, desktopNoTranscriptWrite, desktopConfig, desktopEnv);
+expectExit('direct Node write gate denies undocumented Desktop child without turn binding', DIRECT_WRITE, desktopNoTranscriptWrite, desktopConfig, 2, desktopEnv);
+expectExit('shell write gate denies undocumented Desktop child without turn binding', SHELL_WRITE, desktopNoTranscriptWrite, desktopConfig, 2, desktopEnv);
+expectExit('Cursor write relay denies undocumented Desktop child without turn binding', CURSOR_WRITE, desktopNoTranscriptWrite, desktopConfig, 2, desktopEnv);
+withHookStub(desktopConfig, (stub) => {
+  const r = run(CODEX_WRITE, desktopNoTranscriptWrite, envFor(stub, desktopEnv));
+  ok('Codex write relay denies undocumented Desktop child without turn binding', denyJson(r.stdout));
+});
+
+const desktopTurn = 'desktop-parity-turn';
+const previousOrchData = process.env.ORCH_DATA;
+process.env.ORCH_DATA = TMP;
+const desktopTurnBound = hookkit.bindTurnSession({
+  session_id: desktopParent,
+  turn_id: desktopTurn,
+  tool_input: { session_id: desktopChild },
+}, {
+  id: 'permit-desktop-parity-turn',
+  workspace: '/graph/parity',
+  session_id: desktopChild,
+  task_key: 'parity/task',
+  agent_id: 'logical-worker',
+  expires_at: '2099-01-01T00:00:00.000Z',
+}, 'parity/task', 'logical-worker');
+if (previousOrchData === undefined) delete process.env.ORCH_DATA;
+else process.env.ORCH_DATA = previousOrchData;
+ok('parity setup persists validated Desktop parent+turn binding', desktopTurnBound === true);
+const desktopBoundWrite = {
+  session_id: desktopParent,
+  turn_id: desktopTurn,
+  tool_name: 'Write',
+  tool_input: { file_path: `${WT}/src/desktop-turn-bound.js`, new_string: 'x' },
+};
+expectExit('direct Node write gate allows validated Desktop turn binding', DIRECT_WRITE, desktopBoundWrite, desktopConfig, 0, desktopEnv);
+expectExit('shell write gate allows validated Desktop turn binding', SHELL_WRITE, desktopBoundWrite, desktopConfig, 0, desktopEnv);
+expectExit('Cursor write relay allows validated Desktop turn binding', CURSOR_WRITE, desktopBoundWrite, desktopConfig, 0, desktopEnv);
+expectCodexAllow('Codex write relay allows validated Desktop turn binding', CODEX_WRITE, desktopBoundWrite, desktopConfig, desktopEnv);
 
 const desktopNoTranscriptBash = {
   session_id: desktopParent,
@@ -241,10 +274,23 @@ const desktopNoTranscriptBash = {
   tool_name: 'Bash',
   tool_input: { command: `touch ${WT}/desktop-no-transcript.txt` },
 };
-expectExit('direct Node bash gate allows transcript-less Desktop child over parent env', DIRECT_BASH, desktopNoTranscriptBash, desktopConfig, 0, desktopEnv);
-expectExit('shell bash gate allows transcript-less Desktop child over parent env', SHELL_BASH, desktopNoTranscriptBash, desktopConfig, 0, desktopEnv);
-expectExit('Cursor shell relay allows transcript-less Desktop child over parent env', CURSOR_BASH, desktopNoTranscriptBash, desktopConfig, 0, desktopEnv);
-expectCodexAllow('Codex bash relay allows transcript-less Desktop child over parent env', CODEX_BASH, desktopNoTranscriptBash, desktopConfig, desktopEnv);
+expectExit('direct Node bash gate denies undocumented Desktop child without turn binding', DIRECT_BASH, desktopNoTranscriptBash, desktopConfig, 2, desktopEnv);
+expectExit('shell bash gate denies undocumented Desktop child without turn binding', SHELL_BASH, desktopNoTranscriptBash, desktopConfig, 2, desktopEnv);
+expectExit('Cursor shell relay denies undocumented Desktop child without turn binding', CURSOR_BASH, desktopNoTranscriptBash, desktopConfig, 2, desktopEnv);
+withHookStub(desktopConfig, (stub) => {
+  const r = run(CODEX_BASH, desktopNoTranscriptBash, envFor(stub, desktopEnv));
+  ok('Codex bash relay denies undocumented Desktop child without turn binding', denyJson(r.stdout));
+});
+const desktopBoundBash = {
+  session_id: desktopParent,
+  turn_id: desktopTurn,
+  tool_name: 'Bash',
+  tool_input: { command: `touch ${WT}/desktop-turn-bound.txt` },
+};
+expectExit('direct Node bash gate allows validated Desktop turn binding', DIRECT_BASH, desktopBoundBash, desktopConfig, 0, desktopEnv);
+expectExit('shell bash gate allows validated Desktop turn binding', SHELL_BASH, desktopBoundBash, desktopConfig, 0, desktopEnv);
+expectExit('Cursor shell relay allows validated Desktop turn binding', CURSOR_BASH, desktopBoundBash, desktopConfig, 0, desktopEnv);
+expectCodexAllow('Codex bash relay allows validated Desktop turn binding', CODEX_BASH, desktopBoundBash, desktopConfig, desktopEnv);
 
 const outsideClaim = writeInput('/Users/x/other/main.js');
 expectExit('direct Node write gate denies claimed out-of-worktree path', DIRECT_WRITE, outsideClaim, claimedConfig(), 2);

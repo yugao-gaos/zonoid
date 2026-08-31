@@ -308,6 +308,77 @@ async function exerciseLegacyStart({ id, shell }) {
   assert.equal(permit.body.execution_permit.workspace, GRAPH_REPO);
 }
 
+async function exerciseDesktopTurnBinding() {
+  const key = taskKey('turn-binding');
+  const parentSession = crypto.randomUUID();
+  const childSession = crypto.randomUUID();
+  const turnId = 'desktop-cross-project-turn';
+  const { prepared, accepted } = await prepareAndAccept(key, childSession);
+  const desktopEnv = {
+    CODEX_THREAD_ID: parentSession,
+    CODEX_SESSION_ID: parentSession,
+  };
+  const postTool = runHook('orch-posttool-starttask.js', {
+    session_id: parentSession,
+    turn_id: turnId,
+    tool_name: 'mcp__orchestrator_graph__subconscious_assignment',
+    tool_input: {
+      action: 'accept',
+      task_key: key,
+      agent_id: AGENT,
+      session_id: childSession,
+      graph_repo: GRAPH_REPO,
+      target_repo: TARGET_REPO,
+    },
+    tool_response: accepted,
+  }, desktopEnv);
+  assert.equal(postTool.status, 0, postTool.stderr);
+
+  const childActive = await request('GET', `/active-claim?session=${encodeURIComponent(childSession)}`, null, false);
+  assert.equal(childActive.body.claimed, true, JSON.stringify(childActive.body));
+  const parentActive = await request('GET', `/active-claim?session=${encodeURIComponent(parentSession)}`, null, false);
+  assert.equal(parentActive.body.claimed, false, JSON.stringify(parentActive.body));
+
+  const writeTarget = path.join(prepared.worktree, 'desktop-turn-write.txt');
+  const write = runHook('orch-gate.js', {
+    session_id: parentSession,
+    turn_id: turnId,
+    tool_name: 'Write',
+    tool_input: { file_path: writeTarget, new_string: 'turn bound\n' },
+  }, desktopEnv);
+  assert.equal(write.status, 0, write.stderr);
+
+  const bashTarget = path.join(prepared.worktree, 'desktop-turn-bash.txt');
+  const bash = runHook('orch-gate-bash.js', {
+    session_id: parentSession,
+    turn_id: turnId,
+    tool_name: 'Bash',
+    cwd: prepared.worktree,
+    tool_input: { command: `printf bound > "${bashTarget.replace(/\\/g, '/')}"` },
+  }, desktopEnv);
+  assert.equal(bash.status, 0, bash.stderr);
+
+  const differentTurn = runHook('orch-gate.js', {
+    session_id: parentSession,
+    turn_id: 'desktop-cross-project-other-turn',
+    tool_name: 'Write',
+    tool_input: { file_path: path.join(prepared.worktree, 'wrong-turn.txt'), new_string: 'denied\n' },
+  }, desktopEnv);
+  assert.equal(differentTurn.status, 2);
+  const arbitraryInput = runHook('orch-gate.js', {
+    session_id: parentSession,
+    turn_id: 'desktop-cross-project-unbound-turn',
+    tool_name: 'Write',
+    tool_input: {
+      file_path: path.join(prepared.worktree, 'untrusted-input.txt'),
+      new_string: 'denied\n',
+      session_id: childSession,
+      agent_id: childSession,
+    },
+  }, desktopEnv);
+  assert.equal(arbitraryInput.status, 2);
+}
+
 (async () => {
   git.initRepo(GRAPH_REPO);
   git.initRepo(TARGET_REPO);
@@ -316,7 +387,7 @@ async function exerciseLegacyStart({ id, shell }) {
   fs.mkdirSync(PROJ_DIR, { recursive: true });
   fs.writeFileSync(path.join(PROJ_DIR, `${NATIVE_SESSION}.jsonl`), '');
   fs.mkdirSync(TASKS_DIR, { recursive: true });
-  for (const id of ['hyphen', 'underscore', 'legacy-node', 'legacy-shell', 'unprepared', 'terminal']) {
+  for (const id of ['hyphen', 'underscore', 'legacy-node', 'legacy-shell', 'turn-binding', 'unprepared', 'terminal']) {
     fs.writeFileSync(path.join(TASKS_DIR, `${id}.json`), JSON.stringify({
       id,
       subject: `Codex cross-project gate ${id}`,
@@ -352,6 +423,7 @@ async function exerciseLegacyStart({ id, shell }) {
     });
     await exerciseLegacyStart({ id: 'legacy-node', shell: false });
     await exerciseLegacyStart({ id: 'legacy-shell', shell: true });
+    await exerciseDesktopTurnBinding();
 
     const unpreparedKey = taskKey('unprepared');
     assert.equal((await request('POST', '/mark-root', { task_key: unpreparedKey })).status, 200);

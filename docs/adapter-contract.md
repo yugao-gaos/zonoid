@@ -107,7 +107,7 @@ harness guarantees interception.
 | **Ready nudge after dispatch** | `PostToolUse` `Agent\|Task` → `post-agent.sh` → `/ready` | `postToolUse` → relay | `PostToolUse` → relay | `tool.execute.after` and `todo.updated` with session id → `/ready` best-effort |
 | **Task mint** | Native `TaskCreate` → Claude task file → daemon pull (no `/sync` required) | `postToolUse` on todo tool → stub under `cursor/` → `/sync` | Shell/hook stub under `codex/` → `/sync`; fallback harness-scoped MCP `create_task` | Custom `task_create` tool → stub under `opencode/` → `/sync` |
 | **Task assignment / claim / complete** | MCP `subconscious_assignment` → `/subconscious/assignment` + `/overlay/status` | Same MCP surface | Same MCP surface (filtered tool list when MCP spawn sets `ORCH_CLIENT=codex`) | Same MCP + plugin-registered tools |
-| **Claim session alias** | `PostToolUse` after `subconscious_assignment accept` (or raw `start_task`) → `/overlay/claim-session`; assignment accepts forward the daemon-issued permit workspace, while raw starts retain request-workspace compatibility | Same when MCP used | Same when MCP used | Same when MCP used |
+| **Claim session alias** | `PostToolUse` after `subconscious_assignment accept` (or raw `start_task`) → `/overlay/claim-session`; assignment accepts forward the daemon-issued permit workspace, while raw starts retain request-workspace compatibility | Same when MCP used | Successful Codex child accepts first validate the returned permit and atomically bind the documented parent `session_id` + `turn_id` to that permit's explicit child session; other aliases retain `/overlay/claim-session` behavior | Same when MCP used |
 | **Raw branch / merge escape hatches** | MCP `branch_task` / `merge_attempt` remain for backcompat/internal use; routine agents use `subconscious_assignment prepare` / `accept` / `complete`, and review verdicts use `submit_verdict` | Same | Same | Same |
 | **Blocking vs advisory** | Exit 2 blocking on gates; MCP + injection advisory | Same pattern; **IDE hook coverage ⊃ CLI** | Partial shell interception; manual trust on hook hash change | Throw-to-block; frozen-args bug makes throw mandatory |
 
@@ -293,7 +293,11 @@ the enforced order is:
    `worktree`, `repo_path`, context, and the next expected worker action.
 2. `subconscious_assignment(action:"accept", task_key, agent_id, session_id?)` -> claims the task
    through `/overlay/status` and self-registers hookless workers when the claim carries `agent_id`
-   and the task has a registered worktree.
+   and the task has a registered worktree. For Codex collaboration turns, the PostTool hook may
+   persist a bounded parent-session + `turn_id` -> explicit child-session record only after the
+   returned execution permit matches that requested session, task, and agent. Subsequent gates
+   prefer that exact, unexpired record; undocumented agent fields and arbitrary tool input cannot
+   create or borrow it.
 3. Write gates call `GET /active-claim?session=` and `GET /task/detail?key=`; if the task has a
    registered worktree, non-exempt Write/Edit/apply_patch/Bash file writes must land inside it.
 

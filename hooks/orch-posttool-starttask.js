@@ -85,6 +85,7 @@ function wouldRebindExplicitPermit(input, sid, permit) {
   if (!isLegacyStart && (!successfulAssignmentAccept(input) || !permit)) k.allow();
   const sid = k.hookSessionId(input);
   if (!sid || !taskKey || !agentId || !permit) k.allow();
+  if (!isLegacyStart) k.bindTurnSession(input, permit, taskKey, agentId);
   if (wouldRebindExplicitPermit(input, sid, permit)) k.allow();
   const body = {
     task_key: taskKey,

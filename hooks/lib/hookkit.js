@@ -13,6 +13,7 @@
 //   - data dir = ORCH_DATA, ZONOID_DATA, or legacy CLAUDE_PLUGIN_DATA; sessions/<id>.off = opted out.
 
 const http = require('http');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const runtimePaths = require('../../lib/runtime-paths');
@@ -89,6 +90,118 @@ function clearOff(sid) { try { fs.rmSync(offMarker(sid), { force: true }); } cat
 function gateOff() { return process.env.ORCH_GATE_OFF === '1'; }
 const SESSION_META_MAX_BYTES = 8192;
 const CODEX_THREAD_ID_RE = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+const TURN_BINDING_MAX_BYTES = 4096;
+const TURN_BINDING_TTL_MS = 60 * 60 * 1000;
+const TURN_BINDING_FIELD_MAX_BYTES = 512;
+
+function turnBindingsDir() { return path.join(dataDir(), 'turn-bindings'); }
+function boundedTurnBindingField(value) {
+  const text = typeof value === 'string' ? value.trim() : '';
+  return text && !text.includes('\0') && Buffer.byteLength(text, 'utf8') <= TURN_BINDING_FIELD_MAX_BYTES
+    ? text
+    : '';
+}
+function turnBindingPath(parentSession, turnId) {
+  const parent = boundedTurnBindingField(parentSession);
+  const turn = boundedTurnBindingField(turnId);
+  if (!parent || !turn) return '';
+  const key = crypto.createHash('sha256').update(parent).update('\0').update(turn).digest('hex');
+  return path.join(turnBindingsDir(), `${key}.json`);
+}
+function readTurnBindingRecord(file) {
+  if (!file) return null;
+  let fd;
+  try {
+    fd = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || stat.size <= 0 || stat.size > TURN_BINDING_MAX_BYTES) return null;
+    const buffer = Buffer.alloc(stat.size);
+    if (fs.readSync(fd, buffer, 0, buffer.length, 0) !== buffer.length) return null;
+    return JSON.parse(buffer.toString('utf8'));
+  } catch { return null; }
+  finally { if (fd !== undefined) try { fs.closeSync(fd); } catch { /* ignore */ } }
+}
+function turnBoundSessionId(input, now = Date.now()) {
+  const parent = boundedTurnBindingField(input && input.session_id);
+  const turn = boundedTurnBindingField(input && input.turn_id);
+  const file = turnBindingPath(parent, turn);
+  const record = readTurnBindingRecord(file);
+  const child = boundedTurnBindingField(record && record.child_session_id);
+  const expiresAt = Date.parse(record && record.expires_at);
+  if (!record || record.version !== 1 || record.parent_session_id !== parent ||
+      record.turn_id !== turn || !child || !Number.isFinite(expiresAt) || expiresAt <= now) return '';
+  return child;
+}
+function bindTurnSession(input, permit, taskKey, agentId, now = Date.now()) {
+  const ti = input && input.tool_input && typeof input.tool_input === 'object' ? input.tool_input : {};
+  const parent = boundedTurnBindingField(input && input.session_id);
+  const turn = boundedTurnBindingField(input && input.turn_id);
+  const requestedChild = boundedTurnBindingField(ti.session_id);
+  const permitChild = boundedTurnBindingField(permit && permit.session_id);
+  const permitWorkspace = boundedTurnBindingField(permit && permit.workspace);
+  const acceptedTask = boundedTurnBindingField(taskKey);
+  const acceptedAgent = boundedTurnBindingField(agentId);
+  if (!parent || !turn || !requestedChild || requestedChild === parent || requestedChild !== permitChild ||
+      !permitWorkspace || !acceptedTask || !acceptedAgent || permit.task_key !== acceptedTask ||
+      permit.agent_id !== acceptedAgent) return false;
+
+  const suppliedExpiry = permit.expires_at == null ? NaN : Date.parse(permit.expires_at);
+  if (permit.expires_at != null && (!Number.isFinite(suppliedExpiry) || suppliedExpiry <= now)) return false;
+  const expiresAt = Math.min(
+    Number.isFinite(suppliedExpiry) ? suppliedExpiry : now + TURN_BINDING_TTL_MS,
+    now + TURN_BINDING_TTL_MS,
+  );
+  const file = turnBindingPath(parent, turn);
+  if (!file) return false;
+  const record = {
+    version: 1,
+    parent_session_id: parent,
+    turn_id: turn,
+    child_session_id: requestedChild,
+    task_key: acceptedTask,
+    agent_id: acceptedAgent,
+    permit_id: boundedTurnBindingField(permit.id) || null,
+    created_at: new Date(now).toISOString(),
+    expires_at: new Date(expiresAt).toISOString(),
+  };
+  const encoded = `${JSON.stringify(record)}\n`;
+  if (Buffer.byteLength(encoded, 'utf8') > TURN_BINDING_MAX_BYTES) return false;
+
+  const dir = turnBindingsDir();
+  const lock = `${file}.lock`;
+  let temp = '';
+  let fd;
+  let lockOwned = false;
+  try {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    fs.mkdirSync(lock, { mode: 0o700 });
+    lockOwned = true;
+    const current = readTurnBindingRecord(file);
+    if (current) {
+      const currentExpiry = Date.parse(current.expires_at);
+      if (current.version === 1 && current.parent_session_id === parent && current.turn_id === turn &&
+          current.child_session_id === requestedChild && current.task_key === acceptedTask &&
+          current.agent_id === acceptedAgent && Number.isFinite(currentExpiry) && currentExpiry > now) return true;
+      if (Number.isFinite(currentExpiry) && currentExpiry > now) return false;
+    }
+    try { fs.unlinkSync(file); } catch (error) { if (error && error.code !== 'ENOENT') return false; }
+    temp = path.join(dir, `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(8).toString('hex')}.tmp`);
+    fd = fs.openSync(temp, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY |
+      (fs.constants.O_NOFOLLOW || 0), 0o600);
+    fs.writeFileSync(fd, encoded, 'utf8');
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = undefined;
+    fs.renameSync(temp, file);
+    temp = '';
+    return true;
+  } catch { return false; }
+  finally {
+    if (fd !== undefined) try { fs.closeSync(fd); } catch { /* ignore */ }
+    if (temp) try { fs.unlinkSync(temp); } catch { /* ignore */ }
+    if (lockOwned) try { fs.rmdirSync(lock); } catch { /* fail closed on an interrupted writer */ }
+  }
+}
 
 function transcriptSessionId(input, expectedParentSession = '') {
   const observedSession = input && typeof input.session_id === 'string' ? input.session_id.trim() : '';
@@ -126,24 +239,24 @@ function transcriptSessionId(input, expectedParentSession = '') {
 }
 
 function hookSessionId(input, env = process.env) {
+  const boundChild = turnBoundSessionId(input);
+  if (boundChild) return boundChild;
   const transportAgent = input && typeof input.agent_id === 'string' ? input.agent_id.trim() : '';
   const hasTranscriptCandidate = !!(input && [input.agent_transcript_path, input.transcript_path]
     .some((candidate) => typeof candidate === 'string' && candidate.trim()));
   const threadId = typeof env.CODEX_THREAD_ID === 'string' ? env.CODEX_THREAD_ID.trim() : '';
   if (threadId) {
-    // Desktop may expose the parent thread here. Prefer bounded transcript proof when supplied;
-    // otherwise a strict host-level Codex transport UUID identifies the executing child.
+    // Desktop collaboration hooks document the parent thread here. Only a validated turn binding
+    // or bounded legacy transcript proof may select a child; agent_id is not a documented input.
     const transcriptChild = transcriptSessionId(input, threadId);
     if (transcriptChild && transcriptChild !== threadId && transportAgent === transcriptChild) {
       return transcriptChild;
-    }
-    if (!hasTranscriptCandidate && transportAgent !== threadId && CODEX_THREAD_ID_RE.test(transportAgent)) {
-      return transportAgent;
     }
     return threadId;
   }
   const transcriptChild = transcriptSessionId(input);
   if (transcriptChild) return transcriptChild;
+  // Retain the CLI/top-level transport behavior only when no parent CODEX_THREAD_ID exists.
   if (!hasTranscriptCandidate && CODEX_THREAD_ID_RE.test(transportAgent)) return transportAgent;
   return input && typeof input.session_id === 'string' ? input.session_id.trim() : '';
 }
@@ -254,7 +367,7 @@ module.exports = {
   readInput,
   request, getText, getJson, post, ping,
   dataDir, sessionsDir, offMarker, isOff, setOff, clearOff, gateOff,
-  transcriptSessionId, hookSessionId, hookAgentId,
+  transcriptSessionId, turnBindingPath, turnBoundSessionId, bindTurnSession, hookSessionId, hookAgentId,
   slash, cmp, isUnder, normalizePath,
   allow, deny, emitContext,
   TRIVIAL_MAX_LINES, TRIVIAL_MAX_CHARS,

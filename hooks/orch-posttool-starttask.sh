@@ -70,6 +70,13 @@ PORT=${ORCH_PORT:-8787}
 
 [[ -n "$SID" && -n "$TASK_KEY" && -n "$AGENT_ID" ]] || exit 0
 [[ -n "$RESPONSE_WORKSPACE" && -n "$EXPECTED_SESSION_ID" ]] || exit 0
+if [[ "$TOOL" == *subconscious_assignment ]]; then
+  printf '%s' "$INPUT" | node -e '
+    const k = require(process.argv[1]);
+    const permit = JSON.parse(process.argv[2]);
+    k.readInput().then((input) => { k.bindTurnSession(input, permit, process.argv[3], process.argv[4]); });
+  ' "$HOOKKIT" "$RESPONSE_PERMIT" "$TASK_KEY" "$AGENT_ID" >/dev/null 2>&1 || true
+fi
 if [[ "$SID" != "$EXPECTED_SESSION_ID" && "$REQUESTED_SESSION_ID" == "$EXPECTED_SESSION_ID" ]]; then
   exit 0
 fi

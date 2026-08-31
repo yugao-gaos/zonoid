@@ -14,6 +14,7 @@ const os = require('os');
 const path = require('path');
 const { withHookStub } = require('./support/hook-http-stub');
 const policy = require('../hooks/lib/gate-policy');
+const hookkit = require('../hooks/lib/hookkit');
 
 const HOOK = path.resolve(__dirname, '..', 'hooks', 'orch-gate-bash.sh');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-gate-test-'));
@@ -63,6 +64,28 @@ function executionPermit(taskKey, worktree, branch, overrides = {}) {
     expires_at: '2099-01-01T00:00:00.000Z',
     ...overrides,
   };
+}
+
+function bindTurn(parentSession, turnId, childSession) {
+  const previous = process.env.ORCH_DATA;
+  process.env.ORCH_DATA = TMP;
+  try {
+    return hookkit.bindTurnSession({
+      session_id: parentSession,
+      turn_id: turnId,
+      tool_input: { session_id: childSession },
+    }, {
+      id: `permit-${turnId}`,
+      workspace: '/graph/test',
+      session_id: childSession,
+      task_key: 'task-a',
+      agent_id: 'logical-worker',
+      expires_at: '2099-01-01T00:00:00.000Z',
+    }, 'task-a', 'logical-worker');
+  } finally {
+    if (previous === undefined) delete process.env.ORCH_DATA;
+    else process.env.ORCH_DATA = previous;
+  }
 }
 
 const BLOCKED = { activeClaim: { claimed: false }, sessionInfo: { is_subagent: true } };
@@ -1021,7 +1044,7 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
     cwd: WT_A,
     tool_input: { command: `printf child > ${WT_A}/desktop-transcript.txt` },
   };
-  const desktopEnv = { CODEX_THREAD_ID: parentSession, CODEX_SESSION_ID: parentSession };
+  const desktopEnv = { CODEX_THREAD_ID: parentSession, CODEX_SESSION_ID: parentSession, ORCH_DATA: TMP };
   const r = runWithConfig(JSON.stringify(input), config, desktopEnv);
   ok('Bash Desktop proven child overrides parent CODEX_THREAD_ID → exit 0', r.status === 0);
 
@@ -1031,13 +1054,34 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
     cwd: WT_A,
     tool_input: { command: `printf child > ${WT_A}/desktop-no-transcript.txt` },
   };
-  ok('Bash Desktop host UUID overrides parent CODEX_THREAD_ID without a transcript → exit 0',
-    runWithConfig(JSON.stringify(noTranscript), config, desktopEnv).status === 0);
+  ok('Bash undocumented host UUID cannot override parent CODEX_THREAD_ID without a turn binding → exit 2',
+    runWithConfig(JSON.stringify(noTranscript), config, desktopEnv).status === 2);
+  const boundTurn = 'desktop-bash-turn';
+  ok('Bash validated test setup persists parent+turn child binding', bindTurn(parentSession, boundTurn, childSession) === true);
+  const boundInput = {
+    session_id: parentSession,
+    turn_id: boundTurn,
+    cwd: WT_A,
+    tool_input: { command: `printf child > ${WT_A}/desktop-bound-turn.txt` },
+  };
+  ok('Bash documented parent+turn binding allows the child permit → exit 0',
+    runWithConfig(JSON.stringify(boundInput), config, desktopEnv).status === 0);
+  ok('Bash different turn cannot borrow the child permit → exit 2',
+    runWithConfig(JSON.stringify({ ...boundInput, turn_id: 'desktop-bash-other-turn' }), config, desktopEnv).status === 2);
+  ok('Bash different parent cannot borrow the child permit → exit 2',
+    runWithConfig(JSON.stringify({ ...boundInput, session_id: 'desktop-bash-other-parent' }), config, desktopEnv).status === 2);
   ok('Bash tool_input UUID cannot override parent CODEX_THREAD_ID without a transcript → exit 2',
     runWithConfig(JSON.stringify({
       ...noTranscript,
       agent_id: undefined,
       tool_input: { ...noTranscript.tool_input, agent_id: childSession },
+    }), config, desktopEnv).status === 2);
+  ok('Bash arbitrary tool_input session_id cannot establish a child turn binding → exit 2',
+    runWithConfig(JSON.stringify({
+      session_id: parentSession,
+      turn_id: 'desktop-bash-unbound-input',
+      cwd: WT_A,
+      tool_input: { command: `printf denied > ${WT_A}/desktop-tool-input-session.txt`, session_id: childSession },
     }), config, desktopEnv).status === 2);
   ok('Bash non-UUID top-level logical agent cannot become the hook session → exit 2',
     runWithConfig(JSON.stringify({ ...noTranscript, agent_id: 'logical-worker' }), config, desktopEnv).status === 2);
