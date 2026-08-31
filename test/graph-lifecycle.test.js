@@ -191,6 +191,95 @@ async function testFeatureCheckpoint() {
     && git(path.join(feature, '.graph'), ['show', `${featureGraph}:feature-state.txt`]) === 'latest');
 }
 
+async function featureCheckpointFixture() {
+  const remote = bareRemote();
+  const repo = ordinaryRepo(remote);
+  await lifecycle.init(repo, { yes: true, remote });
+  git(repo, ['commit', '-m', 'attach graph submodule']);
+  const feature = temp('graph-lifecycle-feature-blockers-');
+  fs.rmdirSync(feature);
+  rawGit(['-C', repo, 'worktree', 'add', '-b', `feature/blockers-${path.basename(feature)}`, feature]);
+  identity(feature);
+  git(feature, ['-c', 'protocol.file.allow=always', 'submodule', 'update', '--init', '--recursive', '--', '.graph']);
+  return { repo, feature, graphDir: path.join(repo, '.graph'), featureGraph: path.join(feature, '.graph') };
+}
+
+function claim(taskKey, status, timestamp, field = 'claimed_at') {
+  return JSON.stringify({ task_key: taskKey, status, [field]: timestamp }, null, 2) + '\n';
+}
+
+async function testFeatureCheckpointPreservesDominatedClaims() {
+  const fixture = await featureCheckpointFixture();
+  const terminalPath = 'claims/terminal.json';
+  const newerPath = 'claims/team/newer.json';
+  const ignoredPath = 'claims/ignored.json';
+  const unrelatedPath = 'scratch/local-only.txt';
+  const unrelatedIgnoredPath = 'ignored/local-only.txt';
+  const localTerminal = claim('task/terminal', 'claimed', '2026-08-30T20:00:00.000Z');
+  const localNewer = claim('task/newer', 'claimed', '2026-08-30T20:01:00.000Z');
+  const localIgnored = claim('task/ignored', 'claimed', '2026-08-30T20:01:30.000Z');
+  write(path.join(fixture.featureGraph, '.gitignore'), `${ignoredPath}\nignored/\n`);
+  write(path.join(fixture.featureGraph, terminalPath), localTerminal);
+  write(path.join(fixture.featureGraph, newerPath), localNewer);
+  write(path.join(fixture.featureGraph, ignoredPath), localIgnored);
+  write(path.join(fixture.featureGraph, unrelatedPath), 'preserve me\n');
+  write(path.join(fixture.featureGraph, unrelatedIgnoredPath), 'preserve ignored me\n');
+  write(path.join(fixture.graphDir, terminalPath), claim('task/terminal', 'tested', '2026-08-30T20:02:00.000Z', 'completed_at'));
+  write(path.join(fixture.graphDir, newerPath), claim('task/newer', 'claimed', '2026-08-30T20:03:00.000Z'));
+  write(path.join(fixture.graphDir, ignoredPath), claim('task/ignored', 'tested', '2026-08-30T20:03:30.000Z', 'completed_at'));
+
+  const result = await lifecycle.checkpointFeature(fixture.repo, fixture.feature);
+  const stash = result.retainedStash;
+  ok('feature checkpoint preserves only target-blocking dominated claims in an exact retained stash',
+    result.status === 'committed' && stash && /^[0-9a-f]{40}$/.test(stash.oid)
+    && JSON.stringify(stash.paths) === JSON.stringify([ignoredPath, newerPath, terminalPath].sort())
+    && !stash.paths.includes(unrelatedPath) && stash.evidence.length === 3
+    && stash.evidence.some((item) => item.path === terminalPath && item.local_status === 'claimed' && item.target_status === 'tested')
+    && stash.evidence.some((item) => item.path === newerPath && item.target_timestamp > item.local_timestamp)
+    && stash.evidence.some((item) => item.path === ignoredPath && item.target_status === 'tested'));
+  ok('feature graph advances to canonical terminal/newer claims while unrelated untracked data remains',
+    JSON.parse(fs.readFileSync(path.join(fixture.featureGraph, terminalPath), 'utf8')).status === 'tested'
+    && JSON.parse(fs.readFileSync(path.join(fixture.featureGraph, newerPath), 'utf8')).claimed_at === '2026-08-30T20:03:00.000Z'
+    && JSON.parse(fs.readFileSync(path.join(fixture.featureGraph, ignoredPath), 'utf8')).status === 'tested'
+    && fs.readFileSync(path.join(fixture.featureGraph, unrelatedPath), 'utf8') === 'preserve me\n'
+    && fs.readFileSync(path.join(fixture.featureGraph, unrelatedIgnoredPath), 'utf8') === 'preserve ignored me\n');
+  ok('retained stash contains byte-recoverable originals for every and only preserved path',
+    git(fixture.featureGraph, ['show', `${stash.oid}^3:${terminalPath}`]) === localTerminal.trim()
+    && git(fixture.featureGraph, ['show', `${stash.oid}^3:${newerPath}`]) === localNewer.trim()
+    && git(fixture.featureGraph, ['show', `${stash.oid}^3:${ignoredPath}`]) === localIgnored.trim()
+    && !git(fixture.featureGraph, ['stash', 'show', '--include-untracked', '--name-only', '--format=', stash.oid]).split('\n').includes(unrelatedPath)
+    && !git(fixture.featureGraph, ['stash', 'show', '--include-untracked', '--name-only', '--format=', stash.oid]).split('\n').includes(unrelatedIgnoredPath)
+    && git(fixture.featureGraph, ['stash', 'list', '--format=%H']).split('\n').includes(stash.oid));
+}
+
+async function testFeatureCheckpointRefusesUnsafeBlockersWithoutMutation() {
+  const fixture = await featureCheckpointFixture();
+  const blockers = {
+    'blocking.txt': 'unrecognized local evidence\n',
+    'claims/local-malformed.json': '{not json\n',
+    'claims/target-malformed.json': claim('task/target-malformed', 'claimed', '2026-08-30T20:00:00.000Z'),
+    'claims/not-dominated.json': claim('task/not-dominated', 'tested', '2026-08-30T20:04:00.000Z', 'completed_at'),
+  };
+  for (const [file, value] of Object.entries(blockers)) write(path.join(fixture.featureGraph, file), value);
+  write(path.join(fixture.graphDir, 'blocking.txt'), 'canonical value\n');
+  write(path.join(fixture.graphDir, 'claims/local-malformed.json'), claim('task/local-malformed', 'tested', '2026-08-30T20:05:00.000Z', 'completed_at'));
+  write(path.join(fixture.graphDir, 'claims/target-malformed.json'), '{not json either\n');
+  write(path.join(fixture.graphDir, 'claims/not-dominated.json'), claim('task/not-dominated', 'claimed', '2026-08-30T20:03:00.000Z'));
+  const beforeHead = git(fixture.featureGraph, ['rev-parse', 'HEAD']);
+  const beforeStatus = git(fixture.featureGraph, ['status', '--porcelain=v1', '--untracked-files=all']);
+  const beforeStashes = git(fixture.featureGraph, ['stash', 'list', '--format=%H']);
+  let error = null;
+  try { await lifecycle.checkpointFeature(fixture.repo, fixture.feature); } catch (caught) { error = caught; }
+
+  ok('feature checkpoint refuses malformed, non-claim, and non-dominating target blockers together',
+    error && Object.keys(blockers).every((file) => error.message.includes(file)), error && error.message);
+  ok('unsafe blocker refusal leaves feature graph index, worktree, and stash list unchanged',
+    git(fixture.featureGraph, ['rev-parse', 'HEAD']) === beforeHead
+    && git(fixture.featureGraph, ['status', '--porcelain=v1', '--untracked-files=all']) === beforeStatus
+    && git(fixture.featureGraph, ['stash', 'list', '--format=%H']) === beforeStashes
+    && Object.entries(blockers).every(([file, value]) => fs.readFileSync(path.join(fixture.featureGraph, file), 'utf8') === value));
+}
+
 async function main() {
   try {
     await testDerive();
@@ -200,6 +289,8 @@ async function main() {
     await testReviewFixes();
     await testSyncFlushCheckpointStatus();
     await testFeatureCheckpoint();
+    await testFeatureCheckpointPreservesDominatedClaims();
+    await testFeatureCheckpointRefusesUnsafeBlockersWithoutMutation();
   } finally {
     for (const dir of cleanup.reverse()) fs.rmSync(dir, { recursive: true, force: true });
   }
