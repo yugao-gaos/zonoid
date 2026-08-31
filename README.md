@@ -188,6 +188,60 @@ independently — nothing is daemon-global. Each flag also remains individually 
 caps still govern autonomous work: managed loops run under the loop-autostart config and
 headless drains under the drain governor's per-boot token/concurrency budget.
 
+### When does it stop?
+
+Two ceilings bound a fully autonomous workspace, so "it runs until you turn it off" is not the
+answer.
+
+**1. The planner backs off exponentially on a settled graph.** A drained DAG still makes the daemon
+decide `plan` on every tick, so the planner's cooldown is what stops it re-confirming "nothing to
+do" forever. That cooldown grows with the number of consecutive **no-action** runs:
+
+| consecutive no-action runs | next planner run waits |
+| --- | --- |
+| 1 | 30 min (the base, `planner_cooldown_ms`) |
+| 2 | 1 h |
+| 3 | 4 h |
+| 4+ | 24 h (cap) |
+
+A flat 30-minute window burned ~48 planner LLM runs a day on a settled graph; the ladder collapses
+that to ~4 while keeping the first re-check prompt. **Any graph change resets it to the base
+window** — the streak is invalidated by an `overlay.epoch` delta (the counter bumped whenever a task
+or note node is added), so fresh input is re-planned within one base window, never held behind a
+24-hour wait earned against a different graph. State lives in `overlay.planner`
+(`noActionStreak` / `lastEpoch`), so it survives a daemon restart.
+
+**2. A daily token ceiling for the whole autonomy surface.** Every headless child — impl workers,
+planners, judges, review verdicts — meters its token usage into a per-workspace, per-calendar-day
+counter (`overlay.autonomySpend`). When the ceiling is reached both the spawn executor and the
+drain pump pause with `skipped: 'daily_budget'` and one digest event is emitted for the day (never
+one per tick). The counter resets at the local day boundary with no operator action.
+
+```sh
+# default 20M input+output tokens per workspace per day; 0 disables the ceiling
+curl -XPOST localhost:8787/config -d '{"workspace":"<path>","autonomy_daily_token_budget":5000000}'
+```
+
+The ceiling is keyed by **workspace + day**, not by loop instance, so a freshly minted managed loop
+cannot mint a fresh budget, and a daemon restart cannot zero the day's spend. Cache-read tokens are
+deliberately excluded from the count (they dwarf real input+output by orders of magnitude and would
+trip any human-scale ceiling within a single worker run). The deterministic review-merge sweep still
+runs while paused — it spends no tokens, so reviewed work never strands on its attempt branch.
+
+The **per-day** ceiling is the one that is on by default. The older `drain_token_budget` knob caps
+the drain pool **per daemon boot**, and that counter never resets while the daemon runs — so it is
+now **unbounded unless you set it** (it previously defaulted to 200000, a fraction of a single
+agentic child, and only stayed harmless because nothing incremented the counter it gates). Set it if
+you want a hard per-boot backstop; the review-merge sweep keeps running if you hit it.
+
+`GET /status` reports both:
+
+```sh
+curl localhost:8787/status?workspace=<path>
+# → daily_budget:    { day, spent, budget, remaining, exceeded, by_kind, … }
+# → planner_backoff: { cooldown_ms, no_action_streak, next_eligible_at, on_cooldown, … }
+```
+
 ### Frontier liveness and recovery
 
 Autonomous work is reconciled on boot and periodically while the daemon is running. When legitimate
@@ -214,7 +268,7 @@ instead of dying with the shell that exported it.
 | knob | env var | default |
 | --- | --- | --- |
 | `drain_max_concurrency` | `HEADLESS_DRAIN_MAX_CONCURRENCY` | 2 |
-| `drain_token_budget` | `HEADLESS_DRAIN_TOKEN_BUDGET` | 200000 |
+| `drain_token_budget` | `HEADLESS_DRAIN_TOKEN_BUDGET` | unbounded (see below) |
 | `drain_max_iterations` | `HEADLESS_DRAIN_MAX_ITERATIONS` | unbounded |
 | `drain_timeout_ms` | `HEADLESS_DRAIN_TIMEOUT_MS` | 300000 |
 | `spawn_timeout_ms` | `HEADLESS_SPAWN_TIMEOUT_MS` | 1800000 |
@@ -350,7 +404,7 @@ documented in [`docs/dsh-acceptance.md`](docs/dsh-acceptance.md).
 
 ## MCP tools
 
-47 tools, served identically over both transports (stdio and the daemon's `/mcp` endpoint). The
+56 tools, served identically over both transports (stdio and the daemon's `/mcp` endpoint). The
 live registry is the `TOOLS` array in `lib/mcp-core.js`. (Tasks themselves are created with
 Claude Code's native `TaskCreate`; these tools manage them once they exist.)
 

@@ -33,8 +33,12 @@ function req(port, method, p, body) {
     r.end();
   });
 }
-
-async function waitForPing(port, ms = 10_000) {
+//
+// Probe /health, NOT /ping: daemon.js calls server.listen() before loadState() and /ping is in
+// LOADING_WHITELIST, so /ping answers 200 while every non-whitelisted route still 503s
+// {phase:'loading'}. Waiting on /ping therefore races boot, and the first real request after it
+// can get the 503 body instead of data.
+async function waitForReady(port, ms = 10_000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     try {
@@ -174,15 +178,20 @@ test('dashboard snapshot acceptance projects live state and offline HTML without
   });
 
   try {
-    assert.ok(await waitForPing(port), 'daemon came up on the private port');
+    assert.ok(await waitForReady(port), 'daemon came up on the private port');
     assert.ok(await waitForHealthReady(port), 'daemon finished booting');
 
     const pin = await req(port, 'POST', '/workspace', { path: workspace });
     assert.equal(pin.status, 200);
     assert.equal(pin.body.ok, true);
 
+    // Resolve the stub path against the SANDBOX data dir, not this process's runtime dir:
+    // filedrop.stubFile() reads CLAUDE_PLUGIN_DATA from the caller's own env, which the test
+    // process does not set, so it would drop stubs into the live runtime dir while the daemon
+    // (spawned with CLAUDE_PLUGIN_DATA=sandbox) reads from the sandbox and syncs nothing.
+    const stubDir = path.join(sandbox, 'tasks', filedrop.workspaceKey(workspace), 'codex');
     const dropStub = (id, stub) => {
-      const file = path.join(sandbox, 'tasks', filedrop.workspaceKey(workspace), 'codex', `${id}.json`);
+      const file = path.join(stubDir, `${id}.json`);
       assert(file, `stub file path is available for ${id}`);
       fs.mkdirSync(path.dirname(file), { recursive: true });
       const tmp = `${file}.${process.pid}.tmp`;
@@ -262,7 +271,10 @@ test('dashboard snapshot acceptance projects live state and offline HTML without
         arguments: { workspace, viewer: 'codex' },
       });
       assert.equal(dashboard.result.isError, false);
-      const dash = dashboard.result.structuredContent || JSON.parse(dashboard.result.content[0].text);
+      // Portable snapshot delivery moved the legacy fields to structuredContent; content[0] is now
+      // the accessible status text. Fall back to the JSON text block when no snapshot was delivered.
+      const dash = dashboard.result.structuredContent
+        || JSON.parse(dashboard.result.content[0].text);
       assert.equal(dash.workspace, workspace);
       assert.equal(dash.launch.version, 1);
       assert.equal(dash.launch.preferred_surface, 'mcp_app');

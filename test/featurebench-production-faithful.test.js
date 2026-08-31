@@ -4,6 +4,7 @@
 const assert = require('assert');
 const { spawnSync } = require('child_process');
 const path = require('path');
+const { pythonExe } = require('./helpers/tools');
 
 const repo = path.resolve(__dirname, '..');
 const script = String.raw`
@@ -67,13 +68,21 @@ assert result.predicted == "grounded answer"
 print("PASS featurebench settled task production context")
 `;
 
-let result = spawnSync(process.env.PYTHON || 'python3', ['-c', script, repo], {
+// Python is developer/CI tooling, not a project dependency. Skip rather than fail when no working
+// interpreter exists — note that on Windows `python3` is normally the Microsoft Store alias stub,
+// which is NOT an ENOENT (it resolves, prints an install ad, and exits 9009), so the old
+// ENOENT-only fallback below could never detect it. pythonExe() probes by actually running each
+// candidate ($PYTHON, python3, python).
+const python = pythonExe();
+if (!python) {
+  console.log('SKIP  featurebench settled task production context (no python3 interpreter available)');
+  process.exit(0);
+}
+
+const result = spawnSync(python, ['-c', script, repo], {
   cwd: repo,
   encoding: 'utf8',
 });
-if (result.error && result.error.code === 'ENOENT' && !process.env.PYTHON) {
-  result = spawnSync('python', ['-c', script, repo], { cwd: repo, encoding: 'utf8' });
-}
 
 assert.ifError(result.error);
 assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);

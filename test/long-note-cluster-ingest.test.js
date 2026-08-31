@@ -61,7 +61,7 @@ function startupDiagnostics(result, output) {
   return lines.join('\n\n');
 }
 
-async function waitForPing({ ms = DAEMON_STARTUP_TIMEOUT_MS, exited = () => null } = {}) {
+async function waitForReady({ ms = DAEMON_STARTUP_TIMEOUT_MS, exited = () => null } = {}) {
   const started = Date.now();
   const until = started + ms;
   let attempts = 0;
@@ -72,10 +72,10 @@ async function waitForPing({ ms = DAEMON_STARTUP_TIMEOUT_MS, exited = () => null
     const exit = exited();
     if (exit) return { ok: false, attempts, elapsedMs: Date.now() - started, lastError, exit };
     try {
-      const res = await fetch(`${BASE}/ping`);
+      const res = await fetch(`${BASE}/health`);
       const r = await res.json();
-      if (r && r.ok) return { ok: true, attempts, elapsedMs: Date.now() - started };
-      lastError = `unexpected /ping response: status=${res.status}`;
+      if (r && r.phase === 'ready') return { ok: true, attempts, elapsedMs: Date.now() - started };
+      lastError = `daemon not ready: status=${res.status} phase=${r && r.phase}`;
     } catch (err) {
       lastError = err && err.message ? err.message : String(err);
     }
@@ -121,7 +121,7 @@ test('long note ingestion creates source cluster without changing short notes or
   child.stderr.on('data', (chunk) => daemonOutput.stderr.add(chunk));
   child.once('exit', (code, signal) => { daemonExit = { code, signal }; });
   try {
-    const startup = await waitForPing({ exited: () => daemonExit });
+    const startup = await waitForReady({ exited: () => daemonExit });
     assert.ok(startup.ok, startupDiagnostics(startup, daemonOutput));
     await post('/workspace', { path: WS });
 

@@ -1,0 +1,62 @@
+{
+  "nodes": {
+    "2e591f66-bf13-49ee-b654-92b83f573a69/3": {
+      "id": "2e591f66-bf13-49ee-b654-92b83f573a69/3",
+      "label": null,
+      "kind": null,
+      "workspace": "D:\\zonoid\\zonoid",
+      "status": "failed",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": null,
+      "assignee": null,
+      "timestamps": null,
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    }
+  },
+  "edges": [
+    {
+      "from": "note:note-mqh2eifaveh",
+      "to": "note:note-mqp5akln5h3",
+      "kind": "context",
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqh2vxjquno",
+      "to": "note:note-mqh2vxamd7q",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqq2d9u1f7x",
+      "to": "note:note-mqqmeewyhir",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqqtne9zs3u",
+      "to": "note:note-mqr2jk9hawd",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    }
+  ],
+  "compacted_at": "2026-08-04T01:45:40.438Z"
+}

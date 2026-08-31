@@ -48,6 +48,10 @@ Legacy root-level ignores remain in `.gitignore` so old installs can be cleaned 
 
 Workspace-scoped wake registries remain graph state at `.graph/scheduled-wakeups.json`.
 When `ORCH_WORKSPACE` is unavailable, the fallback registry is `<runtime-data-dir>/scheduled-wakeups.json`.
+Each registry's shared wake host publishes its pid as `wake/wake-host-<hash-of-registry-path>.pid`.
+It lives in `wake/` rather than beside the registry so every tool that can see the wake dir — the
+bash adapter's `cancel` included — can recognize a host pid and refuse to kill it
+(see [schedule-wakeup.md](./schedule-wakeup.md)).
 
 ## Adapter Runtime State
 

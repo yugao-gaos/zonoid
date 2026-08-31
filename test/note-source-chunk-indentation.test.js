@@ -12,6 +12,7 @@ const { spawnSync } = require('node:child_process');
 
 const { buildSourceClusterForNote } = require('../lib/note-source-cluster');
 const { reassembleNoteBody } = require('../lib/note-full-body');
+const { pythonExe } = require('./helpers/tools');
 
 // An indented Python program long/code-like enough to trip shouldClusterNote (>1000 chars, source
 // signal) and to span multiple chunks. Deep, meaningful indentation on interior lines.
@@ -136,12 +137,21 @@ test('indented python program round-trips through the source-chunk cluster byte-
   assert.ok(res.full_body.includes('\n            return self.cells[r][c]'), '12-space indent preserved');
   assert.ok(res.full_body.includes('\n                if dr == 0 and dc == 0:'), '16-space indent preserved');
 
-  // And it still compiles under python3.
-  const py = spawnSync('python3', ['-c', 'import ast,sys; ast.parse(sys.stdin.read())'], {
-    input: res.full_body,
-    encoding: 'utf8',
-  });
-  assert.equal(py.status, 0, `reassembled program compiles (python3 says: ${py.stderr})`);
+  // And it still compiles under python3 — when an interpreter is actually available. Python is
+  // developer/CI tooling, not a project dependency, so its absence must not fail the suite: every
+  // assertion above (byte-exactness, interior indentation) already covers the reassembly contract
+  // without it. On Windows `python3` is typically the Microsoft Store alias stub, which is why the
+  // probe runs the interpreter instead of just looking it up on PATH.
+  const python = pythonExe();
+  if (!python) {
+    console.log('SKIP  reassembled program compiles (no python3 interpreter available)');
+  } else {
+    const py = spawnSync(python, ['-c', 'import ast,sys; ast.parse(sys.stdin.read())'], {
+      input: res.full_body,
+      encoding: 'utf8',
+    });
+    assert.equal(py.status, 0, `reassembled program compiles (${python} says: ${py.stderr})`);
+  }
 });
 
 test('non-source short note is unchanged (no cluster)', () => {

@@ -15,6 +15,7 @@ const path = require('path');
 const { withHookStub } = require('./support/hook-http-stub');
 const policy = require('../hooks/lib/gate-policy');
 const hookkit = require('../hooks/lib/hookkit');
+const { bashExe } = require('./helpers/bash');
 
 const HOOK = path.resolve(__dirname, '..', 'hooks', 'orch-gate-bash.sh');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-gate-test-'));
@@ -42,7 +43,7 @@ function runHook(input, extraEnv) {
   if (extraEnv && Object.prototype.hasOwnProperty.call(extraEnv, 'CODEX_THREAD_ID')) {
     env.CODEX_THREAD_ID = extraEnv.CODEX_THREAD_ID;
   }
-  const r = spawnSync('bash', [HOOK], {
+  const r = spawnSync(bashExe(), [HOOK], {
     input,
     encoding: 'utf8',
     env,

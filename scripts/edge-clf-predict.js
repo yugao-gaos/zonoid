@@ -7,14 +7,31 @@
 const fs = require('fs');
 const path = require('path');
 
-const MODEL_PATH = path.resolve(__dirname, '..', '.graph/edge-clf/v1.json');
+// Model resolution order:
+//   1. .graph/edge-clf/v1.json — the LOCALLY TRAINED model written by scripts/edge-clf-fit.js.
+//   2. data/edge-clf/v1.json   — the SHIPPED BASELINE checked into the repo.
+// The baseline exists because .graph/ became a git submodule (commit 7c79654 "move graph history to
+// submodule"), which swept the only copy of the trained artifact out of the superproject. Without a
+// tracked fallback the module still `require`s fine (predict is exported) but every predict() call
+// throws ENOENT, so lib/judge.shadowFields silently degraded to a no-op and the shadow-run feature
+// was dead in a fresh checkout. Keep the baseline tracked; a freshly fitted model still wins.
+const MODEL_PATHS = [
+  path.resolve(__dirname, '..', '.graph/edge-clf/v1.json'),
+  path.resolve(__dirname, '..', 'data/edge-clf/v1.json'),
+];
 
 let _model = null;
 
 function loadModel() {
   if (_model) return _model;
-  _model = JSON.parse(fs.readFileSync(MODEL_PATH, 'utf8'));
-  return _model;
+  let lastErr = null;
+  for (const p of MODEL_PATHS) {
+    try {
+      _model = JSON.parse(fs.readFileSync(p, 'utf8'));
+      return _model;
+    } catch (err) { lastErr = err; }
+  }
+  throw lastErr || new Error('edge-clf: no model found');
 }
 
 function sigmoid(z) {

@@ -20,6 +20,8 @@
  */
 const activity = require('../lib/activity');
 const headlessDrain = require('../lib/headless-drain');
+const headlessSpawn = require('../lib/headless-spawn');
+const autonomyBudget = require('../lib/autonomy-budget');
 const tuning = require('../lib/tuning');
 
 /**
@@ -175,6 +177,13 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       // Internal-lane counts (decision/work/learning/user_gate) when workspace-scoped.
       lanes: lanesSummary(ctx, ws, ov),
       reviews_pending: reviewsPending(ctx, ws, ov),
+      // "When does it stop?" — the two ceilings that answer it, both workspace-scoped:
+      //   daily_budget  — persisted per-workspace-per-day token ceiling; `exceeded` ⇒ every
+      //                   headless surface is paused until the local day rolls over.
+      //   planner_backoff — the exponential no-action cooldown; a large cooldown_ms with a high
+      //                   no_action_streak is a settled DAG, not a stuck planner.
+      daily_budget: ov ? autonomyBudget.budgetView(ov) : null,
+      planner_backoff: ov ? headlessSpawn.plannerBackoffView(ov) : null,
       // Restart-durable: counted from the persisted archive, not the in-memory ring.
       merges_today: activity.countSince(startOfDayMs(), {
         kind: activity.KIND.REVIEW_MERGE, status: activity.STATUS.OK, workspace: ws,

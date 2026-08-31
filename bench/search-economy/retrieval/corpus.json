@@ -1,0 +1,99 @@
+{
+  "about": "Code-navigation benchmark corpus over the zonoid repo (this worktree root). Each case is a natural-language code-nav query an agent would ask while working the codebase, paired with the REAL files and exported/defined symbols that answer it. Ground truth was derived by reading the actual source (lib/, routes/, mcp-graph.js) and verifying each symbol exists at corpus-authoring time. relevant_symbols are matched case-INSENSITIVELY as whole-word tokens against the text an arm assembles (see run.js). Queries span easy single-file lookups (q01-q07) to multi-hop call/import chains (q08-q13). This corpus is INTENTIONALLY code-keyed: the live daemon KB holds orchestrator self-knowledge notes, not repo code chunks, so the subconscious arm is expected to score low until a proper `node scripts/onboard-loop.js` run ingests code (see README).",
+  "version": 1,
+  "repo": "zonoid",
+  "match": "symbol",
+  "queries": [
+    {
+      "id": "q01",
+      "query": "which function creates a git worktree for a task attempt and what branch name does it use",
+      "intent": "single-file lookup: worktree creation in the git helper",
+      "relevant_files": ["lib/git.js"],
+      "relevant_symbols": ["createWorktree", "branchName", "worktreePath"]
+    },
+    {
+      "id": "q02",
+      "query": "how does the context-need gate decide whether to inject a knowledge note",
+      "intent": "single-file lookup: the gateTask entry point",
+      "relevant_files": ["lib/context-gate.js"],
+      "relevant_symbols": ["gateTask", "classifyNoteType", "projectLocality", "externalGap"]
+    },
+    {
+      "id": "q03",
+      "query": "where is the ask versus predict preference gate implemented",
+      "intent": "single-file lookup: ask-gate core",
+      "relevant_files": ["lib/ask-gate.js"],
+      "relevant_symbols": ["askGate", "hardOverride"]
+    },
+    {
+      "id": "q04",
+      "query": "how does the daemon embed text into vectors and compute cosine similarity",
+      "intent": "single-file lookup: embedding entry points",
+      "relevant_files": ["lib/embed.js"],
+      "relevant_symbols": ["embed", "embedWithMeta", "cosine"]
+    },
+    {
+      "id": "q05",
+      "query": "what computes the token cost flow across tasks and sessions",
+      "intent": "single-file lookup: costflow",
+      "relevant_files": ["lib/costflow.js"],
+      "relevant_symbols": ["computeFlow", "splitSessionTokens", "sessionCatchalls"]
+    },
+    {
+      "id": "q06",
+      "query": "how are the dollar savings from avoided model calls estimated",
+      "intent": "single-file lookup: economy estimator",
+      "relevant_files": ["lib/economy.js"],
+      "relevant_symbols": ["callsAvoided", "estimatedSavings", "SONNET_COST_PER_CALL_USD"]
+    },
+    {
+      "id": "q07",
+      "query": "which function sets a task status in the overlay and acquires the spawn lease for a claim",
+      "intent": "single-file lookup: overlay status + claim lease",
+      "relevant_files": ["lib/overlay.js"],
+      "relevant_symbols": ["setStatus", "acquireSpawnLease", "hasLiveSpawnLease", "clearSpawnLease"]
+    },
+    {
+      "id": "q08",
+      "query": "trace how merging an attempt branch aborts on a git conflict instead of forcing",
+      "intent": "multi-hop: MCP/route layer down to the git merge that aborts on conflict",
+      "relevant_files": ["lib/git.js", "routes/git.js", "lib/mcp-core.js"],
+      "relevant_symbols": ["mergeBranch", "branchName"]
+    },
+    {
+      "id": "q09",
+      "query": "how does the search endpoint compile a context bundle from DAG context plus RAG memory",
+      "intent": "multi-hop: context-compiler requiring task-context + memory-search + telemetry",
+      "relevant_files": ["lib/search/context-compiler.js", "lib/search/task-context.js", "lib/search/memory-search.js"],
+      "relevant_symbols": ["compileSearchContext", "buildTaskContextPack", "memorySearch", "selectMemoryResults"]
+    },
+    {
+      "id": "q10",
+      "query": "follow the call chain from creating a worktree to acquiring and releasing its per-path lease",
+      "intent": "multi-hop within git.js: createWorktree -> acquireLease/releaseLease lease helpers",
+      "relevant_files": ["lib/git.js"],
+      "relevant_symbols": ["createWorktree", "acquireLease", "releaseLease", "readLease"]
+    },
+    {
+      "id": "q11",
+      "query": "how does the recall path wrap the ask gate to predict an answer from preference notes",
+      "intent": "multi-hop: ask-gate-recall runAskGate -> ask-gate askGate, reached from routes/graph.js /ask-gate",
+      "relevant_files": ["lib/ask-gate-recall.js", "lib/ask-gate.js", "routes/graph.js"],
+      "relevant_symbols": ["runAskGate", "askGate"]
+    },
+    {
+      "id": "q12",
+      "query": "what builds the judge work queue and appends a verdict for an attempt",
+      "intent": "multi-hop: judge queue + verdict journaling exports",
+      "relevant_files": ["lib/judge.js"],
+      "relevant_symbols": ["buildQueue", "nextSlice", "appendVerdict", "judgingState"]
+    },
+    {
+      "id": "q13",
+      "query": "how is the embedding provider selected and its metadata resolved",
+      "intent": "multi-hop: embed.js re-exporting embed-providers getProvider + embeddingMeta",
+      "relevant_files": ["lib/embed.js", "lib/embed-providers.js"],
+      "relevant_symbols": ["getProvider", "embeddingMeta", "normalizeEmbeddingConfig"]
+    }
+  ]
+}

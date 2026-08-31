@@ -19,6 +19,45 @@ const CLI_PATH = path.join(__dirname, '..', 'packages', 'cli', 'bin', 'zonoid.js
 const GIT_MINER_PATH = path.join(__dirname, '..', 'scripts', 'onboard-mine-git.js');
 const REAL_DAEMON_STARTUP_TIMEOUT_MS = 30000;
 
+// Fixture teardown races the OS, not the test: a daemon this file just terminated still holds its
+// data-directory handles for a short while afterwards, and Windows refuses to unlink an open file
+// (EPERM) instead of deferring the delete the way POSIX does. `force` does not cover that — it only
+// ignores ENOENT — so give the removal a bounded retry window.
+const RM_TREE = { recursive: true, force: true, maxRetries: 60, retryDelay: 100 };
+
+// Fixture teardown is housekeeping, not a result. A daemon this file terminated can outlive its own
+// exit as an open handle (or a live current directory) on the temp tree, and Windows answers unlink
+// with EPERM instead of deferring the delete. Retry, then leave the residue to the OS's temp
+// sweeper rather than reporting a passing test as failed.
+function removeTree(target) {
+  try {
+    fs.rmSync(target, RM_TREE);
+  } catch (err) {
+    if (!err || !['EPERM', 'EBUSY', 'EACCES', 'ENOTEMPTY'].includes(err.code)) throw err;
+    console.error(`fixture cleanup left to the OS: ${target} (${err.code})`);
+  }
+}
+
+// Windows has no POSIX directory permission bits: chmod() on a directory only touches the
+// read-only attribute, which does not stop creation, rename, or unlink inside it. A fixture that
+// needs a genuinely unwritable directory cannot be built here without ACL surgery.
+const NO_POSIX_DIR_PERMS = process.platform === 'win32'
+  ? 'chmod cannot make a directory unwritable on Windows'
+  : false;
+
+// `mkfifo` from the Git-for-Windows MSYS toolchain exits 0 but leaves an ordinary empty file
+// behind, so its exit status is not proof that a FIFO exists. Confirm the inode, and clear the
+// decoy when it is not one so the fixture is not silently downgraded to a regular file.
+function makeFifo(file) {
+  const made = spawnSync('mkfifo', [file], { encoding: 'utf8', windowsHide: true });
+  if (made.status !== 0) return false;
+  try {
+    if (fs.lstatSync(file).isFIFO()) return true;
+  } catch { return false; }
+  try { removeTree(file); } catch { /* nothing to undo */ }
+  return false;
+}
+
 function git(repo, args) {
   return execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', windowsHide: true }).trim();
 }
@@ -52,7 +91,18 @@ function processIsAlive(pid) {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
-async function waitForProcessExit(pid, timeoutMs = 2000) {
+// The ceilings below are DEADLINES, not latency budgets. Every one of these helpers returns the
+// instant its condition holds, so a generous ceiling costs a fast machine nothing and only decides
+// how slow a run is still tolerated. This file boots more than a dozen real daemons plus a stream
+// of throwaway Node fixtures, and by the time the sequential runner reaches it the machine is
+// carrying the residue of two hundred earlier files — a cold Windows Node start (fresh runtime plus
+// an AV scan) is worth seconds there, against ceilings originally sized for an idle machine. No
+// assertion in this file depends on a process being SLOW to start or exit, so nothing is weakened
+// by waiting longer for one; the same reasoning as waitForReady in test/self-register-on-claim.test.js.
+const READY_DEADLINE_MS = 30000;
+const EXIT_DEADLINE_MS = 30000;
+
+async function waitForProcessExit(pid, timeoutMs = EXIT_DEADLINE_MS) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (!processIsAlive(pid)) return true;
@@ -61,7 +111,7 @@ async function waitForProcessExit(pid, timeoutMs = 2000) {
   return !processIsAlive(pid);
 }
 
-async function waitForHealthResponse(port, timeoutMs = 2000) {
+async function waitForHealthResponse(port, timeoutMs = READY_DEADLINE_MS) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
@@ -73,19 +123,41 @@ async function waitForHealthResponse(port, timeoutMs = 2000) {
   return false;
 }
 
-async function stopDaemon(port) {
+// Windows cannot deliver a catchable termination signal to a process it did not start in the same
+// console group: process.kill(pid, 'SIGTERM') is TerminateProcess, so the daemon's own shutdown
+// handler never runs and its per-workspace `.graph/daemon.port` discovery file — which a graceful
+// POSIX shutdown unlinks — is left behind, dirtying the fixture repo's Git status. Reap that one
+// runtime artifact for the caller so an assertion about PROJECT bytes is not answering a question
+// about signal delivery.
+function reapDaemonPortFiles(repos) {
+  for (const repo of repos) {
+    try { fs.unlinkSync(path.join(repo, '.graph', 'daemon.port')); } catch { /* graceful exit got it */ }
+  }
+}
+
+async function stopDaemon(port, repos = []) {
   try {
     const version = await daemonRequest(port, 'GET', '/version');
     const pid = Number(version.payload && version.payload.pid);
     if (Number.isInteger(pid) && pid > 0) {
-      process.kill(pid, 'SIGTERM');
-      const deadline = Date.now() + 7000;
-      while (Date.now() < deadline) {
-        try { process.kill(pid, 0); } catch { return; }
-        await new Promise((resolve) => setTimeout(resolve, 25));
+      // SIGTERM first, then SIGKILL: a daemon still holding its data directory open keeps the
+      // fixture undeletable on Windows, where an open handle blocks unlink instead of deferring it.
+      // Only the SIGKILL stage gets the long deadline. SIGTERM's window is an escalation grace, not
+      // a readiness wait — waiting the full deadline on a daemon that ignores it would just delay
+      // the signal that actually works, once per teardown, across every daemon this file boots.
+      for (const [signal, graceMs] of [['SIGTERM', 5000], ['SIGKILL', EXIT_DEADLINE_MS]]) {
+        try { process.kill(pid, signal); } catch { break; }
+        const deadline = Date.now() + graceMs;
+        let exited = false;
+        while (Date.now() < deadline) {
+          try { process.kill(pid, 0); } catch { exited = true; break; }
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+        if (exited) break;
       }
     }
   } catch { /* daemon already stopped */ }
+  reapDaemonPortFiles(repos);
 }
 
 async function waitFor(check, timeoutMs = 15000) {
@@ -204,6 +276,24 @@ function snapshotRealDaemonInit(fixture) {
   };
 }
 
+// Matching a filesystem path against JSON.stringify() output only works where paths contain no
+// backslashes: JSON doubles every `\`, so a regex escaped from a Windows path looks for one
+// backslash where the text holds two and silently never matches (and never MIS-matches either,
+// which quietly turns doesNotMatch assertions into tautologies). Compare the parsed registry
+// entries by resolved path instead — exact, and stricter than a substring match everywhere.
+function listedRepoPaths(payload) {
+  const workspaces = (payload && payload.workspaces) || [];
+  return workspaces
+    .flatMap((workspace) => (workspace && workspace.repos) || [])
+    .map((entry) => (typeof entry === 'string' ? entry : entry && entry.path))
+    .filter(Boolean);
+}
+
+function listsRepo(payload, repo) {
+  const target = path.resolve(repo);
+  return listedRepoPaths(payload).some((listed) => path.resolve(listed) === target);
+}
+
 function initOutput(client) {
   return `${client.stdout || ''}\n${client.stderr || ''}`;
 }
@@ -316,7 +406,7 @@ async function startInitProtocolServer(fixture, port, behavior = {}) {
     },
     stdio: 'ignore',
   });
-  await waitFor(() => fs.existsSync(readyFile), 2000);
+  await waitFor(() => fs.existsSync(readyFile), READY_DEADLINE_MS);
   return { child, requestLog };
 }
 
@@ -403,7 +493,12 @@ test('init lifecycle arms onboarding without a dashboard and leaves accumulated 
     });
 
     assert.equal(result.ok, true);
-    assert.ok(Date.now() - startedAt < 2000, 'CLI onboarding startup must only persist and arm work');
+    // Startup must not run the miners inline. The structural proof of that is below — the queue
+    // file does not exist yet and the persisted state is still `pending` — and mining this fixture
+    // takes seconds once runHeadlessPreparation is called, so this bound still fails loudly if the
+    // work moved inline. It is deliberately far above the measured cost so that it answers that
+    // question rather than reporting how loaded the machine was.
+    assert.ok(Date.now() - startedAt < 10000, 'CLI onboarding startup must only persist and arm work');
     assert.deepEqual(calls.map((call) => call.route), ['/onboard/enqueue', '/onboard/drain-queue']);
     assert.deepEqual(calls[0].body, { repo });
     assert.equal(calls[1].body.repo, repo);
@@ -453,7 +548,7 @@ test('init lifecycle arms onboarding without a dashboard and leaves accumulated 
       && localMutationAt > transactionAt && successOutputAt > transactionAt,
       'init must verify and atomically accept registration plus onboarding before local setup mutates or prints success');
   } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
+    removeTree(repo);
   }
 });
 
@@ -468,7 +563,7 @@ test('onboarding startup failure is advisory and does not mutate project files',
     assert.equal(result.ok, false);
     assert.equal(fs.readFileSync(source, 'utf8'), 'valuable existing work\n');
   } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
+    removeTree(repo);
   }
 });
 
@@ -519,19 +614,25 @@ test('empty and zero-commit projects onboard without inventing project history',
     assert.throws(() => git(repos[1].path, ['rev-parse', '--verify', 'HEAD']), /Command failed/,
       'onboarding must not manufacture a commit in a zero-commit repo');
   } finally {
-    for (const repoCase of repos) fs.rmSync(repoCase.path, { recursive: true, force: true });
+    for (const repoCase of repos) removeTree(repoCase.path);
   }
 });
 
 test('cold daemon startup is non-blocking and waits until the daemon is ready', async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-cold-daemon-'));
   const port = await testPort();
+  // The daemon is DETACHED, so a checkDaemon that waited on the child process would never come
+  // back at all. That — not a latency target — is what the elapsed-time assertion below guards, so
+  // it times only the checkDaemon call and bounds it by the readiness budget checkDaemon was given.
+  // It previously timed the call PLUS four follow-up requests and a `git rev-parse` spawn against
+  // that same 15s budget, which made a legitimately slow-but-successful cold boot fail the test.
+  const startupTimeoutMs = REAL_DAEMON_STARTUP_TIMEOUT_MS;
   const startedAt = Date.now();
   try {
     const ready = await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
+      startupTimeoutMs,
       env: {
         ...process.env,
         CLAUDE_PLUGIN_DATA: dataDir,
@@ -542,7 +643,10 @@ test('cold daemon startup is non-blocking and waits until the daemon is ready', 
         ZONOID_EMBED_LOCAL_BASE_URL: 'http://127.0.0.1:1',
       },
     });
+    const readyAfterMs = Date.now() - startedAt;
     assert.equal(ready, true);
+    assert.ok(readyAfterMs <= startupTimeoutMs,
+      'cold startup must return once the daemon answers, not block on the detached daemon process');
     const health = await daemonRequest(port, 'GET', '/health');
     assert.equal(health.status, 200);
     assert.equal(health.payload && health.payload.phase, 'ready');
@@ -554,11 +658,9 @@ test('cold daemon startup is non-blocking and waits until the daemon is ready', 
     const version = await daemonRequest(port, 'GET', '/version');
     assert.equal(version.payload.build, health.payload.build);
     assert.equal(version.payload.pid, health.payload.pid);
-    assert.ok(Date.now() - startedAt < REAL_DAEMON_STARTUP_TIMEOUT_MS,
-      'cold startup must return instead of waiting on the detached daemon process');
   } finally {
     await stopDaemon(port);
-    fs.rmSync(dataDir, { recursive: true, force: true });
+    removeTree(dataDir);
   }
 });
 
@@ -606,7 +708,7 @@ test('full init rejects a real HTTP impostor without sending mutations or termin
   } finally {
     if (processIsAlive(impostor.pid)) impostor.kill('SIGKILL');
     await waitForProcessExit(impostor.pid);
-    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+    removeTree(fixture.fixtureDir);
   }
 });
 
@@ -639,7 +741,7 @@ test('full init aborts against an unresponsive service without sending mutations
   });
 
   try {
-    await waitFor(() => fs.existsSync(readyFile), 2000);
+    await waitFor(() => fs.existsSync(readyFile), READY_DEADLINE_MS);
     const before = snapshotInitFixture(fixture);
     const client = runFullInit(fixture.repo, fixture.dataDir, fixture.homeDir, port, {
       startupTimeoutMs: 250,
@@ -657,7 +759,7 @@ test('full init aborts against an unresponsive service without sending mutations
   } finally {
     if (processIsAlive(service.pid)) service.kill('SIGKILL');
     await waitForProcessExit(service.pid);
-    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+    removeTree(fixture.fixtureDir);
   }
 });
 
@@ -676,7 +778,7 @@ test('full init aborts cleanly when a cold daemon executable is unavailable', as
     assertInitFailedWithoutMutation(client, before, fixture);
     assert.match(initOutput(client), /no verified Zonoid daemon is ready/);
   } finally {
-    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+    removeTree(fixture.fixtureDir);
   }
 });
 
@@ -732,7 +834,7 @@ test('full init rejects daemon transaction errors without local mutation', async
       } finally {
         if (processIsAlive(server.child.pid)) server.child.kill('SIGKILL');
         await waitForProcessExit(server.child.pid);
-        fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+        removeTree(fixture.fixtureDir);
       }
     });
   }
@@ -787,7 +889,7 @@ test('full init forwards custom daemon dependencies and is repeatable after acce
   } finally {
     if (processIsAlive(server.child.pid)) server.child.kill('SIGKILL');
     await waitForProcessExit(server.child.pid);
-    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+    removeTree(fixture.fixtureDir);
   }
 });
 
@@ -821,7 +923,7 @@ test('full init starts a cold token-protected daemon on a custom port', async ()
 
     const workspaces = await daemonRequest(port, 'GET', '/workspaces', undefined, token);
     assert.equal(workspaces.status, 200);
-    assert.match(JSON.stringify(workspaces.payload), new RegExp(fixture.repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.ok(listsRepo(workspaces.payload, fixture.repo), JSON.stringify(workspaces.payload));
     assert.equal(fs.existsSync(path.join(fixture.repo, '.zonoid', 'onboard')), true,
       'accepted cold init must persist its onboarding request');
     const outDir = path.join(fixture.repo, '.zonoid', 'onboard', path.basename(fixture.repo));
@@ -847,7 +949,7 @@ test('full init starts a cold token-protected daemon on a custom port', async ()
       'repeat real-daemon init must be byte-idempotent across project, HOME, registry, and Git state');
   } finally {
     await stopDaemon(port);
-    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+    removeTree(fixture.fixtureDir);
   }
 });
 
@@ -898,7 +1000,8 @@ test('synchronized registry writers acknowledge only commits that preserve every
       });
     }
 
-    await waitFor(() => children.every((entry) => entry.ready), 5000);
+    // Eight cold Node children have to boot before any of them can report ready.
+    await waitFor(() => children.every((entry) => entry.ready), READY_DEADLINE_MS);
     for (const { child } of children) child.send('commit');
     await Promise.all(children.map(({ child }) => new Promise((resolve, reject) => {
       child.once('error', reject);
@@ -914,7 +1017,7 @@ test('synchronized registry writers acknowledge only commits that preserve every
     for (const { child } of children) {
       if (processIsAlive(child.pid)) child.kill('SIGKILL');
     }
-    fs.rmSync(fixtureDir, { recursive: true, force: true });
+    removeTree(fixtureDir);
   }
 });
 
@@ -950,7 +1053,7 @@ test('daemon boot reconciles every hard-exit boundary of onboarding init', async
           daemonRequest(port, 'POST', '/onboard/init', { repo: fixture.repo }, token),
           /fetch failed|terminated|socket|other side closed/i,
         );
-        assert.equal(await waitForProcessExit(crashedPid, 5000), true, `daemon did not exit at ${boundary}`);
+        assert.equal(await waitForProcessExit(crashedPid), true, `daemon did not exit at ${boundary}`);
 
         assert.equal(await checkDaemon({
           port,
@@ -981,11 +1084,11 @@ test('daemon boot reconciles every hard-exit boundary of onboarding init', async
           `restart after ${boundary} left an unreconciled journal`);
         assert.match(fs.readFileSync(path.join(fixture.repo, '.git', 'info', 'exclude'), 'utf8'), /^\.zonoid\/$/m);
         const listed = await daemonRequest(port, 'GET', '/workspaces', undefined, token);
-        assert.match(JSON.stringify(listed.payload), new RegExp(fixture.repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+        assert.ok(listsRepo(listed.payload, fixture.repo), JSON.stringify(listed.payload));
       } finally {
         await stopDaemon(port);
         if (crashedPid && processIsAlive(crashedPid)) process.kill(crashedPid, 'SIGKILL');
-        fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+        removeTree(fixture.fixtureDir);
       }
     });
   }
@@ -1056,11 +1159,11 @@ test('daemon boot quarantines an invalid onboarding publication and stays ready'
     assert.equal(enqueued.payload.preparationState, 'pending');
   } finally {
     await stopDaemon(port);
-    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+    removeTree(fixture.fixtureDir);
   }
 });
 
-test('daemon boot ignores an unreadable invalid init journal and quarantines it on a later retry', async () => {
+test('daemon boot ignores an unreadable invalid init journal and quarantines it on a later retry', { skip: NO_POSIX_DIR_PERMS }, async () => {
   const fixture = prepareInitRepo('zonoid-init-invalid-journal-boot-');
   const port = await testPort();
   const token = 'invalid-init-journal-boot-token';
@@ -1107,7 +1210,7 @@ test('daemon boot ignores an unreadable invalid init journal and quarantines it 
   } finally {
     await stopDaemon(port);
     try { fs.chmodSync(journalDir, 0o700); } catch { /* already removed */ }
-    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+    removeTree(fixture.fixtureDir);
   }
 });
 
@@ -1142,9 +1245,8 @@ test('daemon boot quarantines a valid legacy init intent instead of reading or r
   fs.mkdirSync(outDir, { recursive: true });
   fs.mkdirSync(journalDir);
   fs.writeFileSync(journal, JSON.stringify(legacy));
-  const fifo = spawnSync('mkfifo', [statusFile], { encoding: 'utf8', windowsHide: true });
-  if (fifo.status !== 0) {
-    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+  if (!makeFifo(statusFile)) {
+    removeTree(fixture.fixtureDir);
     return;
   }
   try {
@@ -1173,7 +1275,7 @@ test('daemon boot quarantines a valid legacy init intent instead of reading or r
     assert.ok(fs.readdirSync(journalDir).some((name) => name.startsWith(`${legacy.id}.json.invalid`)));
   } finally {
     await stopDaemon(port);
-    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+    removeTree(fixture.fixtureDir);
   }
 });
 
@@ -1255,7 +1357,7 @@ test('daemon restart keeps an invalid journal fenced after status-temp publicati
     assert.equal(status.preparationGeneration, 'generation-restart-reprepare');
   } finally {
     await stopDaemon(port);
-    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+    removeTree(fixture.fixtureDir);
   }
 });
 
@@ -1294,7 +1396,7 @@ test('daemon loadState survives a settled init with read-only Git exclude and re
     assert.equal(!fs.existsSync(journalDir) || fs.readdirSync(journalDir).length === 0, true,
       'exclude EACCES must not retain the committed init journal');
 
-    await stopDaemon(port);
+    await stopDaemon(port, [fixture.repo]);
     const committed = {
       status: fs.readFileSync(statusFile),
       registry: fs.readFileSync(registryFile),
@@ -1310,7 +1412,7 @@ test('daemon loadState survives a settled init with read-only Git exclude and re
     const health = await daemonRequest(port, 'GET', '/health');
     assert.equal(health.status, 200);
     assert.equal(health.payload.phase, 'ready');
-    await stopDaemon(port);
+    await stopDaemon(port, [fixture.repo]);
     assert.deepEqual(fs.readFileSync(statusFile), committed.status);
     assert.deepEqual(fs.readFileSync(registryFile), committed.registry);
     assert.deepEqual(fs.readFileSync(excludeFile), committed.exclude);
@@ -1330,7 +1432,7 @@ test('daemon loadState survives a settled init with read-only Git exclude and re
   } finally {
     await stopDaemon(port);
     try { fs.chmodSync(excludeFile, 0o600); } catch { /* missing fixture */ }
-    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+    removeTree(fixture.fixtureDir);
   }
 });
 
@@ -1364,14 +1466,14 @@ test('real daemon rejects invalid onboarding paths before registration or projec
     assert.deepEqual(snapshotRealDaemonInit(fixture), before,
       'rejected real-daemon validation must not create graph, attributes, config, registry, hooks, or onboarding state');
     const workspaces = await daemonRequest(port, 'GET', '/workspaces', undefined, token);
-    assert.doesNotMatch(JSON.stringify(workspaces.payload), new RegExp(fixture.repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.equal(listsRepo(workspaces.payload, fixture.repo), false, JSON.stringify(workspaces.payload));
   } finally {
     await stopDaemon(port);
-    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+    removeTree(fixture.fixtureDir);
   }
 });
 
-test('real daemon rolls back durable onboarding when registry commit fails', async () => {
+test('real daemon rolls back durable onboarding when registry commit fails', { skip: NO_POSIX_DIR_PERMS }, async () => {
   const fixture = prepareInitRepo('zonoid-init-real-rollback-');
   const port = await testPort();
   const token = 'real-rollback-token';
@@ -1401,7 +1503,7 @@ test('real daemon rolls back durable onboarding when registry commit fails', asy
   } finally {
     fs.chmodSync(fixture.dataDir, 0o755);
     await stopDaemon(port);
-    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+    removeTree(fixture.fixtureDir);
   }
 });
 
@@ -1457,7 +1559,7 @@ test('real daemon refuses retry-capped reused queues without false init success 
       'capped reused queue rejection must preserve exact queue, registry, project, HOME, HEAD, status, and Git config bytes');
   } finally {
     await stopDaemon(port);
-    fs.rmSync(fixture.fixtureDir, { recursive: true, force: true });
+    removeTree(fixture.fixtureDir);
   }
 });
 
@@ -1476,10 +1578,15 @@ test('daemon readiness timeout terminates only the hung child it spawned', async
 
   let pid = null;
   try {
+    // The hung daemon never answers /health, so the readiness timeout fires at whatever value this
+    // is set to — but the assertion below needs the child to have STARTED and written its pidfile
+    // first, and a cold Node start under suite load costs more than the 400ms this used to allow.
+    // Sizing the window above a real cold start is what makes the reap the thing being tested,
+    // instead of a race between the spawn and the timeout that kills it.
     assert.equal(await checkDaemon({
       port,
       daemonPath,
-      startupTimeoutMs: 400,
+      startupTimeoutMs: 10000,
       healthTimeoutMs: 50,
       pollMs: 25,
       childCleanupGraceMs: 100,
@@ -1491,7 +1598,7 @@ test('daemon readiness timeout terminates only the hung child it spawned', async
     assert.equal(await waitForProcessExit(pid), true, 'timeout must reap the exact child spawned by this invocation');
   } finally {
     if (pid && processIsAlive(pid)) process.kill(pid, 'SIGKILL');
-    fs.rmSync(fixtureDir, { recursive: true, force: true });
+    removeTree(fixtureDir);
   }
 });
 
@@ -1550,7 +1657,11 @@ test('token-authenticated init registers the workspace and queues onboarding', a
       },
     });
     assert.equal(client.status, 0, client.stderr || client.stdout);
-    assert.ok(Date.now() - clientStartedAt < 3000, 'CLI init must not wait for repository mining');
+    // This times a whole cold `node -e` client (fresh runtime, CLI require, three HTTP calls), so
+    // the budget has to clear a cold Node start before it can say anything about mining. Mining
+    // finishes only later — the waitFor below is what actually observes it — so a client that
+    // waited for it would blow through this bound regardless of how generous it is.
+    assert.ok(Date.now() - clientStartedAt < 20000, 'CLI init must not wait for repository mining');
     const resultLine = String(client.stdout || '').split(/\r?\n/).find((line) => line.startsWith('CLI_INIT_RESULT '));
     assert.ok(resultLine, `missing CLI init result in output:\n${client.stdout}`);
     const result = JSON.parse(resultLine.slice('CLI_INIT_RESULT '.length));
@@ -1559,18 +1670,21 @@ test('token-authenticated init registers the workspace and queues onboarding', a
 
     const workspaces = await daemonRequest(port, 'GET', '/workspaces', undefined, token);
     assert.equal(workspaces.status, 200);
-    assert.match(JSON.stringify(workspaces.payload), new RegExp(repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.ok(listsRepo(workspaces.payload, repo), JSON.stringify(workspaces.payload));
     const healthStartedAt = Date.now();
     const health = await daemonRequest(port, 'GET', '/health');
     assert.equal(health.status, 200);
-    assert.ok(Date.now() - healthStartedAt < 1000, 'daemon health must stay responsive while onboarding runs');
+    // Onboarding must not block the daemon's event loop. If it did, /health would be stuck behind
+    // the whole mining pass — seconds at least — so this still separates a blocked loop from the
+    // scheduling jitter of a loaded machine, which is all the original 1s bound could measure.
+    assert.ok(Date.now() - healthStartedAt < 5000, 'daemon health must stay responsive while onboarding runs');
     await waitFor(() => fs.existsSync(path.join(result.onboarding.outDir, 'onboard-queue.json')));
     const prepared = JSON.parse(fs.readFileSync(path.join(result.onboarding.outDir, 'onboard-drain-status.json'), 'utf8'));
     assert.equal(prepared.preparationState, 'ready');
   } finally {
     await stopDaemon(port);
-    fs.rmSync(dataDir, { recursive: true, force: true });
-    fs.rmSync(repo, { recursive: true, force: true });
+    removeTree(dataDir);
+    removeTree(repo);
   }
 });
 
@@ -1619,8 +1733,8 @@ test('daemon boot resumes a persisted preparation request created before the dae
     assert.match(queue.generation, /^onboard-[a-f0-9]+$/);
   } finally {
     await stopDaemon(port);
-    fs.rmSync(dataDir, { recursive: true, force: true });
-    fs.rmSync(repo, { recursive: true, force: true });
+    removeTree(dataDir);
+    removeTree(repo);
   }
 });
 
@@ -1641,7 +1755,7 @@ test('Git miner treats unborn history as empty but reports corrupted Git metadat
     assert.match(brokenRun.stderr, /git rev-parse .* failed/i);
     assert.equal(fs.existsSync(path.join(brokenOut, 'git-notes.json')), false);
   } finally {
-    fs.rmSync(unborn, { recursive: true, force: true });
-    fs.rmSync(broken, { recursive: true, force: true });
+    removeTree(unborn);
+    removeTree(broken);
   }
 });

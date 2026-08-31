@@ -322,8 +322,14 @@ test('lib/llm-backend: writeBackendCredentialKey writes backend.env (0o600) and 
     assert.equal(r.set, true);
     assert.equal(r.env, 'ZAI_API_KEY');
     assert.equal(llmBackend.readBackendCredentialEnv()['ZAI_API_KEY'], 'sk-xyz', 'key round-trips through backend.env');
-    const mode = fs.statSync(backendEnv).mode & 0o777;
-    assert.equal(mode, 0o600, 'backend.env is written with restrictive 0o600 perms');
+    // NTFS has no POSIX permission bits: Node reports 0o666 for any regular file on Windows and
+    // fs.writeFileSync's `mode` is ignored there, so 0o600 is unrepresentable rather than unmet.
+    // Assert it where the filesystem can express it; the round-trip assertion above still runs on
+    // both platforms. (Windows ACLs are the equivalent control and are out of this unit's scope.)
+    if (process.platform !== 'win32') {
+      const mode = fs.statSync(backendEnv).mode & 0o777;
+      assert.equal(mode, 0o600, 'backend.env is written with restrictive 0o600 perms');
+    }
   } finally {
     try { fs.unlinkSync(backendEnv); } catch { /* ignore */ }
     for (const [k, v] of Object.entries(saved)) {

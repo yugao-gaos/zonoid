@@ -50,13 +50,19 @@ async function post(p, body) {
   return res.json();
 }
 
-async function waitForPing(ms = 10000) {
+// Boot deadline, not a latency budget: waitForReady returns the moment /health reports phase:'ready', so a
+// generous ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated.
+// 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
+// runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
+// still starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
+
+async function waitForReady(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     try {
-      const res = await fetch(`${BASE}/ping`);
+      const res = await fetch(`${BASE}/health`);
       const r = await res.json();
-      if (r && r.ok) return true;
+      if (r && r.phase === 'ready') return true;
     } catch { /* not up yet */ }
     await new Promise((r) => setTimeout(r, 100));
   }
@@ -69,7 +75,7 @@ test('note near-duplicate guard', async () => {
     stdio: 'ignore',
   });
   try {
-    assert.ok(await waitForPing(), 'sandboxed daemon came up');
+    assert.ok(await waitForReady(), 'sandboxed daemon came up');
     await post('/workspace', { path: WS });
 
     // ── 1. Seed a note; a second call with a near-identical title is bounced ────────────────

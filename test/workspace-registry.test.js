@@ -487,7 +487,10 @@ try {
   const ownerFaultFs = new Proxy(fs, { get(target, key) {
     if (key === 'openSync') return (file, flags, ...args) => {
       const opened = target.openSync(file, flags, ...args);
-      if (flags === 'wx' && /\.lock\/held\/owner-[a-f0-9]+\.json$/.test(String(file))) {
+      // The lock owner path is built with path.join, so it is backslash-separated on Windows.
+      // A slash-only pattern silently matches nothing there and the fault is never injected,
+      // turning all three assertions below into false negatives.
+      if (flags === 'wx' && /\.lock[\\/]held[\\/]owner-[a-f0-9]+\.json$/.test(String(file))) {
         ownerFd = opened;
         ownerPath = file;
       }

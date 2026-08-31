@@ -85,7 +85,12 @@ fs.writeFileSync(path.join(stubDir, 'judged.json'),
   overlayStore.save(WS, ov);
 }
 
-const PORT = 19180 + Math.floor(Math.random() * 200);
+// A random port inside a hand-picked range is not a free port: this file's old 19180-19379 range
+// is entirely overlapped by causal-task-result/handoff-roundtrip/handoff-validation's 19170-19369,
+// and a daemon leaked by any earlier suite keeps LISTENING there. Ask the OS for a port that is
+// free right now instead (see test/helpers/port.js).
+const { freePort } = require('./helpers/port');
+let PORT = 0;
 function get(p) {
   return new Promise((resolve, reject) => {
     const r = http.request({ host: '127.0.0.1', port: PORT, path: p, method: 'GET' }, (res) => {
@@ -97,10 +102,24 @@ function get(p) {
     r.end();
   });
 }
-async function waitForPing(ms = 8000) {
+// Boot deadline, not a latency budget: waitForReady returns the moment /health reports phase:'ready', so a
+// generous ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated.
+// 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
+// runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
+// still starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
+//
+// Wait on the /health PHASE, not /ping. daemon.js calls server.listen() BEFORE loadState(), and
+// /ping is in LOADING_WHITELIST — so /ping answers 200 the instant the port binds, while every
+// non-whitelisted route (including /search) still returns 503 {phase:'loading'}. Returning on /ping
+// therefore races boot, and under full-suite load (a cold disk, AV scanning the fresh runtime dir)
+// the race is lost: 'http sanity: HTTP 200' fails on a 503 and every later assertion follows it down.
+async function waitForReady(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
-    try { const r = await get('/ping'); if (r.status === 200) return true; } catch { /* not up */ }
+    try {
+      const r = await get('/health');
+      if (r.status === 200 && r.body && r.body.phase === 'ready') return true;
+    } catch { /* not up */ }
     await new Promise((r) => setTimeout(r, 100));
   }
   return false;
@@ -110,12 +129,13 @@ const q = encodeURIComponent('locale decimal sum parsing');
 const keys = (results) => (results || []).map((r) => r.key);
 
 (async () => {
+  PORT = await freePort();
   const daemon = spawn(process.execPath, [path.join(REPO, 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
     stdio: 'ignore',
   });
   try {
-    if (!(await waitForPing())) { console.log('FAIL  daemon did not come up'); process.exit(1); }
+    if (!(await waitForReady())) { console.log('FAIL  daemon did not reach phase:ready'); process.exit(1); }
 
     // sanity: without a task_key, noteRag IS a lexical RAG match for the query.
     const base = await get(`/search?workspace=${wsq}&q=${q}&k=5`);

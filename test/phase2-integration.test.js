@@ -60,10 +60,25 @@ function req(method, p, body) {
   });
 }
 
-async function waitForPing(ms = 8000) {
+// Boot deadline, not a latency budget: waitForReady returns the moment /health reports phase:'ready', so a
+// generous ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated.
+// 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
+// runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
+// still starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
+
+// Wait on the /health PHASE, not /ping. daemon.js calls server.listen() BEFORE loadState(), and
+// /ping is in LOADING_WHITELIST — so /ping answers 200 the instant the port binds, while every
+// non-whitelisted route (/peek, /sync, /overlay/*) still returns 503 {phase:'loading'}. Returning
+// on /ping raced boot, and under full-suite load the race was lost right after the (C) RESTART:
+// /peek answered the 503 body, so `g.tasks` was undefined and the file died on a TypeError rather
+// than a failed assertion. Readiness is the phase, so wait for it — on the restart too.
+async function waitForReady(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
-    try { const r = await req('GET', '/ping'); if (r.status === 200) return true; } catch { /* */ }
+    try {
+      const r = await req('GET', '/health');
+      if (r.status === 200 && r.body && r.body.phase === 'ready') return true;
+    } catch { /* */ }
     await new Promise((r) => setTimeout(r, 100));
   }
   return false;
@@ -134,7 +149,7 @@ function stopDaemon(child) {
 
   let child = spawnDaemon();
   try {
-    ok('daemon came up', await waitForPing());
+    ok('daemon came up', await waitForReady());
     await req('POST', '/workspace', { path: WS });
 
     // ------------------------------------------------------------------
@@ -207,7 +222,7 @@ function stopDaemon(child) {
     // ------------------------------------------------------------------
     await stopDaemon(child);
     child = spawnDaemon();
-    ok('(C) daemon restarted', await waitForPing());
+    ok('(C) daemon restarted', await waitForReady());
     await req('POST', '/workspace', { path: WS });
     g = (await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`)).body;
     const local2 = g.tasks.find((t) => t.id === `local/${SHARED_ID}`);

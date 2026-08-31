@@ -117,10 +117,21 @@ function withWs(p) {
   return p + (p.includes('?') ? '&' : '?') + 'workspace=' + encodeURIComponent(WSB);
 }
 async function get(p) { const res = await fetch(`${BASE}${withWs(p)}`); return { status: res.status, body: await res.json() }; }
-async function waitForPing(ms = 12000) {
+// Boot deadline, not a latency budget: waitForReady returns the moment /health reports phase:'ready', so a
+// generous ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated.
+// 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
+// runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
+// still starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
+//
+// Probe /health, NOT /ping: daemon.js calls server.listen() before loadState() and /ping is in
+// LOADING_WHITELIST, so /ping answers 200 while every non-whitelisted route still 503s
+// {phase:'loading'}. Waiting on /ping therefore races boot, and the first real request after it
+// can get the 503 body instead of data.
+
+async function waitForReady(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
-    try { const r = await get('/ping'); if (r.body && r.body.ok) return true; } catch { /* not up */ }
+    try { const r = await get('/health'); if (r.body && r.body.phase === 'ready') return true; } catch { /* not up */ }
     await new Promise((r) => setTimeout(r, 100));
   }
   return false;
@@ -135,7 +146,7 @@ const findRes = (results, key) => results.find((r) => r.key === key);
       env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_HTTPS_PORT: String(PORT + 1), ORCH_TOKEN: '' },
       stdio: 'ignore',
     });
-    ok('B daemon came up on a private port (not 8787)', await waitForPing() && PORT !== 8787);
+    ok('B daemon came up on a private port (not 8787)', await waitForReady() && PORT !== 8787);
     ok('B workspace pinned', (await post('/workspace', { path: WSB })).body.ok === true);
 
     // Three notes sharing the query token so all score on the SAME footing under /search

@@ -34,8 +34,10 @@ test('resolves GitHub CLI outside an interactive PATH', () => {
     existsSync: () => false,
   }), '/custom/bin/gh');
 
+  // Pin the platform: without it this case silently asserts the POSIX branch only on a POSIX host.
   assert.equal(githubAccount.resolveGhExecutable({
     env: {},
+    platform: 'darwin',
     existsSync: (candidate) => candidate === '/opt/homebrew/bin/gh',
   }), '/opt/homebrew/bin/gh');
 
@@ -45,6 +47,22 @@ test('resolves GitHub CLI outside an interactive PATH', () => {
     platform: 'win32',
     existsSync: (candidate) => candidate === windowsGh,
   }), windowsGh);
+
+  // winget is the common Windows install today and only leaves a shim under LOCALAPPDATA — an empty
+  // ProgramFiles\GitHub CLI must not stop resolution from finding it.
+  const wingetGh = 'C:\\Users\\dev\\AppData\\Local\\Microsoft\\WinGet\\Links\\gh.exe';
+  assert.equal(githubAccount.resolveGhExecutable({
+    env: { ProgramFiles: 'C:\\Program Files', LOCALAPPDATA: 'C:\\Users\\dev\\AppData\\Local' },
+    platform: 'win32',
+    existsSync: (candidate) => candidate === wingetGh,
+  }), wingetGh);
+
+  const userMsiGh = 'C:\\Users\\dev\\AppData\\Local\\Programs\\GitHub CLI\\gh.exe';
+  assert.equal(githubAccount.resolveGhExecutable({
+    env: { LOCALAPPDATA: 'C:\\Users\\dev\\AppData\\Local' },
+    platform: 'win32',
+    existsSync: (candidate) => candidate === userMsiGh,
+  }), userMsiGh);
 
   assert.equal(githubAccount.resolveGhExecutable({
     env: {},

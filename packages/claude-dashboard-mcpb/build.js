@@ -7,6 +7,18 @@ const path = require('path');
 const PACKAGE_FILES = ['manifest.json', 'server/index.js'];
 const DOS_EPOCH_DATE = 33; // 1980-01-01
 
+// Every packaged file is text. A Windows checkout (core.autocrlf=true) materialises the sources
+// with CRLF, so reading raw bytes would produce a different archive than the same commit built on
+// macOS/Linux — the checked-in .mcpb would never match. Canonicalise to LF at read time so the
+// archive is a function of the committed content, not of the checkout's EOL policy.
+function normalizeText(buffer) {
+  return Buffer.from(buffer.toString('utf8').replace(/\r\n/g, '\n'), 'utf8');
+}
+
+function readPackageFile(root, name) {
+  return normalizeText(fs.readFileSync(path.join(root, name)));
+}
+
 function crc32(buffer) {
   let crc = 0xffffffff;
   for (const byte of buffer) {
@@ -96,7 +108,7 @@ function validateSource(root = __dirname) {
 
 function build({ root = __dirname, output = path.join(root, 'zonoid-dashboard.mcpb') } = {}) {
   validateSource(root);
-  const entries = PACKAGE_FILES.map((name) => ({ name, body: fs.readFileSync(path.join(root, name)) }));
+  const entries = PACKAGE_FILES.map((name) => ({ name, body: readPackageFile(root, name) }));
   const archive = createZip(entries);
   fs.writeFileSync(output, archive);
   return { output, bytes: archive.length, files: PACKAGE_FILES.slice() };
@@ -107,4 +119,4 @@ if (require.main === module) {
   console.log(`Built ${result.output} (${result.bytes} bytes)`);
 }
 
-module.exports = { PACKAGE_FILES, crc32, createZip, validateSource, build };
+module.exports = { PACKAGE_FILES, crc32, createZip, normalizeText, readPackageFile, validateSource, build };
