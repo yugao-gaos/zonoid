@@ -93,6 +93,17 @@ const CODEX_THREAD_ID_RE = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const TURN_BINDING_MAX_BYTES = 4096;
 const TURN_BINDING_TTL_MS = 60 * 60 * 1000;
 const TURN_BINDING_FIELD_MAX_BYTES = 512;
+const TURN_BINDING_RECORD_KEYS = [
+  'agent_id',
+  'child_session_id',
+  'created_at',
+  'expires_at',
+  'parent_session_id',
+  'permit_id',
+  'task_key',
+  'turn_id',
+  'version',
+];
 
 function turnBindingsDir() { return path.join(dataDir(), 'turn-bindings'); }
 function boundedTurnBindingField(value) {
@@ -121,16 +132,43 @@ function readTurnBindingRecord(file) {
   } catch { return null; }
   finally { if (fd !== undefined) try { fs.closeSync(fd); } catch { /* ignore */ } }
 }
+function exactTurnBindingField(value) {
+  const bounded = boundedTurnBindingField(value);
+  return bounded && bounded === value ? bounded : '';
+}
+function canonicalTimestamp(value) {
+  if (typeof value !== 'string') return NaN;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) && new Date(timestamp).toISOString() === value ? timestamp : NaN;
+}
+function validTurnBindingRecord(record, expected, now) {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) return null;
+  const keys = Object.keys(record).sort();
+  if (keys.length !== TURN_BINDING_RECORD_KEYS.length ||
+      keys.some((key, index) => key !== TURN_BINDING_RECORD_KEYS[index])) return null;
+  const parent = exactTurnBindingField(record.parent_session_id);
+  const turn = exactTurnBindingField(record.turn_id);
+  const child = exactTurnBindingField(record.child_session_id);
+  const taskKey = exactTurnBindingField(record.task_key);
+  const agentId = exactTurnBindingField(record.agent_id);
+  const permitId = record.permit_id === null ? null : exactTurnBindingField(record.permit_id);
+  const createdAt = canonicalTimestamp(record.created_at);
+  const expiresAt = canonicalTimestamp(record.expires_at);
+  if (record.version !== 1 || !parent || !turn || !child || child === parent || !taskKey || !agentId ||
+      (record.permit_id !== null && !permitId) || !Number.isFinite(createdAt) || !Number.isFinite(expiresAt) ||
+      createdAt > now || expiresAt <= now || expiresAt <= createdAt || expiresAt - createdAt > TURN_BINDING_TTL_MS ||
+      (expected.parent && parent !== expected.parent) || (expected.turn && turn !== expected.turn) ||
+      (expected.child && child !== expected.child) || (expected.taskKey && taskKey !== expected.taskKey) ||
+      (expected.agentId && agentId !== expected.agentId)) return null;
+  return { parent, turn, child, taskKey, agentId, permitId, createdAt, expiresAt };
+}
 function turnBoundSessionId(input, now = Date.now()) {
   const parent = boundedTurnBindingField(input && input.session_id);
   const turn = boundedTurnBindingField(input && input.turn_id);
   const file = turnBindingPath(parent, turn);
   const record = readTurnBindingRecord(file);
-  const child = boundedTurnBindingField(record && record.child_session_id);
-  const expiresAt = Date.parse(record && record.expires_at);
-  if (!record || record.version !== 1 || record.parent_session_id !== parent ||
-      record.turn_id !== turn || !child || !Number.isFinite(expiresAt) || expiresAt <= now) return '';
-  return child;
+  const validated = validTurnBindingRecord(record, { parent, turn }, now);
+  return validated ? validated.child : '';
 }
 function bindTurnSession(input, permit, taskKey, agentId, now = Date.now()) {
   const ti = input && input.tool_input && typeof input.tool_input === 'object' ? input.tool_input : {};
@@ -177,12 +215,11 @@ function bindTurnSession(input, permit, taskKey, agentId, now = Date.now()) {
     fs.mkdirSync(lock, { mode: 0o700 });
     lockOwned = true;
     const current = readTurnBindingRecord(file);
-    if (current) {
-      const currentExpiry = Date.parse(current.expires_at);
-      if (current.version === 1 && current.parent_session_id === parent && current.turn_id === turn &&
-          current.child_session_id === requestedChild && current.task_key === acceptedTask &&
-          current.agent_id === acceptedAgent && Number.isFinite(currentExpiry) && currentExpiry > now) return true;
-      if (Number.isFinite(currentExpiry) && currentExpiry > now) return false;
+    const validatedCurrent = validTurnBindingRecord(current, { parent, turn }, now);
+    if (validatedCurrent) {
+      if (validatedCurrent.child === requestedChild && validatedCurrent.taskKey === acceptedTask &&
+          validatedCurrent.agentId === acceptedAgent) return true;
+      return false;
     }
     try { fs.unlinkSync(file); } catch (error) { if (error && error.code !== 'ENOENT') return false; }
     temp = path.join(dir, `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(8).toString('hex')}.tmp`);

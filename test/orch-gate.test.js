@@ -501,6 +501,61 @@ function makeSingleClaimConfig(permit = executionPermit('task-a', WT_A, 'orch/at
     }), config, desktopEnv).status === 2);
   }
 
+  const schemaMutations = {
+    version: 2,
+    parent_session_id: 'different-parent',
+    turn_id: 'different-turn',
+    child_session_id: '',
+    task_key: '',
+    agent_id: 42,
+    permit_id: {},
+    created_at: 'not-a-timestamp',
+    expires_at: '2099-01-01T00:00:00.000Z',
+  };
+  for (const [field, mutatedValue] of Object.entries(schemaMutations)) {
+    for (const mode of ['missing', 'mutated']) {
+      const turnId = `schema-${field}-${mode}`;
+      ok(`schema fixture ${field} ${mode} starts from a valid binding`, bindTurn(parentSession, turnId, childSession) === true);
+      const bindingFile = withTurnBindingData(() => hookkit.turnBindingPath(parentSession, turnId));
+      const record = JSON.parse(fs.readFileSync(bindingFile, 'utf8'));
+      if (mode === 'missing') delete record[field];
+      else record[field] = mutatedValue;
+      fs.writeFileSync(bindingFile, `${JSON.stringify(record)}\n`);
+      ok(`turn binding rejects ${mode} ${field} and falls through → exit 2`, runWithConfig(JSON.stringify({
+        session_id: parentSession,
+        turn_id: turnId,
+        tool_input: { file_path: `${WT_A}/schema-${field}-${mode}.js`, new_string: 'x' },
+      }), config, desktopEnv).status === 2);
+    }
+  }
+
+  const invariantMutations = [
+    ['unknown field', (record) => { record.untrusted = true; }],
+    ['non-canonical created_at', (record) => { record.created_at = record.created_at.replace('Z', '+00:00'); }],
+    ['future created_at', (record) => {
+      record.created_at = new Date(Date.now() + 60_000).toISOString();
+      record.expires_at = new Date(Date.now() + 120_000).toISOString();
+    }],
+    ['expires_at before created_at', (record) => { record.expires_at = record.created_at; }],
+    ['expiry beyond maximum TTL', (record) => {
+      record.expires_at = new Date(Date.parse(record.created_at) + 60 * 60 * 1000 + 1).toISOString();
+    }],
+  ];
+  for (let index = 0; index < invariantMutations.length; index++) {
+    const [label, mutate] = invariantMutations[index];
+    const turnId = `schema-invariant-${index}`;
+    ok(`${label} fixture starts from a valid binding`, bindTurn(parentSession, turnId, childSession) === true);
+    const bindingFile = withTurnBindingData(() => hookkit.turnBindingPath(parentSession, turnId));
+    const record = JSON.parse(fs.readFileSync(bindingFile, 'utf8'));
+    mutate(record);
+    fs.writeFileSync(bindingFile, `${JSON.stringify(record)}\n`);
+    ok(`turn binding rejects ${label} and falls through → exit 2`, runWithConfig(JSON.stringify({
+      session_id: parentSession,
+      turn_id: turnId,
+      tool_input: { file_path: `${WT_A}/schema-invariant-${index}.js`, new_string: 'x' },
+    }), config, desktopEnv).status === 2);
+  }
+
   const toolInputOnly = {
     ...input,
     agent_id: undefined,
