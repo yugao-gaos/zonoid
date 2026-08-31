@@ -87,6 +87,11 @@ function setOff(sid) {
 }
 function clearOff(sid) { try { fs.rmSync(offMarker(sid), { force: true }); } catch { /* ignore */ } }
 function gateOff() { return process.env.ORCH_GATE_OFF === '1'; }
+function hookSessionId(input, env = process.env) {
+  const threadId = typeof env.CODEX_THREAD_ID === 'string' ? env.CODEX_THREAD_ID.trim() : '';
+  if (threadId) return threadId;
+  return input && typeof input.session_id === 'string' ? input.session_id.trim() : '';
+}
 
 // ── path matching (cross-platform) ───────────────────────────────────────────
 // Hook payloads carry native paths — backslashes on Windows. Normalize to forward slashes so the
@@ -187,7 +192,7 @@ module.exports = {
   PORT, IS_WIN,
   readInput,
   request, getText, getJson, post, ping,
-  dataDir, sessionsDir, offMarker, isOff, setOff, clearOff, gateOff,
+  dataDir, sessionsDir, offMarker, isOff, setOff, clearOff, gateOff, hookSessionId,
   slash, cmp, isUnder, normalizePath,
   allow, deny, emitContext,
   TRIVIAL_MAX_LINES, TRIVIAL_MAX_CHARS,

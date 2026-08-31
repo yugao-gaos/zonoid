@@ -1113,6 +1113,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const currentStatus = T.ov.status && T.ov.status[taskKey];
     const owner = T.ov.assignee && T.ov.assignee[taskKey];
     const previousSessionId = T.ov.claimSessions && T.ov.claimSessions[taskKey];
+    const expectedSessionId = b.expected_session_id == null ? '' : String(b.expected_session_id);
     const gitInfo = T.ov.git && T.ov.git[taskKey];
     if (currentStatus !== 'in_progress' || !previousSessionId) {
       send(res, 409, { ok: false, error: 'claim-session binding requires an active claimed task' }); return true;
@@ -1129,10 +1130,21 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!gitInfo || !gitInfo.worktree || !gitInfo.branch) {
       send(res, 409, { ok: false, error: 'claim-session binding requires a prepared branch and worktree' }); return true;
     }
+    if (previousSessionId !== sessionId && expectedSessionId !== previousSessionId) {
+      send(res, 409, {
+        ok: false,
+        error: 'claim-session session change requires expected_session_id to match the current claim session',
+        expected: previousSessionId,
+        actual: expectedSessionId || null,
+      });
+      return true;
+    }
 
     // PostToolUse may learn the real worker thread only after assignment accept used one or more
-    // MCP fallback sessions. Authorizing the real identity also revokes every superseded permit;
-    // this handler does not yield during that transfer, so readers see only an exclusive binding.
+    // MCP fallback sessions. A session-changing bind is a compare-and-swap against the current
+    // accepted permit session, preventing a delayed response from reversing a newer bind.
+    // Authorizing the real identity also revokes every superseded permit; this handler does not
+    // yield during that transfer, so readers see only an exclusive binding.
     const permitStore = ctx.subconscious || defaultSubconsciousStore;
     const executionPermit = ensureExecutionPermitForClaim(permitStore, {
       workspace: T.ws,

@@ -31,6 +31,10 @@ function mkInput(filePath, sessionId) {
 
 function runHook(input, extraEnv) {
   const env = { ...process.env, ...extraEnv };
+  delete env.CODEX_THREAD_ID;
+  if (extraEnv && Object.prototype.hasOwnProperty.call(extraEnv, 'CODEX_THREAD_ID')) {
+    env.CODEX_THREAD_ID = extraEnv.CODEX_THREAD_ID;
+  }
   const r = spawnSync('bash', [HOOK], {
     input,
     encoding: 'utf8',
@@ -304,6 +308,32 @@ function makeSingleClaimConfig(permit = executionPermit('task-a', WT_A, 'orch/at
   const r = runWithConfig(mkInput(`${WT_A}/outside-scope.js`), config);
   ok('permit path scope mismatch → exit 2', r.status === 2);
   ok('permit path scope mismatch → message', r.stderr.includes('permit scope'));
+}
+
+// 20. Codex Desktop collaboration child identity overrides the parent payload/session env.
+{
+  const childSession = 'codex-child-thread';
+  const config = makeSingleClaimConfig(executionPermit('task-a', WT_A, 'orch/attempt/task-a', {
+    session_id: childSession,
+  }));
+  const r = runWithConfig(
+    mkInput(`${WT_A}/child-session.js`, 'codex-parent-payload'),
+    config,
+    { CODEX_THREAD_ID: childSession, CODEX_SESSION_ID: 'codex-parent-runtime' },
+  );
+  ok('CODEX_THREAD_ID child permit overrides parent payload for Write/Edit gate → exit 0', r.status === 0);
+}
+
+// 21. Large graph reads can exceed the old 600ms budget; a claimed worker still validates both
+//     authoritative detail and permit before it is allowed.
+{
+  const config = {
+    ...makeSingleClaimConfig(),
+    taskDetailDelayMs: 750,
+    executionPermitDelayMs: 750,
+  };
+  const r = runWithConfig(mkInput(`${WT_A}/slow-claim.js`), config);
+  ok('transiently slow task detail and permit preserve fail-closed claimed allow → exit 0', r.status === 0);
 }
 
 // ── Cleanup ─────────────────────────────────────────────────────────────────

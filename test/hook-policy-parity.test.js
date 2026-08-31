@@ -95,13 +95,15 @@ function claimedConfig() {
   };
 }
 
-function envFor(stub) {
-  return {
+function envFor(stub, extra = {}) {
+  const env = {
     ...process.env,
     ...stub.env(),
     ZONOID_ROOT: REPO,
     CLAUDE_PLUGIN_DATA: TMP,
   };
+  delete env.CODEX_THREAD_ID;
+  return { ...env, ...extra };
 }
 
 function denyJson(stdout) {
