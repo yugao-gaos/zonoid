@@ -26,6 +26,7 @@ const path = require('path');
 // Sandbox BASE before requiring overlay/daemon (BASE is read at require-time).
 process.env.CLAUDE_PLUGIN_DATA = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ovcache-base-')));
 const overlayStore = require('../lib/overlay');
+const graphStore = require('../lib/graph-store');
 const daemon = require('../daemon');
 const { overlayFor, refreshOverlayStamp, sweepStaleGuidance, targetOverlay, __setOverlayForTest, __setWorkspaceForTest, __clearOverlayCacheForTest } = daemon;
 
@@ -39,6 +40,8 @@ const WS_SWEEP = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ovc
 const WS_SPAWN = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ovcache-spawn-')));
 const WS_CLAIM = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ovcache-claim-')));
 const WS_EDGE = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ovcache-edge-')));
+const WS_REPLAY_EDGE = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ovcache-replay-edge-')));
+const WS_CACHE_EDGE = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ovcache-cache-edge-')));
 
 // Pin a current workspace + its authoritative in-memory overlay (mirrors setWorkspace).
 const curOv = overlayStore.EMPTY();
@@ -210,6 +213,80 @@ try {
       && reloadedEdges.length === EDGE_FILES
       && new Set(reloadedEdges.map((edge) => edge.from_file)).size === EDGE_FILES);
 
+  // The cache and graph replay can already disagree when a repair starts (for example after a
+  // pre-fix interrupted backfill). A per-file replace is authoritative, so it must diff against the
+  // persisted ownership stream — not merely against whichever signatures happen to be in memory.
+  // Reproduce both directions through the production targetOverlay + route seams.
+  const replayOnlyFile = 'src/replay-only.js';
+  const replayOnlyEdge = {
+    from_file: replayOnlyFile,
+    to: 'code:src/legacy.js#legacy',
+    kind: 'calls',
+  };
+  const replayOnlyCache = overlayFor(WS_REPLAY_EDGE); // cache starts empty
+  graphStore.appendEvent(
+    graphStore.forWorkspace(WS_REPLAY_EDGE),
+    'codeedge:' + replayOnlyFile,
+    { evt: 'code_edge_added', ...replayOnlyEdge, workspace: WS_REPLAY_EDGE, actor: 'test' },
+  ); // replay now contains E, cache still does not
+  edgeBody = { workspace: WS_REPLAY_EDGE, file: replayOnlyFile, edges: [], defer_publish: true };
+  await edgeRoute('/overlay/code-edges/replace', 'POST', {}, {},
+    new URL('http://localhost/overlay/code-edges/replace'), null);
+  await edgeRoute('/overlay/code-edges/replace', 'POST', {}, {},
+    new URL('http://localhost/overlay/code-edges/replace'), null);
+  const replayOnlyFresh = overlayStore.load(WS_REPLAY_EDGE);
+  const replayOnlyEvents = fs.readFileSync(
+    path.join(WS_REPLAY_EDGE, '.graph', 'nodes', graphStore.idToFile('codeedge:' + replayOnlyFile)),
+    'utf8',
+  ).trim().split('\n').map((line) => JSON.parse(line));
+  ok('(8) authoritative replace removes a replay-only edge absent from the daemon cache',
+    replayOnlyCache.code_edges.length === 0 && replayOnlyFresh.code_edges.length === 0);
+  ok('(8) replay-only convergence and retry emit exactly one removal and no duplicate addition',
+    replayOnlyEvents.filter((event) => event.evt === 'code_edge_added').length === 1
+      && replayOnlyEvents.filter((event) => event.evt === 'code_edge_removed').length === 1);
+
+  const cacheOnlyFile = 'src/cache-only.js';
+  const cacheOnlyEdge = {
+    from_file: cacheOnlyFile,
+    from: 'code:' + cacheOnlyFile + '#caller',
+    to: 'code:src/current.js#current',
+    kind: 'calls',
+  };
+  const cacheOnlyStore = graphStore.forWorkspace(WS_CACHE_EDGE);
+  graphStore.appendEvent(
+    cacheOnlyStore,
+    'codeedge:' + cacheOnlyFile,
+    { evt: 'code_edge_added', ...cacheOnlyEdge, workspace: WS_CACHE_EDGE, actor: 'test' },
+  );
+  const cacheOnlyCache = overlayFor(WS_CACHE_EDGE); // cache and baseline contain F
+  graphStore.appendEvent(
+    cacheOnlyStore,
+    'codeedge:' + cacheOnlyFile,
+    { evt: 'code_edge_removed', ...cacheOnlyEdge, workspace: WS_CACHE_EDGE, actor: 'test' },
+  ); // replay no longer contains F, cache still does
+  edgeBody = {
+    workspace: WS_CACHE_EDGE,
+    file: cacheOnlyFile,
+    edges: [cacheOnlyEdge],
+    defer_publish: true,
+  };
+  await edgeRoute('/overlay/code-edges/replace', 'POST', {}, {},
+    new URL('http://localhost/overlay/code-edges/replace'), null);
+  await edgeRoute('/overlay/code-edges/replace', 'POST', {}, {},
+    new URL('http://localhost/overlay/code-edges/replace'), null);
+  const cacheOnlyFresh = overlayStore.load(WS_CACHE_EDGE);
+  const cacheOnlyEvents = fs.readFileSync(
+    path.join(WS_CACHE_EDGE, '.graph', 'nodes', graphStore.idToFile('codeedge:' + cacheOnlyFile)),
+    'utf8',
+  ).trim().split('\n').map((line) => JSON.parse(line));
+  ok('(8) authoritative replace restores a cache-only edge absent from graph replay',
+    cacheOnlyCache.code_edges.length === 1
+      && cacheOnlyFresh.code_edges.length === 1
+      && overlayStore.codeEdgeSig(cacheOnlyFresh.code_edges[0]) === overlayStore.codeEdgeSig(cacheOnlyEdge));
+  ok('(8) cache-only convergence and retry emit exactly one necessary re-addition',
+    cacheOnlyEvents.filter((event) => event.evt === 'code_edge_added').length === 2
+      && cacheOnlyEvents.filter((event) => event.evt === 'code_edge_removed').length === 1);
+
   // (4) out-of-band coherency: an EXTERNAL writer mutates wsA's file (fresh object → new mtime).
   // The next overlayFor(wsA) must pick up the external change (reload), exactly as the pre-P2a
   // per-call load() did — no NEW staleness class.
@@ -229,7 +306,8 @@ try {
   console.error('TEST ERROR:', e);
   fail++;
 } finally {
-  for (const d of [process.env.CLAUDE_PLUGIN_DATA, WS_CUR, WS_A, WS_B, WS_SWEEP, WS_SPAWN, WS_CLAIM, WS_EDGE]) {
+  for (const d of [process.env.CLAUDE_PLUGIN_DATA, WS_CUR, WS_A, WS_B, WS_SWEEP, WS_SPAWN,
+    WS_CLAIM, WS_EDGE, WS_REPLAY_EDGE, WS_CACHE_EDGE]) {
     try { fs.rmSync(d, { recursive: true, force: true }); } catch { /* */ }
   }
 }
