@@ -12,6 +12,7 @@ const http = require('http');
 const { spawn } = require('child_process');
 const git = require('../lib/git');
 const { touchAgent, __setAgentsForTest, __getAgentsForTest } = require('../daemon.js');
+const { freePort } = require('./helpers/port');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
@@ -93,7 +94,11 @@ const ok = (label, cond) => {
   // WS must be a git repo: the start_task claim gate requires a registered worktree
   // (subagents branch_task before claiming), so probe tasks claim from an attempt worktree.
   git.initRepo(WS);
-  const PORT = 19850 + Math.floor(Math.random() * 100);
+  // A random port inside a hand-picked range is not a free port: this file's old 19850-19949 range
+  // overlaps note-dup-guard (19800-19899), gate-label (19900-19999) and long-note-cluster-ingest
+  // (19950-20049), and a daemon leaked by any earlier suite keeps LISTENING there. Ask the OS for a
+  // port that is free right now instead (see test/helpers/port.js).
+  const PORT = await freePort();
   const readAgentsFile = () => JSON.parse(fs.readFileSync(path.join(SANDBOX, 'agents.json'), 'utf8'));
 
   function req(method, p, body) {
@@ -121,11 +126,21 @@ const ok = (label, cond) => {
 // 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
 // runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
 // still starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
+//
+// Wait on the /health PHASE, not /ping. daemon.js calls server.listen() BEFORE loadState(), and
+// /ping is in LOADING_WHITELIST — so /ping answers 200 the instant the port binds, while every
+// MUTATING route (POST /workspace, /sync, /overlay/*, /agent/start) still returns 503
+// {phase:'loading'}. Returning on /ping therefore races boot, and under full-suite load (a cold
+// disk, AV scanning the fresh runtime dir) the race is lost: 'workspace pin' fails on a 503 and
+// every claim assertion after it fails against a daemon that never saw the workspace.
 
-  async function waitForPing(ms = 30000) {
+  async function waitForReady(ms = 30000) {
     const until = Date.now() + ms;
     while (Date.now() < until) {
-      try { const r = await req('GET', '/ping'); if (r.status === 200) return true; } catch { /* not up */ }
+      try {
+        const r = await req('GET', '/health');
+        if (r.status === 200 && r.body && r.body.phase === 'ready') return true;
+      } catch { /* not up */ }
       await new Promise((r) => setTimeout(r, 100));
     }
     return false;
@@ -154,7 +169,7 @@ const ok = (label, cond) => {
   }
 
   try {
-    ok('daemon up', await waitForPing());
+    ok('daemon up (phase:ready)', await waitForReady());
     ok('workspace pin', (await req('POST', '/workspace', { path: WS })).body.ok === true);
     for (const id of ['root', 'touch-probe', 'spawn-probe', 'disp-probe']) dropStub(id);
     await req('POST', '/sync', { workspace: WS });
