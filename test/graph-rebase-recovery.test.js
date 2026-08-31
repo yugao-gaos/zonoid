@@ -56,6 +56,56 @@ function pausedEnv() {
   return { ORCH_TUNING_FILE: file, ZONOID_SKIP_LIVE: '1' };
 }
 
+function daemonFixture(repo, overrides = {}) {
+  const pidFile = path.join(temp('graph-rebase-daemon-'), 'daemon.pid');
+  const pid = 41041;
+  let state = 'running';
+  let signals = 0;
+  let restarts = 0;
+  let flushes = 0;
+  write(pidFile, `${pid}\n`);
+  const observation = () => state === 'running' ? {
+    reachable: true,
+    identified: true,
+    ownershipProof: true,
+    ready: true,
+    pid,
+    head: 'stable-fixture',
+    build: 'git:stable-fixture',
+  } : { reachable: false, identified: false, ownershipProof: false, ready: false };
+  const options = {
+    pidFile,
+    daemonShutdownTimeoutMs: 100,
+    daemonPollMs: 1,
+    probeDaemon: async () => observation(),
+    isProcessAlive: (candidate) => candidate === pid && state === 'running',
+    signalProcess: (candidate, signal) => {
+      if (candidate !== pid || signal !== 'SIGTERM') throw new Error('unexpected daemon signal');
+      signals++;
+      state = 'stopped';
+    },
+    sleep: async () => {},
+    flushGraph: async () => {
+      flushes++;
+      return { status: 'pushed', commit: 'fixture-graph-commit' };
+    },
+    restartDaemon: async () => {
+      restarts++;
+      state = 'running';
+      return { ok: true, action: 'started', identity: observation() };
+    },
+    ...overrides,
+  };
+  return {
+    options,
+    lockFile: path.join(repo, '.orch-off'),
+    signals: () => signals,
+    restarts: () => restarts,
+    flushes: () => flushes,
+    stop: () => { state = 'stopped'; },
+  };
+}
+
 function createFixture() {
   const root = temp('graph-rebase-recovery-');
   const remote = path.join(root, 'remote.git');
@@ -116,6 +166,50 @@ function createFixture() {
   return { repo, graphDir };
 }
 
+function createRetainedStashFixture() {
+  const root = temp('graph-retained-stash-');
+  const remote = path.join(root, 'remote.git');
+  const seed = path.join(root, 'seed');
+  const repo = path.join(root, 'repo');
+  git(root, ['init', '--bare', '--initial-branch', 'main', remote]);
+  git(root, ['init', '--initial-branch', 'main', seed]);
+  identity(seed);
+  write(path.join(seed, 'claims', 'one.json'), JSON.stringify({
+    task_key: 'one', status: 'claimed', claimed_at: '2026-08-30T21:51:00.000Z',
+  }, null, 2) + '\n');
+  git(seed, ['add', '-A']);
+  git(seed, ['commit', '-m', 'base claim']);
+  git(seed, ['remote', 'add', 'origin', remote]);
+  git(seed, ['push', '-u', 'origin', 'main']);
+
+  git(root, ['init', '--initial-branch', 'main', repo]);
+  identity(repo);
+  git(repo, ['-c', 'protocol.file.allow=always', 'submodule', 'add', remote, '.graph']);
+  git(repo, ['commit', '-m', 'attach graph']);
+  const graphDir = path.join(repo, '.graph');
+  identity(graphDir);
+  const claim = path.join(graphDir, 'claims', 'one.json');
+
+  write(claim, JSON.stringify({
+    task_key: 'one', status: 'done', claimed_at: '2026-08-30T21:51:00.000Z',
+    completed_at: '2026-08-30T22:03:00.000Z',
+  }, null, 2) + '\n');
+  git(graphDir, ['stash', 'push', '--include-untracked', '--keep-index', '-m', 'zonoid graph rebase recovery fixture']);
+  const stashOid = git(graphDir, ['rev-parse', 'refs/stash']);
+
+  write(claim, JSON.stringify({
+    task_key: 'one', status: 'tested', claimed_at: '2026-08-30T21:51:00.000Z',
+    completed_at: '2026-08-30T22:02:00.000Z',
+  }, null, 2) + '\n');
+  git(graphDir, ['add', '-A']);
+  git(graphDir, ['commit', '-m', 'newer graph head']);
+  ok('retained stash fixture conflicts on apply', gitFails(graphDir, ['stash', 'apply', stashOid]));
+  ok('retained stash fixture contains a known marker', fs.readFileSync(claim, 'utf8').includes('<<<<<<<'));
+  git(graphDir, ['add', '--', 'claims/one.json']);
+  git(graphDir, ['commit', '-m', 'committed interrupted stash marker']);
+  return { repo, graphDir, stashOid };
+}
+
 function rebaseActive(graphDir) {
   const marker = git(graphDir, ['rev-parse', '--git-path', 'rebase-merge']);
   return fs.existsSync(path.isAbsolute(marker) ? marker : path.resolve(graphDir, marker));
@@ -123,7 +217,9 @@ function rebaseActive(graphDir) {
 
 async function testFailureKeepsRecoveryStash() {
   const fixture = createFixture();
+  const daemon = daemonFixture(fixture.repo);
   const result = await lifecycle.recoverRebase(fixture.repo, {
+    ...daemon.options,
     dryRun: false,
     drainsPaused: true,
     env: pausedEnv(),
@@ -137,10 +233,13 @@ async function testFailureKeepsRecoveryStash() {
   const stashList = git(fixture.graphDir, ['stash', 'list', '--format=%H']);
   ok('mid-recovery failure retains the exact graph event stash', result.stash
     && stashList.split('\n').includes(result.stash.oid));
+  ok('mid-recovery failure leaves the recovery lock in place', fs.existsSync(daemon.lockFile)
+    && daemon.signals() === 1 && daemon.restarts() === 0);
 }
 
 async function testKnownRecovery() {
   const fixture = createFixture();
+  const daemon = daemonFixture(fixture.repo);
   const conflictsBefore = git(fixture.graphDir, ['diff', '--name-only', '--diff-filter=U']);
   const plan = await lifecycle.recoverRebase(fixture.repo, { dryRun: true });
   ok('dry run reports known conflicts without mutation', plan.status === 'dry-run'
@@ -165,6 +264,7 @@ async function testKnownRecovery() {
     && fs.existsSync(path.join(fixture.graphDir, 'untracked.jsonl')));
 
   const recovered = await lifecycle.recoverRebase(fixture.repo, {
+    ...daemon.options,
     dryRun: false,
     drainsPaused: true,
     env: pausedEnv(),
@@ -178,6 +278,104 @@ async function testKnownRecovery() {
   ok('unstaged daemon event is restored after rebase', fs.readFileSync(path.join(fixture.graphDir, 'live.txt'), 'utf8') === 'daemon event while rebase stopped\n');
   ok('untracked graph event is restored after rebase', fs.readFileSync(path.join(fixture.graphDir, 'untracked.jsonl'), 'utf8').includes('untracked'));
   ok('temporary recovery stash is dropped only after restoration', git(fixture.graphDir, ['stash', 'list']) === '');
+  ok('successful recovery flushes before restarting and removes the lock', daemon.flushes() === 1
+    && daemon.restarts() === 1 && !fs.existsSync(daemon.lockFile));
+}
+
+async function testRetainedStashAndCommittedMarkerRecovery() {
+  const fixture = createRetainedStashFixture();
+  const daemon = daemonFixture(fixture.repo);
+  const plan = await lifecycle.recoverRebase(fixture.repo, { dryRun: true });
+  ok('dry run discovers post-rebase retained stash recovery', plan.status === 'dry-run'
+    && plan.rebase === false && plan.stashes && plan.stashes[0].oid === fixture.stashOid
+    && plan.conflicts.some((item) => item.path === 'claims/one.json'));
+
+  const result = await lifecycle.recoverRebase(fixture.repo, {
+    ...daemon.options,
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('post-rebase retained stash and committed marker recover together', result.status === 'recovered'
+    && result.rebase === false, JSON.stringify(result));
+  ok('known committed claim marker resolves toward terminal/newer candidate',
+    JSON.parse(fs.readFileSync(path.join(fixture.graphDir, 'claims', 'one.json'), 'utf8')).status === 'done');
+  ok('retained stash is dropped only after pushed flush', git(fixture.graphDir, ['stash', 'list']) === ''
+    && daemon.flushes() === 1);
+  ok('retained recovery restarts stable daemon after removing recovery lock', daemon.restarts() === 1
+    && !fs.existsSync(daemon.lockFile));
+}
+
+async function testUnsafeDaemonAndFlushFailureStayFailClosed() {
+  const unowned = createFixture();
+  const daemon = daemonFixture(unowned.repo, {
+    probeDaemon: async () => ({ reachable: true, identified: false, ownershipProof: false, ready: false, pid: 41041 }),
+  });
+  const refused = await lifecycle.recoverRebase(unowned.repo, {
+    ...daemon.options,
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('unsigned daemon listener is never signaled and recovery refuses before mutation', refused.status === 'refused'
+    && /signed|identified|owned/i.test(refused.error) && daemon.signals() === 0
+    && !fs.existsSync(daemon.lockFile) && rebaseActive(unowned.graphDir));
+
+  const mismatched = createFixture();
+  const mismatchedDaemon = daemonFixture(mismatched.repo);
+  write(mismatchedDaemon.options.pidFile, '99999\n');
+  const pidRefused = await lifecycle.recoverRebase(mismatched.repo, {
+    ...mismatchedDaemon.options,
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('daemon PID-file mismatch refuses before lock, signal, or mutation', pidRefused.status === 'refused'
+    && /PID/i.test(pidRefused.error) && mismatchedDaemon.signals() === 0
+    && !fs.existsSync(mismatchedDaemon.lockFile) && rebaseActive(mismatched.graphDir));
+
+  const retained = createRetainedStashFixture();
+  let restarts = 0;
+  const failingDaemon = daemonFixture(retained.repo, {
+    flushGraph: async () => ({ status: 'pending', commit: 'local-only', error: 'injected push failure' }),
+    restartDaemon: async () => { restarts++; return { ok: true }; },
+  });
+  const failed = await lifecycle.recoverRebase(retained.repo, {
+    ...failingDaemon.options,
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('push failure retains stash and recovery lock with actionable report', failed.status === 'failed'
+    && /push|pushed/i.test(failed.error) && fs.existsSync(failingDaemon.lockFile)
+    && git(retained.graphDir, ['stash', 'list', '--format=%H']).includes(retained.stashOid)
+    && Array.isArray(failed.next_steps) && failed.next_steps.some((step) => step.includes('.orch-off')));
+  ok('push failure never restarts the daemon', restarts === 0);
+
+  const wrongBuild = createRetainedStashFixture();
+  const wrongBuildDaemon = daemonFixture(wrongBuild.repo, {
+    restartDaemon: async () => ({
+      ok: true,
+      identity: {
+        reachable: true,
+        identified: true,
+        ownershipProof: true,
+        ready: true,
+        pid: 41041,
+        head: 'different-fixture',
+        build: 'git:different-fixture',
+      },
+    }),
+  });
+  const wrongBuildResult = await lifecycle.recoverRebase(wrongBuild.repo, {
+    ...wrongBuildDaemon.options,
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('mismatched restart build fails closed and restores the recovery lock', wrongBuildResult.status === 'failed'
+    && /restart/i.test(wrongBuildResult.error) && fs.existsSync(wrongBuildDaemon.lockFile)
+    && git(wrongBuild.graphDir, ['stash', 'list', '--format=%H']).includes(wrongBuild.stashOid));
 }
 
 async function testUnknownConflictRefusal() {
@@ -226,6 +424,8 @@ async function main() {
   try {
     await testFailureKeepsRecoveryStash();
     await testKnownRecovery();
+    await testRetainedStashAndCommittedMarkerRecovery();
+    await testUnsafeDaemonAndFlushFailureStayFailClosed();
     await testUnknownConflictRefusal();
   } finally {
     for (const dir of cleanup.reverse()) fs.rmSync(dir, { recursive: true, force: true });

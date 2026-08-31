@@ -1437,7 +1437,7 @@ async function runGraphCommand(graphArgs, deps = {}) {
     const result = {
       ...plan,
       status: 'confirmation-required',
-      action: 'recover the interrupted .graph rebase while preserving unstaged graph events',
+      action: 'quiesce the daemon and recover an interrupted .graph rebase or retained recovery stash',
       requires: '--confirm-drains-paused',
       exitCode: 1,
     };
