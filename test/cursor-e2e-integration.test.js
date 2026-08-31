@@ -55,20 +55,41 @@ function req(port, method, p, body) {
 // dir), and this suite boots FOUR of them in sequence — the later ones start on an already loaded
 // machine, so `classify: daemon up` failed with ECONNREFUSED while its daemon was merely still
 // starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
+// /ping answers 200 while the daemon is still in its `loading` phase, but POST /workspace and the
+// other mutating routes 503 until boot completes. Waiting on /ping alone races boot, and Windows
+// loses that race often enough to matter, so readiness is the /health phase instead.
 async function waitForPing(port, ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
-    try { const r = await req(port, 'GET', '/ping'); if (r.status === 200) return true; } catch { /* */ }
+    try {
+      const r = await req(port, 'GET', '/health');
+      if (r.status === 200 && r.body && r.body.phase === 'ready') return true;
+    } catch { /* */ }
     await new Promise((r) => setTimeout(r, 100));
   }
   return false;
 }
 
+// A piped stdout/stderr nobody reads is a deadlock, not a discard: once the OS pipe buffer fills,
+// the daemon blocks inside its next console write and never finishes booting, so waitForPing burns
+// its whole deadline and every later assertion fails against a daemon that is merely wedged. Drain
+// both streams here (bounded, so a chatty daemon cannot grow the test's heap) and let callers that
+// want the text attach their own extra listener.
+const DAEMON_LOG_MAX_CHUNKS = 200;
+
 function spawnDaemon(port, sandbox, extra = {}) {
-  return spawn(process.execPath, [path.join(REPO, 'daemon.js')], {
+  const child = spawn(process.execPath, [path.join(REPO, 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: sandbox, ORCH_PORT: String(port), ...extra },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+  child.daemonLog = [];
+  const drain = (chunk) => {
+    child.daemonLog.push(chunk.toString());
+    if (child.daemonLog.length > DAEMON_LOG_MAX_CHUNKS) child.daemonLog.shift();
+  };
+  child.stdout.on('data', drain);
+  child.stderr.on('data', drain);
+  return child;
 }
 
 function runHook(script, input, env = {}) {

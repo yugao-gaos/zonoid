@@ -13,6 +13,11 @@ const TEST_DIR = path.join(ROOT, 'test');
 const TIMEOUT_MS = 120_000; // per-file safety net
 const FILE_TIMEOUT_MS = {
   'endpoints.test.js': 240_000,
+  // Boots more than a dozen REAL daemons (cold start, crash-boundary restarts, token-auth
+  // restarts). A Windows cold boot is several seconds each — fresh Node plus an AV scan of the
+  // runtime dir — which puts the honest total just under the 120s net and made the whole file
+  // report as a timeout with no failing assertion to point at.
+  'onboard-auto-init.test.js': 240_000,
   'phase2-integration.test.js': 180_000,
   'sync-route.test.js': 240_000,
 };
