@@ -10,6 +10,11 @@
  */
 'use strict';
 
+// Unit expectations must not inherit the daemon's live tuning (for example a user-paused
+// drain_max_iterations=-1), because that turns every scheduler assertion into an exhaustion case.
+process.env.ZONOID_SKIP_LIVE = '1';
+delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+
 const { test, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -2351,6 +2356,98 @@ test('learner backlog starts one learner per pump by default', async () => {
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
     if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
     else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedIter;
+  }
+});
+
+test('overview-ready learner runs one batch per durable background cadence', async () => {
+  const savedCadence = process.env.HEADLESS_DRAIN_LEARNER_CADENCE_MS;
+  const savedLearnerCap = process.env.HEADLESS_DRAIN_LEARNER_MAX_PER_TICK;
+  const savedConcurrency = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+  process.env.HEADLESS_DRAIN_LEARNER_CADENCE_MS = '60000';
+  process.env.HEADLESS_DRAIN_LEARNER_MAX_PER_TICK = '4';
+  process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '4';
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  const learnerCallCount = () => calls.filter((call) => (
+    Array.isArray(call.args) && /onboard-learn\.js$/.test(String(call.args[0] || ''))
+  )).length;
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-learner-cadence-'));
+  const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
+  const generation = 'generation-background-cadence';
+  const overview = { title: 'Overview', summary: 'Ready', kind: 'overview', onboard_overview: 1 };
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      generation,
+      total: 3,
+      cursor: 1,
+      kept: [overview],
+      rejected: [],
+      pending: [overview, { title: 'A' }, { title: 'B' }],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ generation, kept: [overview], rejected: [] }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo,
+      outDir,
+      // Exact crash window: the durable receipt committed, but the cached status flag did not.
+      overviewReady: false,
+      injectionGeneration: generation,
+      injectionState: 'succeeded',
+      injectedKept: 1,
+      batchSize: 1,
+    }));
+    hd._writeInjectionReceipt(outDir, generation, [hd._onboardNoteId(overview, 0)]);
+    const options = {
+      ...judgeDeps({ depth: 0, eagerNodes: [] }),
+      ...labelDeps({ journal: [], labeledKeys: [] }),
+      ...mockBackendDeps().deps,
+    };
+
+    assert.equal(hd.findRegisteredLearnerQueues({ workspace: repo, registeredWorkspaces: [repo] }).length, 1);
+    const first = await hd.runDueDrains({ workspace: repo, registeredWorkspaces: [repo] }, noopHttp(), options);
+    assert.equal(learnerCallCount(), 1, `${JSON.stringify(first)}; one queue gets only one batch per pump even when the global cap is higher`);
+    let status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.overviewReady, false, 'the regression must not rely on repairing the stale cache');
+    assert.equal(status.learnerGeneration, generation);
+    assert.ok(status.learnerNextAt > Date.now());
+
+    await hd.runDueDrains({ workspace: repo, registeredWorkspaces: [repo] }, noopHttp(), options);
+    assert.equal(learnerCallCount(), 1, 'the next pump must not bypass the persisted learner cadence');
+
+    status.learnerNextAt = Date.now() - 1;
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify(status));
+    await hd.runDueDrains({ workspace: repo, registeredWorkspaces: [repo] }, noopHttp(), options);
+    assert.equal(learnerCallCount(), 2, 'the same stable queue becomes eligible when its cadence expires');
+  } finally {
+    restore();
+    fs.rmSync(repo, { recursive: true, force: true });
+    if (savedCadence === undefined) delete process.env.HEADLESS_DRAIN_LEARNER_CADENCE_MS;
+    else process.env.HEADLESS_DRAIN_LEARNER_CADENCE_MS = savedCadence;
+    if (savedLearnerCap === undefined) delete process.env.HEADLESS_DRAIN_LEARNER_MAX_PER_TICK;
+    else process.env.HEADLESS_DRAIN_LEARNER_MAX_PER_TICK = savedLearnerCap;
+    if (savedConcurrency === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+    else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedConcurrency;
+  }
+});
+
+test('background learner yields to active agents and pending same-node reviews', () => {
+  const hd = freshModule();
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-learner-yield-'));
+  const overlayStore = require('../lib/overlay');
+  const ov = overlayStore.EMPTY();
+  overlayStore.setStatus(ov, 'task/review', 'tested');
+  overlayStore.setReviewLifecycle(ov, 'task/review', {
+    review_state: 'requested',
+    merge_state: 'review_pending',
+  });
+  try {
+    assert.equal(hd._learnerYieldReason({
+      agents: { foreground: { state: 'running', workspace: repo } },
+    }, repo), 'learner_yield_active_agent');
+    assert.equal(hd._learnerYieldReason({}, repo, {
+      reviewVerdictDeps: { overlayLoad: () => ov, overlayStore },
+    }), 'learner_yield_pending_review');
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
   }
 });
 
