@@ -326,7 +326,12 @@ async function exerciseLegacyStart({ id, shell }) {
 
   const daemon = spawn(process.execPath, [path.join(ROOT, 'daemon.js')], {
     cwd: GRAPH_REPO,
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
+    env: {
+      ...process.env,
+      CLAUDE_PLUGIN_DATA: SANDBOX,
+      ORCH_PORT: String(PORT),
+      ORCH_AUTOWIRE_THRESHOLD: '999',
+    },
     stdio: 'ignore',
   });
 
