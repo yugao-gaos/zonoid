@@ -29,6 +29,7 @@ const HOOK = path.join(REPO, 'hooks', 'orch-gate.sh');
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-dispatch-d-')));
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-dispatch-ws-')));
 process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
+const overlayStore = require('../lib/overlay');
 let PORT = 0;
 let BASE = '';
 
@@ -105,10 +106,7 @@ function dropStub(id, extra = {}) {
 }
 
 function readOverlay() {
-  const dir = path.join(SANDBOX, 'overlay');
-  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json') && !f.includes('.diagnostics.'));
-  if (files.length !== 1) throw new Error(`expected one overlay file, got ${files.length}`);
-  return JSON.parse(fs.readFileSync(path.join(dir, files[0]), 'utf8'));
+  return JSON.parse(fs.readFileSync(overlayStore.fileFor(WS), 'utf8'));
 }
 
 async function assertStubsVisible(syncBody, keys) {
