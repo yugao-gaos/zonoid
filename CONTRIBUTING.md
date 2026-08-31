@@ -72,12 +72,38 @@ unnecessary under `ZONOID_SKIP_LIVE=1`).
 `.graph/` is a Git submodule. The daemon continuously commits and pushes live graph state in that
 companion repository, while normal source commits leave the superproject gitlink alone. A deliberate
 `zonoid graph checkpoint` (including the feature-merge path) stages the pushed graph commit in the
-superproject.
+superproject. Before a feature graph advances, all untracked paths—including ignored files—that
+collide with the pushed target commit are inspected without mutation. Only claim JSON whose target
+record is proven terminal/newer is moved into an exact, retained recovery stash; malformed,
+non-claim, or non-dominated blockers refuse the checkpoint. Unrelated ignored and ordinary
+untracked graph files stay in place, and successful feature checkpoint results report the retained
+stash identity and claim evidence.
 
 `zonoid graph sync` initializes and updates the submodule after clone, checkout, or merge. Setup also
 enables `push.recurseSubmodules=on-demand`, so a superproject push cannot publish a gitlink whose graph
 commit is missing remotely. The graph repository carries its own JSONL/checkpoint merge policy in
 `.graph/.gitattributes`.
+
+If a graph rebase is interrupted, start with `zonoid graph recover-rebase --dry-run`. Recovery is
+fail-closed: it only resolves claim JSON toward the terminal/newer record and unions valid JSONL
+events; every other conflict class is reported for manual inspection without mutation. Persist
+`drain_max_iterations=-1`, verify that value is effective, then rerun with
+`--confirm-drains-paused`; the flag alone cannot bypass the persisted pause check. The command first
+proves the signed daemon identity and PID-file owner, writes `.orch-off` in the trusted Zonoid
+install/source root used by SessionStart, and verifies graceful shutdown before changing the target
+graph state. It can resume either an active rebase or a recognized retained Zonoid recovery stash
+whose known conflict markers are proven present in `HEAD`; working-tree-only markers and unrelated
+non-rebase unmerged state are refused before quiescing. Recovered state is committed and pushed
+before the lock is removed and the same install-root daemon build is restarted; the lock and
+recovery stash remain available whenever an unsafe or failed step prevents that sequence from completing.
+If the push finished but the daemon restart did not, rerun the same confirmed command. It resumes
+only when the trusted operator-root lock, a conflict-free graph clean except `daemon.port`, and a
+remote-contained `HEAD` all match. New locks persist the exact retained-stash binding—including a
+null binding that requires zero recognized recovery stashes—and also require the installed daemon
+build to match. A legacy recovery lock is accepted only when the missing bindings can be
+reconstructed from a ready signed
+same-build daemon with PID-file ownership; if the source checkout has advanced, that daemon is
+reuse-only and no new build may be spawned. Ambiguous legacy state leaves both lock and stash untouched.
 
 ## Pull request process
 

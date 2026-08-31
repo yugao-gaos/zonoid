@@ -14,6 +14,9 @@ const {
   patchOnboardStatus,
   mutateOnboardStatus,
   confirmedInjectedCount,
+  confirmInjectedNote,
+  isOnboardOverviewNote,
+  onboardOverviewReceiptReady,
   processIncarnation,
   liveOnboardInjectionLease: liveInjectionLease,
   liveOnboardPreparationLease: livePreparationLease,
@@ -27,6 +30,7 @@ const DEFAULT_INJECTION_MAX_ATTEMPTS = 3;
 const DEFAULT_INJECTION_BACKOFF_BASE_MS = 5 * 1000;
 const DEFAULT_INJECTION_BACKOFF_CAP_MS = 60 * 1000;
 const DEFAULT_INJECTION_LEASE_MS = 5 * 60 * 1000;
+const ARCHITECTURE_INVESTIGATION_TASK_KEY = 'onboard/architecture-investigation';
 
 function readJSON(file, def) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')); } catch { return def; }
@@ -122,6 +126,7 @@ function queueStatus(outDir, options = {}) {
     remaining,
     drainDone: remaining === 0,
     queueGeneration: validated.generation,
+    overviewReady: onboardOverviewReceiptReady(outDir, validated.generation, q.kept),
     ...summarizeInflight(q),
   };
 }
@@ -336,6 +341,9 @@ function buildDrainJob(repo, outDir, patch = {}) {
   const successfulTerminal = nothingToInject || !autoInject || injected;
   const retryablePending = !!error && !injectionError && !!persistedQueue && !preparing
     && preparationState !== 'failed' && (qs.remaining > 0 || drainDone);
+  const learnerGenerationMatches = !!queueGen && meta.learnerGeneration === queueGen;
+  const learnerNextAt = learnerGenerationMatches ? countOrZero(meta.learnerNextAt) : 0;
+  const structureGenerationMatches = !!queueGen && meta.structureGeneration === queueGen;
   return {
     repo,
     outDir,
@@ -367,8 +375,16 @@ function buildDrainJob(repo, outDir, patch = {}) {
     preparationState,
     preparationStage: meta.preparationStage || null,
     preparationAttempts: Math.max(0, Number(meta.preparationAttempts) || 0),
+    learnerNextAt: learnerNextAt || null,
+    learnerWaiting: learnerNextAt > Date.now(),
+    structureNodesInjected: structureGenerationMatches ? countOrZero(meta.structureNodesInjected) : 0,
+    structureNodesTotal: structureGenerationMatches ? countOrZero(meta.structureNodesTotal) : 0,
+    structureEdgesInjected: structureGenerationMatches ? countOrZero(meta.structureEdgesInjected) : 0,
+    structureEdgesTotal: structureGenerationMatches ? countOrZero(meta.structureEdgesTotal) : 0,
     noCandidates,
     noNotesToInject,
+    overviewReady: qs.overviewReady === true,
+    architectureTaskKey: meta.architectureTaskKey || null,
     needsReview: drainDone && !noCandidates && !autoInject && !injected,
   };
 }
@@ -400,7 +416,7 @@ function runNode(args, options = {}) {
 }
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
-  const { send, readBody, notifyChange } = ctx;
+  const { send, readBody, notifyChange, targetOverlay, overlayStore } = ctx;
 
   if (p === '/onboard/init' && m === 'POST') {
     const b = await readBody(req);
@@ -703,6 +719,84 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       preparing: true,
       preparationState: 'pending',
     });
+    return true;
+  }
+
+  if (p === '/onboard/complete-overview' && m === 'POST') {
+    const b = await readBody(req);
+    if (!b.repo || !b.outDir || !b.generation || !b.noteKey) {
+      send(res, 400, { ok: false, error: 'repo, outDir, generation, and noteKey required' }); return true;
+    }
+    let resolved;
+    try { resolved = resolveRequestPaths(ctx, b.repo, b.outDir); } catch (err) {
+      sendPathError(send, res, err);
+      return true;
+    }
+    const { repo, outDir } = resolved;
+    const queue = readOnboardQueue(outDir);
+    const validated = validateOnboardQueue(queue, { expectedGeneration: b.generation, allowLegacy: true });
+    const noteIndex = Number(b.noteIndex);
+    const note = validated.ok && Number.isInteger(noteIndex) ? queue.kept[noteIndex] : null;
+    if (!validated.ok || !isOnboardOverviewNote(note)) {
+      send(res, 409, { ok: false, stale: true, error: 'overview does not match the current onboarding generation' }); return true;
+    }
+    const meta = readDrainMeta(outDir);
+    if (b.owner && (meta.injectionGeneration !== b.generation || meta.injectionOwner !== b.owner)) {
+      send(res, 409, { ok: false, stale: true, error: 'overview injection owner was replaced' }); return true;
+    }
+    if (typeof targetOverlay !== 'function' || !overlayStore) {
+      send(res, 500, { ok: false, error: 'graph task persistence is unavailable' }); return true;
+    }
+    const graphRepo = b.workspace || repo;
+    const T = targetOverlay({ graph_repo: graphRepo }, u);
+    const bareNoteId = String(b.noteKey).replace(/^note:/, '');
+    const persistedNote = T.ov.note_nodes && T.ov.note_nodes[bareNoteId];
+    if (!persistedNote || persistedNote.title !== `[ingest] ${note.title}`
+        || String(persistedNote.summary || '') !== String(note.summary || '')) {
+      send(res, 409, { ok: false, error: 'overview note is not durably present in the target graph' }); return true;
+    }
+    const taskKey = ARCHITECTURE_INVESTIGATION_TASK_KEY;
+    const created = !(T.ov.snapshots && T.ov.snapshots[taskKey]);
+    if (created) {
+      overlayStore.setSnapshot(T.ov, taskKey, {
+        subject: 'Investigate important project architecture',
+        description: 'Inspect the project\'s principal architectural boundaries, entry points, data flows, persistence and external interfaces, and operational risks. Produce one concise durable architecture note with cited repository evidence; do not modify code.',
+        status: 'pending',
+        blockedBy: [],
+        owner: null,
+        metadata: {
+          onboarding_generated: true,
+          batch_task: true,
+          bounded: true,
+          source_note: b.noteKey,
+        },
+      });
+    }
+    overlayStore.addEdge(T.ov, b.noteKey, taskKey, null, 'context', 1.0, {
+      origin: 'asserted', judged: true,
+    });
+    T.save();
+
+    // The generation-scoped receipt is the final commit marker: once it exists, both the overview
+    // note and the one visible investigation task are already durable.
+    confirmInjectedNote(outDir, b.generation, note, noteIndex);
+    const committed = mutateOnboardStatus(outDir, (current) => {
+      const latestQueue = readOnboardQueue(outDir);
+      if (!validateOnboardQueue(latestQueue, { expectedGeneration: b.generation, allowLegacy: true }).ok) return undefined;
+      if (b.owner && (current.injectionGeneration !== b.generation || current.injectionOwner !== b.owner)) return undefined;
+      return {
+        ...current,
+        overviewGeneration: b.generation,
+        overviewNoteKey: b.noteKey,
+        architectureTaskKey: taskKey,
+        overviewReady: true,
+      };
+    });
+    if (!committed.applied) {
+      send(res, 409, { ok: false, stale: true, error: 'onboarding generation changed while completing overview' }); return true;
+    }
+    if (notifyChange) notifyChange(graphRepo);
+    send(res, 200, { ok: true, overviewReady: true, taskKey, created });
     return true;
   }
 

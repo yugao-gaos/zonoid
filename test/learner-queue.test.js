@@ -133,11 +133,13 @@ function readJSON(p) {
 
   const q = readJSON(qf);
   ok('queue has total field', q && typeof q.total === 'number');
-  ok('queue total = 12 (all candidates)', q && q.total === 12);
-  ok('queue cursor starts at 0', q && q.cursor === 0);
-  ok('queue kept starts empty', q && Array.isArray(q.kept) && q.kept.length === 0);
+  ok('queue total includes one overview plus all 12 broad candidates', q && q.total === 13);
+  ok('queue cursor starts after the preclassified overview', q && q.cursor === 1);
+  ok('queue kept starts with only the deterministic overview', q && Array.isArray(q.kept)
+    && q.kept.length === 1 && q.kept[0].onboard_overview === 1);
   ok('queue rejected starts empty', q && Array.isArray(q.rejected) && q.rejected.length === 0);
-  ok('queue pending has all candidates', q && Array.isArray(q.pending) && q.pending.length === 12);
+  ok('queue pending retains the overview and all broad candidates', q && Array.isArray(q.pending)
+    && q.pending.length === 13 && q.pending.slice(1).length === 12);
 
   // Verify priority ordering: config first, then asset, then doc, then git, then struct.
   if (q && q.pending) {
@@ -176,11 +178,12 @@ function readJSON(p) {
 
   let status = null;
   try { status = JSON.parse(r1.stdout.trim()); } catch { /* ignore */ }
-  ok('queue-status returns JSON with total=12', status && status.total === 12);
-  ok('queue-status processed=0 initially', status && status.processed === 0);
+  ok('queue-status returns overview-inclusive total=13', status && status.total === 13);
+  ok('queue-status reports the preclassified overview as processed', status && status.processed === 1);
   ok('queue-status remaining=12 initially', status && status.remaining === 12);
   ok('queue-status done=false initially', status && status.done === false);
-  ok('queue-status kept=0 initially', status && status.kept === 0);
+  ok('queue-status kept=1 initially for the overview', status && status.kept === 1
+    && Array.isArray(status.keptNotes) && status.keptNotes[0].kind === 'overview');
 }
 
 // ---- TEST 3: --drain advances cursor and writes notes.json when done ------
@@ -299,10 +302,11 @@ function readJSON(p) {
   const repo = fakeRepo(path.join(dir, 'repo'));
   writeFakeMined(dir);
 
-  // Enqueue: should have 12 candidates total, NO cap at enqueue time.
+  // Enqueue: should retain all 12 broad candidates after the seeded overview, with NO cap.
   run(['--repo', repo, '--in', dir, '--enqueue']);
   const qAfterEnqueue = readJSON(path.join(dir, 'onboard-queue.json'));
-  ok('enqueue with many candidates: no cap (all 12 pending)', qAfterEnqueue && qAfterEnqueue.total === 12);
+  ok('enqueue with many candidates: no cap (all 12 broad candidates pending)', qAfterEnqueue
+    && qAfterEnqueue.total === 13 && qAfterEnqueue.pending.slice(1).length === 12);
 
   // Verify that --max-candidates does NOT apply at enqueue time — it's a drain-only safety valve.
   // We can't invoke the LLM, but we can verify the queue itself is uncapped after enqueue.
@@ -322,9 +326,10 @@ function readJSON(p) {
   run(['--repo', repo, '--in', dir, '--enqueue']);
   const q2 = readJSON(path.join(dir, 'onboard-queue.json'));
 
-  ok('enqueue re-run resets cursor to 0', q2 && q2.cursor === 0);
+  ok('enqueue re-run resets cursor to the preclassified overview', q2 && q2.cursor === 1);
   ok('enqueue re-run produces same total', q1 && q2 && q1.total === q2.total);
-  ok('enqueue re-run resets kept to []', q2 && q2.kept.length === 0);
+  ok('enqueue re-run resets kept to only a fresh overview', q2 && q2.kept.length === 1
+    && q2.kept[0].onboard_overview === 1);
   ok('enqueue re-run always allocates a fresh explicit generation', q1 && q2
     && typeof q1.generation === 'string' && typeof q2.generation === 'string'
     && q1.generation !== q2.generation);
@@ -360,14 +365,17 @@ function readJSON(p) {
   const due = require('../lib/headless-drain').findPendingLearnerQueues(repo);
   ok('direct re-enqueue succeeds after a prior injected generation', rerun.status === 0);
   ok('direct re-enqueue fences an identical prior generation', second && second.generation !== first.generation);
-  ok('direct re-enqueue clears stale receipt and final notes artifacts',
+  const replacementNotes = readJSON(path.join(dir, 'onboard-notes.json'));
+  ok('direct re-enqueue clears stale receipt and replaces final notes with the fresh overview',
     !fs.existsSync(path.join(dir, onboardState.INJECTION_RECEIPT_FILE))
-      && !fs.existsSync(path.join(dir, 'onboard-notes.json')));
+      && replacementNotes && replacementNotes.generation === second.generation
+      && replacementNotes.kept.length === 1 && replacementNotes.kept[0].onboard_overview === 1
+      && !replacementNotes.kept.some((note) => note.title === priorNote.title));
   ok('direct re-enqueue resets the injection watermark to pending current generation', status
     && status.queueGeneration === second.generation && status.injectionGeneration === second.generation
     && status.injectionState === 'pending' && status.injected === false && status.injectedKept === 0);
   ok('headless discovery schedules the directly re-enqueued generation', due.length === 1
-    && due[0].generation === second.generation && due[0].remaining === second.total);
+    && due[0].generation === second.generation && due[0].remaining === second.total - second.cursor);
 
   const beforeQueue = fs.readFileSync(qf);
   fs.writeFileSync(path.join(dir, 'onboard-drain-status.json'), JSON.stringify({
@@ -420,9 +428,13 @@ function readJSON(p) {
     ok(`publication hard exit ${boundary}: retry converges to one queue/status generation`, retried.status === 0
       && queue && status && status.queueGeneration === queue.generation
       && status.injectionGeneration === queue.generation && status.preparationState === 'ready');
-    ok(`publication hard exit ${boundary}: committed retry clears stale generation artifacts`,
+    const replacementNotes = readJSON(path.join(dir, 'onboard-notes.json'));
+    ok(`publication hard exit ${boundary}: committed retry clears stale artifacts and seeds the new overview`,
       !fs.existsSync(path.join(dir, onboardState.INJECTION_RECEIPT_FILE))
-        && !fs.existsSync(path.join(dir, 'onboard-notes.json')) && leftovers.length === 0);
+        && replacementNotes && replacementNotes.generation === queue.generation
+        && replacementNotes.kept.length === 1 && replacementNotes.kept[0].onboard_overview === 1
+        && !replacementNotes.kept.some((note) => note.title === 'stale')
+        && leftovers.length === 0);
     if (['onboard-queue.json', 'onboard-drain-status.json_temp', 'before_journal_cleanup'].includes(boundary)) {
       ok(`publication hard exit ${boundary}: retry does not allocate a duplicate replacement`,
         queueAfterCrash && queueAfterCrash.generation === queue.generation);

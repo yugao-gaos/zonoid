@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 'use strict';
 
-const { parseGraphArgs, runGraphCommand } = require('../packages/cli/bin/zonoid.js');
+const path = require('path');
+const { INSTALL_DIR, parseGraphArgs, runGraphCommand } = require('../packages/cli/bin/zonoid.js');
 
 let pass = 0;
 let fail = 0;
@@ -28,6 +29,8 @@ async function main() {
   ok('parse graph sync latest=false', sync.command === 'sync' && sync.latest === false);
   const flush = parseGraphArgs(['node', 'zonoid', 'graph', 'flush', '--no-push']);
   ok('parse graph flush no-push', flush.command === 'flush' && flush.push === false);
+  const recover = parseGraphArgs(['node', 'zonoid', 'graph', 'recover-rebase', '--confirm-drains-paused']);
+  ok('parse graph recover-rebase confirmation', recover.command === 'recover-rebase' && recover.drainsPaused === true);
 
   const noYesOutput = capture();
   let noYesOptions;
@@ -79,6 +82,44 @@ async function main() {
   });
   ok('dispatch passes flush push=false', commandCalls[0] && commandCalls[0].push === false);
   ok('flush --no-push treats local pending commit as success', localFlush.exitCode === 0);
+
+  const recoverCalls = [];
+  const recoverOutput = capture();
+  const recoverPlan = await runGraphCommand(
+    parseGraphArgs(['node', 'zonoid', 'graph', 'recover-rebase']),
+    {
+      lifecycle: {
+        recoverRebase: async (_repo, options) => {
+          recoverCalls.push(options);
+          return { status: 'dry-run', dryRun: true, rebase: true, conflicts: [] };
+        },
+      },
+      output: recoverOutput.output,
+    }
+  );
+  ok('recover-rebase defaults to a non-mutating confirmation plan', recoverPlan.status === 'confirmation-required'
+    && recoverPlan.exitCode === 1 && recoverCalls[0].dryRun === true);
+  ok('recover-rebase plan names the explicit drains pause confirmation', recoverPlan.requires === '--confirm-drains-paused');
+  ok('recover-rebase confirmation covers exact locked restart resume', /resume.*restart/i.test(recoverPlan.action));
+
+  const confirmedCalls = [];
+  const confirmed = await runGraphCommand(
+    parseGraphArgs(['node', 'zonoid', 'graph', 'recover-rebase', '--confirm-drains-paused']),
+    {
+      lifecycle: {
+        recoverRebase: async (_repo, options) => {
+          confirmedCalls.push(options);
+          return { status: 'recovered', dryRun: false };
+        },
+      },
+      output: () => {},
+    }
+  );
+  ok('confirmed recover-rebase passes the pause assertion and succeeds', confirmed.exitCode === 0
+    && confirmedCalls[0].drainsPaused === true && confirmedCalls[0].dryRun === false);
+  ok('recover-rebase pins operator control and daemon identity to the Zonoid install root',
+    confirmedCalls[0].operatorRoot === INSTALL_DIR
+    && confirmedCalls[0].daemonPath === path.join(INSTALL_DIR, 'daemon.js'));
 
   console.log('-----');
   console.log(`${pass} passed, ${fail} failed`);

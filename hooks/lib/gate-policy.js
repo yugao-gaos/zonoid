@@ -154,7 +154,7 @@ function resolveAgainstCwd(target, cwd) {
   return k.normalizePath(`${k.slash(cwd).replace(/\/+$/, '')}/${s}`);
 }
 
-function gitSubcommand(toks, gitIdx) {
+function gitSubcommandIndex(toks, gitIdx) {
   for (let i = gitIdx + 1; i < toks.length; i++) {
     const tok = cleanToken(toks[i]);
     if (!tok || isCommandBoundary(tok)) break;
@@ -166,9 +166,27 @@ function gitSubcommand(toks, gitIdx) {
       continue;
     }
     if (tok.startsWith('-')) continue;
-    return commandName(tok);
+    return i;
   }
-  return '';
+  return -1;
+}
+
+function gitSubcommand(toks, gitIdx) {
+  const idx = gitSubcommandIndex(toks, gitIdx);
+  return idx < 0 ? '' : commandName(toks[idx]);
+}
+
+function isReadOnlyGitSubmoduleStatus(toks, gitIdx) {
+  const submoduleIdx = gitSubcommandIndex(toks, gitIdx);
+  if (submoduleIdx < 0 || commandName(toks[submoduleIdx]) !== 'submodule') return false;
+  for (let i = submoduleIdx + 1; i < toks.length; i++) {
+    const tok = cleanToken(toks[i]);
+    if (!tok || isCommandBoundary(tok) || tok === '--') break;
+    if (tok === '--quiet' || tok === '-q') continue;
+    if (tok.startsWith('-')) return false;
+    return commandName(tok) === 'status';
+  }
+  return false;
 }
 
 function hasRedirect(toks) {
@@ -183,7 +201,7 @@ function isGitCommandExempt(cmd) {
   const gitIdx = commandIdxs[0];
   if (commandName(toks[gitIdx]) !== 'git') return false;
   const subcommand = gitSubcommand(toks, gitIdx);
-  return READ_ONLY_GIT_COMMANDS.has(subcommand);
+  return READ_ONLY_GIT_COMMANDS.has(subcommand) || isReadOnlyGitSubmoduleStatus(toks, gitIdx);
 }
 
 function hasGitMutatorCommand(cmdNoComment) {
@@ -444,7 +462,7 @@ function hasBashWritePattern(cmd) {
     /(>>?)\s*\/(?!dev\/null)/.test(cmdRedir) ||
     hasShellCommand(cmdNoComment, new Set(['tee'])) ||
     /open\s*\(.*['"]([wWaA]|[wWaA]b)['"]|\.write(_text|_bytes)?\s*\(|\.touch\s*\(/.test(cmd) ||
-    hasShellCommand(cmdNoComment, new Set(['cp', 'mv', 'rsync', 'install'])) ||
+    hasShellCommand(cmdNoComment, new Set(['cp', 'mv', 'rsync', 'install', 'touch'])) ||
     hasGitMutatorCommand(cmdNoComment) ||
     /\bdd\b.*\bof=/.test(cmd) ||
     (hasShellCommand(cmdNoComment, new Set(['sed'])) && /(^|\s)-i(\s|[A-Za-z0-9._-])/.test(cmdNoComment)) ||
@@ -472,6 +490,32 @@ function collectCommandDestTargets(cmdNoComment, names) {
       positional.push(tok);
     }
     if (positional.length) targets.push(positional[positional.length - 1]);
+  }
+  return targets;
+}
+
+function collectTouchTargets(cmdNoComment) {
+  const toks = tokenizeShellCommand(cmdNoComment);
+  const targets = [];
+  const optionsWithValue = new Set(['-A', '-d', '--date', '-r', '--reference', '-t', '--time']);
+  for (const idx of shellCommandIndices(toks)) {
+    if (commandName(toks[idx]) !== 'touch') continue;
+    let options = true;
+    for (let j = idx + 1; j < toks.length; j++) {
+      const raw = toks[j];
+      if (isCommandBoundary(raw)) break;
+      const tok = cleanToken(raw);
+      if (options && tok === '--') {
+        options = false;
+        continue;
+      }
+      if (options && optionsWithValue.has(tok)) {
+        j++;
+        continue;
+      }
+      if (options && tok.startsWith('-')) continue;
+      targets.push(tok);
+    }
   }
   return targets;
 }
@@ -563,6 +607,7 @@ function bashWriteTargets(cmd, cwd = '') {
   const targets = [];
   targets.push(...collectRedirectTargets(cmdNoComment));
   targets.push(...collectCommandDestTargets(cmdNoComment, new Set(['cp', 'mv', 'rsync', 'install'])));
+  targets.push(...collectTouchTargets(cmdNoComment));
   targets.push(...collectGitMutatorTargets(cmdNoComment, cwd));
   targets.push(...collectTeeTargets(cmdNoComment));
   targets.push(...collectSedTargets(cmdNoComment));

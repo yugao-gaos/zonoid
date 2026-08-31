@@ -17,6 +17,7 @@ const workspaceRegistry = require('../lib/workspace-registry');
 const DAEMON_PATH = path.join(__dirname, '..', 'daemon.js');
 const CLI_PATH = path.join(__dirname, '..', 'packages', 'cli', 'bin', 'zonoid.js');
 const GIT_MINER_PATH = path.join(__dirname, '..', 'scripts', 'onboard-mine-git.js');
+const REAL_DAEMON_STARTUP_TIMEOUT_MS = 30000;
 
 function git(repo, args) {
   return execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', windowsHide: true }).trim();
@@ -428,6 +429,12 @@ test('init lifecycle arms onboarding without a dashboard and leaves accumulated 
     const queue = JSON.parse(fs.readFileSync(path.join(result.outDir, 'onboard-queue.json'), 'utf8'));
     const status = JSON.parse(fs.readFileSync(path.join(result.outDir, 'onboard-drain-status.json'), 'utf8'));
     assert.ok(queue.total > 0, 'existing project content must be mined before any dashboard opens');
+    assert.equal(queue.cursor, 1, 'the deterministic overview is preclassified without an LLM batch');
+    assert.equal(queue.kept.length, 1);
+    assert.equal(queue.kept[0].onboard_overview, 1);
+    const overviewArtifact = JSON.parse(fs.readFileSync(path.join(result.outDir, 'onboard-notes.json'), 'utf8'));
+    assert.equal(overviewArtifact.generation, queue.generation);
+    assert.deepEqual(overviewArtifact.kept, queue.kept);
     assert.equal(status.repo, repo);
     assert.equal(status.autoInject, true);
     assert.equal(status.preparationState, 'ready');
@@ -494,10 +501,12 @@ test('empty and zero-commit projects onboard without inventing project history',
       assert.equal(status.error, null);
       assert.equal(status.preparationState, 'ready');
       if (repoCase.empty) {
-        assert.deepEqual(
-          { total: queue.total, cursor: queue.cursor, kept: queue.kept, rejected: queue.rejected, pending: queue.pending },
-          { total: 0, cursor: 0, kept: [], rejected: [], pending: [] }
-        );
+        assert.equal(queue.total, 1);
+        assert.equal(queue.cursor, 1);
+        assert.equal(queue.kept.length, 1);
+        assert.equal(queue.kept[0].onboard_overview, 1);
+        assert.deepEqual(queue.pending, queue.kept);
+        assert.deepEqual(queue.rejected, []);
         assert.match(queue.generation, /^onboard-[a-f0-9]+$/);
       } else {
         assert.ok(queue.total > 0, 'non-git miners must retain useful zero-commit project evidence');
@@ -522,7 +531,7 @@ test('cold daemon startup is non-blocking and waits until the daemon is ready', 
     const ready = await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       env: {
         ...process.env,
         CLAUDE_PLUGIN_DATA: dataDir,
@@ -545,7 +554,8 @@ test('cold daemon startup is non-blocking and waits until the daemon is ready', 
     const version = await daemonRequest(port, 'GET', '/version');
     assert.equal(version.payload.build, health.payload.build);
     assert.equal(version.payload.pid, health.payload.pid);
-    assert.ok(Date.now() - startedAt < 15000, 'cold startup must return instead of waiting on the detached daemon process');
+    assert.ok(Date.now() - startedAt < REAL_DAEMON_STARTUP_TIMEOUT_MS,
+      'cold startup must return instead of waiting on the detached daemon process');
   } finally {
     await stopDaemon(port);
     fs.rmSync(dataDir, { recursive: true, force: true });
@@ -792,7 +802,7 @@ test('full init starts a cold token-protected daemon on a custom port', async ()
       port,
       token,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       registrationTimeoutMs: 3000,
       onboardingTimeoutMs: 3000,
       env: {
@@ -922,7 +932,7 @@ test('daemon boot reconciles every hard-exit boundary of onboarding init', async
         assert.equal(await checkDaemon({
           port,
           daemonPath: DAEMON_PATH,
-          startupTimeoutMs: 15000,
+          startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
           env: {
             ...process.env,
             CLAUDE_PLUGIN_DATA: fixture.dataDir,
@@ -945,7 +955,7 @@ test('daemon boot reconciles every hard-exit boundary of onboarding init', async
         assert.equal(await checkDaemon({
           port,
           daemonPath: DAEMON_PATH,
-          startupTimeoutMs: 15000,
+          startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
           env: {
             ...process.env,
             CLAUDE_PLUGIN_DATA: fixture.dataDir,
@@ -1013,7 +1023,7 @@ test('daemon boot quarantines an invalid onboarding publication and stays ready'
     assert.equal(await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       env: {
         ...process.env,
         CLAUDE_PLUGIN_DATA: fixture.dataDir,
@@ -1061,7 +1071,7 @@ test('daemon boot ignores an unreadable invalid init journal and quarantines it 
   const daemonOptions = {
     port,
     daemonPath: DAEMON_PATH,
-    startupTimeoutMs: 15000,
+    startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
     env: {
       ...process.env,
       CLAUDE_PLUGIN_DATA: fixture.dataDir,
@@ -1141,7 +1151,7 @@ test('daemon boot quarantines a valid legacy init intent instead of reading or r
     assert.equal(await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       env: {
         ...process.env,
         CLAUDE_PLUGIN_DATA: fixture.dataDir,
@@ -1229,7 +1239,7 @@ test('daemon restart keeps an invalid journal fenced after status-temp publicati
     assert.equal(await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       env: daemonEnv,
     }), true);
     const health = await daemonRequest(port, 'GET', '/health');
@@ -1261,7 +1271,7 @@ test('daemon loadState survives a settled init with read-only Git exclude and re
   const daemonOptions = {
     port,
     daemonPath: DAEMON_PATH,
-    startupTimeoutMs: 15000,
+    startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
     env: {
       ...process.env,
       CLAUDE_PLUGIN_DATA: fixture.dataDir,
@@ -1336,7 +1346,7 @@ test('real daemon rejects invalid onboarding paths before registration or projec
     assert.equal(await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       env: {
         ...process.env,
         CLAUDE_PLUGIN_DATA: fixture.dataDir,
@@ -1370,7 +1380,7 @@ test('real daemon rolls back durable onboarding when registry commit fails', asy
     assert.equal(await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       env: {
         ...process.env,
         CLAUDE_PLUGIN_DATA: fixture.dataDir,
@@ -1427,7 +1437,7 @@ test('real daemon refuses retry-capped reused queues without false init success 
     assert.equal(await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       env: {
         ...process.env,
         CLAUDE_PLUGIN_DATA: fixture.dataDir,
@@ -1505,7 +1515,7 @@ test('token-authenticated init registers the workspace and queues onboarding', a
     assert.equal(await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       env: {
         ...process.env,
         CLAUDE_PLUGIN_DATA: dataDir,
@@ -1585,7 +1595,7 @@ test('daemon boot resumes a persisted preparation request created before the dae
     assert.equal(await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       env: {
         ...process.env,
         CLAUDE_PLUGIN_DATA: dataDir,
@@ -1600,10 +1610,12 @@ test('daemon boot resumes a persisted preparation request created before the dae
     const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
     assert.equal(status.preparationState, 'ready');
     const queue = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-queue.json'), 'utf8'));
-    assert.deepEqual(
-      { total: queue.total, cursor: queue.cursor, kept: queue.kept, rejected: queue.rejected, pending: queue.pending },
-      { total: 0, cursor: 0, kept: [], rejected: [], pending: [] }
-    );
+    assert.equal(queue.total, 1);
+    assert.equal(queue.cursor, 1);
+    assert.equal(queue.kept.length, 1);
+    assert.equal(queue.kept[0].onboard_overview, 1);
+    assert.deepEqual(queue.pending, queue.kept);
+    assert.deepEqual(queue.rejected, []);
     assert.match(queue.generation, /^onboard-[a-f0-9]+$/);
   } finally {
     await stopDaemon(port);

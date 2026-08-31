@@ -60,6 +60,8 @@ async function waitForPing(ms = 8000) {
 }
 
 function runWriteGate(filePath, sessionId = SESSION) {
+  const env = { ...process.env, ORCH_PORT: String(PORT), CLAUDE_PLUGIN_DATA: SANDBOX };
+  delete env.CODEX_THREAD_ID;
   return spawnSync(process.execPath, [path.join(__dirname, '..', 'hooks', 'orch-gate.js')], {
     input: JSON.stringify({
       session_id: sessionId,
@@ -68,7 +70,7 @@ function runWriteGate(filePath, sessionId = SESSION) {
       tool_input: { file_path: filePath, new_string: 'x' },
     }),
     encoding: 'utf8',
-    env: { ...process.env, ORCH_PORT: String(PORT), CLAUDE_PLUGIN_DATA: SANDBOX },
+    env,
   });
 }
 
@@ -153,15 +155,20 @@ function runWriteGate(filePath, sessionId = SESSION) {
       key: K(2), status: 'canceled', agent_id: 'hookless-worker', session_id: SESSION, workspace: WS,
     });
     const terminalRebind = await req('POST', '/overlay/claim-session', {
-      task_key: K(2), session_id: REAL_SESSION, agent_id: 'hookless-worker', workspace: WS,
+      task_key: K(2), session_id: REAL_SESSION, expected_session_id: SESSION, agent_id: 'hookless-worker', workspace: WS,
     });
     ok('claim-session rebind rejects a terminal task',
       terminal.status === 200 && terminalRebind.status === 409 && /active claimed task/.test(String(terminalRebind.body.error)));
 
     // Codex Desktop can accept through an MCP fallback session, while PostToolUse observes the
     // actual worker thread id. Rebinding must atomically move both the claim alias and its permit.
-    const rebind = await req('POST', '/overlay/claim-session', {
+    const missingExpected = await req('POST', '/overlay/claim-session', {
       task_key: K(1), session_id: REAL_SESSION, agent_id: 'hookless-worker', workspace: WS,
+    });
+    ok('session-changing claim-session rebind requires expected_session_id',
+      missingExpected.status === 409 && /expected_session_id/.test(String(missingExpected.body.error)));
+    const rebind = await req('POST', '/overlay/claim-session', {
+      task_key: K(1), session_id: REAL_SESSION, expected_session_id: SESSION, agent_id: 'hookless-worker', workspace: WS,
     });
     const reboundPermit = rebind.body.execution_permit;
     ok('claim-session rebind issues an active same-session execution permit',
@@ -199,6 +206,33 @@ function runWriteGate(filePath, sessionId = SESSION) {
       newPermit.status === 200 &&
       newPermit.body.valid === true &&
       newPermit.body.execution_permit.id === (reboundPermit && reboundPermit.id));
+
+    const staleReplay = await req('POST', '/overlay/claim-session', {
+      task_key: K(1),
+      session_id: SESSION,
+      expected_session_id: SESSION,
+      agent_id: 'hookless-worker',
+      workspace: WS,
+    });
+    ok('stale fallback replay is rejected by claim-session compare-and-swap',
+      staleReplay.status === 409 && /expected_session_id/.test(String(staleReplay.body.error)));
+    const preservedPermit = await req(
+      'GET',
+      `/subconscious/permit?session_id=${encodeURIComponent(REAL_SESSION)}&agent_id=hookless-worker&task_key=${encodeURIComponent(K(1))}`,
+    );
+    ok('stale replay preserves the active child execution permit',
+      preservedPermit.status === 200 &&
+      preservedPermit.body.valid === true &&
+      preservedPermit.body.execution_permit.id === (reboundPermit && reboundPermit.id));
+    const staleFallbackPermit = await req(
+      'GET',
+      `/subconscious/permit?session_id=${encodeURIComponent(SESSION)}&agent_id=hookless-worker&task_key=${encodeURIComponent(K(1))}`,
+    );
+    ok('stale replay does not reissue the revoked fallback permit',
+      staleFallbackPermit.status === 200 &&
+      staleFallbackPermit.body.valid === false &&
+      staleFallbackPermit.body.execution_permit &&
+      staleFallbackPermit.body.execution_permit.status === 'revoked');
     const oldGate = runWriteGate(path.join(wt.body.worktree, 'fallback-session-write.js'));
     const realGate = runWriteGate(path.join(wt.body.worktree, 'real-session-write.js'), REAL_SESSION);
     ok('fallback session can no longer pass the write gate after rebind', oldGate.status === 2);
