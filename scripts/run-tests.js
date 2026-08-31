@@ -30,6 +30,7 @@ function testEnvironment(source = process.env) {
   });
   const names = new Set([
     'GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR',
+    'CODEX_SESSION_ID', 'CODEX_THREAD_ID', 'ORCH_GATE_OFF',
     ...(localVars.stdout || '').split(/\s+/).filter(Boolean),
   ]);
   for (const name of names) delete env[name];

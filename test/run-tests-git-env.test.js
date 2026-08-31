@@ -43,6 +43,9 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
+assert.equal(process.env.CODEX_SESSION_ID, undefined);
+assert.equal(process.env.CODEX_THREAD_ID, undefined);
+assert.equal(process.env.ORCH_GATE_OFF, undefined);
 const fixture = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-git-fixture-')));
 try {
   execFileSync('git', ['init', '-q'], { cwd: fixture });
@@ -72,6 +75,9 @@ try {
     GIT_DIR: path.join(source, '.git'),
     GIT_WORK_TREE: source,
     GIT_INDEX_FILE: path.join(source, '.git', 'index'),
+    CODEX_SESSION_ID: 'host-session',
+    CODEX_THREAD_ID: 'host-thread',
+    ORCH_GATE_OFF: '1',
   };
   const result = spawnSync(process.execPath, [path.join(source, 'scripts', 'run-tests.js')], {
     cwd: source,
