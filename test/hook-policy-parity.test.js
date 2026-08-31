@@ -224,6 +224,28 @@ expectExit('shell bash gate allows proven Desktop child over parent env', SHELL_
 expectExit('Cursor shell relay allows proven Desktop child over parent env', CURSOR_BASH, desktopBash, desktopConfig, 0, desktopEnv);
 expectCodexAllow('Codex bash relay allows proven Desktop child over parent env', CODEX_BASH, desktopBash, desktopConfig, desktopEnv);
 
+const desktopNoTranscriptWrite = {
+  session_id: desktopParent,
+  agent_id: desktopChild,
+  tool_name: 'Write',
+  tool_input: { file_path: `${WT}/src/desktop-no-transcript.js`, new_string: 'x' },
+};
+expectExit('direct Node write gate allows transcript-less Desktop child over parent env', DIRECT_WRITE, desktopNoTranscriptWrite, desktopConfig, 0, desktopEnv);
+expectExit('shell write gate allows transcript-less Desktop child over parent env', SHELL_WRITE, desktopNoTranscriptWrite, desktopConfig, 0, desktopEnv);
+expectExit('Cursor write relay allows transcript-less Desktop child over parent env', CURSOR_WRITE, desktopNoTranscriptWrite, desktopConfig, 0, desktopEnv);
+expectCodexAllow('Codex write relay allows transcript-less Desktop child over parent env', CODEX_WRITE, desktopNoTranscriptWrite, desktopConfig, desktopEnv);
+
+const desktopNoTranscriptBash = {
+  session_id: desktopParent,
+  agent_id: desktopChild,
+  tool_name: 'Bash',
+  tool_input: { command: `touch ${WT}/desktop-no-transcript.txt` },
+};
+expectExit('direct Node bash gate allows transcript-less Desktop child over parent env', DIRECT_BASH, desktopNoTranscriptBash, desktopConfig, 0, desktopEnv);
+expectExit('shell bash gate allows transcript-less Desktop child over parent env', SHELL_BASH, desktopNoTranscriptBash, desktopConfig, 0, desktopEnv);
+expectExit('Cursor shell relay allows transcript-less Desktop child over parent env', CURSOR_BASH, desktopNoTranscriptBash, desktopConfig, 0, desktopEnv);
+expectCodexAllow('Codex bash relay allows transcript-less Desktop child over parent env', CODEX_BASH, desktopNoTranscriptBash, desktopConfig, desktopEnv);
+
 const outsideClaim = writeInput('/Users/x/other/main.js');
 expectExit('direct Node write gate denies claimed out-of-worktree path', DIRECT_WRITE, outsideClaim, claimedConfig(), 2);
 expectExit('shell write gate denies claimed out-of-worktree path', SHELL_WRITE, outsideClaim, claimedConfig(), 2);

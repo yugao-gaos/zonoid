@@ -126,20 +126,26 @@ function transcriptSessionId(input, expectedParentSession = '') {
 }
 
 function hookSessionId(input, env = process.env) {
+  const transportAgent = input && typeof input.agent_id === 'string' ? input.agent_id.trim() : '';
+  const hasTranscriptCandidate = !!(input && [input.agent_transcript_path, input.transcript_path]
+    .some((candidate) => typeof candidate === 'string' && candidate.trim()));
   const threadId = typeof env.CODEX_THREAD_ID === 'string' ? env.CODEX_THREAD_ID.trim() : '';
   if (threadId) {
-    // Desktop may expose the parent thread here; only matching transcript + top-level transport
-    // identity can prove that this hook actually belongs to a distinct collaboration child.
+    // Desktop may expose the parent thread here. Prefer bounded transcript proof when supplied;
+    // otherwise a strict host-level Codex transport UUID identifies the executing child.
     const transcriptChild = transcriptSessionId(input, threadId);
-    const transportAgent = input && typeof input.agent_id === 'string' ? input.agent_id.trim() : '';
     if (transcriptChild && transcriptChild !== threadId && transportAgent === transcriptChild) {
       return transcriptChild;
     }
+    if (!hasTranscriptCandidate && transportAgent !== threadId && CODEX_THREAD_ID_RE.test(transportAgent)) {
+      return transportAgent;
+    }
     return threadId;
   }
-  return transcriptSessionId(input) || (
-    input && typeof input.session_id === 'string' ? input.session_id.trim() : ''
-  );
+  const transcriptChild = transcriptSessionId(input);
+  if (transcriptChild) return transcriptChild;
+  if (!hasTranscriptCandidate && CODEX_THREAD_ID_RE.test(transportAgent)) return transportAgent;
+  return input && typeof input.session_id === 'string' ? input.session_id.trim() : '';
 }
 function hookAgentId(input) {
   const ti = input && input.tool_input && typeof input.tool_input === 'object' ? input.tool_input : {};

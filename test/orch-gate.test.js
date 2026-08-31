@@ -340,17 +340,21 @@ function makeSingleClaimConfig(permit = executionPermit('task-a', WT_A, 'orch/at
 
 // 22. Codex Desktop reports the transport thread UUID as hook agent_id, not the logical assignee.
 {
-  const permit = executionPermit('task-a', WT_A, 'orch/attempt/task-a', { agent_id: 'logical-worker' });
+  const transportSession = '01a05606-303e-7342-af86-80d33d596727';
+  const permit = executionPermit('task-a', WT_A, 'orch/attempt/task-a', {
+    session_id: transportSession,
+    agent_id: 'logical-worker',
+  });
   const config = makeSingleClaimConfig(permit);
   const transport = runWithConfig(
-    mkInput(`${WT_A}/transport-agent.js`, 'test-session-x', '01a05606-303e-7342-af86-80d33d596727'),
+    mkInput(`${WT_A}/transport-agent.js`, 'test-session-x', transportSession),
     config,
   );
   const wrongLogical = runWithConfig(
     mkInput(`${WT_A}/wrong-logical-agent.js`, 'test-session-x', 'different-logical-worker'),
     config,
   );
-  ok('Codex transport UUID uses the same session/task/worktree permit → exit 0', transport.status === 0);
+  ok('Codex transport UUID uses its matching session/task/worktree permit → exit 0', transport.status === 0);
   ok('different logical non-UUID agent remains denied → exit 2', wrongLogical.status === 2);
 }
 
@@ -387,6 +391,43 @@ function makeSingleClaimConfig(permit = executionPermit('task-a', WT_A, 'orch/at
   ok('Desktop transcript child remains available when CODEX_THREAD_ID is absent → exit 0',
     runWithConfig(JSON.stringify(input), config, { CODEX_SESSION_ID: parentSession }).status === 0);
 
+  const noTranscript = {
+    session_id: parentSession,
+    agent_id: childSession,
+    tool_input: { file_path: `${WT_A}/desktop-no-transcript.js`, new_string: 'x' },
+  };
+  ok('Desktop host UUID overrides parent CODEX_THREAD_ID without a transcript for Write/Edit → exit 0',
+    runWithConfig(JSON.stringify(noTranscript), config, desktopEnv).status === 0);
+  ok('tool_input UUID cannot override parent CODEX_THREAD_ID without a transcript → exit 2',
+    runWithConfig(JSON.stringify({
+      ...noTranscript,
+      agent_id: undefined,
+      tool_input: { ...noTranscript.tool_input, agent_id: childSession },
+    }), config, desktopEnv).status === 2);
+  ok('non-UUID top-level logical agent cannot become the hook session → exit 2',
+    runWithConfig(JSON.stringify({ ...noTranscript, agent_id: 'logical-worker' }), config, desktopEnv).status === 2);
+  ok('absent top-level agent retains parent CODEX_THREAD_ID → exit 2',
+    runWithConfig(JSON.stringify({ ...noTranscript, agent_id: undefined }), config, desktopEnv).status === 2);
+
+  const parentConfig = makeSingleClaimConfig(executionPermit('task-a', WT_A, 'orch/attempt/task-a', {
+    session_id: parentSession,
+    agent_id: 'logical-worker',
+  }));
+  ok('top-level agent equal to CODEX_THREAD_ID keeps the parent session unchanged → exit 0',
+    runWithConfig(JSON.stringify({ ...noTranscript, agent_id: parentSession }), parentConfig, desktopEnv).status === 0);
+
+  const wrongSessionConfig = makeSingleClaimConfig(executionPermit('task-a', WT_A, 'orch/attempt/task-a', {
+    session_id: '01a05606-303e-7342-af86-999999999999',
+    agent_id: 'logical-worker',
+  }));
+  ok('Desktop host UUID still requires a matching permit session → exit 2',
+    runWithConfig(JSON.stringify(noTranscript), wrongSessionConfig, desktopEnv).status === 2);
+
+  const malformedTranscript = path.join(TMP, 'desktop-child-malformed.jsonl');
+  fs.writeFileSync(malformedTranscript, '{not-json\n');
+  ok('malformed transcript remains fail-closed instead of falling back to the host UUID → exit 2',
+    runWithConfig(JSON.stringify({ ...noTranscript, transcript_path: malformedTranscript }), config, desktopEnv).status === 2);
+
   const toolInputOnly = {
     ...input,
     agent_id: undefined,
@@ -396,7 +437,7 @@ function makeSingleClaimConfig(permit = executionPermit('task-a', WT_A, 'orch/at
     runWithConfig(JSON.stringify(toolInputOnly), config, desktopEnv).status === 2);
   ok('missing top-level transport agent retains parent CODEX_THREAD_ID → exit 2',
     runWithConfig(JSON.stringify({ ...input, agent_id: undefined }), config, desktopEnv).status === 2);
-  ok('different top-level transport agent retains parent CODEX_THREAD_ID → exit 2',
+  ok('different top-level transport session does not borrow the child permit → exit 2',
     runWithConfig(JSON.stringify({ ...input, agent_id: '01a05606-303e-7342-af86-111111111111' }), config, desktopEnv).status === 2);
 
   const maliciousWindow = '01a05606-303e-7342-af86-222222222222';
