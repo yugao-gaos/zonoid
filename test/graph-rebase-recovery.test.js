@@ -97,7 +97,12 @@ function daemonFixture(repo, overrides = {}) {
     flushGraph: async (targetRepo, request) => {
       flushRequests.push({ targetRepo, request });
       flushes++;
-      return { status: 'pushed', commit: 'fixture-graph-commit' };
+      const graphDir = path.join(targetRepo, '.graph');
+      git(graphDir, ['add', '-A', '--', '.', ':(exclude)daemon.port']);
+      if (gitFails(graphDir, ['diff', '--cached', '--quiet', '--exit-code'])) {
+        git(graphDir, ['commit', '-m', 'fixture pushed recovery']);
+      }
+      return { status: 'pushed', commit: git(graphDir, ['rev-parse', 'HEAD']) };
     },
     restartDaemon: async (request) => {
       restartRequests.push(request);
@@ -226,6 +231,56 @@ function createRetainedStashFixture(options = {}) {
     git(graphDir, ['commit', '-m', 'committed interrupted stash marker']);
   }
   return { repo, graphDir, stashOid };
+}
+
+function createLockedRestartResumeFixture(options = {}) {
+  const fixture = createRetainedStashFixture();
+  const claim = path.join(fixture.graphDir, 'claims', 'one.json');
+  write(claim, JSON.stringify({
+    task_key: 'one', status: 'done', claimed_at: '2026-08-30T21:51:00.000Z',
+    completed_at: '2026-08-30T22:03:00.000Z',
+  }, null, 2) + '\n');
+  git(fixture.graphDir, ['add', '--', 'claims/one.json']);
+  git(fixture.graphDir, ['commit', '-m', 'resolved and pushed recovery']);
+  const graphHead = git(fixture.graphDir, ['rev-parse', 'HEAD']);
+  git(fixture.graphDir, ['push', 'origin', 'HEAD:main']);
+  if (options.noStash === true) git(fixture.graphDir, ['stash', 'drop', 'stash@{0}']);
+  write(path.join(fixture.graphDir, 'daemon.port'), '8787\n');
+
+  const daemon = daemonFixture(fixture.repo, options.daemonOverrides || {});
+  if (options.legacy !== true) daemon.stop();
+  const identity = {
+    head: 'stable-fixture',
+    build: 'git:stable-fixture',
+    version: null,
+  };
+  const lock = {
+    kind: 'zonoid-graph-recovery',
+    token: 'resume-fixture-token',
+    created_at: '2026-08-30T22:10:00.000Z',
+    daemon_pid: 41041,
+    daemon_head: identity.head,
+    daemon_build: identity.build,
+    ...(options.legacy === true ? {} : {
+      daemon_version: identity.version,
+      phase: 'restart-pending',
+      graph_dir: fs.realpathSync(fixture.graphDir),
+      graph_head: graphHead,
+      stash_oid: options.noStash === true ? null : fixture.stashOid,
+    }),
+  };
+  write(daemon.lockFile, `${JSON.stringify(lock)}\n`);
+  return {
+    ...fixture,
+    daemon,
+    graphHead,
+    identity,
+    lock,
+    options: {
+      ...daemon.options,
+      getDaemonIdentity: () => identity,
+    },
+  };
 }
 
 function rebaseActive(graphDir) {
@@ -442,6 +497,218 @@ async function testNonRebaseAdmissionRequiresCommittedProof() {
     && fs.readFileSync(path.join(unmerged.graphDir, 'claims', 'one.json'), 'utf8') === unmergedClaim);
 }
 
+async function testLockedPostPushRestartResume() {
+  const fixture = createLockedRestartResumeFixture();
+  const plan = await lifecycle.recoverRebase(fixture.repo, {
+    ...fixture.options,
+    dryRun: true,
+  });
+  ok('dry run recognizes the exact locked post-push restart resume state', plan.status === 'dry-run'
+    && plan.resume === true && plan.recoverable === true && plan.graphHead === fixture.graphHead
+    && plan.stashes.length === 1 && plan.stashes[0].oid === fixture.stashOid, JSON.stringify(plan));
+  ok('resume dry run preserves the recovery lock, stash, graph, and stopped daemon',
+    fs.existsSync(fixture.daemon.lockFile)
+    && git(fixture.graphDir, ['stash', 'list', '--format=%H']).split('\n').includes(fixture.stashOid)
+    && git(fixture.graphDir, ['rev-parse', 'HEAD']) === fixture.graphHead
+    && fixture.daemon.restarts() === 0);
+
+  const result = await lifecycle.recoverRebase(fixture.repo, {
+    ...fixture.options,
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('locked post-push recovery resumes only the same-build daemon restart', result.status === 'recovered'
+    && result.resume === true && result.restart && result.restart.ok
+    && fixture.daemon.restarts() === 1 && fixture.daemon.signals() === 0 && fixture.daemon.flushes() === 0,
+  JSON.stringify(result));
+  ok('successful resume removes the lock and exact stash only after readiness proof',
+    !fs.existsSync(fixture.daemon.lockFile)
+    && !git(fixture.graphDir, ['stash', 'list', '--format=%H']).split('\n').includes(fixture.stashOid)
+    && fs.readFileSync(path.join(fixture.graphDir, 'daemon.port'), 'utf8') === '8787\n');
+}
+
+async function testLegacyLockedPostPushRestartResume() {
+  const fixture = createLockedRestartResumeFixture({ legacy: true });
+  fixture.options.getDaemonIdentity = () => ({ head: 'new-installed', build: 'git:new-installed' });
+  const result = await lifecycle.recoverRebase(fixture.repo, {
+    ...fixture.options,
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('legacy recovery lock resumes only after reconstructing every missing binding', result.status === 'recovered'
+    && result.resume === true && result.legacyLock === true && result.restart && result.restart.ok
+    && fixture.daemon.signals() === 0 && fixture.daemon.restartRequests()[0].reuseOnly === true,
+  JSON.stringify(result));
+  ok('legacy resume removes the proven lock and exact sole stash', !fs.existsSync(fixture.daemon.lockFile)
+    && !git(fixture.graphDir, ['stash', 'list', '--format=%H']).split('\n').includes(fixture.stashOid));
+
+  const ambiguous = createLockedRestartResumeFixture({ legacy: true });
+  write(path.join(ambiguous.graphDir, 'legacy-extra.txt'), 'ambiguous legacy recovery event\n');
+  git(ambiguous.graphDir, ['stash', 'push', '--include-untracked', '-m', 'zonoid graph rebase recovery ambiguous legacy fixture']);
+  const refused = await lifecycle.recoverRebase(ambiguous.repo, {
+    ...ambiguous.options,
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('ambiguous legacy lock state refuses before lock, stash, or daemon mutation', refused.status === 'refused'
+    && /multiple|stash|ambiguous/i.test(refused.error)
+    && fs.existsSync(ambiguous.daemon.lockFile) && ambiguous.daemon.restarts() === 0
+    && git(ambiguous.graphDir, ['stash', 'list', '--format=%H']).split('\n').length === 2);
+}
+
+async function testLockedResumeRefusesAmbiguityAndStaleEvidence() {
+  const ambiguous = createLockedRestartResumeFixture();
+  write(path.join(ambiguous.graphDir, 'extra.txt'), 'extra recovery event\n');
+  git(ambiguous.graphDir, ['stash', 'push', '--include-untracked', '-m', 'zonoid graph rebase recovery ambiguous fixture']);
+  const ambiguousResult = await lifecycle.recoverRebase(ambiguous.repo, {
+    ...ambiguous.options,
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('multiple recognized recovery stashes refuse resume before mutation', ambiguousResult.status === 'refused'
+    && /multiple|stash|ambiguous/i.test(ambiguousResult.error)
+    && fs.existsSync(ambiguous.daemon.lockFile) && ambiguous.daemon.restarts() === 0
+    && git(ambiguous.graphDir, ['stash', 'list', '--format=%H']).split('\n').length === 2);
+
+  const stale = createLockedRestartResumeFixture();
+  const staleLock = { ...stale.lock, graph_head: git(stale.graphDir, ['rev-parse', 'HEAD^']) };
+  write(stale.daemon.lockFile, `${JSON.stringify(staleLock)}\n`);
+  const staleResult = await lifecycle.recoverRebase(stale.repo, {
+    ...stale.options,
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('stale lock or stash binding refuses resume and preserves both', staleResult.status === 'refused'
+    && /lock|HEAD|stash|stale|binding/i.test(staleResult.error)
+    && fs.existsSync(stale.daemon.lockFile) && stale.daemon.restarts() === 0
+    && git(stale.graphDir, ['stash', 'list', '--format=%H']).split('\n').includes(stale.stashOid));
+
+  const wrongInstalledBuild = createLockedRestartResumeFixture();
+  wrongInstalledBuild.options.getDaemonIdentity = () => ({ head: 'other', build: 'git:other' });
+  const wrongBuildResult = await lifecycle.recoverRebase(wrongInstalledBuild.repo, {
+    ...wrongInstalledBuild.options,
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('metadata-bound resume refuses a changed installed daemon build before mutation', wrongBuildResult.status === 'refused'
+    && /build|daemon/i.test(wrongBuildResult.error)
+    && fs.existsSync(wrongInstalledBuild.daemon.lockFile) && wrongInstalledBuild.daemon.restarts() === 0
+    && git(wrongInstalledBuild.graphDir, ['stash', 'list', '--format=%H']).split('\n').includes(wrongInstalledBuild.stashOid));
+
+  const dirty = createLockedRestartResumeFixture();
+  write(path.join(dirty.graphDir, 'unexpected.jsonl'), '{"event":"late"}\n');
+  const dirtyResult = await lifecycle.recoverRebase(dirty.repo, {
+    ...dirty.options,
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('dirty post-push graph outside daemon.port refuses resume without mutation', dirtyResult.status === 'refused'
+    && /clean|dirty|graph/i.test(dirtyResult.error)
+    && fs.existsSync(dirty.daemon.lockFile) && dirty.daemon.restarts() === 0
+    && fs.existsSync(path.join(dirty.graphDir, 'unexpected.jsonl'))
+    && git(dirty.graphDir, ['stash', 'list', '--format=%H']).split('\n').includes(dirty.stashOid));
+
+  const unpushed = createLockedRestartResumeFixture();
+  write(path.join(unpushed.graphDir, 'local-only.txt'), 'not pushed\n');
+  git(unpushed.graphDir, ['add', '--', 'local-only.txt']);
+  git(unpushed.graphDir, ['commit', '-m', 'local unpushed recovery head']);
+  const unpushedHead = git(unpushed.graphDir, ['rev-parse', 'HEAD']);
+  write(unpushed.daemon.lockFile, `${JSON.stringify({ ...unpushed.lock, graph_head: unpushedHead })}\n`);
+  const unpushedResult = await lifecycle.recoverRebase(unpushed.repo, {
+    ...unpushed.options,
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('locally clean but unpushed HEAD refuses resume and preserves lock and stash', unpushedResult.status === 'refused'
+    && /remote|push|contain/i.test(unpushedResult.error)
+    && fs.existsSync(unpushed.daemon.lockFile) && unpushed.daemon.restarts() === 0
+    && git(unpushed.graphDir, ['stash', 'list', '--format=%H']).split('\n').includes(unpushed.stashOid));
+}
+
+async function testLockedResumeRestartFailurePreservesEvidence() {
+  const fixture = createLockedRestartResumeFixture();
+  const beforeLock = fs.readFileSync(fixture.daemon.lockFile, 'utf8');
+  const result = await lifecycle.recoverRebase(fixture.repo, {
+    ...fixture.options,
+    restartDaemon: async () => ({ ok: false, reason: 'injected restart failure' }),
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('resume restart failure restores the exact trusted recovery lock', result.status === 'failed'
+    && /restart/i.test(result.error) && fs.readFileSync(fixture.daemon.lockFile, 'utf8') === beforeLock);
+  ok('resume restart failure preserves the exact retained stash and clean pushed HEAD',
+    git(fixture.graphDir, ['stash', 'list', '--format=%H']).split('\n').includes(fixture.stashOid)
+    && git(fixture.graphDir, ['rev-parse', 'HEAD']) === fixture.graphHead
+    && git(fixture.graphDir, ['status', '--porcelain=v1', '--untracked-files=all', '--', '.', ':(exclude)daemon.port']) === '');
+}
+
+async function testLockedNoStashResume() {
+  const fixture = createFixture();
+  fs.rmSync(path.join(fixture.graphDir, 'untracked.jsonl'));
+  git(fixture.graphDir, ['checkout', '--', 'live.txt']);
+  const daemon = daemonFixture(fixture.repo);
+  const failed = await lifecycle.recoverRebase(fixture.repo, {
+    ...daemon.options,
+    flushGraph: async (targetRepo) => {
+      const graphDir = path.join(targetRepo, '.graph');
+      git(graphDir, ['add', '-A', '--', '.', ':(exclude)daemon.port']);
+      if (gitFails(graphDir, ['diff', '--cached', '--quiet', '--exit-code'])) {
+        git(graphDir, ['commit', '-m', 'fixture pushed no-stash recovery']);
+      }
+      git(graphDir, ['push', 'origin', 'HEAD:main']);
+      return { status: 'pushed', commit: git(graphDir, ['rev-parse', 'HEAD']) };
+    },
+    restartDaemon: async () => ({ ok: false, reason: 'injected no-stash restart failure' }),
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  const beforeLock = fs.readFileSync(daemon.lockFile, 'utf8');
+  ok('metadata-bound no-stash restart failure restores the exact trusted recovery lock',
+    failed.status === 'failed' && failed.stash === null && /restart/i.test(failed.error)
+    && JSON.parse(beforeLock).stash_oid === null
+    && git(fixture.graphDir, ['stash', 'list', '--format=%H']) === '', JSON.stringify(failed));
+
+  const resumed = await lifecycle.recoverRebase(fixture.repo, {
+    ...daemon.options,
+    getDaemonIdentity: () => ({ head: 'stable-fixture', build: 'git:stable-fixture', version: null }),
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('metadata-bound no-stash recovery resumes without dereferencing or dropping a stash',
+    resumed.status === 'recovered' && resumed.resume === true && resumed.stash === null
+    && resumed.restart && resumed.restart.ok && daemon.restarts() === 1
+    && !fs.existsSync(daemon.lockFile)
+    && git(fixture.graphDir, ['stash', 'list', '--format=%H']) === '', JSON.stringify(resumed));
+
+  const ambiguous = createLockedRestartResumeFixture({ noStash: true });
+  write(path.join(ambiguous.graphDir, 'unexpected-event.txt'), 'unexpected recovery event\n');
+  git(ambiguous.graphDir, [
+    'stash', 'push', '--include-untracked', '-m', 'zonoid graph rebase recovery unexpected no-stash fixture',
+  ]);
+  const ambiguousStash = git(ambiguous.graphDir, ['rev-parse', 'refs/stash']);
+  const refused = await lifecycle.recoverRebase(ambiguous.repo, {
+    ...ambiguous.options,
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('metadata-bound null stash refuses a newly appeared recognized recovery stash before mutation',
+    refused.status === 'refused' && /stash|binding|zero/i.test(refused.error)
+    && fs.existsSync(ambiguous.daemon.lockFile) && ambiguous.daemon.restarts() === 0
+    && git(ambiguous.graphDir, ['rev-parse', 'refs/stash']) === ambiguousStash, JSON.stringify(refused));
+}
+
 async function testUnknownConflictRefusal() {
   const root = temp('graph-rebase-unknown-');
   const remote = path.join(root, 'remote.git');
@@ -491,6 +758,11 @@ async function main() {
     await testRetainedStashAndCommittedMarkerRecovery();
     await testUnsafeDaemonAndFlushFailureStayFailClosed();
     await testNonRebaseAdmissionRequiresCommittedProof();
+    await testLockedPostPushRestartResume();
+    await testLegacyLockedPostPushRestartResume();
+    await testLockedResumeRefusesAmbiguityAndStaleEvidence();
+    await testLockedResumeRestartFailurePreservesEvidence();
+    await testLockedNoStashResume();
     await testUnknownConflictRefusal();
   } finally {
     for (const dir of cleanup.reverse()) fs.rmSync(dir, { recursive: true, force: true });

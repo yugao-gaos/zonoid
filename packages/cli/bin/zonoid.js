@@ -1441,7 +1441,7 @@ async function runGraphCommand(graphArgs, deps = {}) {
     const result = {
       ...plan,
       status: 'confirmation-required',
-      action: 'quiesce the daemon and recover an interrupted .graph rebase or retained recovery stash',
+      action: 'quiesce the daemon and recover graph state, or resume an exact locked post-push daemon restart',
       requires: '--confirm-drains-paused',
       exitCode: 1,
     };

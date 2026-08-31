@@ -21,11 +21,13 @@ function daemon(head, pid = 41, ready = true) {
   };
 }
 
-function fakeChild() {
+function fakeChild(pid = 42) {
   return {
+    pid,
     exitCode: null,
     signalCode: null,
-    kill() { this.signalCode = 'SIGTERM'; },
+    signals: [],
+    kill(signal) { this.signals.push(signal); this.signalCode = signal; },
     once() {},
     removeListener() {},
   };
@@ -81,6 +83,7 @@ test('stale owned daemon is gracefully replaced after releasing its port', async
     spawnDaemon: () => {
       spawns++;
       state = 'current';
+      fs.writeFileSync(pidFile, '42');
       return fakeChild();
     },
     pollMs: 1,
@@ -118,7 +121,12 @@ test('concurrent contenders serialize; the loser joins the replacement cleanly',
     lockFile,
     isProcessAlive: () => true,
     signalProcess: () => { signals++; state = 'down'; },
-    spawnDaemon: () => { spawns++; state = 'current'; return fakeChild(); },
+    spawnDaemon: () => {
+      spawns++;
+      state = 'current';
+      fs.writeFileSync(pidFile, '42');
+      return fakeChild();
+    },
     pollMs: 2,
     startupTimeoutMs: 500,
   };
@@ -189,5 +197,90 @@ test('signed stale listener with a PID-file mismatch is not treated as owned', a
   assert.equal(result.ok, false);
   assert.equal(result.reason, 'stale_daemon_unowned');
   assert.equal(signals, 0);
+  assert.equal(spawns, 0);
+});
+
+test('self-owned spawned daemon may outlive transient unsigned and timed-out health', async (t) => {
+  const { pidFile, lockFile } = fixture(t);
+  const child = fakeChild(42);
+  let spawned = false;
+  let startupProbes = 0;
+  const result = await ensureCurrentDaemon({
+    expectedIdentity: { head: 'new', build: 'git:new' },
+    probe: async () => {
+      if (!spawned) return { reachable: false, identified: false, ready: false };
+      startupProbes++;
+      if (startupProbes === 1) {
+        return { reachable: true, identified: false, ownershipProof: false, ready: false, timedOut: true };
+      }
+      if (startupProbes === 2) {
+        return { reachable: true, identified: true, ownershipProof: false, ready: false, timedOut: true, head: 'new' };
+      }
+      return daemon('new', 42);
+    },
+    pidFile,
+    lockFile,
+    isProcessAlive: (pid) => pid === 42,
+    spawnDaemon: () => {
+      spawned = true;
+      fs.writeFileSync(pidFile, '42');
+      return child;
+    },
+    sleep: async () => {},
+    pollMs: 1,
+    startupTimeoutMs: 100,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.action, 'started');
+  assert.equal(result.identity.pid, 42);
+  assert.deepEqual(child.signals, []);
+  assert.equal(startupProbes, 3);
+});
+
+test('unowned listener after spawn fails immediately without signaling the detached child', async (t) => {
+  const { pidFile, lockFile } = fixture(t);
+  const child = fakeChild(42);
+  let spawned = false;
+  let startupProbes = 0;
+  const result = await ensureCurrentDaemon({
+    expectedIdentity: { head: 'new', build: 'git:new' },
+    probe: async () => {
+      if (!spawned) return { reachable: false, identified: false, ready: false };
+      startupProbes++;
+      return { reachable: true, identified: false, ownershipProof: false, ready: false, timedOut: true };
+    },
+    pidFile,
+    lockFile,
+    isProcessAlive: () => true,
+    spawnDaemon: () => {
+      spawned = true;
+      return child;
+    },
+    sleep: async () => {},
+    pollMs: 1,
+    startupTimeoutMs: 100,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'unrelated_listener_after_spawn');
+  assert.equal(startupProbes, 1);
+  assert.deepEqual(child.signals, []);
+});
+
+test('reuse-only handoff never spawns when the locked daemon disappears', async (t) => {
+  const { pidFile, lockFile } = fixture(t);
+  let spawns = 0;
+  const result = await ensureCurrentDaemon({
+    expectedIdentity: { head: 'locked', build: 'git:locked' },
+    probe: async () => ({ reachable: false, identified: false, ready: false }),
+    pidFile,
+    lockFile,
+    reuseOnly: true,
+    spawnDaemon: () => { spawns++; return fakeChild(); },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'current_daemon_reuse_required');
   assert.equal(spawns, 0);
 });

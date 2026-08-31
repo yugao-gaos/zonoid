@@ -100,6 +100,7 @@ async function main() {
   ok('recover-rebase defaults to a non-mutating confirmation plan', recoverPlan.status === 'confirmation-required'
     && recoverPlan.exitCode === 1 && recoverCalls[0].dryRun === true);
   ok('recover-rebase plan names the explicit drains pause confirmation', recoverPlan.requires === '--confirm-drains-paused');
+  ok('recover-rebase confirmation covers exact locked restart resume', /resume.*restart/i.test(recoverPlan.action));
 
   const confirmedCalls = [];
   const confirmed = await runGraphCommand(
