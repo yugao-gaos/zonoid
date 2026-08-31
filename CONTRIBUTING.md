@@ -97,10 +97,11 @@ non-rebase unmerged state are refused before quiescing. Recovered state is commi
 before the lock is removed and the same install-root daemon build is restarted; the lock and
 recovery stash remain available whenever an unsafe or failed step prevents that sequence from completing.
 If the push finished but the daemon restart did not, rerun the same confirmed command. It resumes
-only when the trusted operator-root lock, a conflict-free graph clean except `daemon.port`, a
-remote-contained `HEAD`, and exactly one recognized retained recovery stash all match. New locks
-persist those bindings explicitly and also require the installed daemon build to match. A legacy
-recovery lock is accepted only when the missing bindings can be reconstructed from a ready signed
+only when the trusted operator-root lock, a conflict-free graph clean except `daemon.port`, and a
+remote-contained `HEAD` all match. New locks persist the exact retained-stash binding—including a
+null binding that requires zero recognized recovery stashes—and also require the installed daemon
+build to match. A legacy recovery lock is accepted only when the missing bindings can be
+reconstructed from a ready signed
 same-build daemon with PID-file ownership; if the source checkout has advanced, that daemon is
 reuse-only and no new build may be spawned. Ambiguous legacy state leaves both lock and stash untouched.
 

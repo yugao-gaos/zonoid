@@ -244,6 +244,7 @@ function createLockedRestartResumeFixture(options = {}) {
   git(fixture.graphDir, ['commit', '-m', 'resolved and pushed recovery']);
   const graphHead = git(fixture.graphDir, ['rev-parse', 'HEAD']);
   git(fixture.graphDir, ['push', 'origin', 'HEAD:main']);
+  if (options.noStash === true) git(fixture.graphDir, ['stash', 'drop', 'stash@{0}']);
   write(path.join(fixture.graphDir, 'daemon.port'), '8787\n');
 
   const daemon = daemonFixture(fixture.repo, options.daemonOverrides || {});
@@ -265,7 +266,7 @@ function createLockedRestartResumeFixture(options = {}) {
       phase: 'restart-pending',
       graph_dir: fs.realpathSync(fixture.graphDir),
       graph_head: graphHead,
-      stash_oid: fixture.stashOid,
+      stash_oid: options.noStash === true ? null : fixture.stashOid,
     }),
   };
   write(daemon.lockFile, `${JSON.stringify(lock)}\n`);
@@ -650,6 +651,64 @@ async function testLockedResumeRestartFailurePreservesEvidence() {
     && git(fixture.graphDir, ['status', '--porcelain=v1', '--untracked-files=all', '--', '.', ':(exclude)daemon.port']) === '');
 }
 
+async function testLockedNoStashResume() {
+  const fixture = createFixture();
+  fs.rmSync(path.join(fixture.graphDir, 'untracked.jsonl'));
+  git(fixture.graphDir, ['checkout', '--', 'live.txt']);
+  const daemon = daemonFixture(fixture.repo);
+  const failed = await lifecycle.recoverRebase(fixture.repo, {
+    ...daemon.options,
+    flushGraph: async (targetRepo) => {
+      const graphDir = path.join(targetRepo, '.graph');
+      git(graphDir, ['add', '-A', '--', '.', ':(exclude)daemon.port']);
+      if (gitFails(graphDir, ['diff', '--cached', '--quiet', '--exit-code'])) {
+        git(graphDir, ['commit', '-m', 'fixture pushed no-stash recovery']);
+      }
+      git(graphDir, ['push', 'origin', 'HEAD:main']);
+      return { status: 'pushed', commit: git(graphDir, ['rev-parse', 'HEAD']) };
+    },
+    restartDaemon: async () => ({ ok: false, reason: 'injected no-stash restart failure' }),
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  const beforeLock = fs.readFileSync(daemon.lockFile, 'utf8');
+  ok('metadata-bound no-stash restart failure restores the exact trusted recovery lock',
+    failed.status === 'failed' && failed.stash === null && /restart/i.test(failed.error)
+    && JSON.parse(beforeLock).stash_oid === null
+    && git(fixture.graphDir, ['stash', 'list', '--format=%H']) === '', JSON.stringify(failed));
+
+  const resumed = await lifecycle.recoverRebase(fixture.repo, {
+    ...daemon.options,
+    getDaemonIdentity: () => ({ head: 'stable-fixture', build: 'git:stable-fixture', version: null }),
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('metadata-bound no-stash recovery resumes without dereferencing or dropping a stash',
+    resumed.status === 'recovered' && resumed.resume === true && resumed.stash === null
+    && resumed.restart && resumed.restart.ok && daemon.restarts() === 1
+    && !fs.existsSync(daemon.lockFile)
+    && git(fixture.graphDir, ['stash', 'list', '--format=%H']) === '', JSON.stringify(resumed));
+
+  const ambiguous = createLockedRestartResumeFixture({ noStash: true });
+  write(path.join(ambiguous.graphDir, 'unexpected-event.txt'), 'unexpected recovery event\n');
+  git(ambiguous.graphDir, [
+    'stash', 'push', '--include-untracked', '-m', 'zonoid graph rebase recovery unexpected no-stash fixture',
+  ]);
+  const ambiguousStash = git(ambiguous.graphDir, ['rev-parse', 'refs/stash']);
+  const refused = await lifecycle.recoverRebase(ambiguous.repo, {
+    ...ambiguous.options,
+    dryRun: false,
+    drainsPaused: true,
+    env: pausedEnv(),
+  });
+  ok('metadata-bound null stash refuses a newly appeared recognized recovery stash before mutation',
+    refused.status === 'refused' && /stash|binding|zero/i.test(refused.error)
+    && fs.existsSync(ambiguous.daemon.lockFile) && ambiguous.daemon.restarts() === 0
+    && git(ambiguous.graphDir, ['rev-parse', 'refs/stash']) === ambiguousStash, JSON.stringify(refused));
+}
+
 async function testUnknownConflictRefusal() {
   const root = temp('graph-rebase-unknown-');
   const remote = path.join(root, 'remote.git');
@@ -703,6 +762,7 @@ async function main() {
     await testLegacyLockedPostPushRestartResume();
     await testLockedResumeRefusesAmbiguityAndStaleEvidence();
     await testLockedResumeRestartFailurePreservesEvidence();
+    await testLockedNoStashResume();
     await testUnknownConflictRefusal();
   } finally {
     for (const dir of cleanup.reverse()) fs.rmSync(dir, { recursive: true, force: true });
