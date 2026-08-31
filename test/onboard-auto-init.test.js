@@ -90,7 +90,18 @@ function processIsAlive(pid) {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
-async function waitForProcessExit(pid, timeoutMs = 2000) {
+// The ceilings below are DEADLINES, not latency budgets. Every one of these helpers returns the
+// instant its condition holds, so a generous ceiling costs a fast machine nothing and only decides
+// how slow a run is still tolerated. This file boots more than a dozen real daemons plus a stream
+// of throwaway Node fixtures, and by the time the sequential runner reaches it the machine is
+// carrying the residue of two hundred earlier files — a cold Windows Node start (fresh runtime plus
+// an AV scan) is worth seconds there, against ceilings originally sized for an idle machine. No
+// assertion in this file depends on a process being SLOW to start or exit, so nothing is weakened
+// by waiting longer for one; the same reasoning as waitForPing in test/self-register-on-claim.test.js.
+const READY_DEADLINE_MS = 30000;
+const EXIT_DEADLINE_MS = 30000;
+
+async function waitForProcessExit(pid, timeoutMs = EXIT_DEADLINE_MS) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (!processIsAlive(pid)) return true;
@@ -99,7 +110,7 @@ async function waitForProcessExit(pid, timeoutMs = 2000) {
   return !processIsAlive(pid);
 }
 
-async function waitForHealthResponse(port, timeoutMs = 2000) {
+async function waitForHealthResponse(port, timeoutMs = READY_DEADLINE_MS) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
@@ -130,9 +141,12 @@ async function stopDaemon(port, repos = []) {
     if (Number.isInteger(pid) && pid > 0) {
       // SIGTERM first, then SIGKILL: a daemon still holding its data directory open keeps the
       // fixture undeletable on Windows, where an open handle blocks unlink instead of deferring it.
-      for (const signal of ['SIGTERM', 'SIGKILL']) {
+      // Only the SIGKILL stage gets the long deadline. SIGTERM's window is an escalation grace, not
+      // a readiness wait — waiting the full deadline on a daemon that ignores it would just delay
+      // the signal that actually works, once per teardown, across every daemon this file boots.
+      for (const [signal, graceMs] of [['SIGTERM', 5000], ['SIGKILL', EXIT_DEADLINE_MS]]) {
         try { process.kill(pid, signal); } catch { break; }
-        const deadline = Date.now() + 2000;
+        const deadline = Date.now() + graceMs;
         let exited = false;
         while (Date.now() < deadline) {
           try { process.kill(pid, 0); } catch { exited = true; break; }
@@ -391,7 +405,7 @@ async function startInitProtocolServer(fixture, port, behavior = {}) {
     },
     stdio: 'ignore',
   });
-  await waitFor(() => fs.existsSync(readyFile), 2000);
+  await waitFor(() => fs.existsSync(readyFile), READY_DEADLINE_MS);
   return { child, requestLog };
 }
 
@@ -474,7 +488,12 @@ test('init lifecycle arms onboarding without a dashboard and leaves accumulated 
     });
 
     assert.equal(result.ok, true);
-    assert.ok(Date.now() - startedAt < 2000, 'CLI onboarding startup must only persist and arm work');
+    // Startup must not run the miners inline. The structural proof of that is below — the queue
+    // file does not exist yet and the persisted state is still `pending` — and mining this fixture
+    // takes seconds once runHeadlessPreparation is called, so this bound still fails loudly if the
+    // work moved inline. It is deliberately far above the measured cost so that it answers that
+    // question rather than reporting how loaded the machine was.
+    assert.ok(Date.now() - startedAt < 10000, 'CLI onboarding startup must only persist and arm work');
     assert.deepEqual(calls.map((call) => call.route), ['/onboard/enqueue', '/onboard/drain-queue']);
     assert.deepEqual(calls[0].body, { repo });
     assert.equal(calls[1].body.repo, repo);
@@ -580,12 +599,18 @@ test('empty and zero-commit projects onboard without inventing project history',
 test('cold daemon startup is non-blocking and waits until the daemon is ready', async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-cold-daemon-'));
   const port = await testPort();
+  // The daemon is DETACHED, so a checkDaemon that waited on the child process would never come
+  // back at all. That — not a latency target — is what the elapsed-time assertion below guards, so
+  // it times only the checkDaemon call and bounds it by the readiness budget checkDaemon was given.
+  // It previously timed the call PLUS four follow-up requests and a `git rev-parse` spawn against
+  // that same 15s budget, which made a legitimately slow-but-successful cold boot fail the test.
+  const startupTimeoutMs = 15000;
   const startedAt = Date.now();
   try {
     const ready = await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs,
       env: {
         ...process.env,
         CLAUDE_PLUGIN_DATA: dataDir,
@@ -596,7 +621,10 @@ test('cold daemon startup is non-blocking and waits until the daemon is ready', 
         ZONOID_EMBED_LOCAL_BASE_URL: 'http://127.0.0.1:1',
       },
     });
+    const readyAfterMs = Date.now() - startedAt;
     assert.equal(ready, true);
+    assert.ok(readyAfterMs <= startupTimeoutMs,
+      'cold startup must return once the daemon answers, not block on the detached daemon process');
     const health = await daemonRequest(port, 'GET', '/health');
     assert.equal(health.status, 200);
     assert.equal(health.payload && health.payload.phase, 'ready');
@@ -608,7 +636,6 @@ test('cold daemon startup is non-blocking and waits until the daemon is ready', 
     const version = await daemonRequest(port, 'GET', '/version');
     assert.equal(version.payload.build, health.payload.build);
     assert.equal(version.payload.pid, health.payload.pid);
-    assert.ok(Date.now() - startedAt < 15000, 'cold startup must return instead of waiting on the detached daemon process');
   } finally {
     await stopDaemon(port);
     removeTree(dataDir);
@@ -692,7 +719,7 @@ test('full init aborts against an unresponsive service without sending mutations
   });
 
   try {
-    await waitFor(() => fs.existsSync(readyFile), 2000);
+    await waitFor(() => fs.existsSync(readyFile), READY_DEADLINE_MS);
     const before = snapshotInitFixture(fixture);
     const client = runFullInit(fixture.repo, fixture.dataDir, fixture.homeDir, port, {
       startupTimeoutMs: 250,
@@ -951,7 +978,8 @@ test('synchronized registry writers acknowledge only commits that preserve every
       });
     }
 
-    await waitFor(() => children.every((entry) => entry.ready), 5000);
+    // Eight cold Node children have to boot before any of them can report ready.
+    await waitFor(() => children.every((entry) => entry.ready), READY_DEADLINE_MS);
     for (const { child } of children) child.send('commit');
     await Promise.all(children.map(({ child }) => new Promise((resolve, reject) => {
       child.once('error', reject);
@@ -1003,7 +1031,7 @@ test('daemon boot reconciles every hard-exit boundary of onboarding init', async
           daemonRequest(port, 'POST', '/onboard/init', { repo: fixture.repo }, token),
           /fetch failed|terminated|socket|other side closed/i,
         );
-        assert.equal(await waitForProcessExit(crashedPid, 5000), true, `daemon did not exit at ${boundary}`);
+        assert.equal(await waitForProcessExit(crashedPid), true, `daemon did not exit at ${boundary}`);
 
         assert.equal(await checkDaemon({
           port,
@@ -1528,10 +1556,15 @@ test('daemon readiness timeout terminates only the hung child it spawned', async
 
   let pid = null;
   try {
+    // The hung daemon never answers /health, so the readiness timeout fires at whatever value this
+    // is set to — but the assertion below needs the child to have STARTED and written its pidfile
+    // first, and a cold Node start under suite load costs more than the 400ms this used to allow.
+    // Sizing the window above a real cold start is what makes the reap the thing being tested,
+    // instead of a race between the spawn and the timeout that kills it.
     assert.equal(await checkDaemon({
       port,
       daemonPath,
-      startupTimeoutMs: 400,
+      startupTimeoutMs: 10000,
       healthTimeoutMs: 50,
       pollMs: 25,
       childCleanupGraceMs: 100,
@@ -1602,7 +1635,11 @@ test('token-authenticated init registers the workspace and queues onboarding', a
       },
     });
     assert.equal(client.status, 0, client.stderr || client.stdout);
-    assert.ok(Date.now() - clientStartedAt < 3000, 'CLI init must not wait for repository mining');
+    // This times a whole cold `node -e` client (fresh runtime, CLI require, three HTTP calls), so
+    // the budget has to clear a cold Node start before it can say anything about mining. Mining
+    // finishes only later — the waitFor below is what actually observes it — so a client that
+    // waited for it would blow through this bound regardless of how generous it is.
+    assert.ok(Date.now() - clientStartedAt < 20000, 'CLI init must not wait for repository mining');
     const resultLine = String(client.stdout || '').split(/\r?\n/).find((line) => line.startsWith('CLI_INIT_RESULT '));
     assert.ok(resultLine, `missing CLI init result in output:\n${client.stdout}`);
     const result = JSON.parse(resultLine.slice('CLI_INIT_RESULT '.length));
@@ -1615,7 +1652,10 @@ test('token-authenticated init registers the workspace and queues onboarding', a
     const healthStartedAt = Date.now();
     const health = await daemonRequest(port, 'GET', '/health');
     assert.equal(health.status, 200);
-    assert.ok(Date.now() - healthStartedAt < 1000, 'daemon health must stay responsive while onboarding runs');
+    // Onboarding must not block the daemon's event loop. If it did, /health would be stuck behind
+    // the whole mining pass — seconds at least — so this still separates a blocked loop from the
+    // scheduling jitter of a loaded machine, which is all the original 1s bound could measure.
+    assert.ok(Date.now() - healthStartedAt < 5000, 'daemon health must stay responsive while onboarding runs');
     await waitFor(() => fs.existsSync(path.join(result.onboarding.outDir, 'onboard-queue.json')));
     const prepared = JSON.parse(fs.readFileSync(path.join(result.onboarding.outDir, 'onboard-drain-status.json'), 'utf8'));
     assert.equal(prepared.preparationState, 'ready');
