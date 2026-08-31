@@ -182,6 +182,7 @@ function desktopSessionMeta(parentSession, childSession, windowId = null) {
       };
       const result = await run(process.execPath, [NODE_HOOK], assignmentPayload('subconscious_assignment', {
         session_id: windowId,
+        agent_id: childSession,
         agent_transcript_path: transcript('desktop-invalid-agent-path', '{not-json'),
         transcript_path: childTranscript,
         tool_input: {
@@ -191,9 +192,9 @@ function desktopSessionMeta(parentSession, childSession, windowId = null) {
           session_id: childSession,
         },
         tool_response: { ok: true, execution_permit: permit },
-      }), env);
+      }), { ...env, CODEX_THREAD_ID: parentSession, CODEX_SESSION_ID: parentSession });
       assert.equal(result.code, 0);
-      assert.equal(stub.requests.length, before + 1, 'Desktop child transcript metadata should recover the child session');
+      assert.equal(stub.requests.length, before + 1, 'Desktop child transcript and matching transport agent should override the parent thread');
       assert.deepEqual(lastRequest(stub).body, {
         task_key: 'codex/claim-hook-probe',
         session_id: childSession,
@@ -214,6 +215,9 @@ function desktopSessionMeta(parentSession, childSession, windowId = null) {
       };
       const inconsistent = desktopSessionMeta(parentSession, childSession);
       inconsistent.payload.parent_thread_id = 'different-parent';
+      const provenWindow = 'explicit-child-window';
+      const provenTranscript = transcript('explicit-child-proven', desktopSessionMeta(parentSession, childSession, provenWindow));
+      const maliciousWindow = 'malicious-child-window';
       const cases = [
         ['missing transcript', {}],
         ['relative transcript path', { transcript_path: 'untrusted-relative.jsonl' }],
@@ -237,11 +241,29 @@ function desktopSessionMeta(parentSession, childSession, windowId = null) {
             padding: 'x'.repeat(70 * 1024),
           })),
         }],
+        ['matching transcript without top-level transport agent', {
+          session_id: provenWindow,
+          agent_id: undefined,
+          transcript_path: provenTranscript,
+        }],
+        ['matching transcript with different top-level transport agent', {
+          session_id: provenWindow,
+          agent_id: 'different-child-session',
+          transcript_path: provenTranscript,
+        }],
+        ['matching child/window metadata bound to a different parent', {
+          session_id: maliciousWindow,
+          transcript_path: transcript(
+            'malicious-window-parent',
+            desktopSessionMeta('different-parent', childSession, maliciousWindow),
+          ),
+        }],
       ];
       for (const [label, transcriptFields] of cases) {
         const before = stub.requests.length;
         const result = await run(process.execPath, [NODE_HOOK], assignmentPayload('subconscious_assignment', {
           session_id: parentSession,
+          agent_id: childSession,
           ...transcriptFields,
           tool_input: {
             action: 'accept',
@@ -250,7 +272,7 @@ function desktopSessionMeta(parentSession, childSession, windowId = null) {
             session_id: childSession,
           },
           tool_response: { ok: true, execution_permit: permit },
-        }), env);
+        }), { ...env, CODEX_THREAD_ID: parentSession, CODEX_SESSION_ID: parentSession });
         assert.equal(result.code, 0, label);
         assert.equal(stub.requests.length, before, `${label} must not rebind an explicit child permit to the parent`);
       }
@@ -442,6 +464,7 @@ function desktopSessionMeta(parentSession, childSession, windowId = null) {
       };
       const transcriptPayload = assignmentPayload('subconscious_assignment', {
         session_id: shellWindow,
+        agent_id: shellChild,
         transcript_path: shellTranscript,
         tool_input: {
           action: 'accept',
@@ -451,8 +474,13 @@ function desktopSessionMeta(parentSession, childSession, windowId = null) {
         },
         tool_response: { ok: true, execution_permit: shellTranscriptPermit },
       });
-      assert.equal((await run('bash', [CODEX_SHELL_HOOK], transcriptPayload, env)).code, 0);
-      assert.equal(stub.requests.length, transcriptBefore + 1, 'shell adapter should recover Desktop child transcript metadata');
+      const shellDesktopEnv = {
+        ...env,
+        CODEX_THREAD_ID: shellParent,
+        CODEX_SESSION_ID: shellParent,
+      };
+      assert.equal((await run('bash', [CODEX_SHELL_HOOK], transcriptPayload, shellDesktopEnv)).code, 0);
+      assert.equal(stub.requests.length, transcriptBefore + 1, 'shell adapter should override the parent from proven Desktop child metadata');
       assert.deepEqual(lastRequest(stub).body, {
         task_key: 'codex/claim-hook-probe',
         session_id: shellChild,
@@ -461,12 +489,18 @@ function desktopSessionMeta(parentSession, childSession, windowId = null) {
         expected_session_id: shellChild,
       });
 
+      const missingAgentBefore = stub.requests.length;
+      const missingAgentPayload = { ...transcriptPayload };
+      delete missingAgentPayload.agent_id;
+      assert.equal((await run('bash', [CODEX_SHELL_HOOK], missingAgentPayload, shellDesktopEnv)).code, 0);
+      assert.equal(stub.requests.length, missingAgentBefore, 'shell adapter must not rebind an explicit child permit without the top-level transport agent');
+
       const mismatchedBefore = stub.requests.length;
       transcriptPayload.transcript_path = transcript(
         'shell-mismatched-parent',
         desktopSessionMeta('different-shell-parent', shellChild),
       );
-      assert.equal((await run('bash', [CODEX_SHELL_HOOK], transcriptPayload, env)).code, 0);
+      assert.equal((await run('bash', [CODEX_SHELL_HOOK], transcriptPayload, shellDesktopEnv)).code, 0);
       assert.equal(stub.requests.length, mismatchedBefore, 'shell adapter must not rebind an explicit child permit from mismatched metadata');
 
       const failedBefore = stub.requests.length;

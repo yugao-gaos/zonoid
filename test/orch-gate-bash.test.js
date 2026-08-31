@@ -986,7 +986,8 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
   ok('Bash different logical non-UUID agent remains denied → exit 2', wrongLogical.status === 2);
 }
 
-// 79. Desktop transcript metadata recovers the child session for Bash too.
+// 79. Desktop transcript metadata and the matching top-level transport agent prove that a child
+//     may override the parent CODEX_THREAD_ID for Bash too.
 {
   const parentSession = '01a05418-cf8c-7a00-adc2-0b13eee860ca';
   const childSession = '01a05606-303e-7342-af86-80d33d596727';
@@ -1009,15 +1010,42 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
       agent_id: 'logical-worker',
     }),
   ];
-  const input = JSON.stringify({
+  const input = {
     session_id: windowId,
     agent_id: childSession,
     transcript_path: transcriptPath,
     cwd: WT_A,
     tool_input: { command: `printf child > ${WT_A}/desktop-transcript.txt` },
-  });
-  const r = runWithConfig(input, config);
-  ok('Bash Desktop transcript child session and transport agent use exact permit → exit 0', r.status === 0);
+  };
+  const desktopEnv = { CODEX_THREAD_ID: parentSession, CODEX_SESSION_ID: parentSession };
+  const r = runWithConfig(JSON.stringify(input), config, desktopEnv);
+  ok('Bash Desktop proven child overrides parent CODEX_THREAD_ID → exit 0', r.status === 0);
+  ok('Bash tool_input agent_id cannot authorize the Desktop child override → exit 2',
+    runWithConfig(JSON.stringify({
+      ...input,
+      agent_id: undefined,
+      tool_input: { ...input.tool_input, agent_id: childSession },
+    }), config, desktopEnv).status === 2);
+  ok('Bash different top-level transport agent retains parent CODEX_THREAD_ID → exit 2',
+    runWithConfig(JSON.stringify({ ...input, agent_id: '01a05606-303e-7342-af86-111111111111' }), config, desktopEnv).status === 2);
+
+  const maliciousWindow = '01a05606-303e-7342-af86-222222222222';
+  const maliciousTranscript = path.join(TMP, 'desktop-bash-wrong-parent.jsonl');
+  fs.writeFileSync(maliciousTranscript, `${JSON.stringify({
+    type: 'session_meta',
+    payload: {
+      id: childSession,
+      session_id: '01a05418-cf8c-7a00-adc2-333333333333',
+      parent_thread_id: '01a05418-cf8c-7a00-adc2-333333333333',
+      context_window: { window_id: maliciousWindow },
+    },
+  })}\n`);
+  ok('Bash transcript window bound to a different parent cannot override CODEX_THREAD_ID → exit 2',
+    runWithConfig(JSON.stringify({
+      ...input,
+      session_id: maliciousWindow,
+      transcript_path: maliciousTranscript,
+    }), config, desktopEnv).status === 2);
 }
 
 // ── Cleanup ─────────────────────────────────────────────────────────────────

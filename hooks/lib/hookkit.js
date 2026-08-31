@@ -90,8 +90,9 @@ function gateOff() { return process.env.ORCH_GATE_OFF === '1'; }
 const SESSION_META_MAX_BYTES = 8192;
 const CODEX_THREAD_ID_RE = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
-function transcriptSessionId(input) {
+function transcriptSessionId(input, expectedParentSession = '') {
   const observedSession = input && typeof input.session_id === 'string' ? input.session_id.trim() : '';
+  const expectedParent = typeof expectedParentSession === 'string' ? expectedParentSession.trim() : '';
   if (!observedSession) return '';
   const candidates = [input.agent_transcript_path, input.transcript_path];
   const seen = new Set();
@@ -116,6 +117,7 @@ function transcriptSessionId(input) {
         ? meta.context_window.window_id.trim()
         : '';
       if (childSession && parentSession && parentSession === parentThread &&
+          (!expectedParent || parentSession === expectedParent) &&
           (observedSession === parentSession || observedSession === windowId)) return childSession;
     } catch { /* untrusted or incomplete transcript metadata */ }
     finally { if (fd !== undefined) try { fs.closeSync(fd); } catch { /* ignore */ } }
@@ -125,7 +127,16 @@ function transcriptSessionId(input) {
 
 function hookSessionId(input, env = process.env) {
   const threadId = typeof env.CODEX_THREAD_ID === 'string' ? env.CODEX_THREAD_ID.trim() : '';
-  if (threadId) return threadId;
+  if (threadId) {
+    // Desktop may expose the parent thread here; only matching transcript + top-level transport
+    // identity can prove that this hook actually belongs to a distinct collaboration child.
+    const transcriptChild = transcriptSessionId(input, threadId);
+    const transportAgent = input && typeof input.agent_id === 'string' ? input.agent_id.trim() : '';
+    if (transcriptChild && transcriptChild !== threadId && transportAgent === transcriptChild) {
+      return transcriptChild;
+    }
+    return threadId;
+  }
   return transcriptSessionId(input) || (
     input && typeof input.session_id === 'string' ? input.session_id.trim() : ''
   );

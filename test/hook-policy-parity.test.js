@@ -117,9 +117,9 @@ function denyJson(stdout) {
   }
 }
 
-function expectExit(label, runner, input, config, expectedStatus) {
+function expectExit(label, runner, input, config, expectedStatus, extraEnv = {}) {
   withHookStub(config, (stub) => {
-    const r = run(runner, input, envFor(stub));
+    const r = run(runner, input, envFor(stub, extraEnv));
     ok(label, r.status === expectedStatus, `status=${r.status} stderr=${r.stderr.trim()}`);
   });
 }
@@ -132,9 +132,9 @@ function expectCodexDeny(label, runner, input, config) {
   });
 }
 
-function expectCodexAllow(label, runner, input, config) {
+function expectCodexAllow(label, runner, input, config, extraEnv = {}) {
   withHookStub(config, (stub) => {
-    const r = run(runner, input, envFor(stub));
+    const r = run(runner, input, envFor(stub, extraEnv));
     ok(label, r.status === 0 && !denyJson(r.stdout), `status=${r.status} stdout=${r.stdout.trim()} stderr=${r.stderr.trim()}`);
   });
 }
@@ -182,6 +182,47 @@ expectExit('direct Node bash gate allows claimed shell touch', DIRECT_BASH, insi
 expectExit('shell bash gate allows claimed shell touch', SHELL_BASH, insideTouch, claimedConfig(), 0);
 expectExit('Cursor shell relay allows claimed shell touch', CURSOR_BASH, insideTouch, claimedConfig(), 0);
 expectCodexAllow('Codex bash relay allows claimed shell touch', CODEX_BASH, insideTouch, claimedConfig());
+
+const desktopParent = '01a05418-cf8c-7a00-adc2-0b13eee860ca';
+const desktopChild = '01a05606-303e-7342-af86-80d33d596727';
+const desktopWindow = '01a05606-303e-7342-af86-80ef3c3c6d7c';
+const desktopTranscript = path.join(TMP, 'desktop-child.jsonl');
+fs.writeFileSync(desktopTranscript, `${JSON.stringify({
+  type: 'session_meta',
+  payload: {
+    id: desktopChild,
+    session_id: desktopParent,
+    parent_thread_id: desktopParent,
+    context_window: { window_id: desktopWindow },
+  },
+})}\n`);
+const desktopConfig = claimedConfig();
+desktopConfig.executionPermits[0].session_id = desktopChild;
+desktopConfig.executionPermits[0].agent_id = 'logical-worker';
+const desktopEnv = { CODEX_THREAD_ID: desktopParent, CODEX_SESSION_ID: desktopParent };
+const desktopWrite = {
+  session_id: desktopWindow,
+  agent_id: desktopChild,
+  transcript_path: desktopTranscript,
+  tool_name: 'Write',
+  tool_input: { file_path: `${WT}/src/desktop.js`, new_string: 'x' },
+};
+expectExit('direct Node write gate allows proven Desktop child over parent env', DIRECT_WRITE, desktopWrite, desktopConfig, 0, desktopEnv);
+expectExit('shell write gate allows proven Desktop child over parent env', SHELL_WRITE, desktopWrite, desktopConfig, 0, desktopEnv);
+expectExit('Cursor write relay allows proven Desktop child over parent env', CURSOR_WRITE, desktopWrite, desktopConfig, 0, desktopEnv);
+expectCodexAllow('Codex write relay allows proven Desktop child over parent env', CODEX_WRITE, desktopWrite, desktopConfig, desktopEnv);
+
+const desktopBash = {
+  session_id: desktopWindow,
+  agent_id: desktopChild,
+  transcript_path: desktopTranscript,
+  tool_name: 'Bash',
+  tool_input: { command: `touch ${WT}/desktop-child.txt` },
+};
+expectExit('direct Node bash gate allows proven Desktop child over parent env', DIRECT_BASH, desktopBash, desktopConfig, 0, desktopEnv);
+expectExit('shell bash gate allows proven Desktop child over parent env', SHELL_BASH, desktopBash, desktopConfig, 0, desktopEnv);
+expectExit('Cursor shell relay allows proven Desktop child over parent env', CURSOR_BASH, desktopBash, desktopConfig, 0, desktopEnv);
+expectCodexAllow('Codex bash relay allows proven Desktop child over parent env', CODEX_BASH, desktopBash, desktopConfig, desktopEnv);
 
 const outsideClaim = writeInput('/Users/x/other/main.js');
 expectExit('direct Node write gate denies claimed out-of-worktree path', DIRECT_WRITE, outsideClaim, claimedConfig(), 2);
