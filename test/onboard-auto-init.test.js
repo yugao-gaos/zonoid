@@ -326,7 +326,9 @@ function readInitRequests(requestLog) {
 
 async function runHeadlessPreparation(repo, outDir) {
   const savedLease = process.env.HEADLESS_DRAIN_GLOBAL_LEASE;
+  const savedMaxIterations = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
   process.env.HEADLESS_DRAIN_GLOBAL_LEASE = '0';
+  process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '10';
   try {
     const modulePath = require.resolve('../lib/headless-drain');
     delete require.cache[modulePath];
@@ -351,6 +353,8 @@ async function runHeadlessPreparation(repo, outDir) {
   } finally {
     if (savedLease === undefined) delete process.env.HEADLESS_DRAIN_GLOBAL_LEASE;
     else process.env.HEADLESS_DRAIN_GLOBAL_LEASE = savedLease;
+    if (savedMaxIterations === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+    else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedMaxIterations;
   }
 }
 
@@ -411,7 +415,16 @@ test('init lifecycle arms onboarding without a dashboard and leaves accumulated 
     const pending = JSON.parse(fs.readFileSync(path.join(result.outDir, 'onboard-drain-status.json'), 'utf8'));
     assert.equal(pending.preparationState, 'pending', 'restart-safe preparation intent must be persisted before return');
 
-    await runHeadlessPreparation(repo, result.outDir);
+    const savedMaxIterations = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+    process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '-1';
+    try {
+      await runHeadlessPreparation(repo, result.outDir);
+      assert.equal(process.env.HEADLESS_DRAIN_MAX_ITERATIONS, '-1',
+        'in-process preparation must restore hostile live drain tuning');
+    } finally {
+      if (savedMaxIterations === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+      else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedMaxIterations;
+    }
     const queue = JSON.parse(fs.readFileSync(path.join(result.outDir, 'onboard-queue.json'), 'utf8'));
     const status = JSON.parse(fs.readFileSync(path.join(result.outDir, 'onboard-drain-status.json'), 'utf8'));
     assert.ok(queue.total > 0, 'existing project content must be mined before any dashboard opens');
