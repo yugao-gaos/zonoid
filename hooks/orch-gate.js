@@ -10,6 +10,7 @@
 // is unreachable — we deny only on a definitive "no claim for this session".
 const k = require('./lib/hookkit');
 const policy = require('./lib/gate-policy');
+const CLAIM_DETAIL_TIMEOUT_MS = 2000;
 
 
 (async () => {
@@ -23,7 +24,7 @@ const policy = require('./lib/gate-policy');
   // Harness plumbing that is NOT substantive work. Orchestrator source is deliberately NOT exempt.
   if (policy.allTargetsExempt(targets)) k.allow();
 
-  const sid = input.session_id || '';
+  const sid = k.hookSessionId(input);
   if (!sid) k.allow();                       // no session id -> can't correlate; don't block
   if (k.isOff(sid)) k.allow();               // orchestrator disabled for this conversation
   const agentId = input.agent_id || ti.agent_id || '';
@@ -34,7 +35,7 @@ const policy = require('./lib/gate-policy');
     if (workspace) params.set('workspace', workspace);
     if (agentId) params.set('agent_id', agentId);
     if (foregroundAgentId) params.set('foreground_agent_id', foregroundAgentId);
-    const permitResp = await k.getJson(`/subconscious/permit?${params.toString()}`, 600);
+    const permitResp = await k.getJson(`/subconscious/permit?${params.toString()}`, CLAIM_DETAIL_TIMEOUT_MS);
     return permitResp && (permitResp.execution_permit || permitResp.permit);
   }
 
@@ -56,7 +57,7 @@ const policy = require('./lib/gate-policy');
       if (!key) continue;
       const detailParams = new URLSearchParams({ key });
       if (c.workspace) detailParams.set('workspace', c.workspace);
-      const detail = await k.getJson(`/task/detail?${detailParams.toString()}`, 600);
+      const detail = await k.getJson(`/task/detail?${detailParams.toString()}`, CLAIM_DETAIL_TIMEOUT_MS);
       const branch = detail && detail.task && detail.task.git && detail.task.git.branch;
       const wt = detail && detail.task && detail.task.git && detail.task.git.worktree;
       if (!branch || !wt) {

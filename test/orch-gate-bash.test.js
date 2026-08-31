@@ -36,6 +36,10 @@ function mkInput(command, sessionId, cwd) {
 // Run the hook with a given input and env overrides, returns { status, stderr }
 function runHook(input, extraEnv) {
   const env = { ...process.env, ...extraEnv };
+  delete env.CODEX_THREAD_ID;
+  if (extraEnv && Object.prototype.hasOwnProperty.call(extraEnv, 'CODEX_THREAD_ID')) {
+    env.CODEX_THREAD_ID = extraEnv.CODEX_THREAD_ID;
+  }
   const r = spawnSync('bash', [HOOK], {
     input,
     encoding: 'utf8',
@@ -296,6 +300,12 @@ function runMainBlocked(cmd, extra) {
   ok('pathlib touch → write detected → exit 2 for unclaimed subagent', r.status === 2);
 }
 
+// 25b. shell touch creates a file
+{
+  const r = runBlocked('touch /Users/x/proj/touch.js');
+  ok('shell touch → write detected → exit 2 for unclaimed subagent', r.status === 2);
+}
+
 // ── Bypass regression tests for allowed and denied extracted targets ─────────
 
 // 26. Both source and dest in /tmp still require a claim
@@ -360,6 +370,25 @@ function runMainBlocked(cmd, extra) {
   );
   ok('claimed task without worktree branch → exit 2', r.status === 2);
   ok('claimed task without worktree branch → permit/worktree message', r.stderr.includes('registered worktree'));
+}
+
+// 32b. Large graph reads can exceed the old 600ms budget; both authoritative lookups must finish
+//      before a claimed shell write is allowed.
+{
+  const worktree = '/some/path';
+  const r = runWithConfig(
+    mkInput(`cp /tmp/x.js ${worktree}/main.js`),
+    {
+      activeClaim: { claimed: true, claims: [{ key: 'local/slow-task' }] },
+      taskDetails: {
+        'local/slow-task': { task: { metric: null, git: { branch: 'orch/attempt/local-slow-task', worktree } } },
+      },
+      executionPermits: [executionPermit('local/slow-task', worktree, 'orch/attempt/local-slow-task')],
+      taskDetailDelayMs: 750,
+      executionPermitDelayMs: 750,
+    },
+  );
+  ok('transiently slow task detail and permit preserve fail-closed Bash allow → exit 0', r.status === 0);
 }
 
 // ── Multi-claim gate tests ───────────────────────────────────────────────────
@@ -535,6 +564,35 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
     makeMultiClaimConfig(),
   );
   ok('claimed session: pathlib write_text inside worktree → exit 0', r.status === 0);
+}
+
+// 46b. Claimed session: shell touch outside every worktree → denied
+{
+  const r = runWithConfig(
+    mkInput('touch /Users/x/outside-touch.txt'),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: shell touch outside worktree → exit 2', r.status === 2);
+  ok('claimed session: shell touch message names outside path', r.stderr.includes('/Users/x/outside-touch.txt'));
+}
+
+// 46c. Claimed session: shell touch inside a worktree → allowed
+{
+  const r = runWithConfig(
+    mkInput(`touch ${WT_A}/inside-touch.txt`),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: shell touch inside worktree → exit 0', r.status === 0);
+}
+
+// 46d. Claimed session: every shell touch target must stay inside a permitted worktree
+{
+  const r = runWithConfig(
+    mkInput(`touch ${WT_A}/inside-touch.txt /Users/x/outside-touch.txt`),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: shell touch mixed targets → exit 2', r.status === 2);
+  ok('claimed session: shell touch mixed target message names outside path', r.stderr.includes('/Users/x/outside-touch.txt'));
 }
 
 // 47. Claimed session: open(..., "w") outside every worktree → denied
@@ -886,6 +944,22 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
   ok('policy: relative --git-dir target resolves against hook cwd', gitDirTargets.includes('/Users/x/outside-cwd/rel-git'));
   ok('policy: --work-tree after relative -C resolves against effective git cwd', effectiveCwdTargets.includes('/Users/x/outside-cwd/rel-base/rel-worktree'));
   ok('policy: --git-dir after relative -C resolves against effective git cwd', effectiveCwdTargets.includes('/Users/x/outside-cwd/rel-base/rel-git'));
+}
+
+// 77. Codex Desktop collaboration child identity overrides the parent payload/session env.
+{
+  const childSession = 'codex-bash-child-thread';
+  const config = makeMultiClaimConfig();
+  config.executionPermits = [
+    executionPermit('task-a', WT_A, 'orch/attempt/task-a', { session_id: childSession }),
+    executionPermit('task-b', WT_B, 'orch/attempt/task-b', { session_id: childSession }),
+  ];
+  const r = runWithConfig(
+    mkInput(`printf child > ${WT_A}/child-session.txt`, 'codex-parent-payload', WT_A),
+    config,
+    { CODEX_THREAD_ID: childSession, CODEX_SESSION_ID: 'codex-parent-runtime' },
+  );
+  ok('CODEX_THREAD_ID child permit overrides parent payload for Bash gate → exit 0', r.status === 0);
 }
 
 // ── Cleanup ─────────────────────────────────────────────────────────────────
