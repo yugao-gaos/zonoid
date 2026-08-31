@@ -10,6 +10,7 @@ const k = require('./lib/hookkit');
 const policy = require('./lib/gate-policy');
 
 const PORT = k.PORT;
+const CLAIM_DETAIL_TIMEOUT_MS = 2000;
 
 
 (async () => {
@@ -46,7 +47,7 @@ const PORT = k.PORT;
     if (workspace) params.set('workspace', workspace);
     if (agentId) params.set('agent_id', agentId);
     if (foregroundAgentId) params.set('foreground_agent_id', foregroundAgentId);
-    const permitResp = await k.getJson(`/subconscious/permit?${params.toString()}`, 600);
+    const permitResp = await k.getJson(`/subconscious/permit?${params.toString()}`, CLAIM_DETAIL_TIMEOUT_MS);
     return permitResp && (permitResp.execution_permit || permitResp.permit);
   }
 
@@ -63,7 +64,7 @@ const PORT = k.PORT;
       if (!key) continue;
       const detailParams = new URLSearchParams({ key });
       if (c.workspace) detailParams.set('workspace', c.workspace);
-      const detail = await k.getJson(`/task/detail?${detailParams.toString()}`, 600);
+      const detail = await k.getJson(`/task/detail?${detailParams.toString()}`, CLAIM_DETAIL_TIMEOUT_MS);
       const branch = detail && detail.task && detail.task.git && detail.task.git.branch;
       const wt = detail && detail.task && detail.task.git && detail.task.git.worktree;
       if (!branch || !wt) {

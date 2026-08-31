@@ -15,6 +15,15 @@ function send(res, body) {
   res.end(data);
 }
 
+function sendAfter(res, body, delayMs) {
+  const delay = Number(delayMs) || 0;
+  if (delay > 0) {
+    setTimeout(() => send(res, body), delay);
+    return;
+  }
+  send(res, body);
+}
+
 function taskDetailFor(u) {
   const key = u.searchParams.get('key') || '';
   const details = config.taskDetails || {};
@@ -46,8 +55,8 @@ const server = http.createServer((req, res) => {
   if (u.pathname === '/active-claim') return send(res, config.activeClaim || { claimed: false });
   if (u.pathname === '/session-info') return send(res, config.sessionInfo || { is_subagent: true });
   if (u.pathname === '/dispatcher/children') return send(res, config.dispatcherChildren || { children: [] });
-  if (u.pathname === '/task/detail') return send(res, taskDetailFor(u));
-  if (u.pathname === '/subconscious/permit') return send(res, permitFor(u));
+  if (u.pathname === '/task/detail') return sendAfter(res, taskDetailFor(u), config.taskDetailDelayMs);
+  if (u.pathname === '/subconscious/permit') return sendAfter(res, permitFor(u), config.executionPermitDelayMs);
   if (u.pathname === '/usage/dispatcher-edit') {
     if (config.dispatcherEditMarker) {
       fs.mkdirSync(path.dirname(config.dispatcherEditMarker), { recursive: true });

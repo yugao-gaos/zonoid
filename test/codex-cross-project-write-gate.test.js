@@ -18,6 +18,7 @@ const git = require('../lib/git');
 const { encodeWorkspace } = require('../lib/native-tasks');
 
 const ROOT = path.join(__dirname, '..');
+const CODEX_SHELL_HOOK = path.join(ROOT, 'adapters', 'codex', 'hooks', 'post-start-task.sh');
 const PORT = 19400 + Math.floor(Math.random() * 200);
 const GRAPH_REPO = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-codex-graph-')));
 const TARGET_REPO = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-codex-target-')));
@@ -81,6 +82,17 @@ function runHook(file, payload, extraEnv = {}) {
   delete env.CODEX_THREAD_ID;
   Object.assign(env, extraEnv);
   return spawnSync(process.execPath, [path.join(ROOT, 'hooks', file)], {
+    input: JSON.stringify(payload),
+    encoding: 'utf8',
+    env,
+  });
+}
+
+function runShellPostHook(payload, extraEnv = {}) {
+  const env = { ...process.env, ORCH_PORT: String(PORT), CLAUDE_PLUGIN_DATA: SANDBOX };
+  delete env.CODEX_THREAD_ID;
+  Object.assign(env, extraEnv);
+  return spawnSync('bash', [CODEX_SHELL_HOOK], {
     input: JSON.stringify(payload),
     encoding: 'utf8',
     env,
@@ -247,6 +259,55 @@ async function exerciseAlias({ id, alias, toolName }) {
   assert.equal(failedActive.body.claimed, false);
 }
 
+async function exerciseLegacyStart({ id, shell }) {
+  const key = taskKey(id);
+  const fallbackSession = `codex-legacy-fallback-${id}`;
+  const realSession = `codex-legacy-real-${id}`;
+  const { accepted } = await prepareAndAccept(key, fallbackSession);
+  const payload = {
+    session_id: realSession,
+    tool_name: 'start_task',
+    tool_input: {
+      task_key: key,
+      agent_id: AGENT,
+      graph_repo: '/untrusted/legacy-workspace',
+      session_id: 'untrusted-legacy-input-session',
+    },
+    tool_response: accepted,
+  };
+  const postTool = shell
+    ? runShellPostHook(payload)
+    : runHook('orch-posttool-starttask.js', payload);
+  assert.equal(postTool.status, 0, postTool.stderr);
+
+  const active = await request(
+    'GET',
+    `/active-claim?session=${encodeURIComponent(realSession)}`,
+    null,
+    false,
+  );
+  assert.equal(active.status, 200);
+  assert.equal(active.body.claimed, true, JSON.stringify(active.body));
+  assert(active.body.claims.some((item) => item.key === key), JSON.stringify(active.body));
+
+  const fallbackActive = await request(
+    'GET',
+    `/active-claim?session=${encodeURIComponent(fallbackSession)}`,
+    null,
+    false,
+  );
+  assert.equal(fallbackActive.body.claimed, false, JSON.stringify(fallbackActive.body));
+
+  const permit = await request(
+    'GET',
+    `/subconscious/permit?session_id=${encodeURIComponent(realSession)}&agent_id=${encodeURIComponent(AGENT)}&task_key=${encodeURIComponent(key)}`,
+  );
+  assert.equal(permit.status, 200);
+  assert.equal(permit.body.valid, true, JSON.stringify(permit.body));
+  assert.equal(permit.body.execution_permit.session_id, realSession);
+  assert.equal(permit.body.execution_permit.workspace, GRAPH_REPO);
+}
+
 (async () => {
   git.initRepo(GRAPH_REPO);
   git.initRepo(TARGET_REPO);
@@ -255,7 +316,7 @@ async function exerciseAlias({ id, alias, toolName }) {
   fs.mkdirSync(PROJ_DIR, { recursive: true });
   fs.writeFileSync(path.join(PROJ_DIR, `${NATIVE_SESSION}.jsonl`), '');
   fs.mkdirSync(TASKS_DIR, { recursive: true });
-  for (const id of ['hyphen', 'underscore', 'unprepared', 'terminal']) {
+  for (const id of ['hyphen', 'underscore', 'legacy-node', 'legacy-shell', 'unprepared', 'terminal']) {
     fs.writeFileSync(path.join(TASKS_DIR, `${id}.json`), JSON.stringify({
       id,
       subject: `Codex cross-project gate ${id}`,
@@ -284,6 +345,8 @@ async function exerciseAlias({ id, alias, toolName }) {
       alias: 'mcp__orchestrator_graph__subconscious_assignment',
       toolName: 'Edit',
     });
+    await exerciseLegacyStart({ id: 'legacy-node', shell: false });
+    await exerciseLegacyStart({ id: 'legacy-shell', shell: true });
 
     const unpreparedKey = taskKey('unprepared');
     assert.equal((await request('POST', '/mark-root', { task_key: unpreparedKey })).status, 200);

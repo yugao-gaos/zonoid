@@ -324,6 +324,18 @@ function makeSingleClaimConfig(permit = executionPermit('task-a', WT_A, 'orch/at
   ok('CODEX_THREAD_ID child permit overrides parent payload for Write/Edit gate → exit 0', r.status === 0);
 }
 
+// 21. Large graph reads can exceed the old 600ms budget; a claimed worker still validates both
+//     authoritative detail and permit before it is allowed.
+{
+  const config = {
+    ...makeSingleClaimConfig(),
+    taskDetailDelayMs: 750,
+    executionPermitDelayMs: 750,
+  };
+  const r = runWithConfig(mkInput(`${WT_A}/slow-claim.js`), config);
+  ok('transiently slow task detail and permit preserve fail-closed claimed allow → exit 0', r.status === 0);
+}
+
 // ── Cleanup ─────────────────────────────────────────────────────────────────
 fs.rmSync(TMP, { recursive: true, force: true });
 

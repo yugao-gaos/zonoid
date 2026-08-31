@@ -222,15 +222,52 @@ function lastRequest(server) {
       'start_task',
     ]) {
       const before = stub.requests.length;
+      const fallbackSession = `legacy-fallback-${before}`;
       const result = await run(process.execPath, [NODE_HOOK], {
         session_id: 'legacy-start-session',
         tool_name: toolName,
-        tool_input: { task_key: 'codex/legacy-start', agent_id: 'legacy-worker', graph_repo: '/workspace/legacy-start' },
+        tool_input: {
+          task_key: 'codex/legacy-start',
+          agent_id: 'legacy-worker',
+          graph_repo: '/untrusted/legacy-workspace',
+          session_id: 'untrusted-input-session',
+        },
+        tool_response: {
+          ok: true,
+          execution_permit: {
+            workspace: '/graph/legacy-start',
+            session_id: fallbackSession,
+            task_key: 'codex/legacy-start',
+            agent_id: 'legacy-worker',
+          },
+        },
       }, env);
       assert.equal(result.code, 0);
       assert.equal(stub.requests.length, before + 1, `${toolName} compatibility should remain active`);
-      assert.equal(lastRequest(stub).body.agent_id, 'legacy-worker');
-      assert.equal(lastRequest(stub).body.workspace, '/workspace/legacy-start');
+      assert.deepEqual(lastRequest(stub).body, {
+        task_key: 'codex/legacy-start',
+        session_id: 'legacy-start-session',
+        agent_id: 'legacy-worker',
+        workspace: '/graph/legacy-start',
+        expected_session_id: fallbackSession,
+      });
+    }
+
+    {
+      const before = stub.requests.length;
+      const result = await run(process.execPath, [NODE_HOOK], {
+        session_id: 'legacy-no-permit-session',
+        tool_name: 'start_task',
+        tool_input: {
+          task_key: 'codex/legacy-start',
+          agent_id: 'legacy-worker',
+          graph_repo: '/workspace/legacy-start',
+          session_id: 'legacy-no-permit-session',
+        },
+        tool_response: { ok: true },
+      }, env);
+      assert.equal(result.code, 0);
+      assert.equal(stub.requests.length, before, 'legacy start without an authoritative response permit must not bind');
     }
 
     for (const missing of ['session_id', 'task_key', 'agent_id']) {
@@ -312,6 +349,42 @@ function lastRequest(server) {
       advisory.tool_response.result.git_claim.error = 'strict git claim failed';
       assert.equal((await run('bash', [CODEX_SHELL_HOOK], advisory, env)).code, 0);
       assert.equal(stub.requests.length, strictBefore, 'shell adapter must reject non-advisory accept failures');
+
+      const legacyBefore = stub.requests.length;
+      const legacy = {
+        session_id: 'shell-legacy-real-session',
+        tool_name: 'start_task',
+        tool_input: {
+          task_key: 'codex/shell-legacy',
+          agent_id: 'shell-legacy-worker',
+          graph_repo: '/untrusted/shell-legacy-workspace',
+          session_id: 'untrusted-shell-input-session',
+        },
+        tool_response: {
+          ok: true,
+          execution_permit: {
+            workspace: '/graph/shell-legacy',
+            session_id: 'shell-legacy-fallback',
+            task_key: 'codex/shell-legacy',
+            agent_id: 'shell-legacy-worker',
+          },
+        },
+      };
+      assert.equal((await run('bash', [CODEX_SHELL_HOOK], legacy, env)).code, 0);
+      assert.equal(stub.requests.length, legacyBefore + 1, 'shell legacy start should bind from its authoritative response permit');
+      assert.deepEqual(lastRequest(stub).body, {
+        task_key: 'codex/shell-legacy',
+        session_id: 'shell-legacy-real-session',
+        agent_id: 'shell-legacy-worker',
+        workspace: '/graph/shell-legacy',
+        expected_session_id: 'shell-legacy-fallback',
+      });
+
+      const noPermitBefore = stub.requests.length;
+      delete legacy.tool_response.execution_permit;
+      legacy.tool_input.session_id = legacy.session_id;
+      assert.equal((await run('bash', [CODEX_SHELL_HOOK], legacy, env)).code, 0);
+      assert.equal(stub.requests.length, noPermitBefore, 'shell legacy start without an authoritative response permit must not bind');
     }
 
     console.log('orch post-tool claim-session hook tests passed');

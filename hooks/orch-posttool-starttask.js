@@ -74,17 +74,17 @@ function responseExecutionPermit(input, taskKey, agentId) {
   const isLegacyStart = START_TASK_TOOLS.has(input.tool_name || '');
   const taskKey = (input.tool_input && input.tool_input.task_key) || '';
   const agentId = (input.tool_input && input.tool_input.agent_id) || '';
-  const permit = isLegacyStart ? null : responseExecutionPermit(input, taskKey, agentId);
+  const permit = responseExecutionPermit(input, taskKey, agentId);
   if (!isLegacyStart && (!successfulAssignmentAccept(input) || !permit)) k.allow();
   const sid = k.hookSessionId(input);
-  if (!sid || !taskKey || !agentId) k.allow();
-  const workspace = isLegacyStart
-    ? ((input.tool_input && (input.tool_input.graph_repo || input.tool_input.workspace)) || '')
-    : permit.workspace;
-  if (!isLegacyStart && !workspace) k.allow();
-  const body = { task_key: taskKey, session_id: sid, agent_id: agentId };
-  if (workspace) body.workspace = workspace;
-  if (permit) body.expected_session_id = permit.session_id;
+  if (!sid || !taskKey || !agentId || !permit) k.allow();
+  const body = {
+    task_key: taskKey,
+    session_id: sid,
+    agent_id: agentId,
+    workspace: permit.workspace,
+    expected_session_id: permit.session_id,
+  };
   await k.post('/overlay/claim-session', body, 1000);
   process.exit(0);
 })().catch(() => process.exit(0));

@@ -372,6 +372,25 @@ function runMainBlocked(cmd, extra) {
   ok('claimed task without worktree branch → permit/worktree message', r.stderr.includes('registered worktree'));
 }
 
+// 32b. Large graph reads can exceed the old 600ms budget; both authoritative lookups must finish
+//      before a claimed shell write is allowed.
+{
+  const worktree = '/some/path';
+  const r = runWithConfig(
+    mkInput(`cp /tmp/x.js ${worktree}/main.js`),
+    {
+      activeClaim: { claimed: true, claims: [{ key: 'local/slow-task' }] },
+      taskDetails: {
+        'local/slow-task': { task: { metric: null, git: { branch: 'orch/attempt/local-slow-task', worktree } } },
+      },
+      executionPermits: [executionPermit('local/slow-task', worktree, 'orch/attempt/local-slow-task')],
+      taskDetailDelayMs: 750,
+      executionPermitDelayMs: 750,
+    },
+  );
+  ok('transiently slow task detail and permit preserve fail-closed Bash allow → exit 0', r.status === 0);
+}
+
 // ── Multi-claim gate tests ───────────────────────────────────────────────────
 // Two synthetic worktree paths under TMP. The bash gate does a string prefix
 // check on the extracted write target — these directories need not be real git repos.
