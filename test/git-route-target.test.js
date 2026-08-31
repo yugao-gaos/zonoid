@@ -106,12 +106,14 @@ test('feature merge checkpoints graph before merging and refuses checkpoint fail
   overlayStore.setFeature(ov, 'task/checkpoint', { feature_worktree: feature.worktree, feature_branch: feature.branch });
   const calls = [];
   const ctx = makeCtx(repo, ov, async () => ({ ok: true, repo, target }));
-  ctx.graphLifecycle = { checkpointFeature: async (...args) => { calls.push(args); return { status: 'unchanged' }; } };
+  const retainedStash = { oid: 'a'.repeat(40), paths: ['claims/task.json'] };
+  ctx.graphLifecycle = { checkpointFeature: async (...args) => { calls.push(args); return { status: 'unchanged', retainedStash }; } };
   const merged = await callRoute(ctx, '/feature/merge', { key: 'task/checkpoint', workspace: repo });
   assert.equal(merged.status, 200);
   assert.equal(merged.body.merged, true);
   assert.equal(calls.length, 1);
   assert.equal(calls[0][1], feature.worktree);
+  assert.deepEqual(merged.body.graph_checkpoint.retainedStash, retainedStash);
 
   const second = git.createFeatureWorktree(repo, 'task/checkpoint-fail');
   fs.writeFileSync(path.join(second.worktree, 'blocked.txt'), 'blocked\n');

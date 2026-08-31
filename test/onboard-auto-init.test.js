@@ -415,6 +415,12 @@ test('init lifecycle arms onboarding without a dashboard and leaves accumulated 
     const queue = JSON.parse(fs.readFileSync(path.join(result.outDir, 'onboard-queue.json'), 'utf8'));
     const status = JSON.parse(fs.readFileSync(path.join(result.outDir, 'onboard-drain-status.json'), 'utf8'));
     assert.ok(queue.total > 0, 'existing project content must be mined before any dashboard opens');
+    assert.equal(queue.cursor, 1, 'the deterministic overview is preclassified without an LLM batch');
+    assert.equal(queue.kept.length, 1);
+    assert.equal(queue.kept[0].onboard_overview, 1);
+    const overviewArtifact = JSON.parse(fs.readFileSync(path.join(result.outDir, 'onboard-notes.json'), 'utf8'));
+    assert.equal(overviewArtifact.generation, queue.generation);
+    assert.deepEqual(overviewArtifact.kept, queue.kept);
     assert.equal(status.repo, repo);
     assert.equal(status.autoInject, true);
     assert.equal(status.preparationState, 'ready');
@@ -481,10 +487,12 @@ test('empty and zero-commit projects onboard without inventing project history',
       assert.equal(status.error, null);
       assert.equal(status.preparationState, 'ready');
       if (repoCase.empty) {
-        assert.deepEqual(
-          { total: queue.total, cursor: queue.cursor, kept: queue.kept, rejected: queue.rejected, pending: queue.pending },
-          { total: 0, cursor: 0, kept: [], rejected: [], pending: [] }
-        );
+        assert.equal(queue.total, 1);
+        assert.equal(queue.cursor, 1);
+        assert.equal(queue.kept.length, 1);
+        assert.equal(queue.kept[0].onboard_overview, 1);
+        assert.deepEqual(queue.pending, queue.kept);
+        assert.deepEqual(queue.rejected, []);
         assert.match(queue.generation, /^onboard-[a-f0-9]+$/);
       } else {
         assert.ok(queue.total > 0, 'non-git miners must retain useful zero-commit project evidence');
@@ -1587,10 +1595,12 @@ test('daemon boot resumes a persisted preparation request created before the dae
     const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
     assert.equal(status.preparationState, 'ready');
     const queue = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-queue.json'), 'utf8'));
-    assert.deepEqual(
-      { total: queue.total, cursor: queue.cursor, kept: queue.kept, rejected: queue.rejected, pending: queue.pending },
-      { total: 0, cursor: 0, kept: [], rejected: [], pending: [] }
-    );
+    assert.equal(queue.total, 1);
+    assert.equal(queue.cursor, 1);
+    assert.equal(queue.kept.length, 1);
+    assert.equal(queue.kept[0].onboard_overview, 1);
+    assert.deepEqual(queue.pending, queue.kept);
+    assert.deepEqual(queue.rejected, []);
     assert.match(queue.generation, /^onboard-[a-f0-9]+$/);
   } finally {
     await stopDaemon(port);

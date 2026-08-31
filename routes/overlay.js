@@ -424,6 +424,11 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const publishCodeChange = (T, b) => {
     if (!b || b.defer_publish !== true) notifyChange(T.ws);
   };
+  const reconcileCodeEdgeFiles = (T, edges) => {
+    const files = new Set((Array.isArray(edges) ? edges : [])
+      .map((edge) => String((edge && edge.from_file) || '').trim()).filter(Boolean));
+    for (const file of files) overlayStore.reconcileCodeEdgesForFile(T.ws, T.ov, file);
+  };
   const graphHasKey = (ws, key) => {
     if (typeof nodeExistsInGraph !== 'function') return true;
     return nodeExistsInGraph(buildGraph(ws), key);
@@ -1579,6 +1584,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // they go straight into the SEPARATE overlay.code_edges layer (no embed, no judge). Idempotent add.
     let edgesAdded = 0;
     if (Array.isArray(b.edges) && b.edges.length) {
+      reconcileCodeEdgeFiles(T, b.edges);
       const r = overlayStore.addCodeEdges(T.ov, b.edges);
       edgesAdded = r.added.length;
     }
@@ -1659,6 +1665,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // a caller that only updates nodes does not clobber edges).
     let edgesReplaced = null;
     if (Array.isArray(b.edges)) {
+      overlayStore.reconcileCodeEdgesForFile(T.ws, T.ov, file);
       const er = overlayStore.replaceCodeEdgesForFile(T.ov, file, b.edges);
       edgesReplaced = { removed: er.removed, added: er.added.length };
     }
@@ -1679,6 +1686,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(b, u);
     if (!Array.isArray(b.edges) || !b.edges.length) { send(res, 400, { ok: false, error: 'edges[] required (non-empty array)' }); return true; }
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    reconcileCodeEdgeFiles(T, b.edges);
     const er = overlayStore.addCodeEdges(T.ov, b.edges);
     if (er.added.length) overlayStore.bumpEpoch(T.ov);
     T.save(); publishCodeChange(T, b);
@@ -1700,6 +1708,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const file = String(b.file || u.searchParams.get('file') || '').trim();
     if (!file) { send(res, 400, { ok: false, error: 'file required (repo-relative path)' }); return true; }
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    overlayStore.reconcileCodeEdgesForFile(T.ws, T.ov, file);
     const { removed } = overlayStore.removeCodeEdgesForFile(T.ov, file);
     T.save(); publishCodeChange(T, b);
     send(res, 200, { ok: true, file, deleted: removed, workspace: T.ws }); return true;
@@ -1713,6 +1722,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!file) { send(res, 400, { ok: false, error: 'file required (repo-relative path)' }); return true; }
     if (!Array.isArray(b.edges)) { send(res, 400, { ok: false, error: 'edges[] required (array; may be empty to just clear the file)' }); return true; }
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    overlayStore.reconcileCodeEdgesForFile(T.ws, T.ov, file);
     const er = overlayStore.replaceCodeEdgesForFile(T.ov, file, b.edges);
     T.save(); publishCodeChange(T, b);
     send(res, 200, { ok: true, file, deleted: er.removed, created: er.added.length, workspace: T.ws }); return true;

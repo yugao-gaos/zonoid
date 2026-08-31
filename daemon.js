@@ -182,7 +182,14 @@ function overlayFor(ws) {
 function refreshOverlayStamp(ws, ov) {
   const cached = overlayCache.get(ws);
   if (cached) {
-    if (ov) cached.ov = ov;
+    // A request that started before an mtime-driven reload may finish after a newer object became
+    // authoritative. Do not replace that newer cache entry with the stale handle. Its own graph
+    // diff has been persisted against its object-specific baseline; invalidate here so the next
+    // access reloads the merged event state plus the just-written local fields.
+    if (ov && cached.ov !== ov) {
+      overlayCache.delete(ws);
+      return;
+    }
     cached.stamp = overlayStamp(ws);
   }
 }
