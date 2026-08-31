@@ -65,13 +65,12 @@ RESPONSE_PERMIT=$(printf '%s' "$INPUT" | jq -c --arg task_key "$TASK_KEY" --arg 
 ' 2>/dev/null || true)
 RESPONSE_WORKSPACE=$(printf '%s' "$RESPONSE_PERMIT" | jq -r '.workspace // empty' 2>/dev/null || true)
 EXPECTED_SESSION_ID=$(printf '%s' "$RESPONSE_PERMIT" | jq -r '.session_id // empty' 2>/dev/null || true)
-PAYLOAD_SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')
 REQUESTED_SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.tool_input.session_id // empty')
 PORT=${ORCH_PORT:-8787}
 
 [[ -n "$SID" && -n "$TASK_KEY" && -n "$AGENT_ID" ]] || exit 0
 [[ -n "$RESPONSE_WORKSPACE" && -n "$EXPECTED_SESSION_ID" ]] || exit 0
-if [[ "$SID" == "$PAYLOAD_SESSION_ID" && "$SID" != "$EXPECTED_SESSION_ID" && "$REQUESTED_SESSION_ID" == "$EXPECTED_SESSION_ID" ]]; then
+if [[ "$SID" != "$EXPECTED_SESSION_ID" && "$REQUESTED_SESSION_ID" == "$EXPECTED_SESSION_ID" ]]; then
   exit 0
 fi
 

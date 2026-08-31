@@ -69,12 +69,11 @@ function responseExecutionPermit(input, taskKey, agentId) {
   return null;
 }
 
-function wouldRebindExplicitPermitToPayload(input, sid, permit) {
-  const payloadSession = typeof input.session_id === 'string' ? input.session_id.trim() : '';
+function wouldRebindExplicitPermit(input, sid, permit) {
   const requestedSession = input.tool_input && typeof input.tool_input.session_id === 'string'
     ? input.tool_input.session_id.trim()
     : '';
-  return sid === payloadSession && sid !== permit.session_id && requestedSession === permit.session_id;
+  return sid !== permit.session_id && requestedSession === permit.session_id;
 }
 
 (async () => {
@@ -86,7 +85,7 @@ function wouldRebindExplicitPermitToPayload(input, sid, permit) {
   if (!isLegacyStart && (!successfulAssignmentAccept(input) || !permit)) k.allow();
   const sid = k.hookSessionId(input);
   if (!sid || !taskKey || !agentId || !permit) k.allow();
-  if (wouldRebindExplicitPermitToPayload(input, sid, permit)) k.allow();
+  if (wouldRebindExplicitPermit(input, sid, permit)) k.allow();
   const body = {
     task_key: taskKey,
     session_id: sid,
