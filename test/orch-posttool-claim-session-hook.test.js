@@ -3,12 +3,15 @@
 
 const assert = require('assert');
 const { spawn, spawnSync } = require('child_process');
+const fs = require('fs');
 const http = require('http');
+const os = require('os');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const NODE_HOOK = path.join(ROOT, 'hooks', 'orch-posttool-starttask.js');
 const CODEX_SHELL_HOOK = path.join(ROOT, 'adapters', 'codex', 'hooks', 'post-start-task.sh');
+const TRANSCRIPTS = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-hook-session-'));
 
 function run(command, args, payload, env) {
   return new Promise((resolve, reject) => {
@@ -83,6 +86,35 @@ function lastRequest(server) {
   return server.requests[server.requests.length - 1];
 }
 
+function transcript(name, firstRecord, laterRecords = []) {
+  const file = path.join(TRANSCRIPTS, `${name}.jsonl`);
+  fs.writeFileSync(file, [firstRecord, ...laterRecords].map((record) => (
+    typeof record === 'string' ? record : JSON.stringify(record)
+  )).join('\n') + '\n');
+  return file;
+}
+
+function desktopSessionMeta(parentSession, childSession, windowId = null) {
+  return {
+    type: 'session_meta',
+    payload: {
+      session_id: parentSession,
+      id: childSession,
+      parent_thread_id: parentSession,
+      context_window: windowId ? { window_id: windowId } : undefined,
+      source: {
+        subagent: {
+          thread_spawn: {
+            parent_thread_id: parentSession,
+            depth: 1,
+            agent_path: '/root/worker',
+          },
+        },
+      },
+    },
+  };
+}
+
 (async () => {
   const stub = await startServer();
   const env = { ORCH_PORT: String(stub.port) };
@@ -134,6 +166,94 @@ function lastRequest(server) {
         workspace: '/graph/default',
         expected_session_id: 'mcp-fallback-session',
       });
+    }
+
+    {
+      const before = stub.requests.length;
+      const parentSession = 'desktop-parent-session';
+      const childSession = 'desktop-child-session';
+      const windowId = 'desktop-window-session';
+      const childTranscript = transcript('desktop-child', desktopSessionMeta(parentSession, childSession, windowId));
+      const permit = {
+        workspace: '/graph/desktop-child',
+        session_id: childSession,
+        task_key: 'codex/claim-hook-probe',
+        agent_id: 'worker-probe',
+      };
+      const result = await run(process.execPath, [NODE_HOOK], assignmentPayload('subconscious_assignment', {
+        session_id: windowId,
+        agent_transcript_path: transcript('desktop-invalid-agent-path', '{not-json'),
+        transcript_path: childTranscript,
+        tool_input: {
+          action: 'accept',
+          task_key: 'codex/claim-hook-probe',
+          agent_id: 'worker-probe',
+          session_id: childSession,
+        },
+        tool_response: { ok: true, execution_permit: permit },
+      }), env);
+      assert.equal(result.code, 0);
+      assert.equal(stub.requests.length, before + 1, 'Desktop child transcript metadata should recover the child session');
+      assert.deepEqual(lastRequest(stub).body, {
+        task_key: 'codex/claim-hook-probe',
+        session_id: childSession,
+        agent_id: 'worker-probe',
+        workspace: '/graph/desktop-child',
+        expected_session_id: childSession,
+      });
+    }
+
+    {
+      const parentSession = 'unproven-parent-session';
+      const childSession = 'explicit-child-session';
+      const permit = {
+        workspace: '/graph/explicit-child',
+        session_id: childSession,
+        task_key: 'codex/claim-hook-probe',
+        agent_id: 'worker-probe',
+      };
+      const inconsistent = desktopSessionMeta(parentSession, childSession);
+      inconsistent.payload.parent_thread_id = 'different-parent';
+      const cases = [
+        ['missing transcript', {}],
+        ['relative transcript path', { transcript_path: 'untrusted-relative.jsonl' }],
+        ['malformed transcript', { transcript_path: transcript('malformed', '{not-json') }],
+        ['mismatched parent metadata', {
+          transcript_path: transcript('mismatched-parent', desktopSessionMeta('different-parent', childSession)),
+        }],
+        ['inconsistent parent metadata', {
+          transcript_path: transcript('inconsistent-parent', inconsistent),
+        }],
+        ['metadata after the first record', {
+          transcript_path: transcript(
+            'metadata-not-first',
+            { type: 'turn_context', payload: { session_id: parentSession } },
+            [desktopSessionMeta(parentSession, childSession)],
+          ),
+        }],
+        ['oversized first record', {
+          transcript_path: transcript('oversized-first-record', JSON.stringify({
+            ...desktopSessionMeta(parentSession, childSession),
+            padding: 'x'.repeat(70 * 1024),
+          })),
+        }],
+      ];
+      for (const [label, transcriptFields] of cases) {
+        const before = stub.requests.length;
+        const result = await run(process.execPath, [NODE_HOOK], assignmentPayload('subconscious_assignment', {
+          session_id: parentSession,
+          ...transcriptFields,
+          tool_input: {
+            action: 'accept',
+            task_key: 'codex/claim-hook-probe',
+            agent_id: 'worker-probe',
+            session_id: childSession,
+          },
+          tool_response: { ok: true, execution_permit: permit },
+        }), env);
+        assert.equal(result.code, 0, label);
+        assert.equal(stub.requests.length, before, `${label} must not rebind an explicit child permit to the parent`);
+      }
     }
 
     {
@@ -309,6 +429,46 @@ function lastRequest(server) {
         expected_session_id: 'shell-fallback-session',
       });
 
+      const transcriptBefore = stub.requests.length;
+      const shellParent = 'shell-desktop-parent';
+      const shellChild = 'shell-desktop-child';
+      const shellWindow = 'shell-desktop-window';
+      const shellTranscript = transcript('shell-desktop-child', desktopSessionMeta(shellParent, shellChild, shellWindow));
+      const shellTranscriptPermit = {
+        workspace: '/graph/shell-desktop-child',
+        session_id: shellChild,
+        task_key: 'codex/claim-hook-probe',
+        agent_id: 'worker-probe',
+      };
+      const transcriptPayload = assignmentPayload('subconscious_assignment', {
+        session_id: shellWindow,
+        transcript_path: shellTranscript,
+        tool_input: {
+          action: 'accept',
+          task_key: 'codex/claim-hook-probe',
+          agent_id: 'worker-probe',
+          session_id: shellChild,
+        },
+        tool_response: { ok: true, execution_permit: shellTranscriptPermit },
+      });
+      assert.equal((await run('bash', [CODEX_SHELL_HOOK], transcriptPayload, env)).code, 0);
+      assert.equal(stub.requests.length, transcriptBefore + 1, 'shell adapter should recover Desktop child transcript metadata');
+      assert.deepEqual(lastRequest(stub).body, {
+        task_key: 'codex/claim-hook-probe',
+        session_id: shellChild,
+        agent_id: 'worker-probe',
+        workspace: '/graph/shell-desktop-child',
+        expected_session_id: shellChild,
+      });
+
+      const mismatchedBefore = stub.requests.length;
+      transcriptPayload.transcript_path = transcript(
+        'shell-mismatched-parent',
+        desktopSessionMeta('different-shell-parent', shellChild),
+      );
+      assert.equal((await run('bash', [CODEX_SHELL_HOOK], transcriptPayload, env)).code, 0);
+      assert.equal(stub.requests.length, mismatchedBefore, 'shell adapter must not rebind an explicit child permit from mismatched metadata');
+
       const failedBefore = stub.requests.length;
       const failed = assignmentPayload('mcp__orchestrator-graph__subconscious_assignment', {
         tool_response: { isError: true, content: [{ type: 'text', text: '{"ok":true}' }] },
@@ -390,6 +550,7 @@ function lastRequest(server) {
     console.log('orch post-tool claim-session hook tests passed');
   } finally {
     await stub.close();
+    fs.rmSync(TRANSCRIPTS, { recursive: true, force: true });
   }
 })().catch((error) => {
   console.error(error);

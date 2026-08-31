@@ -87,10 +87,54 @@ function setOff(sid) {
 }
 function clearOff(sid) { try { fs.rmSync(offMarker(sid), { force: true }); } catch { /* ignore */ } }
 function gateOff() { return process.env.ORCH_GATE_OFF === '1'; }
+const SESSION_META_MAX_BYTES = 8192;
+const CODEX_THREAD_ID_RE = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+
+function transcriptSessionId(input) {
+  const observedSession = input && typeof input.session_id === 'string' ? input.session_id.trim() : '';
+  if (!observedSession) return '';
+  const candidates = [input.agent_transcript_path, input.transcript_path];
+  const seen = new Set();
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string' || !path.isAbsolute(candidate) || seen.has(candidate)) continue;
+    seen.add(candidate);
+    let fd;
+    try {
+      const flags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0);
+      fd = fs.openSync(candidate, flags);
+      if (!fs.fstatSync(fd).isFile()) continue;
+      const buffer = Buffer.alloc(SESSION_META_MAX_BYTES + 1);
+      const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, 0);
+      const newline = buffer.indexOf(0x0a, 0, bytesRead);
+      if (newline < 0 || newline > SESSION_META_MAX_BYTES) continue;
+      const record = JSON.parse(buffer.subarray(0, newline).toString('utf8'));
+      const meta = record && record.type === 'session_meta' ? record.payload : null;
+      const childSession = meta && typeof meta.id === 'string' ? meta.id.trim() : '';
+      const parentSession = meta && typeof meta.session_id === 'string' ? meta.session_id.trim() : '';
+      const parentThread = meta && typeof meta.parent_thread_id === 'string' ? meta.parent_thread_id.trim() : '';
+      const windowId = meta && meta.context_window && typeof meta.context_window.window_id === 'string'
+        ? meta.context_window.window_id.trim()
+        : '';
+      if (childSession && parentSession && parentSession === parentThread &&
+          (observedSession === parentSession || observedSession === windowId)) return childSession;
+    } catch { /* untrusted or incomplete transcript metadata */ }
+    finally { if (fd !== undefined) try { fs.closeSync(fd); } catch { /* ignore */ } }
+  }
+  return '';
+}
+
 function hookSessionId(input, env = process.env) {
   const threadId = typeof env.CODEX_THREAD_ID === 'string' ? env.CODEX_THREAD_ID.trim() : '';
   if (threadId) return threadId;
-  return input && typeof input.session_id === 'string' ? input.session_id.trim() : '';
+  return transcriptSessionId(input) || (
+    input && typeof input.session_id === 'string' ? input.session_id.trim() : ''
+  );
+}
+function hookAgentId(input) {
+  const ti = input && input.tool_input && typeof input.tool_input === 'object' ? input.tool_input : {};
+  const raw = input && (input.agent_id || ti.agent_id) ? String(input.agent_id || ti.agent_id).trim() : '';
+  const transcriptSession = transcriptSessionId(input);
+  return raw && (raw === transcriptSession || CODEX_THREAD_ID_RE.test(raw)) ? '' : raw;
 }
 
 // ── path matching (cross-platform) ───────────────────────────────────────────
@@ -192,7 +236,8 @@ module.exports = {
   PORT, IS_WIN,
   readInput,
   request, getText, getJson, post, ping,
-  dataDir, sessionsDir, offMarker, isOff, setOff, clearOff, gateOff, hookSessionId,
+  dataDir, sessionsDir, offMarker, isOff, setOff, clearOff, gateOff,
+  transcriptSessionId, hookSessionId, hookAgentId,
   slash, cmp, isUnder, normalizePath,
   allow, deny, emitContext,
   TRIVIAL_MAX_LINES, TRIVIAL_MAX_CHARS,

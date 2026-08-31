@@ -27,7 +27,7 @@ const CLAIM_DETAIL_TIMEOUT_MS = 2000;
   const sid = k.hookSessionId(input);
   if (!sid) k.allow();                       // no session id -> can't correlate; don't block
   if (k.isOff(sid)) k.allow();               // orchestrator disabled for this conversation
-  const agentId = input.agent_id || ti.agent_id || '';
+  const agentId = k.hookAgentId(input);
   const foregroundAgentId = input.foreground_agent_id || ti.foreground_agent_id || '';
 
   async function permitForClaim(key, workspace) {
