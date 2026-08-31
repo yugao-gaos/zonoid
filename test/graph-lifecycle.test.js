@@ -212,31 +212,43 @@ async function testFeatureCheckpointPreservesDominatedClaims() {
   const fixture = await featureCheckpointFixture();
   const terminalPath = 'claims/terminal.json';
   const newerPath = 'claims/team/newer.json';
+  const ignoredPath = 'claims/ignored.json';
   const unrelatedPath = 'scratch/local-only.txt';
+  const unrelatedIgnoredPath = 'ignored/local-only.txt';
   const localTerminal = claim('task/terminal', 'claimed', '2026-08-30T20:00:00.000Z');
   const localNewer = claim('task/newer', 'claimed', '2026-08-30T20:01:00.000Z');
+  const localIgnored = claim('task/ignored', 'claimed', '2026-08-30T20:01:30.000Z');
+  write(path.join(fixture.featureGraph, '.gitignore'), `${ignoredPath}\nignored/\n`);
   write(path.join(fixture.featureGraph, terminalPath), localTerminal);
   write(path.join(fixture.featureGraph, newerPath), localNewer);
+  write(path.join(fixture.featureGraph, ignoredPath), localIgnored);
   write(path.join(fixture.featureGraph, unrelatedPath), 'preserve me\n');
+  write(path.join(fixture.featureGraph, unrelatedIgnoredPath), 'preserve ignored me\n');
   write(path.join(fixture.graphDir, terminalPath), claim('task/terminal', 'tested', '2026-08-30T20:02:00.000Z', 'completed_at'));
   write(path.join(fixture.graphDir, newerPath), claim('task/newer', 'claimed', '2026-08-30T20:03:00.000Z'));
+  write(path.join(fixture.graphDir, ignoredPath), claim('task/ignored', 'tested', '2026-08-30T20:03:30.000Z', 'completed_at'));
 
   const result = await lifecycle.checkpointFeature(fixture.repo, fixture.feature);
   const stash = result.retainedStash;
   ok('feature checkpoint preserves only target-blocking dominated claims in an exact retained stash',
     result.status === 'committed' && stash && /^[0-9a-f]{40}$/.test(stash.oid)
-    && JSON.stringify(stash.paths) === JSON.stringify([newerPath, terminalPath].sort())
-    && !stash.paths.includes(unrelatedPath) && stash.evidence.length === 2
+    && JSON.stringify(stash.paths) === JSON.stringify([ignoredPath, newerPath, terminalPath].sort())
+    && !stash.paths.includes(unrelatedPath) && stash.evidence.length === 3
     && stash.evidence.some((item) => item.path === terminalPath && item.local_status === 'claimed' && item.target_status === 'tested')
-    && stash.evidence.some((item) => item.path === newerPath && item.target_timestamp > item.local_timestamp));
+    && stash.evidence.some((item) => item.path === newerPath && item.target_timestamp > item.local_timestamp)
+    && stash.evidence.some((item) => item.path === ignoredPath && item.target_status === 'tested'));
   ok('feature graph advances to canonical terminal/newer claims while unrelated untracked data remains',
     JSON.parse(fs.readFileSync(path.join(fixture.featureGraph, terminalPath), 'utf8')).status === 'tested'
     && JSON.parse(fs.readFileSync(path.join(fixture.featureGraph, newerPath), 'utf8')).claimed_at === '2026-08-30T20:03:00.000Z'
-    && fs.readFileSync(path.join(fixture.featureGraph, unrelatedPath), 'utf8') === 'preserve me\n');
+    && JSON.parse(fs.readFileSync(path.join(fixture.featureGraph, ignoredPath), 'utf8')).status === 'tested'
+    && fs.readFileSync(path.join(fixture.featureGraph, unrelatedPath), 'utf8') === 'preserve me\n'
+    && fs.readFileSync(path.join(fixture.featureGraph, unrelatedIgnoredPath), 'utf8') === 'preserve ignored me\n');
   ok('retained stash contains byte-recoverable originals for every and only preserved path',
     git(fixture.featureGraph, ['show', `${stash.oid}^3:${terminalPath}`]) === localTerminal.trim()
     && git(fixture.featureGraph, ['show', `${stash.oid}^3:${newerPath}`]) === localNewer.trim()
+    && git(fixture.featureGraph, ['show', `${stash.oid}^3:${ignoredPath}`]) === localIgnored.trim()
     && !git(fixture.featureGraph, ['stash', 'show', '--include-untracked', '--name-only', '--format=', stash.oid]).split('\n').includes(unrelatedPath)
+    && !git(fixture.featureGraph, ['stash', 'show', '--include-untracked', '--name-only', '--format=', stash.oid]).split('\n').includes(unrelatedIgnoredPath)
     && git(fixture.featureGraph, ['stash', 'list', '--format=%H']).split('\n').includes(stash.oid));
 }
 

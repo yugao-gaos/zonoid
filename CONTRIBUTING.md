@@ -72,11 +72,12 @@ unnecessary under `ZONOID_SKIP_LIVE=1`).
 `.graph/` is a Git submodule. The daemon continuously commits and pushes live graph state in that
 companion repository, while normal source commits leave the superproject gitlink alone. A deliberate
 `zonoid graph checkpoint` (including the feature-merge path) stages the pushed graph commit in the
-superproject. Before a feature graph advances, untracked paths that collide with the pushed target
-commit are inspected without mutation. Only claim JSON whose target record is proven terminal/newer
-is moved into an exact, retained recovery stash; malformed, non-claim, or non-dominated blockers
-refuse the checkpoint. Unrelated untracked graph files stay in place, and successful feature
-checkpoint results report the retained stash identity and claim evidence.
+superproject. Before a feature graph advances, all untracked paths—including ignored files—that
+collide with the pushed target commit are inspected without mutation. Only claim JSON whose target
+record is proven terminal/newer is moved into an exact, retained recovery stash; malformed,
+non-claim, or non-dominated blockers refuse the checkpoint. Unrelated ignored and ordinary
+untracked graph files stay in place, and successful feature checkpoint results report the retained
+stash identity and claim evidence.
 
 `zonoid graph sync` initializes and updates the submodule after clone, checkout, or merge. Setup also
 enables `push.recurseSubmodules=on-demand`, so a superproject push cannot publish a gitlink whose graph
