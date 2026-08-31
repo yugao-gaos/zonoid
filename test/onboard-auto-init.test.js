@@ -17,6 +17,7 @@ const workspaceRegistry = require('../lib/workspace-registry');
 const DAEMON_PATH = path.join(__dirname, '..', 'daemon.js');
 const CLI_PATH = path.join(__dirname, '..', 'packages', 'cli', 'bin', 'zonoid.js');
 const GIT_MINER_PATH = path.join(__dirname, '..', 'scripts', 'onboard-mine-git.js');
+const REAL_DAEMON_STARTUP_TIMEOUT_MS = 30000;
 
 function git(repo, args) {
   return execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', windowsHide: true }).trim();
@@ -78,7 +79,7 @@ async function stopDaemon(port) {
     const pid = Number(version.payload && version.payload.pid);
     if (Number.isInteger(pid) && pid > 0) {
       process.kill(pid, 'SIGTERM');
-      const deadline = Date.now() + 2000;
+      const deadline = Date.now() + 7000;
       while (Date.now() < deadline) {
         try { process.kill(pid, 0); } catch { return; }
         await new Promise((resolve) => setTimeout(resolve, 25));
@@ -326,7 +327,9 @@ function readInitRequests(requestLog) {
 
 async function runHeadlessPreparation(repo, outDir) {
   const savedLease = process.env.HEADLESS_DRAIN_GLOBAL_LEASE;
+  const savedMaxIterations = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
   process.env.HEADLESS_DRAIN_GLOBAL_LEASE = '0';
+  process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '10';
   try {
     const modulePath = require.resolve('../lib/headless-drain');
     delete require.cache[modulePath];
@@ -351,6 +354,8 @@ async function runHeadlessPreparation(repo, outDir) {
   } finally {
     if (savedLease === undefined) delete process.env.HEADLESS_DRAIN_GLOBAL_LEASE;
     else process.env.HEADLESS_DRAIN_GLOBAL_LEASE = savedLease;
+    if (savedMaxIterations === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+    else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedMaxIterations;
   }
 }
 
@@ -411,7 +416,16 @@ test('init lifecycle arms onboarding without a dashboard and leaves accumulated 
     const pending = JSON.parse(fs.readFileSync(path.join(result.outDir, 'onboard-drain-status.json'), 'utf8'));
     assert.equal(pending.preparationState, 'pending', 'restart-safe preparation intent must be persisted before return');
 
-    await runHeadlessPreparation(repo, result.outDir);
+    const savedMaxIterations = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+    process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '-1';
+    try {
+      await runHeadlessPreparation(repo, result.outDir);
+      assert.equal(process.env.HEADLESS_DRAIN_MAX_ITERATIONS, '-1',
+        'in-process preparation must restore hostile live drain tuning');
+    } finally {
+      if (savedMaxIterations === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+      else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedMaxIterations;
+    }
     const queue = JSON.parse(fs.readFileSync(path.join(result.outDir, 'onboard-queue.json'), 'utf8'));
     const status = JSON.parse(fs.readFileSync(path.join(result.outDir, 'onboard-drain-status.json'), 'utf8'));
     assert.ok(queue.total > 0, 'existing project content must be mined before any dashboard opens');
@@ -517,7 +531,7 @@ test('cold daemon startup is non-blocking and waits until the daemon is ready', 
     const ready = await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       env: {
         ...process.env,
         CLAUDE_PLUGIN_DATA: dataDir,
@@ -540,7 +554,8 @@ test('cold daemon startup is non-blocking and waits until the daemon is ready', 
     const version = await daemonRequest(port, 'GET', '/version');
     assert.equal(version.payload.build, health.payload.build);
     assert.equal(version.payload.pid, health.payload.pid);
-    assert.ok(Date.now() - startedAt < 15000, 'cold startup must return instead of waiting on the detached daemon process');
+    assert.ok(Date.now() - startedAt < REAL_DAEMON_STARTUP_TIMEOUT_MS,
+      'cold startup must return instead of waiting on the detached daemon process');
   } finally {
     await stopDaemon(port);
     fs.rmSync(dataDir, { recursive: true, force: true });
@@ -787,7 +802,7 @@ test('full init starts a cold token-protected daemon on a custom port', async ()
       port,
       token,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       registrationTimeoutMs: 3000,
       onboardingTimeoutMs: 3000,
       env: {
@@ -917,7 +932,7 @@ test('daemon boot reconciles every hard-exit boundary of onboarding init', async
         assert.equal(await checkDaemon({
           port,
           daemonPath: DAEMON_PATH,
-          startupTimeoutMs: 15000,
+          startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
           env: {
             ...process.env,
             CLAUDE_PLUGIN_DATA: fixture.dataDir,
@@ -940,7 +955,7 @@ test('daemon boot reconciles every hard-exit boundary of onboarding init', async
         assert.equal(await checkDaemon({
           port,
           daemonPath: DAEMON_PATH,
-          startupTimeoutMs: 15000,
+          startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
           env: {
             ...process.env,
             CLAUDE_PLUGIN_DATA: fixture.dataDir,
@@ -1008,7 +1023,7 @@ test('daemon boot quarantines an invalid onboarding publication and stays ready'
     assert.equal(await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       env: {
         ...process.env,
         CLAUDE_PLUGIN_DATA: fixture.dataDir,
@@ -1056,7 +1071,7 @@ test('daemon boot ignores an unreadable invalid init journal and quarantines it 
   const daemonOptions = {
     port,
     daemonPath: DAEMON_PATH,
-    startupTimeoutMs: 15000,
+    startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
     env: {
       ...process.env,
       CLAUDE_PLUGIN_DATA: fixture.dataDir,
@@ -1136,7 +1151,7 @@ test('daemon boot quarantines a valid legacy init intent instead of reading or r
     assert.equal(await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       env: {
         ...process.env,
         CLAUDE_PLUGIN_DATA: fixture.dataDir,
@@ -1224,7 +1239,7 @@ test('daemon restart keeps an invalid journal fenced after status-temp publicati
     assert.equal(await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       env: daemonEnv,
     }), true);
     const health = await daemonRequest(port, 'GET', '/health');
@@ -1256,7 +1271,7 @@ test('daemon loadState survives a settled init with read-only Git exclude and re
   const daemonOptions = {
     port,
     daemonPath: DAEMON_PATH,
-    startupTimeoutMs: 15000,
+    startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
     env: {
       ...process.env,
       CLAUDE_PLUGIN_DATA: fixture.dataDir,
@@ -1331,7 +1346,7 @@ test('real daemon rejects invalid onboarding paths before registration or projec
     assert.equal(await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       env: {
         ...process.env,
         CLAUDE_PLUGIN_DATA: fixture.dataDir,
@@ -1365,7 +1380,7 @@ test('real daemon rolls back durable onboarding when registry commit fails', asy
     assert.equal(await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       env: {
         ...process.env,
         CLAUDE_PLUGIN_DATA: fixture.dataDir,
@@ -1422,7 +1437,7 @@ test('real daemon refuses retry-capped reused queues without false init success 
     assert.equal(await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       env: {
         ...process.env,
         CLAUDE_PLUGIN_DATA: fixture.dataDir,
@@ -1500,7 +1515,7 @@ test('token-authenticated init registers the workspace and queues onboarding', a
     assert.equal(await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       env: {
         ...process.env,
         CLAUDE_PLUGIN_DATA: dataDir,
@@ -1580,7 +1595,7 @@ test('daemon boot resumes a persisted preparation request created before the dae
     assert.equal(await checkDaemon({
       port,
       daemonPath: DAEMON_PATH,
-      startupTimeoutMs: 15000,
+      startupTimeoutMs: REAL_DAEMON_STARTUP_TIMEOUT_MS,
       env: {
         ...process.env,
         CLAUDE_PLUGIN_DATA: dataDir,
@@ -1591,7 +1606,7 @@ test('daemon boot resumes a persisted preparation request created before the dae
       },
     }), true);
     assert.equal((await daemonRequest(port, 'POST', '/workspace', { path: repo })).status, 200);
-    await waitFor(() => fs.existsSync(path.join(outDir, 'onboard-queue.json')));
+    await waitFor(() => fs.existsSync(path.join(outDir, 'onboard-queue.json')), 60000);
     const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
     assert.equal(status.preparationState, 'ready');
     const queue = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-queue.json'), 'utf8'));

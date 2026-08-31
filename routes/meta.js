@@ -138,6 +138,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       send(res, 500, { ok: false, error: `workspace registration failed: ${String(e && e.message || e)}` });
       return true;
     }
+    notifyChange(repoRootPath);
     send(res, 200, { ok: true, workspace_id: workspaceId, graph_repo: repoRootPath, workspace: repoRootPath }); return true;
   }
 

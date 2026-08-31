@@ -180,6 +180,53 @@ test('unrelated listener is never signaled even when the pid file exists', async
   assert.equal(spawns, 0);
 });
 
+test('a transient health timeout during cold boot is not classified as an unrelated listener', async (t) => {
+  const { pidFile, lockFile } = fixture(t);
+  let spawned = false;
+  let timedOut = false;
+  const child = fakeChild();
+  const result = await ensureCurrentDaemon({
+    expectedIdentity: { head: 'new', build: 'git:new' },
+    probe: async () => {
+      if (!spawned) return { reachable: false, identified: false, ready: false };
+      if (!timedOut) {
+        timedOut = true;
+        return { reachable: true, identified: false, ready: false, timedOut: true };
+      }
+      return daemon('new', 42);
+    },
+    pidFile,
+    lockFile,
+    isProcessAlive: (pid) => pid === 42,
+    spawnDaemon: () => {
+      spawned = true;
+      fs.writeFileSync(pidFile, '42');
+      return child;
+    },
+    pollMs: 1,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.action, 'started');
+  assert.equal(child.signalCode, null);
+});
+
+test('a timed-out pre-existing listener is not trusted or replaced', async (t) => {
+  const { pidFile, lockFile } = fixture(t);
+  let spawns = 0;
+  const result = await ensureCurrentDaemon({
+    expectedIdentity: { head: 'new', build: 'git:new' },
+    probe: async () => ({ reachable: true, identified: false, ready: false, timedOut: true }),
+    pidFile,
+    lockFile,
+    spawnDaemon: () => { spawns++; return fakeChild(); },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'unrelated_listener');
+  assert.equal(spawns, 0);
+});
+
 test('signed stale listener with a PID-file mismatch is not treated as owned', async (t) => {
   const { pidFile, lockFile } = fixture(t);
   let signals = 0;
@@ -236,6 +283,53 @@ test('self-owned spawned daemon may outlive transient unsigned and timed-out hea
   assert.equal(result.identity.pid, 42);
   assert.deepEqual(child.signals, []);
   assert.equal(startupProbes, 3);
+});
+
+test('spawn ownership follows the child runtime data directory', async (t) => {
+  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-handoff-runtime-'));
+  t.after(() => fs.rmSync(runtimeDir, { recursive: true, force: true }));
+  const child = fakeChild(42);
+  let spawned = false;
+  const result = await ensureCurrentDaemon({
+    expectedIdentity: { head: 'new', build: 'git:new' },
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: runtimeDir },
+    probe: async () => spawned
+      ? daemon('new', 42)
+      : { reachable: false, identified: false, ready: false },
+    isProcessAlive: (pid) => pid === 42,
+    spawnDaemon: () => {
+      spawned = true;
+      fs.writeFileSync(path.join(runtimeDir, 'daemon.pid'), '42');
+      return child;
+    },
+    sleep: async () => {},
+    pollMs: 1,
+    startupTimeoutMs: 100,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.action, 'started');
+  assert.deepEqual(child.signals, []);
+});
+
+test('an unreachable spawned child is reaped after startup timeout without a pid file', async (t) => {
+  const { lockFile } = fixture(t);
+  const child = fakeChild(42);
+  const result = await ensureCurrentDaemon({
+    expectedIdentity: { head: 'new', build: 'git:new' },
+    probe: async () => ({ reachable: false, identified: false, ready: false }),
+    lockFile,
+    spawnDaemon: () => child,
+    sleep: async () => {},
+    now: (() => { let value = 0; return () => value += 2; })(),
+    pollMs: 1,
+    startupTimeoutMs: 3,
+    childCleanupGraceMs: 1,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'daemon_startup_timeout');
+  assert.deepEqual(child.signals, ['SIGTERM']);
 });
 
 test('unowned listener after spawn fails immediately without signaling the detached child', async (t) => {
