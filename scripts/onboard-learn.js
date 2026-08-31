@@ -50,6 +50,7 @@ const { defaultOnboardOutDir } = require('../lib/onboard-paths');
 const { readToken } = require('../lib/mcp-core');
 const {
   INJECTION_RECEIPT_FILE,
+  ONBOARD_OVERVIEW_VERSION,
   readOnboardStatus,
   readOnboardQueue,
   pidAlive,
@@ -58,6 +59,7 @@ const {
   reconcileOnboardPublication,
   publishOnboardGeneration,
   onboardNoteId,
+  isOnboardOverviewNote,
   confirmedInjectedNoteIds,
   confirmInjectedNote,
   onboardQueueGeneration,
@@ -368,6 +370,38 @@ function sortByPriority(cands) {
   return cands.map((c, i) => ({ c, i }))
     .sort((a, b) => ((prio[a.c._origin] ?? 9) - (prio[b.c._origin] ?? 9)) || (a.i - b.i))
     .map((x) => x.c);
+}
+
+function buildOnboardOverview(repoAbs, candidates) {
+  const repoName = path.basename(path.resolve(repoAbs)) || 'project';
+  const counts = { config: 0, asset: 0, doc: 0, git: 0, struct: 0 };
+  const areas = new Set();
+  for (const candidate of candidates) {
+    if (Object.prototype.hasOwnProperty.call(counts, candidate && candidate._origin)) {
+      counts[candidate._origin]++;
+    }
+    const source = normalizeSourcePath(candidate && candidate.source);
+    if (!source || source === 'structure.json' || isGitSha(source)) continue;
+    const top = source.split('/').filter(Boolean)[0];
+    if (top && !top.includes(':')) areas.add(top);
+  }
+  const signals = Object.entries(counts)
+    .filter(([, count]) => count > 0)
+    .map(([kind, count]) => `${count} ${kind}`)
+    .join(', ');
+  const areaList = Array.from(areas).sort().slice(0, 6);
+  const inventory = signals || 'no mined config, asset, documentation, history, or structural signals yet';
+  const scope = areaList.length ? ` Top-level evidence areas include ${areaList.join(', ')}.` : '';
+  return {
+    title: `${repoName} repository overview`.slice(0, 80),
+    summary: `${repoName} starts onboarding with ${candidates.length} broad candidate${candidates.length === 1 ? '' : 's'} (${inventory}).${scope} This deterministic inventory is the retrieval anchor; deeper architectural claims are deferred to the bounded architecture investigation task.`,
+    evidence: 'deterministic repository miner inventory',
+    evidence_refs: [],
+    kind: 'overview',
+    source: 'repository inventory',
+    _origin: 'overview',
+    onboard_overview: ONBOARD_OVERVIEW_VERSION,
+  };
 }
 
 // Cap the candidate list so a large real-world repo can't blow the learner prompt past the model
@@ -825,8 +859,8 @@ function request(method, urlPath, body) {
 // `workspace` (--workspace): target overlay workspace for the notes. Defaults to the daemon's LIVE
 // workspace (back-compat). For a FOREIGN repo's KB, pass an isolated workspace (e.g. the repo path)
 // so its notes never land in — and can't pollute — the live graph (note nodes have no delete API).
-async function inject(notesFile, confirm, workspace, expectedGeneration, expectedOwner) {
-  return injectOnboardNotes(notesFile, confirm, workspace, request, { expectedGeneration, expectedOwner });
+async function inject(notesFile, confirm, workspace, expectedGeneration, expectedOwner, repo) {
+  return injectOnboardNotes(notesFile, confirm, workspace, request, { expectedGeneration, expectedOwner, repo });
 }
 
 function assertCurrentInjectionGeneration(outDir, expectedGeneration, expectedOwner) {
@@ -877,7 +911,6 @@ async function injectOnboardNotes(notesFile, confirm, workspace, httpRequest = r
   console.log('=== onboard-learn --inject CONFIRMED ===');
   assertCurrentInjectionGeneration(outDir, expectedGeneration, expectedOwner);
   const assertCurrent = () => assertCurrentInjectionGeneration(outDir, expectedGeneration, expectedOwner);
-  const structureResult = await injectDocumentStructure(outDir, workspace, httpRequest, assertCurrent);
   const existing = new Map();
   try {
     assertCurrent();
@@ -900,12 +933,12 @@ async function injectOnboardNotes(notesFile, confirm, workspace, httpRequest = r
     ? confirmedInjectedNoteIds(outDir, expectedGeneration)
     : new Set();
   let created = 0, skipped = 0, evidenceEdges = 0;
-  for (const [index, n] of kept.entries()) {
+  const upsertNote = async (n, index, options = {}) => {
     assertCurrent();
     const noteId = onboardNoteId(n, index);
     if (expectedGeneration && confirmedNoteIds.has(noteId)) {
       skipped++;
-      continue;
+      return null;
     }
     const title = PREFIX + n.title;
     const titleMatches = existing.get(title) || [];
@@ -933,7 +966,7 @@ async function injectOnboardNotes(notesFile, confirm, workspace, httpRequest = r
       if (!noteKey) throw new Error(`existing overlay note '${title}' has no durable key`);
       skipped++;
     }
-    for (const ref of evidenceRefsForNote(n, [], structure)) {
+    for (const ref of (options.skipEvidence ? [] : evidenceRefsForNote(n, [], structure))) {
       assertCurrent();
       await httpRequest('POST', '/overlay/edge', {
         from: ref,
@@ -948,9 +981,47 @@ async function injectOnboardNotes(notesFile, confirm, workspace, httpRequest = r
     // A note is not durably complete until every evidence edge has been upserted. If an edge write
     // fails, no receipt advances; the next pass finds the exact note key and repairs all edges.
     if (expectedGeneration) {
-      confirmInjectedNote(outDir, expectedGeneration, n, index);
+      if (options.overview) {
+        await httpRequest('POST', '/onboard/complete-overview', {
+          repo: options.repo || workspace,
+          outDir,
+          generation: expectedGeneration,
+          owner: expectedOwner,
+          workspace,
+          noteKey,
+          noteIndex: index,
+        });
+      } else {
+        confirmInjectedNote(outDir, expectedGeneration, n, index);
+      }
       confirmedNoteIds.add(noteId);
     }
+    return noteKey;
+  };
+
+  const overviewIndex = kept.findIndex(isOnboardOverviewNote);
+  if (overviewIndex >= 0) {
+    await upsertNote(kept[overviewIndex], overviewIndex, {
+      overview: true,
+      skipEvidence: true,
+      repo: options.repo,
+    });
+    // Bootstrap is deliberately one note only. Return before replaying document structure or
+    // touching broad learned notes; the daemon's later background passes own that work.
+    if (kept.length === 1) {
+      const confirmed = expectedGeneration
+        ? (confirmedNoteIds.has(onboardNoteId(kept[overviewIndex], overviewIndex)) ? 1 : 0)
+        : created + skipped;
+      console.log('document structure nodes upserted: 0, provenance edges upserted: 0');
+      console.log(`notes created: ${created}, skipped (already present): ${skipped}, evidence edges: ${evidenceEdges}`);
+      return { created, skipped, confirmed, evidenceEdges, structure: { nodes: 0, edges: 0 }, overview: true };
+    }
+  }
+
+  const structureResult = await injectDocumentStructure(outDir, workspace, httpRequest, assertCurrent);
+  for (const [index, n] of kept.entries()) {
+    if (index === overviewIndex) continue;
+    await upsertNote(n, index);
   }
   console.log(`document structure nodes upserted: ${structureResult.nodes}, provenance edges upserted: ${structureResult.edges}`);
   console.log(`notes created: ${created}, skipped (already present): ${skipped}, evidence edges: ${evidenceEdges}`);
@@ -1013,14 +1084,16 @@ function enqueue(inDir, outDir, repoAbs) {
   // Sort by priority (config > asset > doc > git > struct). No cap at enqueue time. Every direct
   // enqueue is a replacement generation, even when the mined candidates are byte-identical.
   candidates = sortByPriority(candidates);
+  const overview = buildOnboardOverview(repoAbs, candidates);
+  const pending = [overview, ...candidates];
   const generation = `onboard-${crypto.randomBytes(12).toString('hex')}`;
   const queue = {
     generation,
-    total: candidates.length,
-    cursor: 0,
-    kept: [],
+    total: pending.length,
+    cursor: 1,
+    kept: [overview],
     rejected: [],
-    pending: candidates,
+    pending,
   };
   let publishedQueue = queue;
   if (!staging) {
@@ -1029,9 +1102,7 @@ function enqueue(inDir, outDir, repoAbs) {
       queue,
       files: {
         [INJECTION_RECEIPT_FILE]: null,
-        'onboard-notes.json': queue.total === 0
-          ? { generation, kept: queue.kept, rejected: queue.rejected }
-          : null,
+        'onboard-notes.json': { generation, kept: queue.kept, rejected: queue.rejected },
       },
       statusMutator: (status) => {
         if (liveOnboardInjectionLease(status).live) return undefined;
@@ -1075,12 +1146,11 @@ function enqueue(inDir, outDir, repoAbs) {
     withQueueLock(queueFilePath(outDir), () => {
       writeJSONAtomic(queueFilePath(outDir), queue);
       try { fs.rmSync(path.join(outDir, INJECTION_RECEIPT_FILE), { force: true }); } catch { /* staging artifact */ }
-      if (queue.total === 0) writeOnboardNotesArtifact(outDir, queue, generation);
-      else try { fs.rmSync(path.join(outDir, 'onboard-notes.json'), { force: true }); } catch { /* staging artifact */ }
+      writeOnboardNotesArtifact(outDir, queue, generation);
     });
   }
-  if (!publishedQueue.total) {
-    console.error(`[learn] enqueue: no mined candidates in ${inDir}; wrote a completed empty queue.`);
+  if (publishedQueue.cursor >= publishedQueue.total) {
+    console.error(`[learn] enqueue: wrote the deterministic overview for an otherwise empty project.`);
     return;
   }
   console.error(`[learn] enqueue: ${publishedQueue.total} candidates written to ${queueFilePath(outDir)}`);
@@ -1187,7 +1257,7 @@ async function main() {
 
   if (has('inject')) {
     const expectedGeneration = arg('generation', queueGeneration(readOnboardQueue(outDir)));
-    await inject(notesFile, has('confirm'), arg('workspace', repoAbs), expectedGeneration, arg('owner', null));
+    await inject(notesFile, has('confirm'), arg('workspace', repoAbs), expectedGeneration, arg('owner', null), repoAbs);
     return;
   }
 
