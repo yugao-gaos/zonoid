@@ -81,10 +81,20 @@ function get(p) {
   });
 }
 
-async function waitForPing(ms = 8000) {
+// Boot deadline, not a latency budget: waitForReady returns the moment /health reports phase:'ready', so a
+// generous ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated.
+// 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
+// runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
+// still starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
+//
+// Probe /health, NOT /ping: daemon.js calls server.listen() before loadState() and /ping is in
+// LOADING_WHITELIST, so /ping answers 200 while every non-whitelisted route still 503s
+// {phase:'loading'}. Waiting on /ping therefore races boot, and the first real request after it
+// can get the 503 body instead of data.
+async function waitForReady(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
-    try { const r = await get('/ping'); if (r.status === 200) return true; } catch { /* not up yet */ }
+    try { const r = await get('/health'); if (r.status === 200 && r.body && r.body.phase === 'ready') return true; } catch { /* not up yet */ }
     await new Promise((r) => setTimeout(r, 100));
   }
   return false;
@@ -104,7 +114,7 @@ const gatedPath = (name) => `/search?gated=1&workspace=${encodeURIComponent(WS)}
     stdio: 'ignore',
   });
   try {
-    if (!(await waitForPing())) { console.log('FAIL  daemon did not come up'); process.exit(1); }
+    if (!(await waitForReady())) { console.log('FAIL  daemon did not come up'); process.exit(1); }
 
     // --- 1. gated + non-project-local topic → abstain, NO notes (first call lazy-loads MiniLM) ---
     const ab = await get(gatedPath('tls-local'));

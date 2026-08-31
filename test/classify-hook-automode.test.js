@@ -12,6 +12,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { writeCurlStub, hookEnv } = require('./helpers/curl-stub');
+const { bashExe } = require('./helpers/bash');
 
 const HOOK = path.resolve(__dirname, '..', 'hooks', 'classify.sh');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'classify-automode-'));
@@ -45,7 +46,7 @@ function runHook(input, extraEnv = {}) {
     ...extraEnv,
   });
   if (fs.existsSync(BODY_OUT)) fs.rmSync(BODY_OUT);
-  const r = spawnSync('bash', [HOOK], { input, encoding: 'utf8', env });
+  const r = spawnSync(bashExe(), [HOOK], { input, encoding: 'utf8', env });
   let body = null;
   if (fs.existsSync(BODY_OUT)) {
     try { body = JSON.parse(fs.readFileSync(BODY_OUT, 'utf8')); } catch { body = null; }

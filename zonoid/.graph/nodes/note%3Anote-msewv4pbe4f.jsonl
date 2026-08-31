@@ -1,0 +1,2 @@
+{"evt":"edge_added","from":"note:note-msewv4pbe4f","to":"note:note-msezy24t2w6","kind":"context","actor":"overlay-sync","ts":"2026-08-05T00:22:00.578Z","weight":0.7,"by":"judge","judged":true}
+{"evt":"edge_added","from":"note:note-msewv4pbe4f","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-08-05T00:22:00.578Z","weight":0.65,"by":"judge","judged":true}

@@ -28,6 +28,7 @@ const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-applypatc
 
 const SESSION = 'aaaaaaaa-feedface-0000-4000-800000000004';
 const { encodeWorkspace } = require('../lib/native-tasks');
+const { bashExe } = require('./helpers/bash');
 const PROJ_DIR = path.join(os.homedir(), '.claude', 'projects', encodeWorkspace(WS));
 const TASKS_DIR = path.join(os.homedir(), '.claude', 'tasks', SESSION);
 const K = (id) => `${SESSION}/${id}`;
@@ -53,10 +54,20 @@ function req(method, p, body) {
   });
 }
 
-async function waitForPing(ms = 8000) {
+// Boot deadline, not a latency budget: waitForReady returns the moment /health reports phase:'ready', so a
+// generous ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated.
+// 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
+// runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
+// still starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
+//
+// Probe /health, NOT /ping: daemon.js calls server.listen() before loadState() and /ping is in
+// LOADING_WHITELIST, so /ping answers 200 while every non-whitelisted route still 503s
+// {phase:'loading'}. Waiting on /ping therefore races boot, and the first real request after it
+// can get the 503 body instead of data.
+async function waitForReady(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
-    try { const r = await req('GET', '/ping'); if (r.status === 200) return true; } catch { /* not up yet */ }
+    try { const r = await req('GET', '/health'); if (r.status === 200 && r.body && r.body.phase === 'ready') return true; } catch { /* not up yet */ }
     await new Promise((r) => setTimeout(r, 100));
   }
   return false;
@@ -91,11 +102,11 @@ function runGateJs(payload) {
 }
 
 function bashAvailable() {
-  try { return spawnSync('bash', ['-c', 'command -v bash >/dev/null'], { timeout: 5000 }).status === 0; }
+  try { return spawnSync(bashExe(), ['-c', 'command -v bash >/dev/null'], { timeout: 5000 }).status === 0; }
   catch { return false; }
 }
 function runGateSh(payload) {
-  const res = spawnSync('bash', [path.join(HOOKS, 'orch-gate.sh')], {
+  const res = spawnSync(bashExe(), [path.join(HOOKS, 'orch-gate.sh')], {
     input: JSON.stringify(payload), encoding: 'utf8', timeout: 8000, env: gateEnv(),
   });
   return { code: res.status, stderr: (res.stderr || '').trim() };
@@ -113,14 +124,18 @@ function runGateSh(payload) {
     stdio: 'ignore',
   });
   try {
-    ok('daemon came up', await waitForPing());
+    ok('daemon came up', await waitForReady());
     ok('workspace pinned', (await req('POST', '/workspace', { path: WS })).status === 200);
     await req('GET', '/state');
     ok('root declared', (await req('POST', '/mark-root', { task_key: K(1), workspace: WS })).status === 200);
 
     // Branch an attempt worktree (registers it in overlay.git) then self-register-on-claim.
     // P3: no daemon-global workspace — repo resolution requires an explicit workspace per request.
-    const wt = await req('POST', '/git/worktree', { key: K(1), workspace: WS, repo_path: WS });
+    // `workspace` names the GRAPH repo only; the Git target is separate and is never inferred from
+    // it (lib/repo-target.resolveRepoTarget has no workspace fallback — see test/repo-target.test.js
+    // "single-repo convenience is not inferred by the daemon"). Choosing the repo is the caller's
+    // job, so the fixture must pass target_repo explicitly or the route 400s repo_target_required.
+    const wt = await req('POST', '/git/worktree', { key: K(1), workspace: WS, target_repo: WS });
     ok('attempt worktree created', wt.status === 200 && String(wt.body.branch).startsWith('orch/attempt/'));
     const WT = fs.realpathSync(wt.body.worktree);
     const claim = await req('POST', '/overlay/status', { key: K(1), status: 'in_progress', agent_id: 'cdx-worker', session_id: SESSION, workspace: WS });

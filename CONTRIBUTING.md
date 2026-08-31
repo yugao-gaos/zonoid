@@ -105,6 +105,14 @@ reconstructed from a ready signed
 same-build daemon with PID-file ownership; if the source checkout has advanced, that daemon is
 reuse-only and no new build may be spawned. Ambiguous legacy state leaves both lock and stash untouched.
 
+Workspace graphs tracked in the superproject (`zonoid/.graph/**`) are covered by the root
+`.gitattributes` instead, which marks them `merge=ours`. Git ships no built-in `ours` merge driver,
+so enable it once per clone or the attribute silently falls back to a conflicting text merge:
+
+```bash
+git config merge.ours.driver true
+```
+
 ## Pull request process
 
 1. Fork the repo and create a branch from `main`.

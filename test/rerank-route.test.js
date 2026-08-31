@@ -41,7 +41,11 @@ const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-rerank-ws
   overlayStore.save(WS, ov);
 }
 
-const PORT = 19420 + Math.floor(Math.random() * 200);
+// A random port inside a hand-picked range is not a free port: this file's old 19420-19619 range
+// was byte-identical to test/dag-supersede-head.test.js's, and a daemon leaked by any earlier suite
+// keeps LISTENING there. Ask the OS for a port that is free right now (see test/helpers/port.js).
+const { freePort } = require('./helpers/port');
+let PORT = 0;
 function get(p) {
   return new Promise((resolve, reject) => {
     const r = http.request({ host: '127.0.0.1', port: PORT, path: p, method: 'GET' }, (res) => {
@@ -53,10 +57,24 @@ function get(p) {
     r.end();
   });
 }
-async function waitForPing(ms = 8000) {
+// Boot deadline, not a latency budget: waitForReady returns the moment /health reports phase:'ready', so a
+// generous ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated.
+// 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
+// runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
+// still starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
+//
+// Wait on the /health PHASE, not /ping. daemon.js calls server.listen() BEFORE loadState(), and
+// /ping is in LOADING_WHITELIST — so /ping answers 200 the instant the port binds, while every
+// non-whitelisted route (including /search) still returns 503 {phase:'loading'}. Returning on /ping
+// therefore races boot, and under full-suite load (a cold disk, AV scanning the fresh runtime dir)
+// the race is lost: the first '/search ... HTTP 200' assertion fails on a 503, taking the rest with it.
+async function waitForReady(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
-    try { const r = await get('/ping'); if (r.status === 200) return true; } catch { /* not up */ }
+    try {
+      const r = await get('/health');
+      if (r.status === 200 && r.body && r.body.phase === 'ready') return true;
+    } catch { /* not up */ }
     await new Promise((r) => setTimeout(r, 100));
   }
   return false;
@@ -66,12 +84,13 @@ const q = encodeURIComponent('locale decimal sum parsing');
 const noteKeys = (b) => (b.results || []).filter((r) => String(r.key).startsWith('note:')).map((r) => r.key);
 
 (async () => {
+  PORT = await freePort();
   const daemon = spawn(process.execPath, [path.join(REPO, 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
     stdio: 'ignore',
   });
   try {
-    if (!(await waitForPing())) { console.log('FAIL  daemon did not come up'); process.exit(1); }
+    if (!(await waitForReady())) { console.log('FAIL  daemon did not reach phase:ready'); process.exit(1); }
 
     // 1. EXPLICIT OFF (?rerank=0) ⇒ inert. /search rerank is DEFAULT-ON now, so the off baseline must
     // be requested explicitly. Lexical order is A>B>C and nothing is reranked.

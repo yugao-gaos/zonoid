@@ -97,10 +97,22 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
   }
 
   try {
-    for (let i = 0; i < 80; i++) {
-      try { const r = await req('GET', '/ping'); if (r.body.ok) break; } catch { /* */ }
+    // Boot deadline, not a latency budget: this exits the moment /health reports phase:'ready', so a generous
+    // ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated. The
+    // old bound was 80 x 50ms = 4s, well under the real cold-start cost of a full daemon on Windows
+    // (fresh Node + AV scan of the runtime dir) once the machine is loaded — this is the same 30s
+    // every other daemon-spawning suite here uses.
+    //
+    // ASSERT the result rather than falling through. Without this the loop just gave up silently and
+    // the next request died on a bare `connect ECONNREFUSED 127.0.0.1:<port>` with no failed
+    // assertion next to it, which reads as an unrelated network fault instead of "the daemon never
+    // came up" — the actual failure, and the one worth reporting.
+    let up = false;
+    for (let i = 0; i < 600 && !up; i++) {
+      try { const r = await req('GET', '/health'); if (r.body && r.body.phase === 'ready') { up = true; break; } } catch { /* not up yet */ }
       await new Promise((r) => setTimeout(r, 50));
     }
+    ok('daemon came up', up);
 
     await req('POST', '/workspace', { path: WS, transcript: txA, session_id: 'conv-a', force: true });
     let health = await req('GET', '/health');

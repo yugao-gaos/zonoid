@@ -5,7 +5,7 @@
  * Unit tests for lib/headless-drain.js.
  * Run: node --test test/headless-drain.test.js
  *
- * ALL spawn calls are MOCKED — no real CLI or drain process is executed.
+ * ALL spawn calls are MOCKED â€” no real CLI or drain process is executed.
  * Tests are self-contained and do not touch the filesystem beyond temp dirs.
  */
 'use strict';
@@ -113,7 +113,7 @@ test('isHeadlessEnabled compatibility export always returns true', async () => {
 // Test 2: budget/concurrency caps honored
 // ---------------------------------------------------------------------------
 
-test('iterationsUsed >= maxIterations → runDueDrains skips with iterations_exhausted', async () => {
+test('iterationsUsed >= maxIterations â†’ runDueDrains skips with iterations_exhausted', async () => {
   // Set a very low cap via env
   const savedMax = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
   process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '2';
@@ -135,7 +135,7 @@ test('iterationsUsed >= maxIterations → runDueDrains skips with iterations_exh
   }
 });
 
-test('tokensUsed >= tokenBudget → runDueDrains skips with token_budget_exhausted', async () => {
+test('tokensUsed >= tokenBudget â†’ runDueDrains skips with token_budget_exhausted', async () => {
   const savedBudget = process.env.HEADLESS_DRAIN_TOKEN_BUDGET;
   process.env.HEADLESS_DRAIN_TOKEN_BUDGET = '1000';
   try {
@@ -155,7 +155,7 @@ test('tokensUsed >= tokenBudget → runDueDrains skips with token_budget_exhaust
   }
 });
 
-test('concurrentRunning >= maxConcurrency → runDueDrains skips with concurrency_cap', async () => {
+test('concurrentRunning >= maxConcurrency â†’ runDueDrains skips with concurrency_cap', async () => {
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '1';
   try {
@@ -204,10 +204,10 @@ test('host-wide lease cap blocks drains across daemon processes', async () => {
   }
 });
 
-test('no pending queue repos → runDueDrains skips with no_due_drains', async () => {
+test('no pending queue repos â†’ runDueDrains skips with no_due_drains', async () => {
   try {
     const hd = freshModule();
-    // Workspace with a completed queue (cursor === total) — not due
+    // Workspace with a completed queue (cursor === total) â€” not due
     const tmpDir = makeCompletedQueueDir();
     try {
       const result = await hd.runDueDrains({ workspace: tmpDir });
@@ -2152,7 +2152,12 @@ test('preparation miner failure is persisted truthfully and does not publish a q
 
 test('preparation timeout is persisted as an error and releases its worker slot', async () => {
   const savedTimeout = process.env.HEADLESS_DRAIN_PREPARATION_TIMEOUT_MS;
-  process.env.HEADLESS_DRAIN_PREPARATION_TIMEOUT_MS = '100';
+  // The budget must survive the pre-spawn setup (status claim, scavenge, mkdir, atomic marker):
+  // runOnboardPreparation checks remainingMs BEFORE each step and fails WITHOUT spawning when the
+  // deadline already passed. At 100ms Windows fs latency ate the whole budget, so the mocked child
+  // was never spawned and this test asserted against an empty spawn log. 2000ms leaves the timeout
+  // path exercised (the mock child never exits; runDrain kills it at the deadline) on every OS.
+  process.env.HEADLESS_DRAIN_PREPARATION_TIMEOUT_MS = '2000';
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-prepare-timeout-'));
   const outDir = path.join(repo, '.zonoid', 'onboard', path.basename(repo));
   fs.mkdirSync(outDir, { recursive: true });
@@ -2554,13 +2559,13 @@ test('stable queue aging serves continuous B and C queues while pending membersh
 
 // ---------------------------------------------------------------------------
 // Test 4: runDrain shape validation (direct invocation with a REAL async spawn of a trivial command)
-// runDrain now returns a Promise (async child_process.spawn) — these await it. Spawning the same Node
+// runDrain now returns a Promise (async child_process.spawn) â€” these await it. Spawning the same Node
 // that runs the test is fast, deterministic, and exercises the real non-blocking path end-to-end.
 // ---------------------------------------------------------------------------
 
 test('runDrain resolves with correct shape on a successful command (node --version)', async () => {
   const hd = freshModule();
-  // Use the same Node executable that runs this test — guaranteed to exist, fast, exit 0.
+  // Use the same Node executable that runs this test â€” guaranteed to exist, fast, exit 0.
   const result = await hd.runDrain({
     bin: process.execPath,
     args: ['--version'],
@@ -2575,7 +2580,7 @@ test('runDrain resolves with correct shape on a successful command (node --versi
 
 test('runDrain resolves with non-zero exitCode for a failing command', async () => {
   const hd = freshModule();
-  // node -e 'process.exit(42)' → exit code 42
+  // node -e 'process.exit(42)' â†’ exit code 42
   const result = await hd.runDrain({
     bin: process.execPath,
     args: ['-e', 'process.exit(42)'],
@@ -2588,12 +2593,12 @@ test('runDrain resolves with non-zero exitCode for a failing command', async () 
 
 test('runDrain resolves timedOut=true when the command exceeds the timeout', async () => {
   const hd = freshModule();
-  // node -e 'setTimeout(()=>{},9999)' → the unref'd timer SIGKILLs it after 200ms, close → timedOut.
+  // node -e 'setTimeout(()=>{},9999)' â†’ the unref'd timer SIGKILLs it after 200ms, close â†’ timedOut.
   const result = await hd.runDrain({
     bin: process.execPath,
     args: ['-e', 'setTimeout(()=>{},9999)'],
     cwd: os.tmpdir(),
-    timeoutMs: 200, // very short — will time out
+    timeoutMs: 200, // very short â€” will time out
   });
   assert.equal(result.timedOut, true, 'should be marked as timed out');
   assert.equal(result.exitCode, null, 'exitCode is null when the child was SIGKILL\'d on timeout');
@@ -2618,7 +2623,7 @@ test('runDrain resolves spawnError (not throw) when the binary does not exist', 
 test('HEADLESS_DRAIN_CONFIG has the same structural keys as AUTOSTART_CONFIG', () => {
   const hd = freshModule();
   const { AUTOSTART_CONFIG } = require('../lib/loop-autostart');
-  // Required overlapping keys (the drain config is a subset — it also has timeoutMs which
+  // Required overlapping keys (the drain config is a subset â€” it also has timeoutMs which
   // AUTOSTART_CONFIG does not, but all AUTOSTART_CONFIG keys should be covered or intentionally absent).
   const drainKeys = Object.keys(hd.HEADLESS_DRAIN_CONFIG);
   assert.ok(drainKeys.includes('tokenBudget'), 'must have tokenBudget');
@@ -2695,23 +2700,23 @@ test('backoffConfig defaults to a short retry window', () => {
 //
 // The judge drain drives the self-learn skill edge-judge mode via the selected backend against the
 // daemon, covering BOTH the periodic (/judge/next?budget=N) and eager (/judge/next?node=<key>)
-// paths. It rides the SAME runner + governor as the learner. ALL spawns are MOCKED — these tests
+// paths. It rides the SAME runner + governor as the learner. ALL spawns are MOCKED â€” these tests
 // never shell out to a real CLI or hit a live daemon.
 //
 // Mock seam: lib/headless-drain.js captures `spawn` via a top-level destructure of child_process.
 // Patching child_process.spawn BEFORE freshModule() (which re-requires the module) makes the fresh
-// module capture the patched fn, intercepting runDrain's spawn — no real CLI child runs.
+// module capture the patched fn, intercepting runDrain's spawn â€” no real CLI child runs.
 
 const { EventEmitter } = require('events');
 
 /**
  * A fake child process for the async `spawn` seam: an EventEmitter with stdout/stderr sub-emitters.
  * runDrain attaches data/close/error listeners, so the fake schedules its lifecycle on the next tick
- * (mirroring a real child) — emitting optional stdout/stderr data then `close`. The async schedule
+ * (mirroring a real child) â€” emitting optional stdout/stderr data then `close`. The async schedule
  * means the event loop genuinely yields between spawn and resolution, exactly as the real path does.
  *
- * @param {object} [opts] — { code=0 (close exit code), stdout='', stderr='', emitError=Error|null,
- *                            never=false (never emit close — simulate a child still running) }
+ * @param {object} [opts] â€” { code=0 (close exit code), stdout='', stderr='', emitError=Error|null,
+ *                            never=false (never emit close â€” simulate a child still running) }
  */
 function makeFakeChild(opts = {}) {
   const child = new EventEmitter();
@@ -2940,7 +2945,7 @@ test('runDueDrains spawns judge for each eager node + one periodic batch', async
   process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
   const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
   process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '10';
-  // Empty workspace ⇒ no learner spawn; judge work comes from injected deps.
+  // Empty workspace â‡’ no learner spawn; judge work comes from injected deps.
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
   const tmpDir = makeCompletedQueueDir();
   try {
@@ -3015,7 +3020,7 @@ test('judge fan-out is bounded by the iteration cap', async () => {
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
   const tmpDir = makeCompletedQueueDir();
   try {
-    // 3 eager nodes + periodic, but cap is 2 → only 2 spawns happen.
+    // 3 eager nodes + periodic, but cap is 2 â†’ only 2 spawns happen.
     const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(),
       { ...judgeDeps({ depth: 3, eagerNodes: ['note:a', 'note:b', 'note:c'] }), ...mockBackendDeps().deps });
     assert.equal(calls.length, 2, 'iteration cap must bound spawns to 2');
@@ -3030,13 +3035,13 @@ test('judge fan-out is bounded by the iteration cap', async () => {
   }
 });
 
-test('mandatory drains but no judge work due ⇒ no judge spawn (no_due_drains)', async () => {
+test('mandatory drains but no judge work due â‡’ no judge spawn (no_due_drains)', async () => {
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
   const tmpDir = makeCompletedQueueDir();
   try {
     const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(),
       judgeDeps({ depth: 0, eagerNodes: [] }));
-    assert.equal(calls.length, 0, 'no judge work ⇒ no spawn');
+    assert.equal(calls.length, 0, 'no judge work â‡’ no spawn');
     assert.equal(result.skipped, 'no_due_drains');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -3056,7 +3061,7 @@ test('mandatory drains but no judge work due ⇒ no judge spawn (no_due_drains)'
 
 // ---- resolveJudgeBackend: pure resolution paths --------------------------------------
 
-test('resolveJudgeBackend: agentic-cli available+authed ⇒ returns a spawnable invocation', () => {
+test('resolveJudgeBackend: agentic-cli available+authed â‡’ returns a spawnable invocation', () => {
   const hd = freshModule();
   const mb = mockBackendDeps({ id: 'mock-cli', available: true, authed: true });
   const r = hd.resolveJudgeBackend({}, { addDir: '/ws' }, mb.deps.backendDeps);
@@ -3067,7 +3072,7 @@ test('resolveJudgeBackend: agentic-cli available+authed ⇒ returns a spawnable 
   assert.deepEqual(r.invocation.env, { MOCK_ENV: '1' }, 'invocation.env comes from the provider');
 });
 
-test('resolveJudgeBackend: agentic-cli NOT authed ⇒ skip:no_backend (hard-block)', () => {
+test('resolveJudgeBackend: agentic-cli NOT authed â‡’ skip:no_backend (hard-block)', () => {
   const hd = freshModule();
   const mb = mockBackendDeps({ available: true, authed: false });
   const r = hd.resolveJudgeBackend({}, {}, mb.deps.backendDeps);
@@ -3075,14 +3080,14 @@ test('resolveJudgeBackend: agentic-cli NOT authed ⇒ skip:no_backend (hard-bloc
   assert.equal(mb.calls.buildInvocation, 0, 'must NOT build an invocation when hard-blocked');
 });
 
-test('resolveJudgeBackend: agentic-cli NOT available ⇒ skip:no_backend (hard-block)', () => {
+test('resolveJudgeBackend: agentic-cli NOT available â‡’ skip:no_backend (hard-block)', () => {
   const hd = freshModule();
   const mb = mockBackendDeps({ available: false, authed: true });
   const r = hd.resolveJudgeBackend({}, {}, mb.deps.backendDeps);
   assert.equal(r.skip, 'no_backend', 'unavailable backend hard-blocks');
 });
 
-test('resolveJudgeBackend: api-kind active backend (authed) ⇒ api resolution, no invocation built', () => {
+test('resolveJudgeBackend: api-kind active backend (authed) â‡’ api resolution, no invocation built', () => {
   const hd = freshModule();
   const mb = mockBackendDeps({ id: 'mock-api', kind: 'api', authed: true });
   const r = hd.resolveJudgeBackend({}, {}, mb.deps.backendDeps);
@@ -3092,10 +3097,10 @@ test('resolveJudgeBackend: api-kind active backend (authed) ⇒ api resolution, 
   assert.equal(r.provider, mb.provider, 'carries the api provider for the API worker');
   assert.equal(r.invocation, undefined, 'no spawnable invocation is built for an api backend');
   assert.equal(mb.calls.buildInvocation, 0, 'resolveJudgeBackend builds nothing for api');
-  assert.equal(mb.calls.runJudgeLoop, 0, 'resolveJudgeBackend is pure — it does NOT call runJudgeLoop itself');
+  assert.equal(mb.calls.runJudgeLoop, 0, 'resolveJudgeBackend is pure â€” it does NOT call runJudgeLoop itself');
 });
 
-test('resolveJudgeBackend: api-kind active backend with NO key ⇒ skip:no_backend (hard-block, not crash)', () => {
+test('resolveJudgeBackend: api-kind active backend with NO key â‡’ skip:no_backend (hard-block, not crash)', () => {
   const hd = freshModule();
   const mb = mockBackendDeps({ id: 'mock-api', kind: 'api', authed: false });
   const r = hd.resolveJudgeBackend({}, {}, mb.deps.backendDeps);
@@ -3132,11 +3137,11 @@ test('judge spawn argv is built by getActiveBackend().buildInvocation (mocked pr
   }
 });
 
-// ---- (d) HARD-BLOCK: no valid backend ⇒ judge no-ops with skipped:no_backend ----------
+// ---- (d) HARD-BLOCK: no valid backend â‡’ judge no-ops with skipped:no_backend ----------
 
-test('judge due but NO valid backend ⇒ no spawn, skipped:no_backend (hard-block, not crash)', async () => {
+test('judge due but NO valid backend â‡’ no spawn, skipped:no_backend (hard-block, not crash)', async () => {
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
-  const mb = mockBackendDeps({ available: true, authed: false }); // unauthed ⇒ hard-block
+  const mb = mockBackendDeps({ available: true, authed: false }); // unauthed â‡’ hard-block
   const tmpDir = makeCompletedQueueDir(); // learner NOT due; label deps empty below
   try {
     const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
@@ -3160,18 +3165,18 @@ test('hard-block judge does NOT suppress a due LABEL drain (label still runs)', 
   const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
   process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '10';
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
-  const mb = mockBackendDeps({ available: true, authed: false }); // judge hard-blocks…
+  const mb = mockBackendDeps({ available: true, authed: false }); // judge hard-blocksâ€¦
   const tmpDir = makeCompletedQueueDir();
   try {
     const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
       ...judgeDeps({ depth: 5, eagerNodes: ['note:a'] }),
-      ...labelDeps({ journal: [{ _k: 'a', task_key: 't1' }], labeledKeys: [] }), // …but label IS due
+      ...labelDeps({ journal: [{ _k: 'a', task_key: 't1' }], labeledKeys: [] }), // â€¦but label IS due
       ...mb.deps,
     });
     // The judge skip is non-fatal: the label drain still spawns, so skipped is null (a drain ran).
     assert.equal(calls.length, 1, 'only the label drain spawns (judge hard-blocked)');
     assert.equal(result.ran, 1);
-    assert.equal(result.skipped, null, 'a drain ran ⇒ skipped is null despite the judge hard-block');
+    assert.equal(result.skipped, null, 'a drain ran â‡’ skipped is null despite the judge hard-block');
     assert.equal(result.drains.filter((d) => d.drain === hd.LABEL_DRAIN_KEY).length, 1, 'the label drain ran');
     assert.equal(result.drains.filter((d) => d.drain === hd.JUDGE_DRAIN_KEY).length, 0, 'no judge drain ran');
     await waitForCondition(() => hd._governor.concurrentRunning === 0);
@@ -3185,9 +3190,9 @@ test('hard-block judge does NOT suppress a due LABEL drain (label still runs)', 
   }
 });
 
-// ---- (e) api-kind active backend ⇒ judge runs in a lightweight worker child --------------------
+// ---- (e) api-kind active backend â‡’ judge runs in a lightweight worker child --------------------
 
-test('api-kind active backend ⇒ judge spawns API worker, not provider invocation', async () => {
+test('api-kind active backend â‡’ judge spawns API worker, not provider invocation', async () => {
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
   const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -3207,10 +3212,10 @@ test('api-kind active backend ⇒ judge spawns API worker, not provider invocati
     assert.equal(mb.calls.buildInvocation, 0, 'api worker path must not build an agentic-cli invocation');
     assert.equal(result.ran, 3, 'api worker runs count as drains, same as CLI spawns');
     assert.equal(result.drains.filter((d) => d.drain === hd.JUDGE_DRAIN_KEY).length, 3);
-    assert.equal(result.skipped, null, 'judge ran ⇒ not skipped');
+    assert.equal(result.skipped, null, 'judge ran â‡’ not skipped');
     const workerArgs = calls.map((c) => {
       assert.equal(c.bin, process.execPath, 'api worker uses the current Node runtime');
-      assert.match(c.args[0], /scripts\/api-judge-worker\.js$/, 'api worker script is spawned');
+      assert.match(c.args[0], /scripts[\/\\]api-judge-worker\.js$/, 'api worker script is spawned');
       return JSON.parse(c.args[1]);
     });
     const nodes = workerArgs.map((a) => a.node || null);
@@ -3231,9 +3236,9 @@ test('api-kind active backend ⇒ judge spawns API worker, not provider invocati
   }
 });
 
-test('api-kind backend with NO key ⇒ judge hard-blocks (skipped:no_backend), no worker spawn', async () => {
+test('api-kind backend with NO key â‡’ judge hard-blocks (skipped:no_backend), no worker spawn', async () => {
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
-  const mb = mockBackendDeps({ id: 'mock-api', kind: 'api', authed: false }); // no key ⇒ hard-block
+  const mb = mockBackendDeps({ id: 'mock-api', kind: 'api', authed: false }); // no key â‡’ hard-block
   const tmpDir = makeCompletedQueueDir();
   try {
     const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
@@ -3299,8 +3304,8 @@ test('api worker throttle result feeds the backoff governor (recordDrainOutcome)
 // ===========================================================================
 //
 // The label drain runs the DETERMINISTIC gate-labeler (node scripts/gate-label.js) headless under
-// the SAME runner + governor as the learner — a Node child via process.execPath, NOT an agentic CLI.
-// ALL spawns are MOCKED — these tests never shell out to a real gate-label.js or hit a live daemon.
+// the SAME runner + governor as the learner â€” a Node child via process.execPath, NOT an agentic CLI.
+// ALL spawns are MOCKED â€” these tests never shell out to a real gate-label.js or hit a live daemon.
 // Mock seam is identical to the JUDGE tests: patch child_process.spawn BEFORE freshModule().
 
 // ---- buildLabelArgs: command shape ---------------------------------------------------
@@ -3315,7 +3320,7 @@ test('buildLabelArgs builds correct node invocation for gate-label.js (workspace
   assert.equal(args[2], '/some/workspace', 'third arg must be the workspace path');
   assert.equal(args[3], '--port', 'fourth arg must be --port');
   assert.equal(args[4], '9191', 'fifth arg must be the stringified port');
-  // It targets gate-label.js — NOT onboard-learn.js and NOT an agentic CLI prompt.
+  // It targets gate-label.js â€” NOT onboard-learn.js and NOT an agentic CLI prompt.
   assert.doesNotMatch(args[0], /onboard-learn/, 'must NOT target the learner script');
   assert.ok(!args.includes('-p'), 'label drain is a Node script, NOT an agentic CLI invocation');
 });
@@ -3367,8 +3372,8 @@ test('findDueLabelWork: rows without a task_key are skipped (unlabelable)', () =
   const hd = freshModule();
   const deps = labelDeps({
     journal: [
-      { _k: 'a' },               // no task_key → unlabelable
-      { _k: 'b', task_key: '' },  // empty task_key → unlabelable
+      { _k: 'a' },               // no task_key â†’ unlabelable
+      { _k: 'b', task_key: '' },  // empty task_key â†’ unlabelable
     ],
     labeledKeys: [],
   }).labelDeps;
@@ -3407,20 +3412,20 @@ test('runDueDrains spawns ONE label drain (node gate-label.js), governor account
   const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
   process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '10';
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
-  // Completed learner queue ⇒ no learner spawn; empty judge deps ⇒ no judge spawn.
+  // Completed learner queue â‡’ no learner spawn; empty judge deps â‡’ no judge spawn.
   const tmpDir = makeCompletedQueueDir();
   try {
     const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
       ...judgeDeps({ depth: 0, eagerNodes: [] }),
       ...labelDeps({ journal: [{ _k: 'a', task_key: 't1' }, { _k: 'b', task_key: 't2' }], labeledKeys: [] }),
     });
-    // Exactly one spawn — the label drain.
+    // Exactly one spawn â€” the label drain.
     assert.equal(calls.length, 1, 'exactly one label spawn');
     assert.equal(result.ran, 1, 'ran counts the single label drain');
     const labelDrains = result.drains.filter((d) => d.drain === hd.LABEL_DRAIN_KEY);
     assert.equal(labelDrains.length, 1, 'one LABEL_DRAIN_KEY summary recorded');
     assert.equal(labelDrains[0].pending, 2, 'summary carries the pending count');
-    // The spawn is `node <gate-label.js> --workspace <ws> --port <n>` — Node child, NOT agentic CLI.
+    // The spawn is `node <gate-label.js> --workspace <ws> --port <n>` â€” Node child, NOT agentic CLI.
     const call = calls[0];
     assert.equal(call.bin, process.execPath, 'must spawn via the daemon Node (process.execPath)');
     assert.equal(call.opts.env, undefined, 'label child inherits the daemon env without an extra sentinel');
@@ -3481,7 +3486,7 @@ test('in-flight detached label drain suppresses duplicate label spawns', async (
   }
 });
 
-test('mandatory drains but no label work due ⇒ no label spawn', async () => {
+test('mandatory drains but no label work due â‡’ no label spawn', async () => {
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
   const tmpDir = makeCompletedQueueDir();
   try {
@@ -3489,7 +3494,7 @@ test('mandatory drains but no label work due ⇒ no label spawn', async () => {
       ...judgeDeps({ depth: 0, eagerNodes: [] }),
       ...labelDeps({ journal: [], labeledKeys: [] }),
     });
-    assert.equal(calls.length, 0, 'empty journal ⇒ no label spawn');
+    assert.equal(calls.length, 0, 'empty journal â‡’ no label spawn');
     assert.equal(result.skipped, 'no_due_drains');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -3503,7 +3508,7 @@ test('label spawn is suppressed when the concurrency cap is already reached', as
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
   const tmpDir = makeCompletedQueueDir();
   try {
-    // Pre-seed concurrency at the cap → the top-of-function guard short-circuits with concurrency_cap
+    // Pre-seed concurrency at the cap â†’ the top-of-function guard short-circuits with concurrency_cap
     // BEFORE any drain runs, proving the label drain shares the same governor gate as the others.
     hd._governor.concurrentRunning = 2;
     const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
@@ -3563,7 +3568,7 @@ test('recordDrainOutcome: backoff window is capped at capMs', () => {
 
 test('runDueDrains no-ops with skipped:backoff while backoffUntil is in the future', async () => {
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
-  const tmpDir = makePendingQueueDir(); // learner WOULD be due — backoff must pre-empt it
+  const tmpDir = makePendingQueueDir(); // learner WOULD be due â€” backoff must pre-empt it
   try {
     hd._governor.backoffUntil = Date.now() + 60_000;
     const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
@@ -3607,7 +3612,7 @@ test('label iteration is suppressed when the iteration cap is exhausted mid-pass
   const tmpDir = makeCompletedQueueDir();
   try {
     // One eager judge spawn consumes the single iteration; the label drain must then be skipped
-    // by its `iterationsUsed < maxIterations` guard — proving the label rides the shared iteration cap.
+    // by its `iterationsUsed < maxIterations` guard â€” proving the label rides the shared iteration cap.
     const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
       ...judgeDeps({ depth: 0, eagerNodes: ['note:a'] }),
       ...labelDeps({ journal: [{ _k: 'a', task_key: 't1' }], labeledKeys: [] }),
@@ -3635,7 +3640,7 @@ test('label iteration is suppressed when the iteration cap is exhausted mid-pass
 // COSMETIC-ONLY guard: child_process spawns on Windows flash a console window unless the launch
 // opts carry `windowsHide: true`. runDrain is the single chokepoint every drain (learner/judge/label)
 // funnels through, so asserting it here covers the whole drain family. The mocked-spawn seam records
-// the opts object handed to spawn — we assert the flag is present and true. This has ZERO functional
+// the opts object handed to spawn â€” we assert the flag is present and true. This has ZERO functional
 // effect (no flag/gate/behavior change); it only hides the cosmetic popup.
 
 test('runDrain passes windowsHide:true to spawn (Windows console-popup suppression)', async () => {
@@ -3649,7 +3654,7 @@ test('runDrain passes windowsHide:true to spawn (Windows console-popup suppressi
     });
     assert.equal(calls.length, 1, 'runDrain should spawn exactly one child');
     assert.equal(calls[0].opts.windowsHide, true, 'spawn opts must carry windowsHide:true to suppress the Windows console window');
-    // The flag must not perturb the resolved shape — runDrain still resolves the normal contract.
+    // The flag must not perturb the resolved shape â€” runDrain still resolves the normal contract.
     assert.equal(result.spawnError, null, 'windowsHide must not introduce a spawn error');
   } finally {
     restore();
@@ -3686,7 +3691,7 @@ test('every runDueDrains spawn (judge fan-out) carries windowsHide:true', async 
 //
 // THE BUG this guards: runDrain used spawnSync, which blocks the daemon's single-threaded event
 // loop for the ENTIRE child run. The JUDGE backend calls BACK into the daemon
-// (GET /judge/next + POST /judge/verdict) and the LABEL child HTTP-calls it too — but a frozen
+// (GET /judge/next + POST /judge/verdict) and the LABEL child HTTP-calls it too â€” but a frozen
 // event loop serves NONE of those, so the child hangs waiting on the daemon while the daemon hangs
 // inside spawnSync waiting on the child: a circular deadlock that only broke when the timeout fired.
 // The 40 mocked-spawn tests above never caught it because the mock never actually runs a child.
@@ -3718,8 +3723,8 @@ function httpGet(url) {
 
 test('DEADLOCK REGRESSION: daemon (http server) stays responsive while a drain child runs against it', async () => {
   // 1) Stand up a real stand-in daemon: a tiny http server on an ephemeral port.
-  //    /ping  → immediate liveness probe (the independent mid-drain request).
-  //    /judge/next → the endpoint the drain child calls back into (like the real JUDGE drain).
+  //    /ping  â†’ immediate liveness probe (the independent mid-drain request).
+  //    /judge/next â†’ the endpoint the drain child calls back into (like the real JUDGE drain).
   let pingServedDuringDrain = false;
   let childCalledBack = false;
   const server = http.createServer((req, res) => {
@@ -3758,7 +3763,7 @@ test('DEADLOCK REGRESSION: daemon (http server) stays responsive while a drain c
   `;
 
   try {
-    // 3) Kick off the drain WITHOUT awaiting — it returns a Promise immediately (proving it does not
+    // 3) Kick off the drain WITHOUT awaiting â€” it returns a Promise immediately (proving it does not
     //    block synchronously). Inject the target URL via env on the child.
     const savedTarget = process.env.DRAIN_TARGET;
     process.env.DRAIN_TARGET = base;
@@ -3782,11 +3787,11 @@ test('DEADLOCK REGRESSION: daemon (http server) stays responsive while a drain c
     await new Promise((r) => setTimeout(r, 150));
     const ping = await httpGet(`${base}/ping`);
     assert.equal(ping.status, 200, 'liveness probe must be served WHILE the drain is in flight');
-    assert.ok(ping.ms < 3000, `liveness probe must be answered promptly (was ${ping.ms}ms) — a blocked loop would stall it until the drain timeout`);
+    assert.ok(ping.ms < 3000, `liveness probe must be answered promptly (was ${ping.ms}ms) â€” a blocked loop would stall it until the drain timeout`);
 
-    // 5) The drain child completes on its own (server answered its callback) — exit 0, not a timeout.
+    // 5) The drain child completes on its own (server answered its callback) â€” exit 0, not a timeout.
     const result = await drainPromise;
-    assert.equal(result.timedOut, false, 'drain must NOT time out — the deadlock would force a timeout');
+    assert.equal(result.timedOut, false, 'drain must NOT time out â€” the deadlock would force a timeout');
     assert.equal(result.exitCode, 0, 'drain child should exit 0 after its HTTP callback was served');
     assert.equal(childCalledBack, true, 'the drain child actually called back into the server (/judge/next)');
     assert.equal(pingServedDuringDrain, true, 'the independent /ping was served during the drain');

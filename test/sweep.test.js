@@ -68,10 +68,14 @@ function req(method, p, body) {
   });
 }
 
-async function waitForDaemon(ms = 8000) {
+// Boot deadline, not a latency budget — returns the moment /health reports phase:'ready', so a generous ceiling
+// costs nothing on a fast boot and only decides how long a SLOW one is tolerated. 8s was under the
+// real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the runtime dir). This
+// is the same 30s bound every other daemon-spawning suite here uses.
+async function waitForDaemon(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
-    try { const r = await req('GET', '/ping'); if (r.status === 200) return true; } catch { /* not up yet */ }
+    try { const r = await req('GET', '/health'); if (r.status === 200 && r.body && r.body.phase === 'ready') return true; } catch { /* not up yet */ }
     await new Promise((r) => setTimeout(r, 100));
   }
   return false;

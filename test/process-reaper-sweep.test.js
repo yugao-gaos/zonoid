@@ -17,6 +17,10 @@ const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-reap
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-reaper-ws-')));
 process.env.ORCH_DATA = SANDBOX;
 process.env.ORCH_WORKSPACE = WS;
+// The sweep supervises the shared wake host, so a pending hosted row makes it spawn one. Keep that
+// host short-lived so the suite does not leave a process behind.
+process.env.ORCH_WAKE_HOST_TICK_MS = '50';
+process.env.ORCH_WAKE_HOST_IDLE_MS = '300';
 
 const sw = require('../lib/schedule-wakeup');
 
@@ -96,6 +100,53 @@ test('sweepStaleWakeups: ORCH_WAKEUP_GRACE_MIN widens the overdue window', () =>
     else process.env.ORCH_WAKEUP_GRACE_MIN = prev;
     writeRegistry({});
   }
+});
+
+// ---------------- PART 1b: hosted rows (the shared wake host) ----------------
+
+// Hosted rows carry payload + fire path and no pid of their own — the shared host delivers them.
+// Nothing here may be killed by pid: the only pid such a row could name is the host, which owns
+// every OTHER session's pending wake too.
+function hostedRow({ fireAt, session, fire }) {
+  return { fireAt, session, fire: fire || path.join(SANDBOX, `${session}.fire`), payload: { delaySeconds: 0, reason: 'r', prompt: 'p' } };
+}
+
+test('sweepStaleWakeups: prunes a hosted row nothing delivered, killing nothing', () => {
+  const fireAt = Date.now() - (60 * 60 * 1000); // 1h past, far beyond the 5min grace
+  writeRegistry({ s_hosted: hostedRow({ fireAt, session: 's_hosted' }) });
+  const r = sw.sweepStaleWakeups();
+  assert.equal(r.killed, 0, 'a hosted row has no process to kill');
+  assert.equal(r.pruned, 1);
+  assert.equal(r.undelivered, 1, 'counted as a delivery failure');
+  assert.ok(!('s_hosted' in readRegistry()), 'undelivered row removed');
+});
+
+test('sweepStaleWakeups: an undelivered row releases the host registration without killing it', () => {
+  // Point the host pidfile at a pid we know is alive and is NOT a host (this test process). The
+  // sweep must drop the registration — never kill the pid, which it can no longer identify.
+  const hp = sw._hostPidPath(sw.resolveRegistryPath());
+  fs.mkdirSync(path.dirname(hp), { recursive: true });
+  fs.writeFileSync(hp, String(process.pid));
+  writeRegistry({ s_undeliv: hostedRow({ fireAt: Date.now() - (60 * 60 * 1000), session: 's_undeliv' }) });
+  const r = sw.sweepStaleWakeups();
+  assert.equal(r.undelivered, 1);
+  assert.equal(sw._readHostPid(sw.resolveRegistryPath()), null, 'stale host registration released');
+  assert.ok(sw._probePidAlive(process.pid), 'the pid behind it was never killed');
+  writeRegistry({});
+});
+
+test('sweepStaleWakeups: leaves a pending hosted row alone and keeps a host for it', async () => {
+  writeRegistry({ s_pending: hostedRow({ fireAt: Date.now() + (60 * 1000), session: 's_pending' }) });
+  const r = sw.sweepStaleWakeups();
+  assert.equal(r.pruned, 0);
+  assert.equal(r.hosted, 1, 'row still needs a host');
+  assert.ok('s_pending' in readRegistry(), 'pending row retained');
+  const host = sw._readHostPid(sw.resolveRegistryPath());
+  assert.ok(sw._probePidAlive(host), 'sweep started a host to deliver it');
+  // Draining the registry lets that host idle-exit instead of outliving the suite.
+  writeRegistry({});
+  for (let i = 0; i < 60 && sw._probePidAlive(host); i++) await new Promise((res) => setTimeout(res, 50));
+  assert.ok(!sw._probePidAlive(host), 'host exits once nothing is pending');
 });
 
 // ---------------- PART 2: sweepOrphanProcesses (janitor) ----------------

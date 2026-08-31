@@ -13,7 +13,10 @@ const TEST_DIR = path.join(ROOT, 'test');
 const TIMEOUT_MS = 120_000; // per-file safety net
 const FILE_TIMEOUT_MS = {
   'endpoints.test.js': 240_000,
-  'onboard-auto-init.test.js': 180_000,
+  // Boots more than a dozen REAL daemons (cold start, crash-boundary restarts, token-auth
+  // restarts). The integrated suite has been observed at roughly seven minutes under load, so keep
+  // this safety net above that honest runtime instead of reporting a timeout with no failed case.
+  'onboard-auto-init.test.js': 600_000,
   'phase2-integration.test.js': 180_000,
   'sync-route.test.js': 240_000,
 };

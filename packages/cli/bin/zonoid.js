@@ -197,14 +197,41 @@ function checkHooks() {
   warn(`Missing hooks: ${missing.join(', ')} — re-run after verifying the install dir`);
 }
 
+// The `__INSTALL_DIR__` placeholders sit INSIDE JSON string literals, so the install path has to be
+// substituted as JSON source text, not as a raw path. On Windows every separator is a backslash, and
+// splicing `C:\Users\…` in verbatim produces `\U` — an invalid JSON escape that makes JSON.parse
+// throw "Bad escaped character", aborting `init` at the workspace-config step. A function replacer
+// also keeps `$&`/`$1` in the path from being read as replacement patterns.
+function jsonStringBody(value) {
+  return JSON.stringify(String(value)).slice(1, -1);
+}
+
+// "Is this command already wired?" must be answered against the DECODED strings. JSON.stringify()
+// doubles every backslash, so a Windows command `C:\Users\…\classify.sh` is searched for in text
+// that holds `C:\\Users\\…`, never matches, and `init` re-merges + re-backs-up the same config on
+// every run — which is exactly what makes a repeat init non-idempotent on Windows.
+function jsonStringLeaves(node, out = []) {
+  if (typeof node === 'string') out.push(node);
+  else if (Array.isArray(node)) for (const item of node) jsonStringLeaves(item, out);
+  else if (node && typeof node === 'object') for (const item of Object.values(node)) jsonStringLeaves(item, out);
+  return out;
+}
+
+function jsonStringHaystack(node) {
+  return jsonStringLeaves(node).join('\n');
+}
+
+function fillInstallDirTemplate(source) {
+  const installDir = jsonStringBody(INSTALL_DIR);
+  return String(source)
+    .replace(/__INSTALL_DIR__/g, () => installDir)
+    .replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, () => installDir);
+}
+
 function loadSampleSettings() {
   const src = path.join(INSTALL_DIR, '.claude', 'settings.sample.json');
   try {
-    return JSON.parse(
-      fs.readFileSync(src, 'utf8')
-        .replace(/__INSTALL_DIR__/g, INSTALL_DIR)
-        .replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, INSTALL_DIR)
-    );
+    return JSON.parse(fillInstallDirTemplate(fs.readFileSync(src, 'utf8')));
   } catch (e) { warn(`Sample not found at ${src}`); return null; }
 }
 
@@ -266,7 +293,7 @@ function checkSettings(cwd) {
   catch (e) { warn('Cannot parse settings.json — leaving as-is'); return; }
 
   // Check if all sample hooks are already wired to this install dir
-  const content = JSON.stringify(existing);
+  const content = jsonStringHaystack(existing);
   const hasTemplate = content.includes('__INSTALL_DIR__') || content.includes('${CLAUDE_PLUGIN_ROOT}');
   const missingHooks = Object.values(sample.hooks || {}).flat()
     .flatMap(e => (e.hooks || []).map(h => h.command))
@@ -533,6 +560,40 @@ function restoreDshProfile(profileDir, captured) {
   }
 }
 
+// Windows has no execve: libuv can start a `.exe` found on PATH, but a `.cmd`/`.bat` shim — which
+// is exactly what npm installs for `dsh` — must go through the shell. `spawnSync('dsh', …)` fails
+// ENOENT for every real DSH install on win32, so resolve the command against PATH + PATHEXT and
+// report back only when the hit is a shim (same rule as needsShell in lib/llm-backend.js).
+function resolveWindowsShim(command, env = process.env) {
+  if (process.platform !== 'win32') return null;
+  if (path.isAbsolute(command) || command.includes('/') || command.includes('\\')) {
+    return /\.(cmd|bat)$/i.test(command) ? command : null;
+  }
+  const extensions = String(env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean);
+  for (const dir of String(env.PATH || '').split(path.delimiter).filter(Boolean)) {
+    for (const extension of ['', ...extensions]) {
+      const candidate = path.join(dir, `${command}${extension}`);
+      let stat;
+      try { stat = fs.statSync(candidate); } catch { continue; }
+      if (!stat.isFile()) continue;
+      // The first PATH hit wins, exactly as CreateProcess would resolve it. Only a shim needs
+      // the shell; a real executable is left to the normal (safer, unquoted) spawn path.
+      return /\.(cmd|bat)$/i.test(candidate) ? candidate : null;
+    }
+  }
+  return null;
+}
+
+// One pre-quoted command line for `shell: true`. Node concatenates argv unquoted under a shell
+// (DEP0190), so build the line here and spawn it with an empty argv instead.
+function windowsShellCommandLine(command, args) {
+  const quote = (value) => {
+    const text = String(value);
+    return /[\s&|<>^"()]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  };
+  return [command, ...args].map(quote).join(' ');
+}
+
 // Use DSH's public plugin manager rather than rewriting a user's profile or Cordis patch. The
 // plugin command performs an additive dependency/bundle merge; we back up its metadata inputs and
 // restore them on any non-zero or unverifiable result. User cordis.patch.yml, other dependencies,
@@ -555,14 +616,22 @@ function installDshProfile(options = {}) {
   backupDshProfile(profileDir, captured);
   const command = options.command || 'dsh';
   const args = ['plugin', '--profile', profile, 'add', dshBundleSpec(bundle.path)];
+  // An injected spawner is a test double and always receives the logical command; only the real
+  // spawn needs the win32 shim treatment.
+  const shim = options.spawnSyncFn ? null : resolveWindowsShim(command);
   let result;
   try {
-    result = (options.spawnSyncFn || spawnSync)(command, args, {
-      cwd: options.cwd || INSTALL_DIR,
-      env: { ...process.env, DSH_HOME: home },
-      encoding: 'utf8',
-      windowsHide: true,
-    });
+    result = (options.spawnSyncFn || spawnSync)(
+      shim ? windowsShellCommandLine(shim, args) : command,
+      shim ? [] : args,
+      {
+        cwd: options.cwd || INSTALL_DIR,
+        env: { ...process.env, DSH_HOME: home },
+        encoding: 'utf8',
+        windowsHide: true,
+        shell: !!shim,
+      },
+    );
   } catch (error) {
     restoreDshProfile(profileDir, captured);
     throw error;
@@ -1586,9 +1655,7 @@ function checkCursorHooks(cwd) {
   const dest = path.join(cwd, '.cursor', 'hooks.json');
   if (!fs.existsSync(samplePath)) { warn(`Cursor hook sample missing at ${samplePath}`); return; }
   chmodScripts(path.join(INSTALL_DIR, 'adapters', 'cursor'));
-  const sample = JSON.parse(
-    fs.readFileSync(samplePath, 'utf8').replace(/__INSTALL_DIR__/g, INSTALL_DIR)
-  );
+  const sample = JSON.parse(fillInstallDirTemplate(fs.readFileSync(samplePath, 'utf8')));
   const classifyMarker = `${INSTALL_DIR}/adapters/cursor/classify.sh`;
   const gateMarker = `${INSTALL_DIR}/adapters/cursor/orch-gate.sh`;
   const todoMarker = `${INSTALL_DIR}/adapters/cursor/post-todo-adopt.sh`;
@@ -1598,7 +1665,7 @@ function checkCursorHooks(cwd) {
     let existing;
     try { existing = JSON.parse(fs.readFileSync(dest, 'utf8')); }
     catch (e) { warn('Cannot parse .cursor/hooks.json — leaving as-is'); return; }
-    const content = JSON.stringify(existing);
+    const content = jsonStringHaystack(existing);
     if (content.includes(classifyMarker) && content.includes(gateMarker) && content.includes(todoMarker)) {
       ok('.cursor/hooks.json already references this install');
       return;
@@ -1870,7 +1937,7 @@ function checkCodexHooks() {
   const sample = path.join(INSTALL_DIR, 'adapters', 'codex', 'hooks.json.sample');
   const dest = path.join(os.homedir(), '.codex', 'hooks.json');
   if (!fs.existsSync(sample)) { warn(`Codex hook sample missing at ${sample}`); return; }
-  const sampleJson = JSON.parse(fs.readFileSync(sample, 'utf8').replace(/__INSTALL_DIR__/g, INSTALL_DIR));
+  const sampleJson = JSON.parse(fillInstallDirTemplate(fs.readFileSync(sample, 'utf8')));
   chmodScripts(path.join(INSTALL_DIR, 'adapters', 'codex', 'hooks'));
   if (fs.existsSync(dest)) {
     let existing;

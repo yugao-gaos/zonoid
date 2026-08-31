@@ -13,7 +13,12 @@ process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
 const nt = require('../lib/native-tasks');
 const overlayStore = require('../lib/overlay');
 
-const PORT = 18860 + Math.floor(Math.random() * 100);
+// Free port from the OS, not a random pick in a reserved-by-comment range: the ranges overlap
+// between suites and are never checked for occupancy, so a daemon leaked by an earlier run answers
+// /ping from a deleted sandbox and every later assertion fails for an unrelated-looking reason.
+// See test/helpers/port.js.
+const { freePort } = require("./helpers/port");
+let PORT = 0;
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-adopt-ws-')));
 const SESSION = `bbbbbbbb0000${process.pid.toString(16).padStart(8, '0')}`;
 const PROJ_DIR = path.join(os.homedir(), '.claude', 'projects', nt.encodeWorkspace(WS));
@@ -43,10 +48,20 @@ function req(method, p, body) {
   });
 }
 
-async function waitForPing(ms = 8000) {
+// Boot deadline, not a latency budget: waitForReady returns the moment /health reports phase:'ready', so a
+// generous ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated.
+// 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
+// runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
+// still starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
+//
+// Probe /health, NOT /ping: daemon.js calls server.listen() before loadState() and /ping is in
+// LOADING_WHITELIST, so /ping answers 200 while every non-whitelisted route still 503s
+// {phase:'loading'}. Waiting on /ping therefore races boot, and the first real request after it
+// can get the 503 body instead of data.
+async function waitForReady(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
-    try { const r = await req('GET', '/ping'); if (r.status === 200) return true; } catch { /* */ }
+    try { const r = await req('GET', '/health'); if (r.status === 200 && r.body && r.body.phase === 'ready') return true; } catch { /* */ }
     await new Promise((r) => setTimeout(r, 100));
   }
   return false;
@@ -82,6 +97,7 @@ async function waitForAdoption(timeoutMs = 5000) {
 }
 
 (async () => {
+  PORT = await freePort();
   fs.mkdirSync(PROJ_DIR, { recursive: true });
   fs.writeFileSync(path.join(PROJ_DIR, `${SESSION}.jsonl`), '');
   fs.mkdirSync(TASKS_DIR, { recursive: true });
@@ -90,7 +106,7 @@ async function waitForAdoption(timeoutMs = 5000) {
 
   let child = spawnDaemon();
   try {
-    ok('daemon came up', await waitForPing());
+    ok('daemon came up', await waitForReady());
     await req('POST', '/workspace', { path: WS });
 
     // (A) first buildGraph adopts native stub into overlay snapshot

@@ -33,13 +33,17 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { spawn, execSync } = require('child_process');
+const { freePort } = require('./helpers/port');
 
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ats-base-')));
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ats-ws-')));
 
-// Port range 19560-19589 — outside the ranges used by other tests.
-const PORT = 19560 + Math.floor(Math.random() * 30);
-const BASE = `http://127.0.0.1:${PORT}`;
+// Ask the OS for a free port rather than picking one out of a reserved-by-comment range. The old
+// range (19560-19589) was neither exclusive — endpoints.test.js owns 19550-19649, which contains it
+// — nor checked for occupancy, so a daemon leaked by an earlier run answered /ping from a deleted
+// sandbox and every assertion below it failed. See test/helpers/port.js.
+let PORT = 0;
+let BASE = '';
 
 // P3: ops require an explicit workspace (no daemon-global default). Single-workspace suite ⇒
 // default WS into POST bodies and GET query strings (skip /workspace, /ping, explicit workspace).
@@ -55,10 +59,21 @@ function withWs(p) {
   return p + (p.includes('?') ? '&' : '?') + 'workspace=' + encodeURIComponent(WS);
 }
 async function get(p) { const res = await fetch(`${BASE}${withWs(p)}`); return { status: res.status, body: await res.json() }; }
-async function waitForPing(ms = 10000) {
+// Boot deadline, not a latency budget: waitForReady returns the moment /health reports phase:'ready', so a
+// generous ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated.
+// 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
+// runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
+// still starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
+//
+// Probe /health, NOT /ping: daemon.js calls server.listen() before loadState() and /ping is in
+// LOADING_WHITELIST, so /ping answers 200 while every non-whitelisted route still 503s
+// {phase:'loading'}. Waiting on /ping therefore races boot, and the first real request after it
+// can get the 503 body instead of data.
+
+async function waitForReady(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
-    try { const r = await get('/ping'); if (r.body && r.body.ok) return true; } catch { /* not up */ }
+    try { const r = await get('/health'); if (r.body && r.body.phase === 'ready') return true; } catch { /* not up */ }
     await new Promise((r) => setTimeout(r, 100));
   }
   return false;
@@ -69,6 +84,9 @@ function readAgent(agentId) {
 }
 
 test('hook-style /agent/start (agent_tool_spawn:true, no parent_session_id) registers + claims', async () => {
+  PORT = await freePort();
+  BASE = `http://127.0.0.1:${PORT}`;
+
   // WS doubles as the workspace AND the task repo (claim requires a registered worktree).
   execSync('git init -q', { cwd: WS });
   execSync('git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init', { cwd: WS });
@@ -78,7 +96,7 @@ test('hook-style /agent/start (agent_tool_spawn:true, no parent_session_id) regi
     stdio: 'ignore',
   });
   try {
-    assert.ok(await waitForPing(), 'sandboxed daemon came up');
+    assert.ok(await waitForReady(), 'sandboxed daemon came up');
     assert.equal((await post('/workspace', { path: WS })).body.ok, true, 'workspace pinned');
 
     const SID = crypto.randomUUID();      // the (shared) dispatcher session the hook reports

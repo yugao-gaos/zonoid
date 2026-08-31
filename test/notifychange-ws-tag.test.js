@@ -39,13 +39,19 @@ async function post(p, body) {
   return { status: res.status, body: await res.json() };
 }
 
-async function waitForPing(ms = 10000) {
+// Boot deadline, not a latency budget: waitForReady returns the moment /health reports phase:'ready', so a
+// generous ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated.
+// 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
+// runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
+// still starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
+
+async function waitForReady(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     try {
-      const res = await fetch(`${base()}/ping`);
+      const res = await fetch(`${base()}/health`);
       const j = await res.json();
-      if (j && j.ok) return true;
+      if (j && j.phase === 'ready') return true;
     } catch { /* not up yet */ }
     await new Promise((r) => setTimeout(r, 100));
   }
@@ -143,7 +149,7 @@ test('notifyChange(T.ws): targeted mutations emit workspace-tagged SSE events', 
   });
 
   try {
-    assert.ok(await waitForPing(), 'sandboxed daemon came up');
+    assert.ok(await waitForReady(), 'sandboxed daemon came up');
     // Register the workspace so targetOverlay resolves T.ws to WS (not a default fallback).
     const wsResp = await post('/workspace', { path: WS });
     assert.equal(wsResp.body.ok, true, 'workspace registered');

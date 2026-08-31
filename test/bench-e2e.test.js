@@ -115,7 +115,7 @@ function httpJson(port, method, urlPath, body) {
     });
     try {
       for (let i = 0; i < 80; i++) {
-        try { const p = await httpJson(PORT, 'GET', '/ping'); if (p.status === 200) break; } catch { /* */ }
+        try { const p = await httpJson(PORT, 'GET', '/health'); if (p.status === 200 && p.body && p.body.phase === 'ready') break; } catch { /* */ }
         await new Promise((r) => setTimeout(r, 100));
       }
       fixtures = bench.writeNativeFixtures(WS, session, scenario);

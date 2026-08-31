@@ -104,6 +104,16 @@ function authed(req, u) {
 const cache = { agg: new Map(), aggAt: new Map(), usage: new Map(), usageStamp: new Map() };
 const AGG_TTL = 1500;
 
+// Graph snapshot cache (shared by buildGraph + readGraphSnapshot) — see buildGraph for the why.
+// Declared HERE, beside the aggregate cache, because the two must be invalidated TOGETHER: the
+// projection buildGraph caches is computed FROM the native/file-drop aggregate, so an aggregate that
+// changed without an overlay write (a dropped stub, an edited native task file) leaves the snapshot
+// stale even though its own overlay-mtime stamp still matches. Use invalidateAggregate() /
+// invalidateAllAggregates() for those: they drop this cache too. (Mutation routes that clear
+// cache.agg directly are safe as-is — they SAVE the overlay first, which bumps the mtime this cache
+// is stamped on, so it invalidates itself. Only the no-overlay-write paths need the helpers.)
+const snapCache = new Map();   // ws -> { graph, stamp }
+
 // Response cache for expensive read endpoints: dashboards + heartbeats poll both, and every call
 // rebuilds the whole graph (buildGraph) / recomputes SCC+flow. The default short TTL bounds state
 // staleness. Ordinary entries invalidate immediately through
@@ -214,10 +224,24 @@ function aggregateCached(ws) {
   return v;
 }
 
+// Single choke point for "the native/file-drop aggregate for this workspace may have changed".
+// Drops the graph snapshot too: buildGraph's cache is stamped on the OVERLAY mtime only, so a pure
+// aggregate change (new stub file, edited native task) would otherwise keep serving the projection
+// built before it. Observed as: POST /sync adopting nothing and a renamed native task never echoing.
 function invalidateAggregate(ws) {
   cache.agg.delete(ws);
   cache.aggAt.delete(ws);
   snapCache.delete(ws);
+}
+
+// Same, for the watchers that cannot attribute a change to one workspace. Response entries go
+// through invalidateRespCache (not a blanket clear) so bounded-stale opt-in entries keep their
+// caller-supplied safety TTL semantics.
+function invalidateAllAggregates() {
+  cache.agg.clear();
+  cache.aggAt.clear();
+  snapCache.clear();
+  invalidateRespCache();
 }
 
 // (P3) The Phase-1 workspace-fallback observability seam (warnWorkspaceFallback) has been REMOVED:
@@ -329,9 +353,9 @@ function usageCached(p) {
   }
   return v;
 }
-claudeHarness.tasks.watch(() => { cache.agg.clear(); cache.aggAt.clear(); snapCache.clear(); invalidateRespCache(); }); // Claude native task dir
+claudeHarness.tasks.watch(invalidateAllAggregates); // Claude native task dir
 // filedrop.watch below covers designated-folder stubs
-filedrop.watch(() => { cache.agg.clear(); cache.aggAt.clear(); snapCache.clear(); invalidateRespCache(); }); // designated-folder stub drops surface without /sync
+filedrop.watch(invalidateAllAggregates);            // designated-folder stub drops surface without /sync
 
 const ACTION_STATUSES = ['in_progress', 'tested', 'done', 'failed', 'canceled'];
 const ALL_STATUSES = ['not_ready', 'ready', ...ACTION_STATUSES];
@@ -2234,7 +2258,7 @@ function sweepFiledropStubs(ws) {
   const result = filedropGc.sweepWorkspaceStubs(ws, ov, { dryRun: false });
   if (result.adopted.length || result.removed.length) {
     saveCachedOverlay(ws, ov);
-    cache.agg.delete(ws); cache.aggAt.delete(ws);
+    invalidateAggregate(ws);
   }
   return result;
 }
@@ -2562,7 +2586,7 @@ function reconcileGraphBeforeProjection(ws, ovWs) {
   // Release dead/abandoned claims BEFORE reading native, busting the aggregate cache so a reverted
   // native status is reflected in this same build (not one poll later). Sweeps the TARGET
   // workspace's overlay, so stale claims release wherever the read lands.
-  const invalidate = () => { cache.agg.delete(ws); cache.aggAt.delete(ws); };
+  const invalidate = () => invalidateAggregate(ws);
   if (sweepStaleClaims(ws, ovWs)) invalidate();
   let native = aggregateCached(ws);
   if (sweepStaleNativeClaims(ws, ovWs, native)) {
@@ -2812,10 +2836,11 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
 }
 
 // Build the graph for one workspace: explicit reconciliation side effects, then projection.
-// Graph snapshot cache (shared by buildGraph + readGraphSnapshot). Keyed by the overlay file mtime —
-// the SAME stamp the overlay + response caches use — so any mutation rebuilds immediately, but repeated
-// reads over a stable overlay reuse ONE projection.
-const snapCache = new Map();   // ws -> { graph, stamp }
+// Graph snapshot cache (declared with `cache` up top). Keyed by the overlay file mtime — the SAME
+// stamp the overlay + response caches use — so any overlay mutation rebuilds immediately, but
+// repeated reads over a stable overlay reuse ONE projection. The mtime alone is NOT sufficient: the
+// projection also consumes the native/file-drop aggregate, which changes with no overlay write, so
+// invalidateAggregate()/invalidateAllAggregates() drop this cache as well.
 function buildGraphUncached(ws) {
   // P3: every workspace's overlay is the per-workspace cache entry (overlayFor) — there is no
   // special "current" workspace. The cache entry is the authoritative, write-coalesced in-memory
@@ -3095,7 +3120,7 @@ const ctx = {
   send, sendOp, readBody, notifyChange, graphAutoflush, buildGraph, effectiveTaskStatuses, readGraphSnapshot, targetOverlay, overlayFor, invalidateAggregate, resolveRepo, resolveRepoTarget, nodeExistsInGraph, registeredWorkspaces,
   validateMetricSpec, validateBenchmark,
   overlayStore, harness: claudeHarness, harnessRegistry, filedrop, writeTaskStatus, readNativeTask, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
-  cache, loops, saveLoops, saveAgents,
+  cache, invalidateAggregate, invalidateAllAggregates, loops, saveLoops, saveAgents,
   get bootState() { return bootState; },
   GIT_HEAD, DAEMON_BUILD_ID, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL, WORKSPACES_FILE, STALE_MINUTES_DEFAULT,
   daemonLog,
@@ -3227,7 +3252,14 @@ function isPrimaryCheckout(root) {
 module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleSnapshotClaimKeys, releaseSnapshotClaim, staleNativeClaimKeys, releaseNativeClaim, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings, worktreeVouchesLive, depSatisfied, vouchedLive, STALE_MINUTES_DEFAULT,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, graphAutoflush, RESP_TTL, sseClients, nodeExistsInGraph, dispatchInProgressCount,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
-  decideOne, decideAll, ensureManagedGraphLoops, buildGraph, effectiveTaskStatuses, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __readinessDetailForTest: readinessDetail, __compareLoopPriorityForTest: compareLoopPriority, __createHeadlessSpawnExecutorForTest: createDaemonHeadlessSpawnExecutor, __usageCachedForTest: usageCached, __clearUsageCacheForTest: () => { cache.usage.clear(); cache.usageStamp.clear(); }, __invalidateRespCacheForTest: invalidateRespCache, __clearRespCacheForTest: () => respCache.clear(), __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
+  // __clearOverlayCacheForTest clears BOTH overlay-derived caches. Tests mutate their overlay
+  // in memory only (via __setOverlayForTest), so the overlay FILE mtime never advances — and
+  // overlayCache, respCache and snapCache are ALL keyed on that mtime (overlayStamp). Clearing
+  // overlayCache alone left snapCache holding the first projection forever: overlayFor() returned
+  // the mutated overlay while buildGraph() kept serving the stale graph built from its pre-mutation
+  // state, so readiness assertions silently read first-build values. Any cache keyed on
+  // overlayStamp must be cleared here.
+  decideOne, decideAll, ensureManagedGraphLoops, buildGraph, effectiveTaskStatuses, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __readinessDetailForTest: readinessDetail, __compareLoopPriorityForTest: compareLoopPriority, __createHeadlessSpawnExecutorForTest: createDaemonHeadlessSpawnExecutor, __usageCachedForTest: usageCached, __clearUsageCacheForTest: () => { cache.usage.clear(); cache.usageStamp.clear(); }, __invalidateRespCacheForTest: invalidateRespCache, __clearRespCacheForTest: () => respCache.clear(), __clearOverlayCacheForTest: () => { overlayCache.clear(); snapCache.clear(); }, __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
 
 if (require.main === module) {
   // Log unhandled promise rejections instead of crashing (Node's default is to exit the process).

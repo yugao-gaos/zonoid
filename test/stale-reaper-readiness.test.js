@@ -77,6 +77,11 @@ test('stale-reaper readiness regression', { timeout: 30000 }, async (t) => {
     assert.equal(reaped, true, 'sweep released the stale in_progress claim');
     assert.equal(overlayFor(WS).status['cursor/impl'], undefined, 'in_progress override cleared by the reap');
     const after = buildGraph(WS);
+    // Assert the reverted impl POSITIVELY, not just the unchanged judge: 'judge is still not_ready'
+    // is also what a stale cached projection reports, so on its own this subtest passed vacuously
+    // while buildGraph was serving a pre-reap snapshot. Pinning impl back to 'ready' (claim gone,
+    // no blocking deps) means only a genuine rebuild can satisfy it.
+    assert.equal(statusOf(after, 'cursor/impl'), 'ready', 'impl reverted to an unclaimed ready state by the reap');
     assert.equal(statusOf(after, 'cursor/judge'), 'not_ready', 'judge still not_ready after the reap (impl reverted to pending)');
   });
 
