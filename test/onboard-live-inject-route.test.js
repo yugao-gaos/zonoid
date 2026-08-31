@@ -536,15 +536,26 @@ test('GET /onboard/drain-queue recovers status from queue files after in-memory 
   const repo = tmpDir;
   const sent = [];
   const previousJobs = global.__drainJobs;
+  const generation = 'generation-observable-background-progress';
+  const learnerNextAt = Date.now() + 60000;
   delete global.__drainJobs;
 
   try {
-    writeQueue(outDir, 4, 4);
+    writeQueue(outDir, 4, 4, [], generation);
     fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
       repo,
       outDir,
       autoInject: true,
       injected: true,
+      queueGeneration: generation,
+      injectionGeneration: generation,
+      learnerGeneration: generation,
+      learnerNextAt,
+      structureGeneration: generation,
+      structureNodesInjected: 24,
+      structureNodesTotal: 48,
+      structureEdgesInjected: 12,
+      structureEdgesTotal: 36,
     }));
     const route = onboardRoute(makeCtx({}, sent, () => {}, [repo]));
     const url = new URL(`http://localhost/onboard/drain-queue?repo=${encodeURIComponent(repo)}&outDir=${encodeURIComponent(outDir)}`);
@@ -558,6 +569,12 @@ test('GET /onboard/drain-queue recovers status from queue files after in-memory 
     assert.equal(sent[0].payload.status.done, true);
     assert.equal(sent[0].payload.status.injected, false);
     assert.equal(sent[0].payload.status.injectionState, 'not_needed');
+    assert.equal(sent[0].payload.status.learnerNextAt, learnerNextAt);
+    assert.equal(sent[0].payload.status.learnerWaiting, true);
+    assert.equal(sent[0].payload.status.structureNodesInjected, 24);
+    assert.equal(sent[0].payload.status.structureNodesTotal, 48);
+    assert.equal(sent[0].payload.status.structureEdgesInjected, 12);
+    assert.equal(sent[0].payload.status.structureEdgesTotal, 36);
   } finally {
     if (previousJobs === undefined) delete global.__drainJobs;
     else global.__drainJobs = previousJobs;
@@ -1397,6 +1414,70 @@ test('overview injection receipts one note before document structure replay', as
     assert.equal(calls.filter((call) => call.url === '/onboard/complete-overview').length, 1);
     assert.equal(calls.some((call) => call.url === '/overlay/knowledge-node'), false);
     assert.equal(onboardState.onboardOverviewReceiptReady(outDir, generation, [overview]), true);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('document structure injection checkpoints current-generation progress across retries', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-structure-checkpoint-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const generation = 'generation-structure-checkpoint';
+  const nodes = [0, 1, 2].map((index) => ({ key: `source:${index}`, type: 'source_chunk', label: `Source ${index}` }));
+  const edges = [
+    { from: 'source:0', to: 'source:1', kind: 'context' },
+    { from: 'source:1', to: 'source:2', kind: 'context' },
+  ];
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'doc-structure.json'), JSON.stringify({ nodes, edges }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo,
+      outDir,
+      injectionGeneration: generation,
+      injectionState: 'running',
+    }));
+
+    await assert.rejects(learner.injectDocumentStructure(
+      outDir,
+      repo,
+      async (_method, url, body) => {
+        if (url === '/overlay/knowledge-node' && body.key === 'source:2') throw new Error('transient structure failure');
+        return { ok: true };
+      },
+      () => {},
+      { generation, checkpointEvery: 1 }
+    ), /transient structure failure/);
+
+    let checkpoint = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-structure-injection.json'), 'utf8'));
+    assert.equal(checkpoint.generation, generation);
+    assert.equal(checkpoint.nodes, 2);
+    assert.equal(checkpoint.edges, 0);
+    const retryCalls = [];
+    const result = await learner.injectDocumentStructure(
+      outDir,
+      repo,
+      async (method, url, body) => {
+        retryCalls.push({ method, url, body });
+        return { ok: true };
+      },
+      () => {},
+      { generation, checkpointEvery: 1 }
+    );
+
+    assert.equal(result.nodes, 3);
+    assert.equal(result.edges, 2);
+    assert.deepEqual(
+      retryCalls.filter((call) => call.url === '/overlay/knowledge-node').map((call) => call.body.key),
+      ['source:2'],
+      'retry resumes after the last durable node instead of replaying the full structure'
+    );
+    checkpoint = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-structure-injection.json'), 'utf8'));
+    assert.equal(checkpoint.complete, true);
+    const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.structureGeneration, generation);
+    assert.equal(status.structureNodesInjected, 3);
+    assert.equal(status.structureEdgesInjected, 2);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
