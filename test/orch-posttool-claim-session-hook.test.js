@@ -205,6 +205,54 @@ function desktopSessionMeta(parentSession, childSession, windowId = null) {
     }
 
     {
+      const parentSession = '01a05418-cf8c-7a00-adc2-0b13eee860ca';
+      const childSession = '01a05606-303e-7342-af86-80d33d596727';
+      const permit = {
+        workspace: '/graph/desktop-no-transcript',
+        session_id: childSession,
+        task_key: 'codex/claim-hook-probe',
+        agent_id: 'worker-probe',
+      };
+      const payload = assignmentPayload('subconscious_assignment', {
+        session_id: parentSession,
+        agent_id: childSession,
+        tool_input: {
+          action: 'accept',
+          task_key: 'codex/claim-hook-probe',
+          agent_id: 'worker-probe',
+          session_id: childSession,
+        },
+        tool_response: { ok: true, execution_permit: permit },
+      });
+      const desktopEnv = { ...env, CODEX_THREAD_ID: parentSession, CODEX_SESSION_ID: parentSession };
+
+      const before = stub.requests.length;
+      assert.equal((await run(process.execPath, [NODE_HOOK], payload, desktopEnv)).code, 0);
+      assert.equal(stub.requests.length, before + 1, 'host-level child UUID should bind without transcript metadata');
+      assert.deepEqual(lastRequest(stub).body, {
+        task_key: 'codex/claim-hook-probe',
+        session_id: childSession,
+        agent_id: 'worker-probe',
+        workspace: '/graph/desktop-no-transcript',
+        expected_session_id: childSession,
+      });
+
+      const untrustedCases = [
+        ['non-UUID top-level logical agent', { agent_id: 'logical-worker' }],
+        ['absent top-level agent', { agent_id: undefined }],
+        ['malformed transcript', {
+          transcript_path: transcript('desktop-no-transcript-malformed', '{not-json'),
+        }],
+      ];
+      for (const [label, overrides] of untrustedCases) {
+        const untrustedBefore = stub.requests.length;
+        const result = await run(process.execPath, [NODE_HOOK], { ...payload, ...overrides }, desktopEnv);
+        assert.equal(result.code, 0, label);
+        assert.equal(stub.requests.length, untrustedBefore, `${label} must not rebind an explicit child permit to the parent`);
+      }
+    }
+
+    {
       const parentSession = 'unproven-parent-session';
       const childSession = 'explicit-child-session';
       const permit = {
@@ -488,6 +536,47 @@ function desktopSessionMeta(parentSession, childSession, windowId = null) {
         workspace: '/graph/shell-desktop-child',
         expected_session_id: shellChild,
       });
+
+      const noTranscriptBefore = stub.requests.length;
+      const shellTransportParent = '01a05418-cf8c-7a00-adc2-0b13eee860ca';
+      const shellTransportChild = '01a05606-303e-7342-af86-80d33d596727';
+      const shellNoTranscriptPermit = {
+        workspace: '/graph/shell-desktop-no-transcript',
+        session_id: shellTransportChild,
+        task_key: 'codex/claim-hook-probe',
+        agent_id: 'worker-probe',
+      };
+      const noTranscriptPayload = assignmentPayload('subconscious_assignment', {
+        session_id: shellTransportParent,
+        agent_id: shellTransportChild,
+        tool_input: {
+          action: 'accept',
+          task_key: 'codex/claim-hook-probe',
+          agent_id: 'worker-probe',
+          session_id: shellTransportChild,
+        },
+        tool_response: { ok: true, execution_permit: shellNoTranscriptPermit },
+      });
+      const noTranscriptEnv = {
+        ...env,
+        CODEX_THREAD_ID: shellTransportParent,
+        CODEX_SESSION_ID: shellTransportParent,
+      };
+      assert.equal((await run('bash', [CODEX_SHELL_HOOK], noTranscriptPayload, noTranscriptEnv)).code, 0);
+      assert.equal(stub.requests.length, noTranscriptBefore + 1, 'Codex shell relay should bind a host-level child UUID without transcript metadata');
+      assert.deepEqual(lastRequest(stub).body, {
+        task_key: 'codex/claim-hook-probe',
+        session_id: shellTransportChild,
+        agent_id: 'worker-probe',
+        workspace: '/graph/shell-desktop-no-transcript',
+        expected_session_id: shellTransportChild,
+      });
+
+      const noAgentBefore = stub.requests.length;
+      const noAgentPayload = { ...noTranscriptPayload };
+      delete noAgentPayload.agent_id;
+      assert.equal((await run('bash', [CODEX_SHELL_HOOK], noAgentPayload, noTranscriptEnv)).code, 0);
+      assert.equal(stub.requests.length, noAgentBefore, 'Codex shell relay must not rebind an explicit child permit to the parent without the host UUID');
 
       const missingAgentBefore = stub.requests.length;
       const missingAgentPayload = { ...transcriptPayload };
