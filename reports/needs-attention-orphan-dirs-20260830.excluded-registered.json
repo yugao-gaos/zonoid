@@ -1,0 +1,49 @@
+{
+  "repo": "/Users/imyu/Desktop/zonoid",
+  "task_key": "codex/audit-needs-attention-orphan-dirs-20260830",
+  "excluded_registered_worktrees": [
+    {
+      "path": "worktrees/4bba9e1822e94e4d/codex-exec-brain-state-seam",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/4bba9e1822e94e4d/codex-exec-brain-state-seam",
+      "reason": "2 uncommitted change(s)",
+      "branch": "orch/attempt/codex-exec-brain-state-seam"
+    },
+    {
+      "path": "worktrees/4bba9e1822e94e4d/codex-exec-brain-state-seam-agent-impl",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/4bba9e1822e94e4d/codex-exec-brain-state-seam-agent-impl",
+      "reason": "1 uncommitted change(s)",
+      "branch": "orch/attempt/codex-exec-brain-state-seam-agent-impl"
+    },
+    {
+      "path": "worktrees/62dae274979b8432/59fc18e1-744e-4f7a-9093-a8e12d43087b-21",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/62dae274979b8432/59fc18e1-744e-4f7a-9093-a8e12d43087b-21",
+      "reason": "255 uncommitted change(s); 2 unmerged commit(s)",
+      "branch": "orch/attempt/59fc18e1-744e-4f7a-9093-a8e12d43087b-21"
+    },
+    {
+      "path": "worktrees/62dae274979b8432/9195fb5e-f196-497d-962f-69616733d2e9-2",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/62dae274979b8432/9195fb5e-f196-497d-962f-69616733d2e9-2",
+      "reason": "2 uncommitted change(s)",
+      "branch": "orch/attempt/9195fb5e-f196-497d-962f-69616733d2e9-2"
+    },
+    {
+      "path": "worktrees/62dae274979b8432/9195fb5e-f196-497d-962f-69616733d2e9-27",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/62dae274979b8432/9195fb5e-f196-497d-962f-69616733d2e9-27",
+      "reason": "4 uncommitted change(s)",
+      "branch": "orch/attempt/9195fb5e-f196-497d-962f-69616733d2e9-27"
+    },
+    {
+      "path": "worktrees/62dae274979b8432/bench-context-inject-4arm-run-sonnet-v2",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/62dae274979b8432/bench-context-inject-4arm-run-sonnet-v2",
+      "reason": "4 uncommitted change(s); 1 unmerged commit(s)",
+      "branch": "orch/attempt/bench-context-inject-4arm-run-sonnet-v2"
+    },
+    {
+      "path": "worktrees/62dae274979b8432/feature-consolidate-universal-skills",
+      "absolute_path": "/Users/imyu/Desktop/zonoid/worktrees/62dae274979b8432/feature-consolidate-universal-skills",
+      "reason": "6 uncommitted change(s)",
+      "branch": "orch/feature/consolidate-universal-skills"
+    }
+  ],
+  "count": 7
+}

@@ -15,6 +15,7 @@ const learner = require('../scripts/onboard-learn');
 const onboardInitTransaction = require('../lib/onboard-init-transaction');
 const onboardState = require('../lib/onboard-state');
 const headlessDrain = require('../lib/headless-drain');
+const overlayStore = require('../lib/overlay');
 const workspaceRegistry = require('../lib/workspace-registry');
 const {
   defaultOnboardOutDir,
@@ -535,15 +536,26 @@ test('GET /onboard/drain-queue recovers status from queue files after in-memory 
   const repo = tmpDir;
   const sent = [];
   const previousJobs = global.__drainJobs;
+  const generation = 'generation-observable-background-progress';
+  const learnerNextAt = Date.now() + 60000;
   delete global.__drainJobs;
 
   try {
-    writeQueue(outDir, 4, 4);
+    writeQueue(outDir, 4, 4, [], generation);
     fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
       repo,
       outDir,
       autoInject: true,
       injected: true,
+      queueGeneration: generation,
+      injectionGeneration: generation,
+      learnerGeneration: generation,
+      learnerNextAt,
+      structureGeneration: generation,
+      structureNodesInjected: 24,
+      structureNodesTotal: 48,
+      structureEdgesInjected: 12,
+      structureEdgesTotal: 36,
     }));
     const route = onboardRoute(makeCtx({}, sent, () => {}, [repo]));
     const url = new URL(`http://localhost/onboard/drain-queue?repo=${encodeURIComponent(repo)}&outDir=${encodeURIComponent(outDir)}`);
@@ -557,6 +569,12 @@ test('GET /onboard/drain-queue recovers status from queue files after in-memory 
     assert.equal(sent[0].payload.status.done, true);
     assert.equal(sent[0].payload.status.injected, false);
     assert.equal(sent[0].payload.status.injectionState, 'not_needed');
+    assert.equal(sent[0].payload.status.learnerNextAt, learnerNextAt);
+    assert.equal(sent[0].payload.status.learnerWaiting, true);
+    assert.equal(sent[0].payload.status.structureNodesInjected, 24);
+    assert.equal(sent[0].payload.status.structureNodesTotal, 48);
+    assert.equal(sent[0].payload.status.structureEdgesInjected, 12);
+    assert.equal(sent[0].payload.status.structureEdgesTotal, 36);
   } finally {
     if (previousJobs === undefined) delete global.__drainJobs;
     else global.__drainJobs = previousJobs;
@@ -1344,6 +1362,190 @@ test('direct injection reports receipt progress as pending and resets its failur
     if (savedBase === undefined) delete process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS;
     else process.env.HEADLESS_DRAIN_INJECTION_BACKOFF_BASE_MS = savedBase;
   }
+});
+
+test('overview injection receipts one note before document structure replay', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-overview-first-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const generation = 'generation-overview-first';
+  const owner = 'overview-owner';
+  const overview = {
+    title: 'Project repository overview',
+    summary: 'Compact deterministic repository inventory.',
+    kind: 'overview',
+    evidence: 'deterministic repository miner inventory',
+    evidence_refs: [],
+    onboard_overview: 1,
+  };
+  const broad = { title: 'Broad candidate', summary: 'Learn later', kind: 'decision' };
+  const calls = [];
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      generation, total: 2, cursor: 1, kept: [overview], rejected: [], pending: [overview, broad],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ generation, kept: [overview], rejected: [] }));
+    fs.writeFileSync(path.join(outDir, 'doc-structure.json'), JSON.stringify({
+      nodes: [{ key: 'source:large', type: 'source_doc', label: 'Must wait' }],
+      edges: [{ from: 'source:large', to: 'source:other', kind: 'context' }],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo, outDir, injectionGeneration: generation, injectionState: 'running', injectionOwner: owner,
+    }));
+
+    const result = await learner.injectOnboardNotes(
+      path.join(outDir, 'onboard-notes.json'), true, repo,
+      async (method, url, body) => {
+        calls.push({ method, url, body });
+        if (method === 'GET' && url.startsWith('/state')) return { tasks: [] };
+        if (url === '/overlay/note') return { key: 'note:overview' };
+        if (url === '/onboard/complete-overview') {
+          onboardState.confirmInjectedNote(outDir, generation, overview, 0);
+          return { ok: true, overviewReady: true, taskKey: 'onboard/architecture-investigation' };
+        }
+        throw new Error(`unexpected request ${method} ${url}`);
+      },
+      { expectedGeneration: generation, expectedOwner: owner, repo }
+    );
+
+    assert.equal(result.overview, true);
+    assert.equal(result.structure.nodes, 0);
+    assert.equal(calls.filter((call) => call.url === '/overlay/note').length, 1);
+    assert.equal(calls.filter((call) => call.url === '/onboard/complete-overview').length, 1);
+    assert.equal(calls.some((call) => call.url === '/overlay/knowledge-node'), false);
+    assert.equal(onboardState.onboardOverviewReceiptReady(outDir, generation, [overview]), true);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('document structure injection checkpoints current-generation progress across retries', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-structure-checkpoint-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const generation = 'generation-structure-checkpoint';
+  const nodes = [0, 1, 2].map((index) => ({ key: `source:${index}`, type: 'source_chunk', label: `Source ${index}` }));
+  const edges = [
+    { from: 'source:0', to: 'source:1', kind: 'context' },
+    { from: 'source:1', to: 'source:2', kind: 'context' },
+  ];
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'doc-structure.json'), JSON.stringify({ nodes, edges }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo,
+      outDir,
+      injectionGeneration: generation,
+      injectionState: 'running',
+    }));
+
+    await assert.rejects(learner.injectDocumentStructure(
+      outDir,
+      repo,
+      async (_method, url, body) => {
+        if (url === '/overlay/knowledge-node' && body.key === 'source:2') throw new Error('transient structure failure');
+        return { ok: true };
+      },
+      () => {},
+      { generation, checkpointEvery: 1 }
+    ), /transient structure failure/);
+
+    let checkpoint = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-structure-injection.json'), 'utf8'));
+    assert.equal(checkpoint.generation, generation);
+    assert.equal(checkpoint.nodes, 2);
+    assert.equal(checkpoint.edges, 0);
+    const retryCalls = [];
+    const result = await learner.injectDocumentStructure(
+      outDir,
+      repo,
+      async (method, url, body) => {
+        retryCalls.push({ method, url, body });
+        return { ok: true };
+      },
+      () => {},
+      { generation, checkpointEvery: 1 }
+    );
+
+    assert.equal(result.nodes, 3);
+    assert.equal(result.edges, 2);
+    assert.deepEqual(
+      retryCalls.filter((call) => call.url === '/overlay/knowledge-node').map((call) => call.body.key),
+      ['source:2'],
+      'retry resumes after the last durable node instead of replaying the full structure'
+    );
+    checkpoint = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-structure-injection.json'), 'utf8'));
+    assert.equal(checkpoint.complete, true);
+    const status = JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8'));
+    assert.equal(status.structureGeneration, generation);
+    assert.equal(status.structureNodesInjected, 3);
+    assert.equal(status.structureEdgesInjected, 2);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('overview completion creates exactly one visible bounded architecture task', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-overview-task-'));
+  const outDir = defaultOnboardOutDir(repo);
+  const generation = 'generation-overview-task';
+  const owner = 'overview-task-owner';
+  const overview = {
+    title: 'Repository overview', summary: 'Deterministic inventory.', kind: 'overview',
+    evidence: 'deterministic repository miner inventory', onboard_overview: 1,
+  };
+  const ov = overlayStore.EMPTY();
+  ov.note_nodes.overview = { id: 'overview', title: '[ingest] Repository overview', summary: overview.summary };
+  const workspace = `${repo}-graph`;
+  const body = { repo, outDir, generation, owner, workspace, noteKey: 'note:overview', noteIndex: 0 };
+  const sent = [];
+  let saves = 0;
+  let targetedWorkspace = null;
+  try {
+    writeQueue(outDir, 1, 1, [overview], generation);
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo, outDir, injectionGeneration: generation, injectionState: 'running', injectionOwner: owner,
+    }));
+    const route = onboardRoute({
+      readBody: async () => body,
+      send: (_res, status, payload) => sent.push({ status, payload }),
+      notifyChange: () => {},
+      registeredWorkspaces: () => new Set([repo]),
+      targetOverlay: ({ graph_repo: graphRepo }) => {
+        targetedWorkspace = graphRepo;
+        return { ws: graphRepo, ov, save: () => { saves++; } };
+      },
+      overlayStore,
+    });
+
+    await route('/onboard/complete-overview', 'POST', {}, {}, new URL('http://localhost/onboard/complete-overview'));
+    await route('/onboard/complete-overview', 'POST', {}, {}, new URL('http://localhost/onboard/complete-overview'));
+
+    assert.deepEqual(sent.map((entry) => entry.status), [200, 200]);
+    assert.equal(sent[0].payload.created, true);
+    assert.equal(sent[1].payload.created, false);
+    assert.equal(targetedWorkspace, workspace, 'the task must share the injected note target workspace');
+    assert.equal(Object.keys(ov.snapshots).filter((key) => key === 'onboard/architecture-investigation').length, 1);
+    assert.equal(ov.snapshots['onboard/architecture-investigation'].metadata.batch_task, true);
+    assert.equal(ov.snapshots['onboard/architecture-investigation'].metadata.bounded, true);
+    assert.equal(ov.edges.filter((edge) => edge.from === 'note:overview'
+      && edge.to === 'onboard/architecture-investigation').length, 1);
+    assert.equal(onboardState.onboardOverviewReceiptReady(outDir, generation, [overview]), true);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(outDir, 'onboard-drain-status.json'), 'utf8')).architectureTaskKey,
+      'onboard/architecture-investigation');
+    assert.equal(saves, 2);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('dashboard completion depends on overview receipt, not remaining broad work or its error', () => {
+  assert.equal(dashboardStatusComplete({
+    overviewReady: true, remaining: 3000, injecting: true,
+    injectionState: 'failed', error: 'background learner timed out',
+  }), true);
+  assert.equal(dashboardStatusComplete({
+    overviewReady: false, remaining: 3000,
+    injectionState: 'failed', error: 'overview not receipted',
+  }), false);
 });
 
 test('explicit autoInject false completes a drained queue without claiming injection', async () => {

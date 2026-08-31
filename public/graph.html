@@ -9684,7 +9684,11 @@ function completeOnboardLearning() {
 }
 
 function onboardStatusComplete(s) {
-  if (!s || s.error || s.preparing || s.injecting) return false;
+  if (!s) return false;
+  // A generation-matched durable overview receipt is the only dashboard gate. Broad learning and
+  // its retry state remain observable after the normal dashboard opens.
+  if (s.overviewReady === true) return true;
+  if (s.error || s.preparing || s.injecting) return false;
   if (['pending', 'running', 'backoff', 'failed', 'blocked'].includes(s.injectionState)) return false;
   if (s.injectionState === 'not_needed') {
     return s.done === true && Math.max(0, Number(s.kept) || 0) === 0
@@ -9805,6 +9809,14 @@ function updateOnboardFromStatus(s) {
     && (!s.error || injectionFailure || preparationFailure || s.retryablePending));
   setOnboardProgress(processed, total, kept, injected, inflight);
   renderOnboardCloud({ ...s, total, processed, visualProcessed, kept, inflight, injectedKept: injected });
+  if (s.overviewReady === true) {
+    setOnboardStage('complete');
+    setOnboardInjectVisible(false, false);
+    setOnboardPrepareVisible(false, false);
+    setOnboardStatus('Project overview ready. Opening dashboard while deeper learning continues...');
+    setTimeout(completeOnboardLearning, 200);
+    return true;
+  }
   if (preparationFailure) {
     setOnboardStage('mine');
     setOnboardInjectVisible(false, false);

@@ -239,6 +239,7 @@ function makeCtx(overlay, ws, body) {
     // dedicated /overlay/code-edges/replace
     {
       ov.addCodeEdges(o, [{ from_file: 'c.js', to: 'code:a.js#foo', kind: 'calls' }]);
+      ov.save(TMP_WS, o);
       const body = { file: 'c.js', edges: [
         { from_file: 'c.js', to: 'code:a.js#foo', kind: 'calls' },
         { from_file: 'c.js', to_file: 'a.js', kind: 'imports' },

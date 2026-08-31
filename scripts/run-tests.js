@@ -17,6 +17,21 @@ const FILE_TIMEOUT_MS = {
   'sync-route.test.js': 240_000,
 };
 
+function testEnvironment(source = process.env) {
+  const env = { ...source, ZONOID_SKIP_LIVE: '1' };
+  const localVars = spawnSync('git', ['rev-parse', '--local-env-vars'], {
+    env: source,
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  const names = new Set([
+    'GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR',
+    ...(localVars.stdout || '').split(/\s+/).filter(Boolean),
+  ]);
+  for (const name of names) delete env[name];
+  return env;
+}
+
 const files = fs.readdirSync(TEST_DIR)
   .filter((f) => f.endsWith('.test.js'))
   .sort();
@@ -28,13 +43,14 @@ if (files.length === 0) {
 
 const failures = [];
 const t0 = Date.now();
+const childEnv = testEnvironment();
 
 for (const file of files) {
   const start = Date.now();
   const timeoutMs = FILE_TIMEOUT_MS[file] || TIMEOUT_MS;
   const res = spawnSync(process.execPath, [path.join(TEST_DIR, file)], {
     cwd: ROOT,
-    env: { ...process.env, ZONOID_SKIP_LIVE: '1' },
+    env: childEnv,
     encoding: 'utf8',
     timeout: timeoutMs,
     windowsHide: true,
