@@ -1687,6 +1687,7 @@ function checkCursorHooks(cwd) {
 }
 
 const DASHBOARD_EXTENSION_ID = 'zonoid.zonoid-dashboard';
+const EDITOR_CLI_TIMEOUT_MS = 15000;
 
 function dashboardExtensionVsixPath() {
   return path.join(INSTALL_DIR, 'packages', 'vscode-dashboard', 'zonoid-dashboard-0.1.0.vsix');
@@ -1721,7 +1722,7 @@ function installDashboardExtension(editor = 'cursor', options = {}) {
   }
   const expected = `${DASHBOARD_EXTENSION_ID}@${version}`.toLowerCase();
   const list = spawnImpl(editor, ['--list-extensions', '--show-versions'], {
-    encoding: 'utf8', windowsHide: true,
+    encoding: 'utf8', windowsHide: true, timeout: EDITOR_CLI_TIMEOUT_MS,
   });
   if (list.error || list.status == null) {
     warn(`${editor} CLI unavailable — install the dashboard panel manually:`);
@@ -1736,7 +1737,7 @@ function installDashboardExtension(editor = 'cursor', options = {}) {
 
   fix(`Installing Zonoid dashboard extension in ${editor}...`);
   const result = spawnImpl(editor, ['--install-extension', vsixPath, '--force'], {
-    encoding: 'utf8', windowsHide: true,
+    encoding: 'utf8', windowsHide: true, timeout: EDITOR_CLI_TIMEOUT_MS,
   });
   if (result.error || result.status !== 0) {
     warn(`${editor} dashboard extension install failed — retry manually:`);

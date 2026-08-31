@@ -608,8 +608,9 @@ test('findPendingLearnerQueues discovers default .zonoid/onboard outDir without 
   }
 });
 
-test('findRegisteredLearnerQueues discovers project queues without a daemon-global workspace', () => {
+test('findRegisteredLearnerQueues discovers project queues alongside an empty daemon workspace', () => {
   const hd = freshModule();
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-registered-workspace-'));
   const repos = [
     fs.mkdtempSync(path.join(os.tmpdir(), 'hd-registered-a-')),
     fs.mkdtempSync(path.join(os.tmpdir(), 'hd-registered-b-')),
@@ -630,13 +631,14 @@ test('findRegisteredLearnerQueues discovers project queues without a daemon-glob
       }));
     }
 
-    const queues = hd.findRegisteredLearnerQueues({ registeredWorkspaces: repos });
+    const queues = hd.findRegisteredLearnerQueues({ workspace, registeredWorkspaces: repos });
     assert.equal(queues.length, 2);
     assert.deepEqual(new Set(queues.map((queue) => queue.repo)), new Set(repos));
     assert.deepEqual(new Set(queues.map((queue) => queue.workspaceRoot)), new Set(repos));
     assert.equal(fs.readFileSync(path.join(repos[0], 'src', 'feature-0.js'), 'utf8'), 'exports.feature = 0;\n');
     assert.equal(fs.readFileSync(path.join(repos[1], 'src', 'feature-1.js'), 'utf8'), 'exports.feature = 1;\n');
   } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
     for (const repo of repos) fs.rmSync(repo, { recursive: true, force: true });
   }
 });

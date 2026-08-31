@@ -107,8 +107,10 @@ function fakeVscode() {
     fs.writeFileSync(vsixPath, 'fixture');
     let current = false;
     const invocations = [];
-    const spawnImpl = (editor, args) => {
+    const spawnOptions = [];
+    const spawnImpl = (editor, args, options) => {
       invocations.push([editor, ...args]);
+      spawnOptions.push(options);
       if (args[0] === '--list-extensions') {
         return { status: 0, stdout: current ? `${DASHBOARD_EXTENSION_ID}@0.1.0\n` : '' };
       }
@@ -123,6 +125,8 @@ function fakeVscode() {
     assert(secondInstall.ok && !secondInstall.installed && secondInstall.current);
     assert.equal(invocations.length, firstInvocationCount, 'idempotent check does not launch the editor CLI again');
     assert(invocations.some((args) => args[0] === 'cursor' && args[1] === '--install-extension'));
+    assert(spawnOptions.every((options) => options.timeout === 15000),
+      'editor CLI discovery and install are both bounded');
 
     const codeInstall = installDashboardExtension('code', {
       vsixPath,

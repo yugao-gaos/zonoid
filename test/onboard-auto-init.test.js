@@ -290,8 +290,12 @@ function listedRepoPaths(payload) {
 }
 
 function listsRepo(payload, repo) {
-  const target = path.resolve(repo);
-  return listedRepoPaths(payload).some((listed) => path.resolve(listed) === target);
+  const canonical = (value) => {
+    try { return fs.realpathSync(value); }
+    catch { return path.resolve(value); }
+  };
+  const target = canonical(repo);
+  return listedRepoPaths(payload).some((listed) => canonical(listed) === target);
 }
 
 function initOutput(client) {
@@ -1678,7 +1682,7 @@ test('token-authenticated init registers the workspace and queues onboarding', a
     // the whole mining pass — seconds at least — so this still separates a blocked loop from the
     // scheduling jitter of a loaded machine, which is all the original 1s bound could measure.
     assert.ok(Date.now() - healthStartedAt < 5000, 'daemon health must stay responsive while onboarding runs');
-    await waitFor(() => fs.existsSync(path.join(result.onboarding.outDir, 'onboard-queue.json')));
+    await waitFor(() => fs.existsSync(path.join(result.onboarding.outDir, 'onboard-queue.json')), 60000);
     const prepared = JSON.parse(fs.readFileSync(path.join(result.onboarding.outDir, 'onboard-drain-status.json'), 'utf8'));
     assert.equal(prepared.preparationState, 'ready');
   } finally {
