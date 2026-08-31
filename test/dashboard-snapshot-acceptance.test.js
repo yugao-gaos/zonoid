@@ -33,8 +33,12 @@ function req(port, method, p, body) {
     r.end();
   });
 }
-
-async function waitForPing(port, ms = 10_000) {
+//
+// Probe /health, NOT /ping: daemon.js calls server.listen() before loadState() and /ping is in
+// LOADING_WHITELIST, so /ping answers 200 while every non-whitelisted route still 503s
+// {phase:'loading'}. Waiting on /ping therefore races boot, and the first real request after it
+// can get the 503 body instead of data.
+async function waitForReady(port, ms = 10_000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     try {
@@ -158,7 +162,7 @@ test('dashboard snapshot acceptance projects live state and offline HTML without
   children.push({ child: daemon, exited: false });
 
   try {
-    assert.ok(await waitForPing(port), 'daemon came up on the private port');
+    assert.ok(await waitForReady(port), 'daemon came up on the private port');
     assert.ok(await waitForHealthReady(port), 'daemon finished booting');
 
     const pin = await req(port, 'POST', '/workspace', { path: workspace });

@@ -97,7 +97,7 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
   }
 
   try {
-    // Boot deadline, not a latency budget: this exits the moment /ping answers, so a generous
+    // Boot deadline, not a latency budget: this exits the moment /health reports phase:'ready', so a generous
     // ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated. The
     // old bound was 80 x 50ms = 4s, well under the real cold-start cost of a full daemon on Windows
     // (fresh Node + AV scan of the runtime dir) once the machine is loaded — this is the same 30s
@@ -109,7 +109,7 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
     // came up" — the actual failure, and the one worth reporting.
     let up = false;
     for (let i = 0; i < 600 && !up; i++) {
-      try { const r = await req('GET', '/ping'); if (r.body.ok) { up = true; break; } } catch { /* not up yet */ }
+      try { const r = await req('GET', '/health'); if (r.body && r.body.phase === 'ready') { up = true; break; } } catch { /* not up yet */ }
       await new Promise((r) => setTimeout(r, 50));
     }
     ok('daemon came up', up);

@@ -49,7 +49,7 @@ function req(port, method, p, body) {
   });
 }
 
-// Boot deadline, not a latency budget: waitForPing returns the moment /ping answers, so a generous
+// Boot deadline, not a latency budget: waitForReady returns the moment /health reports phase:'ready', so a generous
 // ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated. 8s was
 // under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the runtime
 // dir), and this suite boots FOUR of them in sequence — the later ones start on an already loaded
@@ -58,7 +58,13 @@ function req(port, method, p, body) {
 // /ping answers 200 while the daemon is still in its `loading` phase, but POST /workspace and the
 // other mutating routes 503 until boot completes. Waiting on /ping alone races boot, and Windows
 // loses that race often enough to matter, so readiness is the /health phase instead.
-async function waitForPing(port, ms = 30000) {
+//
+// Probe /health, NOT /ping: daemon.js calls server.listen() before loadState() and /ping is in
+// LOADING_WHITELIST, so /ping answers 200 while every non-whitelisted route still 503s
+// {phase:'loading'}. Waiting on /ping therefore races boot, and the first real request after it
+// can get the 503 body instead of data.
+
+async function waitForReady(port, ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     try {
@@ -71,7 +77,7 @@ async function waitForPing(port, ms = 30000) {
 }
 
 // A piped stdout/stderr nobody reads is a deadlock, not a discard: once the OS pipe buffer fills,
-// the daemon blocks inside its next console write and never finishes booting, so waitForPing burns
+// the daemon blocks inside its next console write and never finishes booting, so waitForReady burns
 // its whole deadline and every later assertion fails against a daemon that is merely wedged. Drain
 // both streams here (bounded, so a chatty daemon cannot grow the test's heap) and let callers that
 // want the text attach their own extra listener.
@@ -150,7 +156,7 @@ function runHook(script, input, env = {}) {
 
   const child = spawnDaemon(PORT, SANDBOX);
   try {
-    ok('sessionStart: daemon up', await waitForPing(PORT));
+    ok('sessionStart: daemon up', await waitForReady(PORT));
 
     const payload = JSON.stringify({
       conversation_id: 'conv-e2e-001',
@@ -273,7 +279,7 @@ srv.listen(${gatePort}, '127.0.0.1', () => { process.stdout.write('ready\\n'); }
     clChild.stdout.on('data', d => clDaemonOut.push(d.toString()));
     clChild.stderr.on('data', d => clDaemonOut.push(d.toString()));
     try {
-      ok('classify: daemon up', await waitForPing(clPort));
+      ok('classify: daemon up', await waitForReady(clPort));
       await req(clPort, 'POST', '/workspace', { path: clWs, force: true });
       await new Promise(r => setTimeout(r, 500));
 
@@ -331,7 +337,7 @@ srv.listen(${gatePort}, '127.0.0.1', () => { process.stdout.write('ready\\n'); }
 
     const cfChild = spawnDaemon(cfPort, cfSandbox, { ZONOID_HARNESS: 'cursor' });
     try {
-      ok('costflow: daemon up', await waitForPing(cfPort));
+      ok('costflow: daemon up', await waitForReady(cfPort));
       await req(cfPort, 'POST', '/workspace', { path: cfWs, transcript: txPath, force: true });
 
       const cf = await req(cfPort, 'GET', `/costflow?workspace=${encodeURIComponent(cfWs)}`);

@@ -59,15 +59,21 @@ function withWs(p) {
   return p + (p.includes('?') ? '&' : '?') + 'workspace=' + encodeURIComponent(WS);
 }
 async function get(p) { const res = await fetch(`${BASE}${withWs(p)}`); return { status: res.status, body: await res.json() }; }
-// Boot deadline, not a latency budget: waitForPing returns the moment /ping answers, so a
+// Boot deadline, not a latency budget: waitForReady returns the moment /health reports phase:'ready', so a
 // generous ceiling costs nothing on a fast boot and only decides how long a SLOW one is tolerated.
 // 8s was under the real cold-start cost of a full daemon on Windows (fresh Node + AV scan of the
 // runtime dir), so suites failed on "daemon came up" intermittently while the daemon was merely
 // still starting. No test asserts that a daemon FAILS to boot, so nothing depends on a tight bound.
-async function waitForPing(ms = 30000) {
+//
+// Probe /health, NOT /ping: daemon.js calls server.listen() before loadState() and /ping is in
+// LOADING_WHITELIST, so /ping answers 200 while every non-whitelisted route still 503s
+// {phase:'loading'}. Waiting on /ping therefore races boot, and the first real request after it
+// can get the 503 body instead of data.
+
+async function waitForReady(ms = 30000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
-    try { const r = await get('/ping'); if (r.body && r.body.ok) return true; } catch { /* not up */ }
+    try { const r = await get('/health'); if (r.body && r.body.phase === 'ready') return true; } catch { /* not up */ }
     await new Promise((r) => setTimeout(r, 100));
   }
   return false;
@@ -90,7 +96,7 @@ test('hook-style /agent/start (agent_tool_spawn:true, no parent_session_id) regi
     stdio: 'ignore',
   });
   try {
-    assert.ok(await waitForPing(), 'sandboxed daemon came up');
+    assert.ok(await waitForReady(), 'sandboxed daemon came up');
     assert.equal((await post('/workspace', { path: WS })).body.ok, true, 'workspace pinned');
 
     const SID = crypto.randomUUID();      // the (shared) dispatcher session the hook reports
