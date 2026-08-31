@@ -10,6 +10,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const NODE_HOOK = path.join(ROOT, 'hooks', 'orch-posttool-starttask.js');
+const HOOKKIT = path.join(ROOT, 'hooks', 'lib', 'hookkit.js');
 const CODEX_SHELL_HOOK = path.join(ROOT, 'adapters', 'codex', 'hooks', 'post-start-task.sh');
 const TRANSCRIPTS = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-hook-session-'));
 
@@ -33,6 +34,11 @@ function run(command, args, payload, env) {
     child.on('close', (code) => resolve({ code, stdout, stderr }));
     child.stdin.end(JSON.stringify(payload));
   });
+}
+
+function resolveHookSession(payload, env) {
+  const script = 'const k=require(process.argv[1]);k.readInput().then((i)=>process.stdout.write(k.hookSessionId(i)))';
+  return run(process.execPath, ['-e', script, HOOKKIT], payload, env);
 }
 
 function startServer() {
@@ -117,7 +123,7 @@ function desktopSessionMeta(parentSession, childSession, windowId = null) {
 
 (async () => {
   const stub = await startServer();
-  const env = { ORCH_PORT: String(stub.port) };
+  const env = { ORCH_PORT: String(stub.port), CLAUDE_PLUGIN_DATA: TRANSCRIPTS };
   try {
     const assignmentAliases = [
       'mcp__orchestrator-graph__subconscious_assignment',
@@ -206,6 +212,88 @@ function desktopSessionMeta(parentSession, childSession, windowId = null) {
 
     {
       const parentSession = '01a05418-cf8c-7a00-adc2-0b13eee860ca';
+      const childSession = '01a0565b-a22f-7ed3-b404-85a0ce6073dc';
+      const turnId = 'turn-bind-node';
+      const permit = {
+        workspace: '/graph/desktop-turn-binding',
+        session_id: childSession,
+        task_key: 'codex/claim-hook-probe',
+        agent_id: 'worker-probe',
+        expires_at: '2099-01-01T00:00:00.000Z',
+      };
+      const payload = assignmentPayload('subconscious_assignment', {
+        session_id: parentSession,
+        turn_id: turnId,
+        tool_input: {
+          action: 'accept',
+          task_key: 'codex/claim-hook-probe',
+          agent_id: 'worker-probe',
+          session_id: childSession,
+        },
+        tool_response: { ok: true, execution_permit: permit },
+      });
+      const desktopEnv = { ...env, CODEX_THREAD_ID: parentSession, CODEX_SESSION_ID: parentSession };
+      const before = stub.requests.length;
+      assert.equal((await run(process.execPath, [NODE_HOOK], payload, desktopEnv)).code, 0);
+      assert.equal(stub.requests.length, before, 'explicit child accept must not rebound the permit to the documented parent session');
+
+      const nextHook = { session_id: parentSession, turn_id: turnId, tool_name: 'Write', tool_input: {} };
+      const resolved = await resolveHookSession(nextHook, desktopEnv);
+      assert.equal(resolved.code, 0);
+      assert.equal(resolved.stdout, childSession, 'validated parent+turn binding must select the child for subsequent hooks');
+
+      for (const [label, changed] of [
+        ['different turn', { turn_id: 'turn-bind-other' }],
+        ['different parent', { session_id: 'different-parent' }],
+      ]) {
+        const result = await resolveHookSession({ ...nextHook, ...changed }, desktopEnv);
+        assert.equal(result.stdout, parentSession, `${label} must not borrow a child turn binding`);
+      }
+    }
+
+    {
+      const parentSession = 'turn-negative-parent';
+      const childSession = 'turn-negative-child';
+      const basePermit = {
+        workspace: '/graph/turn-negative',
+        session_id: childSession,
+        task_key: 'codex/claim-hook-probe',
+        agent_id: 'worker-probe',
+      };
+      const desktopEnv = { ...env, CODEX_THREAD_ID: parentSession, CODEX_SESSION_ID: parentSession };
+      const cases = [
+        ['failed accept', { isError: true, content: [{ type: 'text', text: JSON.stringify({ ok: true, execution_permit: basePermit }) }] }],
+        ['advisory-only accept', {
+          execution_permit: basePermit,
+          git_claim: { ok: false, advisory: true, pushed: false, conflict: false, error: 'advisory only' },
+        }],
+        ['mismatched permit task', { ok: true, execution_permit: { ...basePermit, task_key: 'codex/other-task' } }],
+        ['mismatched permit agent', { ok: true, execution_permit: { ...basePermit, agent_id: 'other-agent' } }],
+      ];
+      for (let index = 0; index < cases.length; index++) {
+        const [label, toolResponse] = cases[index];
+        const turnId = `turn-negative-${index}`;
+        const before = stub.requests.length;
+        const payload = assignmentPayload('subconscious_assignment', {
+          session_id: parentSession,
+          turn_id: turnId,
+          tool_input: {
+            action: 'accept',
+            task_key: 'codex/claim-hook-probe',
+            agent_id: 'worker-probe',
+            session_id: childSession,
+          },
+          tool_response: toolResponse,
+        });
+        assert.equal((await run(process.execPath, [NODE_HOOK], payload, desktopEnv)).code, 0, label);
+        assert.equal(stub.requests.length, before, `${label} must not rebound the claim`);
+        const resolved = await resolveHookSession({ session_id: parentSession, turn_id: turnId, tool_input: {} }, desktopEnv);
+        assert.equal(resolved.stdout, parentSession, `${label} must not persist a child turn binding`);
+      }
+    }
+
+    {
+      const parentSession = '01a05418-cf8c-7a00-adc2-0b13eee860ca';
       const childSession = '01a05606-303e-7342-af86-80d33d596727';
       const permit = {
         workspace: '/graph/desktop-no-transcript',
@@ -228,14 +316,7 @@ function desktopSessionMeta(parentSession, childSession, windowId = null) {
 
       const before = stub.requests.length;
       assert.equal((await run(process.execPath, [NODE_HOOK], payload, desktopEnv)).code, 0);
-      assert.equal(stub.requests.length, before + 1, 'host-level child UUID should bind without transcript metadata');
-      assert.deepEqual(lastRequest(stub).body, {
-        task_key: 'codex/claim-hook-probe',
-        session_id: childSession,
-        agent_id: 'worker-probe',
-        workspace: '/graph/desktop-no-transcript',
-        expected_session_id: childSession,
-      });
+      assert.equal(stub.requests.length, before, 'undocumented host-level agent UUID must not bind without a turn_id');
 
       const untrustedCases = [
         ['non-UUID top-level logical agent', { agent_id: 'logical-worker' }],
@@ -548,7 +629,7 @@ function desktopSessionMeta(parentSession, childSession, windowId = null) {
       };
       const noTranscriptPayload = assignmentPayload('subconscious_assignment', {
         session_id: shellTransportParent,
-        agent_id: shellTransportChild,
+        turn_id: 'turn-bind-shell',
         tool_input: {
           action: 'accept',
           task_key: 'codex/claim-hook-probe',
@@ -563,20 +644,19 @@ function desktopSessionMeta(parentSession, childSession, windowId = null) {
         CODEX_SESSION_ID: shellTransportParent,
       };
       assert.equal((await run('bash', [CODEX_SHELL_HOOK], noTranscriptPayload, noTranscriptEnv)).code, 0);
-      assert.equal(stub.requests.length, noTranscriptBefore + 1, 'Codex shell relay should bind a host-level child UUID without transcript metadata');
-      assert.deepEqual(lastRequest(stub).body, {
-        task_key: 'codex/claim-hook-probe',
-        session_id: shellTransportChild,
-        agent_id: 'worker-probe',
-        workspace: '/graph/shell-desktop-no-transcript',
-        expected_session_id: shellTransportChild,
-      });
+      assert.equal(stub.requests.length, noTranscriptBefore, 'Codex shell relay must persist the child turn binding before the rebound no-op');
+      const shellBound = await resolveHookSession({
+        session_id: shellTransportParent,
+        turn_id: 'turn-bind-shell',
+        tool_name: 'Bash',
+        tool_input: {},
+      }, noTranscriptEnv);
+      assert.equal(shellBound.stdout, shellTransportChild, 'shell adapter binding must resolve the child on the next documented hook');
 
       const noAgentBefore = stub.requests.length;
-      const noAgentPayload = { ...noTranscriptPayload };
-      delete noAgentPayload.agent_id;
+      const noAgentPayload = { ...noTranscriptPayload, turn_id: 'turn-bind-shell-no-agent' };
       assert.equal((await run('bash', [CODEX_SHELL_HOOK], noAgentPayload, noTranscriptEnv)).code, 0);
-      assert.equal(stub.requests.length, noAgentBefore, 'Codex shell relay must not rebind an explicit child permit to the parent without the host UUID');
+      assert.equal(stub.requests.length, noAgentBefore, 'documented parent+turn binding must not depend on an undocumented host agent field');
 
       const missingAgentBefore = stub.requests.length;
       const missingAgentPayload = { ...transcriptPayload };
