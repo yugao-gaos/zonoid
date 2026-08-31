@@ -56,8 +56,11 @@ const writeTask = (id, extra = {}) =>
   fs.writeFileSync(path.join(TASKS_DIR, `${id}.json`), JSON.stringify({ id: String(id), subject: `task ${id}`, status: 'pending', blockedBy: [], ...extra }, null, 2));
 
 function spawnDaemon() {
+  const env = { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) };
+  delete env.ORCH_DATA;
+  delete env.ZONOID_DATA;
   return spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
+    env,
     stdio: 'ignore',
   });
 }

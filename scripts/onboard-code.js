@@ -29,10 +29,10 @@
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { ingestRepo } = require('../lib/code-extract/ingest');
-const { syncRepo, httpDaemonClient } = require('../lib/code-extract/sync');
+const { syncRepo, repairRepo, httpDaemonClient } = require('../lib/code-extract/sync');
 
 function parseArgs(argv) {
-  const out = { daemon: 'http://localhost:8787', sync: false, async: false, thin: false, json: false };
+  const out = { daemon: 'http://localhost:8787', sync: false, repair: false, async: false, thin: false, json: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--repo') out.repo = argv[++i];
@@ -40,6 +40,8 @@ function parseArgs(argv) {
     else if (a === '--daemon') out.daemon = argv[++i];
     else if (a === '--expected-head') out.expectedHead = argv[++i];
     else if (a === '--sync') out.sync = true;
+    else if (a === '--repair') out.repair = true;
+    else if (a === '--repair-batch') out.repairBatchSize = argv[++i];
     else if (a === '--async') out.async = true;
     else if (a === '--thin') out.thin = true;
     else if (a === '--json') out.json = true;
@@ -48,12 +50,14 @@ function parseArgs(argv) {
   return out;
 }
 
-const USAGE = `Usage: node scripts/onboard-code.js --repo <abs> --workspace <ws> [--daemon <url>] [--sync] [--async] [--thin]
+const USAGE = `Usage: node scripts/onboard-code.js --repo <abs> --workspace <ws> [--daemon <url>] [--sync|--repair] [--async] [--thin]
 
   --repo <abs>      absolute path of the git repo to index (required)
   --workspace <ws>  workspace the code_nodes belong to (required)
   --daemon <url>    daemon base URL (default http://localhost:8787)
   --sync            incremental git-diff sync (default is a full onboard)
+  --repair          bounded current-HEAD repair: compare persisted code edges per file and rewrite only the files that differ
+  --repair-batch    max files per repair batch (default 25)
   --async           boot tree-sitter so non-JS/TS files parse
   --thin            omit source-body summaries during a full onboard
   --json            emit one machine-readable result object
@@ -89,6 +93,20 @@ async function fullOnboard({ repoAbs, workspace, daemon, async, thin = false, ex
   return { mode: 'full', repo: result.repo, symbols: result.symbols, created: result.created, edges: result.edges, edges_added: result.edges_added, batches: result.batches, stats: result.stats, head, watermark_recorded, watermark_error };
 }
 
+async function repairCurrentHead({ repoAbs, workspace, daemon, async, expectedHead = null, repairBatchSize = 25 }, deps = {}) {
+  const repair = deps.repairRepo || repairRepo;
+  const result = await repair({
+    repo: repoAbs,
+    workspace,
+    daemon,
+    async,
+    expectedHead,
+  }, {
+    repairBatchSize,
+  });
+  return result;
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) { console.log(USAGE); process.exit(0); }
@@ -99,6 +117,20 @@ async function main() {
   }
   const repoAbs = path.resolve(args.repo);
   const { workspace, daemon } = args;
+
+  if (args.repair) {
+    const repair = await repairCurrentHead({
+      repoAbs,
+      workspace,
+      daemon,
+      async: args.async,
+      expectedHead: args.expectedHead,
+      repairBatchSize: args.repairBatchSize,
+    });
+    if (args.json) process.stdout.write(`${JSON.stringify(repair)}\n`);
+    else printRepairSummary(repair, { workspace, daemon });
+    return;
+  }
 
   if (args.sync) {
     const sync = await syncRepo({
@@ -123,6 +155,21 @@ async function main() {
   const full = await fullOnboard({ repoAbs, workspace, daemon, async: args.async, thin: args.thin, expectedHead: args.expectedHead });
   if (args.json) process.stdout.write(`${JSON.stringify(full)}\n`);
   else printSummary(full, { workspace, daemon });
+}
+
+function printRepairSummary(r, { workspace, daemon }) {
+  console.log('');
+  console.log(`  onboard-code: REPAIR`);
+  console.log(`  repo:       ${r.repo}`);
+  console.log(`  workspace:  ${workspace}`);
+  console.log(`  daemon:     ${daemon}`);
+  if (r.head) console.log(`  HEAD:       ${r.head}  (recorded as lastIndexedCommit)`);
+  console.log(`  compared:   ${r.compared_files} file(s)`);
+  console.log(`  changed:    ${r.changed_files.length} file(s)`);
+  console.log(`  replaced:   ${r.files_replaced} file(s) -> ${r.edges_replaced} edge(s) rewritten`);
+  if (r.missing_files && r.missing_files.length) console.log(`  missing:    ${r.missing_files.length} file(s)`);
+  if (r.mismatched_files && r.mismatched_files.length) console.log(`  mismatched: ${r.mismatched_files.length} file(s)`);
+  console.log('');
 }
 
 function printSummary(r, { workspace, daemon }) {
@@ -161,4 +208,4 @@ if (require.main === module) {
   main().catch((e) => { console.error(`[onboard-code] ${e && e.stack ? e.stack : e}`); process.exit(1); });
 }
 
-module.exports = { parseArgs, headCommit, fullOnboard, printSummary, main };
+module.exports = { parseArgs, headCommit, fullOnboard, repairCurrentHead, printRepairSummary, printSummary, main };

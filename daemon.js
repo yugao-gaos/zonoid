@@ -3138,7 +3138,23 @@ function superviseCodexWakeDeliveryForRegisteredWorkspaces() {
 
 // Paths served even while the daemon is still in the loading phase.
 // Writes rely on 503 + client retry + op_id idempotency — no queueing needed.
-const LOADING_WHITELIST = new Set(['/health', '/version', '/ping', '/', '/graph']);
+const LOADING_WHITELIST = new Set([
+  '/health',
+  '/version',
+  '/ping',
+  '/',
+  '/graph',
+  '/workspace',
+  '/workspace/add-repo',
+  '/sync',
+  '/peek',
+  '/mark-root',
+  '/events',
+  '/classify',
+  '/overlay/status',
+  '/git/worktree',
+  '/workspaces',
+]);
 
 const handler = async (req, res) => {
   const u = new URL(req.url, `http://localhost:${PORT}`);

@@ -144,14 +144,12 @@ test('dashboard snapshot acceptance projects live state and offline HTML without
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-dashboard-snapshot-workspace-'));
   const port = 19840 + Math.floor(Math.random() * 50);
   const children = [];
+  const daemonEnv = { ...process.env, CLAUDE_PLUGIN_DATA: sandbox, ORCH_PORT: String(port), ORCH_TOKEN: '' };
+  delete daemonEnv.ORCH_DATA;
+  delete daemonEnv.ZONOID_DATA;
 
   const daemon = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
-    env: {
-      ...process.env,
-      CLAUDE_PLUGIN_DATA: sandbox,
-      ORCH_PORT: String(port),
-      ORCH_TOKEN: '',
-    },
+    env: daemonEnv,
     stdio: 'ignore',
     windowsHide: true,
   });
@@ -190,14 +188,17 @@ test('dashboard snapshot acceptance projects live state and offline HTML without
     assert.equal(sync.status, 200);
     assert.equal(sync.body.ok, true);
 
-    const mcp = startMcp(path.join(__dirname, '..', 'mcp-graph.js'), {
+    const mcpEnv = {
       ...process.env,
       CLAUDE_PLUGIN_DATA: sandbox,
       ORCH_PORT: String(port),
       ORCH_GRAPH_REPO: workspace,
       ORCH_TARGET_REPO: workspace,
       ORCH_CLIENT: 'codex',
-    }, children);
+    };
+    delete mcpEnv.ORCH_DATA;
+    delete mcpEnv.ZONOID_DATA;
+    const mcp = startMcp(path.join(__dirname, '..', 'mcp-graph.js'), mcpEnv, children);
 
     try {
       const initialized = await mcp.request('initialize', {

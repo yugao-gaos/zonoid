@@ -76,6 +76,12 @@ function hookPath(...prefixDirs) {
 function hookEnv(stubDirs, extraEnv = {}) {
   const dirs = Array.isArray(stubDirs) ? stubDirs : (stubDirs ? [stubDirs] : []);
   const env = { ...process.env, PATH: hookPath(...dirs), ...extraEnv };
+  if (Object.prototype.hasOwnProperty.call(extraEnv, 'CLAUDE_PLUGIN_DATA')
+      || Object.prototype.hasOwnProperty.call(extraEnv, 'ORCH_DATA')
+      || Object.prototype.hasOwnProperty.call(extraEnv, 'ZONOID_DATA')) {
+    if (!Object.prototype.hasOwnProperty.call(extraEnv, 'ORCH_DATA')) delete env.ORCH_DATA;
+    if (!Object.prototype.hasOwnProperty.call(extraEnv, 'ZONOID_DATA')) delete env.ZONOID_DATA;
+  }
   return env;
 }
 

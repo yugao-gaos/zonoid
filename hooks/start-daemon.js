@@ -11,6 +11,13 @@ const codexSessionBridge = require('../lib/codex-session-bridge');
 const { hasHeadlessDrainAncestor } = require('../lib/headless-ancestor');
 const daemonHandoff = require('../lib/daemon-handoff');
 
+function resolveWorkspace(input) {
+  const ws = repoRoot(input.cwd || process.cwd());
+  if (ws) return ws;
+  if (Array.isArray(input.workspace_roots) && input.workspace_roots[0]) return input.workspace_roots[0];
+  return null;
+}
+
 (async () => {
   if (hasHeadlessDrainAncestor()) process.exit(0);
   if (fs.existsSync(path.join(__dirname, '..', '.orch-off'))) process.exit(0);
@@ -21,7 +28,7 @@ const daemonHandoff = require('../lib/daemon-handoff');
   // Resolve the workspace as the repo CONTAINING cwd (note:note-mqj0wcabtxh): the old
   // ~/.claude/orchestrator/workspace pointer and the raw-cwd-as-workspace fallback are gone.
   // repoRoot returns null when cwd is not inside a repo — we then skip POST /workspace.
-  const cwd = repoRoot(input.cwd || process.cwd());
+  const cwd = resolveWorkspace(input);
 
   const port = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
   const daemon = path.join(__dirname, '..', 'daemon.js');
